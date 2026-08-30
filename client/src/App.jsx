@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import { MessageSquare, Calculator, PackageCheck, Bike, Menu } from 'lucide-react';
 import Navbar from './components/Navbar';
 import ChatInbox from './components/ChatInbox';
 import KanbanPipeline from './components/KanbanPipeline';
@@ -11,6 +12,7 @@ import OrdersView from './components/OrdersView';
 import CustomersView from './components/CustomersView';
 import BranchesView from './components/BranchesView';
 import DriversView from './components/DriversView';
+import UsersView from './components/UsersView';
 import POSView from './components/POSView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
@@ -24,6 +26,11 @@ export default function App() {
   const [selectedLead, setSelectedLead] = useState(null);
   const [calls, setCalls] = useState([]);
   const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
+
+  // Users & RBAC Session State
+  const [allUsers, setAllUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   
   // WhatsApp Baileys State
   const [whatsappStatus, setWhatsappStatus] = useState('disconnected');
@@ -79,6 +86,32 @@ export default function App() {
       .catch(err => console.error('Error cargando settings:', err));
   };
 
+  const loadUsers = () => {
+    fetch('/api/users')
+      .then(res => res.json())
+      .then(usersList => {
+        if (Array.isArray(usersList)) {
+          setAllUsers(usersList);
+          const savedUserJson = localStorage.getItem('wagent_user');
+          if (savedUserJson) {
+            try {
+              const savedUser = JSON.parse(savedUserJson);
+              const found = usersList.find(u => u.id === savedUser.id);
+              if (found) {
+                setCurrentUser(found);
+                return;
+              }
+            } catch (e) {}
+          }
+          if (usersList.length > 0 && !currentUser) {
+            const adminUser = usersList.find(u => u.role === 'admin') || usersList[0];
+            setCurrentUser(adminUser);
+          }
+        }
+      })
+      .catch(err => console.error('Error cargando usuarios:', err));
+  };
+
   const handleToggleGlobalAi = async () => {
     try {
       const nextState = !globalAiEnabled;
@@ -98,6 +131,7 @@ export default function App() {
     loadCalls();
     loadWhatsAppStatus();
     loadSettings();
+    loadUsers();
 
     socket.on('connect', () => {
       console.log('Conectado a Socket.IO');
@@ -107,6 +141,22 @@ export default function App() {
       if (newSettings && typeof newSettings.autoReplyEnabled === 'boolean') {
         setGlobalAiEnabled(newSettings.autoReplyEnabled);
       }
+    });
+
+    socket.on('user:new', (newUser) => {
+      setAllUsers(prev => [newUser, ...prev.filter(u => u.id !== newUser.id)]);
+    });
+
+    socket.on('user:update', (updated) => {
+      setAllUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+      if (currentUser && currentUser.id === updated.id) {
+        setCurrentUser(updated);
+        localStorage.setItem('wagent_user', JSON.stringify(updated));
+      }
+    });
+
+    socket.on('user:delete', (deletedId) => {
+      setAllUsers(prev => prev.filter(u => u.id !== deletedId));
     });
 
     socket.on('whatsapp:status', (data) => {
@@ -317,6 +367,14 @@ export default function App() {
         globalAiEnabled={globalAiEnabled}
         onToggleGlobalAi={handleToggleGlobalAi}
         unreadCount={totalUnreadCount}
+        currentUser={currentUser}
+        allUsers={allUsers}
+        onSwitchUser={(user) => {
+          setCurrentUser(user);
+          localStorage.setItem('wagent_user', JSON.stringify(user));
+        }}
+        isMobileDrawerOpen={isMobileDrawerOpen}
+        setIsMobileDrawerOpen={setIsMobileDrawerOpen}
       />
 
       {/* Main View Area */}
@@ -397,7 +455,69 @@ export default function App() {
         {currentTab === 'analytics' && (
           <AnalyticsDashboard />
         )}
+
+        {currentTab === 'users' && (
+          <UsersView
+            socket={socket}
+            currentUser={currentUser}
+            onSwitchUser={(user) => {
+              setCurrentUser(user);
+              localStorage.setItem('wagent_user', JSON.stringify(user));
+            }}
+          />
+        )}
       </main>
+
+      {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet screens < lg) */}
+      <div className="lg:hidden h-14 bg-[#111b21]/95 border-t border-slate-800 flex items-center justify-around px-2 z-30 sticky bottom-0 backdrop-blur-md">
+        <button
+          onClick={() => setCurrentTab('inbox')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            currentTab === 'inbox' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <MessageSquare size={18} />
+          <span className="text-[10px]">Chats</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentTab('pos')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            currentTab === 'pos' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Calculator size={18} />
+          <span className="text-[10px]">POS</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentTab('orders')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            currentTab === 'orders' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <PackageCheck size={18} />
+          <span className="text-[10px]">Pedidos</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentTab('drivers')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            currentTab === 'drivers' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Bike size={18} />
+          <span className="text-[10px]">Reparto</span>
+        </button>
+
+        <button
+          onClick={() => setIsMobileDrawerOpen(true)}
+          className="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl text-slate-400 hover:text-white transition"
+        >
+          <Menu size={18} />
+          <span className="text-[10px]">Menú</span>
+        </button>
+      </div>
 
       {/* QR Code Modal */}
       <QRModal

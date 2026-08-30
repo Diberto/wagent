@@ -41,12 +41,17 @@
       "status": "preparing",
       "notes": "",
       "createdAt": "2026-08-30T20:28:21.325Z",
-      "updatedAt": "2026-08-30T20:32:50.661Z",
+      "updatedAt": "2026-08-30T20:41:40.702Z",
       "branchId": "br-1",
       "branchName": "Sucursal Cerro de las Rosas",
-      "branchPhone": "+54 9 351 626-2475",
+      "branchPhone": "+54 9 351 347-2864",
       "branchStatus": "derived",
-      "branchNotifiedAt": "2026-08-30T20:32:50.661Z"
+      "branchNotifiedAt": "2026-08-30T20:41:40.702Z",
+      "driverId": "drv-1",
+      "driverName": "Juan",
+      "driverPhone": "+5493513472864",
+      "driverAssignedAt": "2026-08-30T20:40:59.410Z",
+      "driverStatus": "assigned"
     },
     {
       "id": "ORD-6636",
@@ -287,13 +292,13 @@
         "Frecuente"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 1,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:32:51.000Z",
+      "updatedAt": "2026-08-30T20:42:16.000Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalze",
       "phone": "+153051277086768",
-      "pushName": "Juan Gonzalze",
+      "pushName": "Don Juan",
       "address": "locelso 7100, Juan Gonzalze",
       "totalOrders": 4,
       "totalSpent": 159996,
@@ -312,8 +317,8 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡Hola Juan Gonzalze! 🥩 Tu pedido *#ORD-8163* ha sido asignado a nuestra *Sucursal Cerro de las Rosas* (Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba). El equipo de corte ya fue notificado y está preparando todo para vos. 🙌",
-      "lastMessageAt": "2026-08-30T20:32:51.000Z",
+      "lastMessage": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "lastMessageAt": "2026-08-30T20:42:16.000Z",
       "notes": "Dirección: locelso 7100, Juan Gonzalze | Pedido #ORD-8163",
       "altJids": [
         "153051277086768@s.whatsapp.net"
@@ -330,13 +335,13 @@
       "aiEnabled": true,
       "unreadCount": 0,
       "createdAt": "2026-08-30T19:33:29.496Z",
-      "updatedAt": "2026-08-30T19:33:31.000Z",
+      "updatedAt": "2026-08-30T20:41:40.000Z",
       "jid": "5493513472864@s.whatsapp.net",
       "name": "Don Juan",
       "phone": "+54 9 351 347-2864",
       "pushName": "Don Juan",
-      "lastMessage": "🎤 [Nota de voz]",
-      "lastMessageAt": "2026-08-30T19:33:31.000Z",
+      "lastMessage": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-8163*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* Juan Gonzalze (📞 +153051277086768)\n📍 *Destino / Entrega:* locelso 7100, Juan Gonzalze\n\n📋 *CORTES SOLICITADOS:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo / Transferencia\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
+      "lastMessageAt": "2026-08-30T20:41:40.000Z",
       "altJids": []
     }
   ],
@@ -3177,6 +3182,70 @@
       "content": "¡Hola Juan Gonzalze! 🥩 Tu pedido *#ORD-8163* ha sido asignado a nuestra *Sucursal Cerro de las Rosas* (Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba). El equipo de corte ya fue notificado y está preparando todo para vos. 🙌",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB0F8700A6740E1BD2B80",
+      "timestamp": "2026-08-30T20:40:59.000Z",
+      "status": "sent",
+      "chatId": "5493513472864@s.whatsapp.net",
+      "sender": "agent",
+      "type": "text",
+      "content": "🥩🛵 *¡NUEVO PEDIDO ASIGNADO PARA REPARTO!* #*ORD-8163*\n\n👤 *Cliente:* Juan Gonzalze\n📞 *Teléfono:* +153051277086768\n📍 *Dirección de Entrega:* locelso 7100, Juan Gonzalze\n🗺️ *Google Maps:* https://www.google.com/maps/search/?api=1&query=locelso%207100%2C%20Juan%20Gonzalze%2C%20Cordoba%2C%20Argentina\n\n📋 *DETALLE DEL PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Monto a Cobrar:* $39.999 (Efectivo / Transferencia)\n\n👉 *RESPONDÉ CON UN COMANDO PARA ACTUALIZAR EL ESTADO:*\n1️⃣ *1* o *EN CAMINO* ➔ Iniciar viaje (avisa al cliente)\n2️⃣ *2* o *ENTREGADO* ➔ Confirmar entrega y cobro de $39.999\n3️⃣ *3* o *INCIDENCIA* ➔ Reportar problema (cliente no está, etc.)\n\n¡Buen viaje y gracias por tu trabajo en República de la Carne! 🥩🛵",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0523420FA501DBE5057",
+      "timestamp": "2026-08-30T20:40:59.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalze! 🥩🛵 Tu pedido *#ORD-8163* ha sido asignado a nuestro repartidor *Juan* (Moto Honda CG 150). En breve inicia su viaje a tu domicilio.",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0A0D5BDBCD89B9F9296",
+      "timestamp": "2026-08-30T20:41:40.000Z",
+      "status": "sent",
+      "chatId": "5493513472864@s.whatsapp.net",
+      "sender": "agent",
+      "type": "text",
+      "content": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-8163*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* Juan Gonzalze (📞 +153051277086768)\n📍 *Destino / Entrega:* locelso 7100, Juan Gonzalze\n\n📋 *CORTES SOLICITADOS:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo / Transferencia\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "2AEEEB0A8A655913F798",
+      "timestamp": "2026-08-30T20:42:12.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "1",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788122536403-oj8sgt",
+      "timestamp": "2026-08-30T20:42:16.402Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB05593E603B1872D2074",
+      "timestamp": "2026-08-30T20:42:16.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [
@@ -3314,8 +3383,8 @@
       "id": "br-1",
       "name": "Sucursal Cerro de las Rosas",
       "address": "Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba",
-      "phone": "+54 9 351 626-2475",
-      "phoneNormalized": "+5493516262475",
+      "phone": "+54 9 351 347-2864",
+      "phoneNormalized": "5493513472864",
       "managerName": "Roberto Gomez",
       "email": "cerro@republicadelacarne.com",
       "hours": "Lun a Sáb 8:00 a 20:30 | Dom 9:00 a 14:00",
@@ -3326,7 +3395,45 @@
         "Argüello"
       ],
       "isActive": true,
-      "createdAt": "2026-08-30T17:00:00.000Z"
+      "createdAt": "2026-08-30T17:00:00.000Z",
+      "orders": [
+        {
+          "id": "ORD-8163",
+          "jid": "153051277086768@lid",
+          "phone": "+153051277086768",
+          "customerName": "Juan Gonzalze",
+          "address": "locelso 7100, Juan Gonzalze",
+          "items": [
+            "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+          ],
+          "totalAmount": 39999,
+          "paymentMethod": "Efectivo / Transferencia",
+          "status": "preparing",
+          "notes": "",
+          "createdAt": "2026-08-30T20:28:21.325Z",
+          "updatedAt": "2026-08-30T20:40:59.410Z",
+          "branchId": "br-1",
+          "branchName": "Sucursal Cerro de las Rosas",
+          "branchPhone": "+54 9 351 626-2475",
+          "branchStatus": "derived",
+          "branchNotifiedAt": "2026-08-30T20:32:50.661Z",
+          "driverId": "drv-1",
+          "driverName": "Juan",
+          "driverPhone": "+5493513472864",
+          "driverAssignedAt": "2026-08-30T20:40:59.410Z",
+          "driverStatus": "assigned"
+        }
+      ],
+      "assignedCustomers": [],
+      "metrics": {
+        "totalOrders": 1,
+        "pendingOrders": 1,
+        "inTransitOrders": 0,
+        "deliveredOrders": 0,
+        "cancelledOrders": 0,
+        "totalSales": 39999
+      },
+      "updatedAt": "2026-08-30T20:41:28.963Z"
     },
     {
       "id": "br-2",
@@ -3379,6 +3486,38 @@
       ],
       "isActive": true,
       "createdAt": "2026-08-30T17:00:00.000Z"
+    }
+  ],
+  "drivers": [
+    {
+      "id": "drv-1",
+      "name": "Juan",
+      "phone": "+5493513472864",
+      "vehicle": "Moto Honda CG 150",
+      "plate": "A123BCD",
+      "branchId": "suc-cerro",
+      "status": "on_delivery",
+      "activeDeliveriesCount": 1,
+      "totalDeliveredCount": 142,
+      "cashCollectedBalance": 0,
+      "rating": 4.9,
+      "createdAt": "2026-08-30T20:39:32.099Z",
+      "updatedAt": "2026-08-30T20:40:59.410Z"
+    },
+    {
+      "id": "drv-2",
+      "name": "Lautaro Gómez",
+      "phone": "+5493518765432",
+      "vehicle": "Moto Yamaha YBR 125",
+      "plate": "A987ZYX",
+      "branchId": "suc-urca",
+      "status": "available",
+      "activeDeliveriesCount": 0,
+      "totalDeliveredCount": 98,
+      "cashCollectedBalance": 0,
+      "rating": 4.8,
+      "createdAt": "2026-08-30T20:39:32.099Z",
+      "updatedAt": "2026-08-30T20:39:32.099Z"
     }
   ]
 }

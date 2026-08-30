@@ -1136,6 +1136,277 @@ class DatabaseService {
       (p.id && p.id.toLowerCase() === code)
     ) || null;
   }
+
+  // --- User Profiles & Role-Based Access Control (RBAC) ---
+  getRoles() {
+    const db = this.readDb();
+    if (!db.roles || db.roles.length === 0) {
+      db.roles = [
+        {
+          id: 'admin',
+          name: 'Administrador General',
+          description: 'Control total de la plataforma, ajustes de IA, usuarios y finanzas',
+          tabs: ['inbox', 'pos', 'orders', 'drivers', 'customers', 'branches', 'catalog', 'kanban', 'callcenter', 'knowledge', 'analytics', 'users', 'settings'],
+          permissions: {
+            canEditSettings: true,
+            canManageUsers: true,
+            canDeleteOrders: true,
+            canManageBranches: true,
+            canManageDrivers: true,
+            canManageProducts: true,
+            canViewFinancials: true,
+            canToggleAi: true
+          }
+        },
+        {
+          id: 'gerencia',
+          name: 'Gerencia & Dirección',
+          description: 'Supervisión de métricas, pedidos, clientes, sucursales y reportes',
+          tabs: ['analytics', 'orders', 'customers', 'branches', 'drivers', 'pos', 'catalog', 'inbox'],
+          permissions: {
+            canEditSettings: false,
+            canManageUsers: false,
+            canDeleteOrders: false,
+            canManageBranches: true,
+            canManageDrivers: true,
+            canManageProducts: true,
+            canViewFinancials: true,
+            canToggleAi: false
+          }
+        },
+        {
+          id: 'encargado',
+          name: 'Encargado de Sucursal',
+          description: 'Gestión de pedidos de su sede, POS mostrador, clientes y asignación de repartidores',
+          tabs: ['pos', 'orders', 'drivers', 'customers', 'catalog', 'inbox'],
+          permissions: {
+            canEditSettings: false,
+            canManageUsers: false,
+            canDeleteOrders: false,
+            canManageBranches: false,
+            canManageDrivers: true,
+            canManageProducts: false,
+            canViewFinancials: false,
+            canToggleAi: false
+          }
+        },
+        {
+          id: 'cajero',
+          name: 'Cajero / Operador de Ventas',
+          description: 'Punto de venta mostrador, cobros con Mercado Pago / Efectivo y pedidos rápidos',
+          tabs: ['pos', 'orders', 'customers', 'catalog'],
+          permissions: {
+            canEditSettings: false,
+            canManageUsers: false,
+            canDeleteOrders: false,
+            canManageBranches: false,
+            canManageDrivers: false,
+            canManageProducts: false,
+            canViewFinancials: false,
+            canToggleAi: false
+          }
+        },
+        {
+          id: 'repartidor',
+          name: 'Repartidor / Cadete',
+          description: 'Hojas de ruta de entregas, estado de viaje y saldo de efectivo en mano',
+          tabs: ['drivers', 'orders'],
+          permissions: {
+            canEditSettings: false,
+            canManageUsers: false,
+            canDeleteOrders: false,
+            canManageBranches: false,
+            canManageDrivers: false,
+            canManageProducts: false,
+            canViewFinancials: false,
+            canToggleAi: false
+          }
+        }
+      ];
+      this.writeDb(db);
+    }
+    return db.roles;
+  }
+
+  getUsers() {
+    const db = this.readDb();
+    if (!db.users || db.users.length === 0) {
+      const roles = this.getRoles();
+      db.users = [
+        {
+          id: 'usr-admin',
+          name: 'Carlos Rodríguez',
+          username: 'admin',
+          email: 'admin@republicadelacarne.com',
+          role: 'admin',
+          branchId: null,
+          driverId: null,
+          pin: '1234',
+          avatar: 'CR',
+          status: 'active',
+          permissions: roles.find(r => r.id === 'admin')?.permissions || {},
+          tabs: roles.find(r => r.id === 'admin')?.tabs || [],
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'usr-gerencia',
+          name: 'Juan Ignacio Rossi',
+          username: 'gerencia',
+          email: 'gerencia@republicadelacarne.com',
+          role: 'gerencia',
+          branchId: null,
+          driverId: null,
+          pin: '5555',
+          avatar: 'JR',
+          status: 'active',
+          permissions: roles.find(r => r.id === 'gerencia')?.permissions || {},
+          tabs: roles.find(r => r.id === 'gerencia')?.tabs || [],
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'usr-encargado',
+          name: 'Walter Giménez',
+          username: 'encargado.cerro',
+          email: 'cerro@republicadelacarne.com',
+          role: 'encargado',
+          branchId: 'suc-cerro',
+          driverId: null,
+          pin: '2222',
+          avatar: 'WG',
+          status: 'active',
+          permissions: roles.find(r => r.id === 'encargado')?.permissions || {},
+          tabs: roles.find(r => r.id === 'encargado')?.tabs || [],
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'usr-cajero',
+          name: 'Sofía Peralta',
+          username: 'caja.urca',
+          email: 'caja.urca@republicadelacarne.com',
+          role: 'cajero',
+          branchId: 'suc-urca',
+          driverId: null,
+          pin: '3333',
+          avatar: 'SP',
+          status: 'active',
+          permissions: roles.find(r => r.id === 'cajero')?.permissions || {},
+          tabs: roles.find(r => r.id === 'cajero')?.tabs || [],
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'usr-repartidor',
+          name: 'Marcos Benítez',
+          username: 'reparto.marcos',
+          email: 'marcos@republicadelacarne.com',
+          role: 'repartidor',
+          branchId: 'suc-cerro',
+          driverId: 'drv-1',
+          pin: '4444',
+          avatar: 'MB',
+          status: 'active',
+          permissions: roles.find(r => r.id === 'repartidor')?.permissions || {},
+          tabs: roles.find(r => r.id === 'repartidor')?.tabs || [],
+          createdAt: new Date().toISOString()
+        }
+      ];
+      this.writeDb(db);
+    }
+    return db.users;
+  }
+
+  getUser(id) {
+    const db = this.readDb();
+    return (db.users || []).find(u => u.id === id);
+  }
+
+  createUser(data) {
+    const db = this.readDb();
+    if (!db.users) db.users = [];
+
+    const roles = this.getRoles();
+    const roleDef = roles.find(r => r.id === data.role) || roles[0];
+
+    const initials = (data.name || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+    const newUser = {
+      id: data.id || `usr-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: data.name || 'Nuevo Usuario',
+      username: data.username || `user_${Date.now().toString().slice(-4)}`,
+      email: data.email || '',
+      role: data.role || 'cajero',
+      branchId: data.branchId || null,
+      driverId: data.driverId || null,
+      pin: data.pin || '1234',
+      avatar: data.avatar || initials,
+      status: data.status || 'active',
+      permissions: data.permissions || roleDef.permissions,
+      tabs: data.tabs || roleDef.tabs,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    db.users.push(newUser);
+    this.writeDb(db);
+    return newUser;
+  }
+
+  updateUser(id, updates) {
+    const db = this.readDb();
+    if (!db.users) db.users = [];
+
+    const idx = db.users.findIndex(u => u.id === id);
+    if (idx === -1) return null;
+
+    const updated = {
+      ...db.users[idx],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    db.users[idx] = updated;
+    this.writeDb(db);
+    return updated;
+  }
+
+  duplicateUser(id) {
+    const db = this.readDb();
+    const source = (db.users || []).find(u => u.id === id);
+    if (!source) return null;
+
+    const cloned = {
+      ...source,
+      id: `usr-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: `${source.name} (Copia)`,
+      username: `${source.username}_copia`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!db.users) db.users = [];
+    db.users.push(cloned);
+    this.writeDb(db);
+    return cloned;
+  }
+
+  deleteUser(id) {
+    const db = this.readDb();
+    db.users = (db.users || []).filter(u => u.id !== id);
+    this.writeDb(db);
+    return true;
+  }
+
+  authenticateUser(usernameOrId, pin) {
+    const users = this.getUsers();
+    const user = users.find(u => 
+      (u.username?.toLowerCase() === usernameOrId?.toLowerCase() || u.id === usernameOrId) &&
+      u.status === 'active'
+    );
+    if (!user) return { success: false, error: 'Usuario no encontrado o inactivo' };
+    if (user.pin && pin && user.pin !== pin) {
+      return { success: false, error: 'PIN de acceso incorrecto' };
+    }
+    return { success: true, user };
+  }
 }
 
 export const db = new DatabaseService();

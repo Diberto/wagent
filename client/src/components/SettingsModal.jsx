@@ -297,21 +297,21 @@ export default function SettingsModal({ isOpen, onClose }) {
     { id: 'updates', label: 'Actualizaciones GitHub', icon: RefreshCw },
   ];
 
-  if (!isOpen || !settings) return null;
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div className="relative w-full max-w-2xl bg-[#111b21] border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+      <div className="relative w-full max-w-2xl bg-[#111b21] border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-[#182229]">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-[#182229]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
               <Settings size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Configuración del Agente IA</h2>
-              <p className="text-xs text-slate-400">Personaliza modelos, voces, API keys y reglas de ventas</p>
+              <h2 className="text-base font-bold text-white">Configuración del Sistema & IA</h2>
+              <p className="text-xs text-slate-400">Personaliza modelos, voces, Mercado Pago y copias de seguridad</p>
             </div>
           </div>
 
@@ -348,8 +348,15 @@ export default function SettingsModal({ isOpen, onClose }) {
         {/* Content Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-5">
           
-          {/* TAB 1: AI ENGINE */}
-          {activeTab === 'ai' && (
+          {!settings ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-3">
+              <RefreshCw size={32} className="animate-spin text-emerald-400" />
+              <div className="text-xs text-slate-400 font-semibold">Cargando configuración del sistema...</div>
+            </div>
+          ) : (
+            <>
+              {/* TAB 1: AI ENGINE */}
+              {activeTab === 'ai' && (
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">Proveedor de Inteligencia Artificial (LLM)</label>
@@ -1261,6 +1268,9 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               </div>
             </div>
+          )}
+
+            </>
           )}
 
         </div>

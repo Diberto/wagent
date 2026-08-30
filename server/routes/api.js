@@ -991,5 +991,55 @@ export function createApiRouter(whatsappService, io) {
     res.json(product);
   });
 
+  // --- 5.6 User Profiles & Roles (RBAC) Endpoints ---
+  router.get('/roles', (req, res) => {
+    res.json(db.getRoles());
+  });
+
+  router.get('/users', (req, res) => {
+    res.json(db.getUsers());
+  });
+
+  router.post('/users', (req, res) => {
+    const created = db.createUser(req.body);
+    io.emit('user:new', created);
+    res.json(created);
+  });
+
+  router.get('/users/:id', (req, res) => {
+    const user = db.getUser(req.params.id);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    res.json(user);
+  });
+
+  router.put('/users/:id', (req, res) => {
+    const updated = db.updateUser(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Usuario no encontrado' });
+    io.emit('user:update', updated);
+    res.json(updated);
+  });
+
+  router.post('/users/:id/duplicate', (req, res) => {
+    const cloned = db.duplicateUser(req.params.id);
+    if (!cloned) return res.status(404).json({ error: 'Usuario no encontrado' });
+    io.emit('user:new', cloned);
+    res.json(cloned);
+  });
+
+  router.delete('/users/:id', (req, res) => {
+    db.deleteUser(req.params.id);
+    io.emit('user:delete', req.params.id);
+    res.json({ success: true });
+  });
+
+  router.post('/users/login', (req, res) => {
+    const { username, pin } = req.body;
+    const result = db.authenticateUser(username, pin);
+    if (!result.success) {
+      return res.status(401).json({ error: result.error });
+    }
+    res.json(result);
+  });
+
   return router;
 }
