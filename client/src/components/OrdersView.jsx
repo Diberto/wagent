@@ -15,7 +15,11 @@ import {
   ExternalLink,
   RefreshCw,
   Package,
-  Check
+  Check,
+  Send,
+  MessageSquare,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 export default function OrdersView({ socket }) {
@@ -23,6 +27,9 @@ export default function OrdersView({ socket }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Status Change Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState(null); // { order, targetStatus, message, isSubmitting }
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -61,18 +68,61 @@ export default function OrdersView({ socket }) {
     }
   }, [socket]);
 
-  const handleUpdateStatus = async (orderId, newStatus) => {
+  const generateStatusNotification = (order, targetStatus) => {
+    const name = order.customerName || 'Cliente';
+    const orderId = order.id;
+    const address = order.address || 'tu domicilio';
+    const payment = order.paymentMethod || 'Efectivo / Transferencia';
+
+    switch (targetStatus) {
+      case 'preparing':
+        return `¡Hola ${name}! 🥩 Te avisamos que tu pedido #${orderId} ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor.`;
+      case 'in_transit':
+        return `¡Hola ${name}! 🚚 Tu pedido #${orderId} ya salió de sucursal y va en camino hacia ${address}. ¡Tené a mano el medio de pago acordado (${payment})! 🥩🔥`;
+      case 'delivered':
+        return `¡Hola ${name}! 🎉 Tu pedido #${orderId} ya figura entregado. ¡Esperamos que disfrutes de un excelente asado! Cualquier consulta o comentario sobre los cortes estamos a tu disposición. 🥩🙌`;
+      case 'cancelled':
+        return `Hola ${name}. Te informamos que tu pedido #${orderId} ha sido cancelado. Si necesitás reprogramarlo o tenés alguna duda, avisanos por acá.`;
+      case 'pending':
+        return `¡Hola ${name}! Tu pedido #${orderId} se encuentra registrado y pendiente de preparación.`;
+      default:
+        return `¡Hola ${name}! Tu pedido #${orderId} ha actualizado su estado a: ${targetStatus}.`;
+    }
+  };
+
+  const handleRequestStatusChange = (order, targetStatus) => {
+    if (order.status === targetStatus) return;
+    setConfirmModal({
+      order,
+      targetStatus,
+      message: generateStatusNotification(order, targetStatus),
+      isSubmitting: false
+    });
+  };
+
+  const handleConfirmStatusChange = async (notifyCustomer) => {
+    if (!confirmModal) return;
+    const { order, targetStatus, message } = confirmModal;
+
+    setConfirmModal(prev => ({ ...prev, isSubmitting: true }));
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
+      const res = await fetch(`/api/orders/${order.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ 
+          status: targetStatus,
+          notifyCustomer: Boolean(notifyCustomer),
+          notificationMessage: notifyCustomer ? message : undefined
+        })
       });
       if (res.ok) {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        const updated = await res.json();
+        setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: targetStatus } : o));
+        setConfirmModal(null);
       }
     } catch (err) {
       console.error('Error actualizando estado del pedido:', err);
+      setConfirmModal(prev => ({ ...prev, isSubmitting: false }));
     }
   };
 
@@ -295,8 +345,8 @@ export default function OrdersView({ socket }) {
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
                 <select
                   value={order.status}
-                  onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
-                  className="flex-1 bg-[#111b21] border border-slate-700/80 text-xs text-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-emerald-500"
+                  onChange={(e) => handleRequestStatusChange(order, e.target.value)}
+                  className="flex-1 bg-[#111b21] border border-slate-700/80 text-xs text-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   <option value="pending">⏳ Pendiente</option>
                   <option value="preparing">🥩 En Preparación</option>
@@ -316,6 +366,93 @@ export default function OrdersView({ socket }) {
 
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Operator Status Confirmation & WhatsApp Notification Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-5">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <MessageSquare size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Confirmar Aviso al Cliente</h3>
+                  <p className="text-xs text-slate-400">Notificación automática de WhatsApp por cambio de estado</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Order & Status Transition Info */}
+            <div className="bg-[#111b21] p-3.5 rounded-2xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-white">Pedido #{confirmModal.order.id} — {confirmModal.order.customerName}</span>
+                <span className="text-slate-400">{confirmModal.order.phone}</span>
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">
+                <span className="text-slate-400">Estado:</span>
+                {getStatusBadge(confirmModal.order.status)}
+                <span className="text-slate-500 font-bold">➔</span>
+                {getStatusBadge(confirmModal.targetStatus)}
+              </div>
+            </div>
+
+            {/* WhatsApp Notification Message Editor */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Send size={13} className="text-emerald-400" />
+                Mensaje de WhatsApp a Enviar al Cliente (Editable):
+              </label>
+              <textarea
+                rows={4}
+                value={confirmModal.message}
+                onChange={(e) => setConfirmModal({ ...confirmModal, message: e.target.value })}
+                className="w-full p-3 rounded-2xl bg-[#111b21] border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {/* Operator Actions */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                disabled={confirmModal.isSubmitting}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleConfirmStatusChange(false)}
+                disabled={confirmModal.isSubmitting}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-200 bg-[#202c33] hover:bg-[#2a3942] border border-slate-700"
+              >
+                Solo Cambiar Estado (Sin Notificar)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleConfirmStatusChange(true)}
+                disabled={confirmModal.isSubmitting}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 shadow-md transition"
+              >
+                <Send size={13} />
+                {confirmModal.isSubmitting ? 'Enviando...' : 'Cambiar y Enviar WhatsApp'}
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 

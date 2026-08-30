@@ -423,11 +423,45 @@ export function createApiRouter(whatsappService, io) {
     res.json(order);
   });
 
-  router.patch('/orders/:id/status', (req, res) => {
-    const { status } = req.body;
+  router.patch('/orders/:id/status', async (req, res) => {
+    const { status, notifyCustomer, notificationMessage } = req.body;
+    const order = db.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+
     const updated = db.updateOrderStatus(req.params.id, status);
-    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
     io.emit('order:update', updated);
+
+    // Si el operador confirmó el envío de aviso por WhatsApp al cliente
+    if (notifyCustomer && notificationMessage) {
+      try {
+        const targetJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+        if (targetJid) {
+          await whatsappService.sendMessage(targetJid, notificationMessage);
+          
+          const savedMsg = db.saveMessage({
+            chatId: targetJid,
+            sender: 'agent',
+            type: 'text',
+            content: notificationMessage,
+            timestamp: new Date().toISOString()
+          });
+
+          // Actualizar último mensaje del lead
+          const lead = db.getLead(targetJid);
+          if (lead) {
+            db.updateLead(lead.id, {
+              lastMessage: notificationMessage,
+              lastMessageAt: new Date().toISOString()
+            });
+          }
+
+          io.emit('chat:message', { message: savedMsg, lead });
+        }
+      } catch (notifyErr) {
+        console.error('Error enviando notificación de estado de pedido al cliente:', notifyErr);
+      }
+    }
+
     res.json(updated);
   });
 
