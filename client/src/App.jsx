@@ -13,6 +13,8 @@ import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
 
+const socket = io();
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState('inbox');
   const [leads, setLeads] = useState([]);
@@ -66,9 +68,6 @@ export default function App() {
     loadLeads();
     loadCalls();
     loadWhatsAppStatus();
-
-    // Inicializar WebSockets
-    const socket = io();
 
     socket.on('connect', () => {
       console.log('Conectado a Socket.IO');

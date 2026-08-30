@@ -218,9 +218,9 @@
         "Parrillero"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 1,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T19:34:00.000Z",
+      "updatedAt": "2026-08-30T19:37:20.000Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalez",
       "phone": "+153051277086768",
@@ -242,8 +242,8 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "quiero un combo asadazo para roque funes 1704, a nombre de Juan Gonzalez, abono al repartidor",
-      "lastMessageAt": "2026-08-30T19:32:30.000Z",
+      "lastMessage": "hola",
+      "lastMessageAt": "2026-08-30T19:37:20.000Z",
       "notes": "Dirección: Roque Funes 1704 | Pedido #ORD-1042"
     },
     {
@@ -2259,6 +2259,17 @@
       "content": "[Nota de voz recibida del cliente]",
       "mediaUrl": "/media/audio_1788118414541_s4fp3z.mp3",
       "audioDuration": 2
+    },
+    {
+      "id": "3EB0C4A9F285B397E0AB0F",
+      "timestamp": "2026-08-30T19:37:20.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [
