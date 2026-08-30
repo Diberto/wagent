@@ -28,6 +28,22 @@
   },
   "orders": [
     {
+      "id": "ORD-4412",
+      "jid": "",
+      "phone": "",
+      "customerName": "Juan Gonzalez",
+      "address": "Roque Funes 1704, Barrio Urca",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo / Transferencia / Mercado Pago",
+      "status": "pending",
+      "notes": "",
+      "createdAt": "2026-08-30T22:05:06.394Z",
+      "updatedAt": "2026-08-30T22:05:06.394Z"
+    },
+    {
       "id": "ORD-3642",
       "jid": "153051277086768@lid",
       "phone": "+153051277086768",

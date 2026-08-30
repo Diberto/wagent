@@ -355,12 +355,108 @@ export class AIService {
       return `¡Sí, ${clientName}! 🥩 Tenemos **${matchedCatalogItem.name}** fresca y de excelente terneza a **${formattedUnit} por ${matchedCatalogItem.unit}**.\n\n¿Cuántos ${matchedCatalogItem.unit} te gustaría que te separemos para tu pedido? 🙌 [[STAGE:proposal]]`;
     }
 
-    // =========================================================================
-    // 3. DETECTOR DE DATOS DE ENVÍO / DIRECCIÓN / CIERRE DE PEDIDO (PASO 3 Y 4)
-    // =========================================================================
-    const hasAddress = (/calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|funes|locelso|tupac|yupanqui|domicilio/i.test(t) || (rawText.includes(',') && /[0-9]/.test(rawText))) && !/(?:kilo|kg|quilo|bolsa|botella)/i.test(t);
+function isGarbageName(name) {
+  if (!name || typeof name !== 'string') return true;
+  const n = name.toLowerCase().trim();
+  if (n.length < 3 || n.length > 40) return true;
+  if (/[0-9]/.test(n)) return true;
+  const blacklist = /domicilio|casa|repartidor|efectivo|transferencia|combo|asadazo|envio|pedido|asado|hola|gracias|confirmar|ok|quiero|tal cual|eso asi|contacto|desconocido|cliente|recuerda|funes|locelso|duarte|quiros|urca/i;
+  return blacklist.test(n);
+}
 
-    if (hasAddress && t.length > 5) {
+function isGarbageAddress(addr) {
+  if (!addr || typeof addr !== 'string') return true;
+  const a = addr.toLowerCase().trim();
+  if (a.length < 5) return true;
+  if (!/[0-9]/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon/i.test(a)) return true;
+  if (/^(?:mi domicilio|mi casa|a mi domicilio|domicilio|ok quiero)/i.test(a)) return true;
+  return false;
+}
+
+    // =========================================================================
+    // 3. INTENCIÓN DE ENVÍO SIN DIRECCIÓN ESPECÍFICA (ej: "quiero eso para mi domicilio")
+    // =========================================================================
+    const isDeliveryIntentWithoutAddress = /(?:a|para)\s+(?:mi\s+)?(?:domicilio|casa|depto|departamento)|(?:hacelo|mandamelo|enviame|envialo|quiero\s+envio|con\s+envio|por\s+delivery|hacer\s+delivery)/i.test(t) && 
+      !/[0-9]{2,5}/.test(t) && 
+      !/(?:funes|locelso|pidal|quiros|alamos|alcorta|luchesse|colon|urca|calle|av\.|avenida|barrio|altura)/i.test(t);
+
+    if (isDeliveryIntentWithoutAddress) {
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+      return `¡De diez ${clientName}! 🛵 Programamos el envío directo a tu puerta en el día.\n\nPor favor, indícanos con precisión:\n📍 **Dirección de Entrega:** (Calle, Número/Altura y Barrio)\n👤 **Nombre y Apellido:** (Para la etiqueta del paquete)\n\n¡Así verificamos los datos y dejamos listo tu pedido! 🥩 [[STAGE:proposal]]`;
+    }
+
+    // =========================================================================
+    // 3.1 CORRECCIÓN DE DATOS ("no, la dirección es...", "mi nombre es...")
+    // =========================================================================
+    const isCorrection = /no,? (?:mi nombre|la direccion|la calle|es|me llamo|vivo en)|(?:corregi|cambia|modifica|te equivocaste)/i.test(t);
+    if (isCorrection) {
+      let currentAddress = lead.address || 'Pendiente';
+      let currentName = (!isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+
+      const explicitNameMatch = rawText.match(/(?:mi nombre(?: es)?|me llamo|nombre:?|soy)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)(?:,|$|\.|\by vivo|\bla direccion)/i);
+      if (explicitNameMatch && !isGarbageName(explicitNameMatch[1].trim())) {
+        currentName = explicitNameMatch[1].trim();
+        if (lead.jid || lead.id) {
+          db.updateLead(lead.jid || lead.id, { name: currentName, pushName: currentName });
+        }
+      }
+
+      const hasAddressInCorrection = (/(?:calle|av\.|avenida|bv\.|funes|locelso|pidal|quiros|colon|urca|martinolli)/i.test(t) || /[0-9]{2,5}/.test(t)) && !/(?:kilo|kg|quilo)/i.test(t);
+      if (hasAddressInCorrection) {
+        let cleanAddr = rawText.replace(/^no,?\s*(?:la direccion es|la calle es|vivo en)?\s*/gi, '').trim();
+        if (!isGarbageAddress(cleanAddr)) {
+          currentAddress = cleanAddr;
+          if (lead.jid || lead.id) {
+            db.updateLead(lead.jid || lead.id, { address: cleanAddr, notes: `Dirección corregida: ${cleanAddr}` });
+          }
+        }
+      }
+
+      return `¡Entendido ${currentName}, datos corregidos! 👍\n\n📋 *DATOS ACTUALIZADOS:*\n👤 *Nombre:* **${currentName}**\n📍 *Dirección:* **${currentAddress}**\n\n👉 ¿Está todo correcto ahora para avanzar? (Respondé *Sí / Correcto* para finalizar el pedido) 🥩`;
+    }
+
+    // =========================================================================
+    // 3.2 CONFIRMACIÓN EXPLÍCITA DE DATOS DE ENVÍO ("sí", "correcto", "dale", "de diez")
+    // =========================================================================
+    const cleanConfirmText = t.replace(/[,\.]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const isConfirmationReply = /^(?:s[ií]|correcto|confirmar|confirmo|dale|est[aá] bien|perfecto|de diez|avanza|avanzar|ok dale|s[ií] dale|s[ií] correcto|exacto|as[ií] es|s[ií] est[aá] bien|s[ií] perfecto)$/i.test(cleanConfirmText);
+    const hasPendingAddressOnLead = lead.address && lead.address.length >= 6 && !isGarbageAddress(lead.address);
+
+    if (isConfirmationReply && hasPendingAddressOnLead) {
+      const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, rawText, products);
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (lead.pushName || 'Don Juan');
+      
+      const newOrder = db.createOrder({
+        jid: lead.jid || lead.id,
+        phone: lead.phone || (lead.jid ? lead.jid.split('@')[0] : ''),
+        customerName: clientName,
+        address: lead.address,
+        items: parsedItems,
+        totalAmount: parsedTotal,
+        paymentMethod: 'Efectivo / Transferencia / Mercado Pago',
+        status: 'pending'
+      });
+
+      const formattedTotal = `$${parsedTotal.toLocaleString('es-AR')}`;
+      if (lead.jid || lead.id) {
+        db.updateLead(lead.jid || lead.id, { 
+          name: clientName,
+          pushName: clientName,
+          value: parsedTotal,
+          stage: 'closed_won',
+          notes: `Dirección confirmada: ${lead.address} | Pedido #${newOrder.id}`
+        });
+      }
+
+      return `¡Excelente ${clientName}! 🎉 Datos confirmados con éxito. Ya generamos tu orden de compra:\n\n🆔 *N° de Pedido:* #${newOrder.id}\n📋 *RESUMEN DE TU PEDIDO:*\n${parsedItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${clientName}\n📍 *Destino de Entrega:* ${lead.address}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${parsedTotal}]]`;
+    }
+
+    // =========================================================================
+    // 3.3 DETECTOR DE DIRECCIÓN Y NOMBRE REAL (PRESENTACIÓN Y SOLICITUD DE CONFIRMACIÓN)
+    // =========================================================================
+    const hasRealAddress = (/(?:calle|av\.|avenida|bv\.|bulevar|barrio|piso|dpto|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro)/i.test(t) || (rawText.includes(',') && /[0-9]{2,5}/.test(rawText))) && /[0-9]{1,5}/.test(t) && !/(?:kilo|kg|quilo|bolsa|botella)/i.test(t);
+
+    if (hasRealAddress && t.length > 5) {
       let extractedName = '';
       let cleanAddress = rawText;
 
@@ -368,18 +464,29 @@ export class AIService {
       if (lines.length >= 2) {
         const line1 = lines[0];
         const line2 = lines.slice(1).join(', ');
-        if (!/[0-9]/.test(line1) && line1.length >= 3 && line1.length <= 35) {
+        if (!/[0-9]/.test(line1) && line1.length >= 3 && line1.length <= 35 && !isGarbageName(line1)) {
           extractedName = line1;
           cleanAddress = line2;
         }
       }
 
       if (!extractedName) {
-        const explicitNameMatch = rawText.match(/(?:a nombre de|nombre:?|para|soy)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)(?:,|$|\.|\babono|\bpago|\ben efectivo|\bpor transferencia)/i);
+        const explicitNameMatch = rawText.match(/(?:a nombre de|nombre:?|para|soy)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)(?:,|$|\.|\babono|\bpago|\ben efectivo|\bpor transferencia|\bdireccion|\bcalle)/i);
         if (explicitNameMatch && explicitNameMatch[1].trim().length >= 3) {
           const candidate = explicitNameMatch[1].trim();
-          if (!/funes|locelso|duarte|quiros|urca|calle|av|combo|asado|repartidor|efectivo|tupac|yupanqui/i.test(candidate)) {
+          if (!isGarbageName(candidate)) {
             extractedName = candidate;
+          }
+        }
+      }
+
+      if (!extractedName && rawText.includes(',')) {
+        const parts = rawText.split(',');
+        for (const part of parts) {
+          const clean = part.replace(/(?:mi nombre(?: completo)?|es mi nombre|mi onmbre|a nombre de|para)/gi, '').trim();
+          if (!isGarbageName(clean)) {
+            extractedName = clean;
+            break;
           }
         }
       }
@@ -394,44 +501,32 @@ export class AIService {
         .replace(/^,\s*/, '')
         .replace(/,\s*$/, '')
         .trim();
-      if (!cleanAddress || cleanAddress.length < 3) cleanAddress = rawText.trim();
-
-      db.updateLead(lead.jid || lead.id, { address: cleanAddress, notes: `Dirección: ${cleanAddress}` });
+      if (!cleanAddress || cleanAddress.length < 3 || isGarbageAddress(cleanAddress)) cleanAddress = rawText.trim();
 
       let finalClientName = extractedName;
-      if (!finalClientName && customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') && customerName !== 'Don Juan' && !customerName.includes('recuerda') && !customerName.includes('efectivo') && !customerName.includes('funes') && !customerName.includes('domicilio')) {
+      if (!finalClientName && customerName && !isGarbageName(customerName)) {
         finalClientName = customerName;
       }
 
+      db.updateLead(lead.jid || lead.id, { 
+        address: cleanAddress, 
+        ...(finalClientName ? { name: finalClientName, pushName: finalClientName } : {}),
+        notes: `Dirección registrada: ${cleanAddress}${finalClientName ? ` | Nombre: ${finalClientName}` : ''}`
+      });
+
+      const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, rawText, products);
+      const formattedTotal = `$${parsedTotal.toLocaleString('es-AR')}`;
+
       if (finalClientName) {
-        const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, rawText, products);
-
-        const newOrder = db.createOrder({
-          jid: lead.jid || lead.id,
-          phone: lead.phone || (lead.jid ? lead.jid.split('@')[0] : ''),
-          customerName: finalClientName,
-          address: cleanAddress,
-          items: parsedItems,
-          totalAmount: parsedTotal,
-          paymentMethod: 'Efectivo / Transferencia / Mercado Pago',
-          status: 'pending'
-        });
-
-        const formattedTotal = `$${parsedTotal.toLocaleString('es-AR')}`;
-        db.updateLead(lead.jid || lead.id, { 
-          name: finalClientName, 
-          pushName: finalClientName, 
-          address: cleanAddress, 
-          value: parsedTotal, 
-          stage: 'closed_won',
-          notes: `Dirección: ${cleanAddress} | Pedido #${newOrder.id}`
-        });
-
-        return `¡Excelente ${finalClientName}! 🎉 Ya dejamos asentado y confirmado tu pedido paso a paso:\n\n🆔 *N° de Pedido:* #${newOrder.id}\n📋 *RESUMEN DE TU PEDIDO:*\n${parsedItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalClientName}\n📍 *Destino de Entrega:* ${cleanAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${parsedTotal}]]`;
+        return `📋 *VERIFICACIÓN DE DATOS DE ENVÍO:*\n\n` +
+          `👤 *Destinatario:* **${finalClientName}**\n` +
+          `📍 *Dirección de Entrega:* **${cleanAddress}**\n` +
+          `🥩 *Detalle del Pedido:*\n${parsedItems.join('\n')}\n` +
+          `💰 *Total a abonar:* **${formattedTotal}**\n\n` +
+          `👉 **¿Confirmamos estos datos para despachar o querés corregir la dirección o el nombre?** (Respondé *Sí / Correcto* para finalizar el pedido) 🥩🚚 [[STAGE:proposal]]`;
+      } else {
+        return `¡Excelente! Ya registré tu dirección: **${cleanAddress}** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊 [[STAGE:proposal]]`;
       }
-
-      db.updateLead(lead.jid || lead.id, { stage: 'proposal' });
-      return `¡Excelente! Ya registré tu dirección: **${cleanAddress}** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊 [[STAGE:proposal]]`;
     }
 
     // =========================================================================
