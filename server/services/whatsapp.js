@@ -325,7 +325,7 @@ export class WhatsAppService {
       return;
     }
 
-    console.log(`📩 [WhatsApp ${isFromMe ? 'Saliente' : 'Entrante'}] De ${pushName} (${phoneDisplay}): "${textContent}" (Tipo: ${messageType})`);
+    console.log(`📩 [WhatsApp ${isFromMe ? 'Saliente' : 'Entrante'}] De ${pushName} (${lead?.phone || jid}): "${textContent}" (Tipo: ${messageType})`);
 
     // Guardar mensaje en base de datos
     const savedMessage = db.saveMessage({
@@ -459,6 +459,10 @@ export class WhatsAppService {
     }
     const cleanJid = jidNormalizedUser(jid);
     return await this.sock.sendMessage(cleanJid, { text });
+  }
+
+  async sendMessage(jid, text) {
+    return await this.sendTextMessage(jid, text);
   }
 
   /**

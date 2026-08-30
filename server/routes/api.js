@@ -474,6 +474,9 @@ export function createApiRouter(whatsappService, io) {
       }
     }
 
+    res.json(updated);
+  });
+
   // Edit full order
   router.put('/orders/:id', (req, res) => {
     const updated = db.updateOrder(req.params.id, req.body);
