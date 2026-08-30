@@ -33,6 +33,7 @@ import {
 import AudioPlayer from './AudioPlayer';
 
 export default function ChatInbox({ 
+  socket,
   leads = [], 
   selectedLead, 
   setSelectedLead, 
@@ -97,18 +98,52 @@ export default function ChatInbox({
       });
   }, [selectedLead?.jid]);
 
+  // Escuchar mensajes entrantes en tiempo real por WebSocket
+  useEffect(() => {
+    if (!socket) return;
+    const handleSocketMessage = ({ message, lead }) => {
+      if (!selectedLead || !message) return;
+      const currentJid = selectedLead.jid;
+      const altJids = selectedLead.altJids || [];
+      if (message.chatId === currentJid || altJids.includes(message.chatId)) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
+      }
+    };
+
+    socket.on('chat:message', handleSocketMessage);
+    return () => {
+      socket.off('chat:message', handleSocketMessage);
+    };
+  }, [socket, selectedLead?.jid]);
+
   // Auto-scroll al recibir nuevos mensajes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Manejar envío de texto
+  // Manejar envío de texto con render optimista
   const handleSendText = (e) => {
     e?.preventDefault();
     if (!inputText.trim() || !selectedLead) return;
 
-    onSendMessage(selectedLead.jid, inputText.trim());
+    const textToSend = inputText.trim();
     setInputText('');
+
+    const optimisticMsg = {
+      id: `temp-${Date.now()}`,
+      chatId: selectedLead.jid,
+      sender: 'agent',
+      type: 'text',
+      content: textToSend,
+      timestamp: new Date().toISOString(),
+      status: 'sent'
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+
+    onSendMessage(selectedLead.jid, textToSend);
   };
 
   // Grabación de audio con MediaRecorder

@@ -381,6 +381,7 @@ export default function App() {
       <main className="flex-1 overflow-hidden">
         {currentTab === 'inbox' && (
           <ChatInbox
+            socket={socket}
             leads={leads}
             selectedLead={selectedLead}
             setSelectedLead={setSelectedLead}

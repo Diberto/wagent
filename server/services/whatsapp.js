@@ -931,6 +931,22 @@ export class WhatsAppManager {
     return this.primarySession?.status || 'disconnected';
   }
 
+  async sendTextMessage(jid, text, userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session || session.status !== 'connected') {
+      session = this.primarySession;
+    }
+    return session.sendTextMessage(jid, text);
+  }
+
+  async sendVoiceNote(jid, audioPathOrBuffer, userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session || session.status !== 'connected') {
+      session = this.primarySession;
+    }
+    return session.sendVoiceNote(jid, audioPathOrBuffer);
+  }
+
   async sendMessage(jid, text, media = null, userId = 'default') {
     let session = this.getSession(userId);
     if (!session || session.status !== 'connected') {

@@ -28,6 +28,22 @@
   },
   "orders": [
     {
+      "id": "ORD-3642",
+      "jid": "153051277086768@lid",
+      "phone": "+153051277086768",
+      "customerName": "mi domicilio",
+      "address": "ok quiero eso asi tal cual par",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo / Transferencia / Mercado Pago",
+      "status": "pending",
+      "notes": "",
+      "createdAt": "2026-08-30T21:57:09.665Z",
+      "updatedAt": "2026-08-30T21:57:09.665Z"
+    },
+    {
       "id": "ORD-8829",
       "jid": "153051277086768@lid",
       "phone": "+153051277086768",
@@ -301,7 +317,7 @@
       "phone": "+51788782809330",
       "name": "Juan",
       "pushName": "Juan",
-      "stage": "new_lead",
+      "stage": "qualified",
       "value": 0,
       "tags": [
         "WhatsApp"
@@ -316,35 +332,44 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:54:20.039Z",
-      "updatedAt": "2026-08-30T21:54:18.000Z",
-      "lastMessage": "Hola",
-      "lastMessageAt": "2026-08-30T21:54:18.000Z"
+      "updatedAt": "2026-08-30T21:57:25.000Z",
+      "lastMessage": "¡De diez Juan! 🥩 🔥 Para **2 personas**, calculamos unos **2 a 2.5 kg de carne** en total. Te recomiendo:\n\n• **1x Combo Asadazo (4 kg):** Incluye Bocado, Aguja, Falda, Chori criollo, Morcilla + Vino de regalo ➔ **$39.999** (¡Te queda abundante y con vino incluido!).\no si preferís cortes a elección:\n• 1.5 kg Vacío Seleccionado ($17.250)\n• 1.0 kg Costeletas de Cerdo ($7.500)\n• 0.5 kg Chorizo Criollo ($3.250)\n💰 Total a elección: **$28.000**\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)?",
+      "lastMessageAt": "2026-08-30T21:57:25.000Z"
     },
     {
       "id": "lead-1788126699370-eb54j",
       "jid": "153051277086768@lid",
       "altJids": [],
       "phone": "+153051277086768",
-      "name": "Don Juan",
-      "pushName": "Don Juan",
-      "stage": "new_lead",
-      "value": 0,
+      "name": "mi domicilio",
+      "pushName": "mi domicilio",
+      "stage": "closed_won",
+      "value": 39999,
       "tags": [
-        "WhatsApp"
+        "WhatsApp",
+        "Cliente Comprador"
       ],
       "aiEnabled": true,
       "unreadCount": 0,
       "preferences": {
-        "favoriteCuts": [],
+        "favoriteCuts": [
+          "Combo “Asadazo”"
+        ],
         "cookingPreference": "Parrilla",
         "preferredPayment": "Efectivo / Transferencia",
         "groupSize": "4 personas",
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T21:53:14.000Z",
-      "lastMessage": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
-      "lastMessageAt": "2026-08-30T21:53:14.000Z"
+      "updatedAt": "2026-08-30T21:57:09.000Z",
+      "lastMessage": "¡Excelente mi domicilio! 🎉 Ya dejamos asentado y confirmado tu pedido paso a paso:\n\n🆔 *N° de Pedido:* #ORD-3642\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* mi domicilio\n📍 *Destino de Entrega:* ok quiero eso asi tal cual par\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: `republica.carne.mp`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "lastMessageAt": "2026-08-30T21:57:09.000Z",
+      "address": "ok quiero eso asi tal cual par",
+      "notes": "Dirección: ok quiero eso asi tal cual par | Pedido #ORD-3642",
+      "totalOrders": 1,
+      "totalSpent": 39999,
+      "lastOrderAt": "2026-08-30T21:57:09.665Z",
+      "lastOrderId": "ORD-3642"
     },
     {
       "id": "lead-1788124325869-p41bh",
@@ -846,6 +871,161 @@
       "sender": "user",
       "type": "text",
       "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB04968CDBE47194BDCA1",
+      "timestamp": "2026-08-30T21:56:10.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788126974387-6nc39v",
+      "timestamp": "2026-08-30T21:56:14.387Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame para cuántos comensales calculamos y te armo la propuesta perfecta. 🥩🔥"
+    },
+    {
+      "id": "3EB02537EC6FEDEED24AD7",
+      "timestamp": "2026-08-30T21:56:14.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame para cuántos comensales calculamos y te armo la propuesta perfecta. 🥩🔥",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0F949E32885E1171C16",
+      "timestamp": "2026-08-30T21:56:42.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola quiero u asado para 5",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127006552-0nfnzl",
+      "timestamp": "2026-08-30T21:56:46.552Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 🔥 Para **5 personas**, calculamos unos **2.5 kg de carne** para que coman de diez. Te armo esta propuesta equilibrada:\n\n• 2.0 kg Costillar de Novillito ($19.600)\n• 1.5 kg Vacío Seleccionado ($17.250)\n• 1.0 kg Chorizo Criollo Puro Cerdo ($6.500)\n• 1.0 kg Morcilla Bombón ($5.200)\n💰 *Subtotal estimado (2.5 kg):* **$48.550**\n🎁 ¡Sumamos 1 bolsa de carbón quebracho ($2.200) o Vino Howlmande si lo confirmamos hoy!\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)?"
+    },
+    {
+      "id": "3EB085BCC287E8B9373FC6",
+      "timestamp": "2026-08-30T21:56:46.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 🔥 Para **5 personas**, calculamos unos **2.5 kg de carne** para que coman de diez. Te armo esta propuesta equilibrada:\n\n• 2.0 kg Costillar de Novillito ($19.600)\n• 1.5 kg Vacío Seleccionado ($17.250)\n• 1.0 kg Chorizo Criollo Puro Cerdo ($6.500)\n• 1.0 kg Morcilla Bombón ($5.200)\n💰 *Subtotal estimado (2.5 kg):* **$48.550**\n🎁 ¡Sumamos 1 bolsa de carbón quebracho ($2.200) o Vino Howlmande si lo confirmamos hoy!\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3A05FFE7A8D9A5E635CE",
+      "timestamp": "2026-08-30T21:56:52.000Z",
+      "status": "received",
+      "chatId": "51788782809330@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola buenas tardes",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127018432-5yx3yk",
+      "timestamp": "2026-08-30T21:56:58.431Z",
+      "status": "sent",
+      "chatId": "51788782809330@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩"
+    },
+    {
+      "id": "3EB086263C380139193330",
+      "timestamp": "2026-08-30T21:56:57.000Z",
+      "status": "sent",
+      "chatId": "51788782809330@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB03E2EADBCE21B6813AD",
+      "timestamp": "2026-08-30T21:57:06.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "ok quiero eso asi tal cual para mi domicilio",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127029684-gsfxln",
+      "timestamp": "2026-08-30T21:57:09.683Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente mi domicilio! 🎉 Ya dejamos asentado y confirmado tu pedido paso a paso:\n\n🆔 *N° de Pedido:* #ORD-3642\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* mi domicilio\n📍 *Destino de Entrega:* ok quiero eso asi tal cual par\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: `republica.carne.mp`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩  [[PAYMENT_AMOUNT:39999]]"
+    },
+    {
+      "id": "3EB03D9ACAFF882B64EABD",
+      "timestamp": "2026-08-30T21:57:09.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente mi domicilio! 🎉 Ya dejamos asentado y confirmado tu pedido paso a paso:\n\n🆔 *N° de Pedido:* #ORD-3642\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* mi domicilio\n📍 *Destino de Entrega:* ok quiero eso asi tal cual par\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: `republica.carne.mp`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3A32721E0398BF4370CA",
+      "timestamp": "2026-08-30T21:57:22.000Z",
+      "status": "received",
+      "chatId": "51788782809330@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Estoy buscando tapa de cuadril 2 kilos",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127045744-lcwmfo",
+      "timestamp": "2026-08-30T21:57:25.743Z",
+      "status": "sent",
+      "chatId": "51788782809330@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Juan! 🥩 🔥 Para **2 personas**, calculamos unos **2 a 2.5 kg de carne** en total. Te recomiendo:\n\n• **1x Combo Asadazo (4 kg):** Incluye Bocado, Aguja, Falda, Chori criollo, Morcilla + Vino de regalo ➔ **$39.999** (¡Te queda abundante y con vino incluido!).\no si preferís cortes a elección:\n• 1.5 kg Vacío Seleccionado ($17.250)\n• 1.0 kg Costeletas de Cerdo ($7.500)\n• 0.5 kg Chorizo Criollo ($3.250)\n💰 Total a elección: **$28.000**\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)?"
+    },
+    {
+      "id": "3EB00DEE8E021F3D239873",
+      "timestamp": "2026-08-30T21:57:25.000Z",
+      "status": "sent",
+      "chatId": "51788782809330@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Juan! 🥩 🔥 Para **2 personas**, calculamos unos **2 a 2.5 kg de carne** en total. Te recomiendo:\n\n• **1x Combo Asadazo (4 kg):** Incluye Bocado, Aguja, Falda, Chori criollo, Morcilla + Vino de regalo ➔ **$39.999** (¡Te queda abundante y con vino incluido!).\no si preferís cortes a elección:\n• 1.5 kg Vacío Seleccionado ($17.250)\n• 1.0 kg Costeletas de Cerdo ($7.500)\n• 0.5 kg Chorizo Criollo ($3.250)\n💰 Total a elección: **$28.000**\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)?",
       "mediaUrl": null,
       "audioDuration": 0
     }
