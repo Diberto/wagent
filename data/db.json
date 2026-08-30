@@ -160,21 +160,21 @@
   "leads": [
     {
       "id": "lead-1788107987079-jk80w",
-      "stage": "negotiating",
+      "stage": "proposal",
       "value": 0,
       "tags": [
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 2,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T18:47:07.000Z",
+      "updatedAt": "2026-08-30T18:52:45.000Z",
       "jid": "153051277086768@lid",
       "name": "Don Juan",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
-      "lastMessage": "OFERTAS DE FIN DE MES:\n\n🥩 COSTELETA DE CERDO\n2 kg x $15.000\nPromoción hasta agotar stock.\n\n🥩 COSTELETA DE TERNERA\n2 kg x $35.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA\n3 kg x $27.000\nPromoción hasta agotar stock.\n\n🥩 MILANESAS DE TERNERA\n2 kg x $24.990\nPromoción hasta agotar stock.\n\n🍗 PATA MUSLO\n3 kg x $13.990\nPromoción hasta agotar stock.\n\n🔥 BLEND PARRILLERO\nPagás 4 y llevás 6.\nPrecio informado: $7.900.\nPromoción hasta agotar stock.\n\n🔥 COMBO “ASADAZO”\n4 kg x $39.999\nIncluye:\n\nBocado\nChorizo\nAguja\nMorcilla\nFalda\nVino Howlmande de regalo\n\nPromoción hasta agotar stock.\n\n🌭 CHORI CRIOLLO\n2 kg x $10.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA — PROMOCIÓN ALTERNATIVA\n2 kg x $19.999\nPromoción hasta agotar stock.\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊",
-      "lastMessageAt": "2026-08-30T18:47:07.000Z"
+      "lastMessage": "¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar.",
+      "lastMessageAt": "2026-08-30T18:52:45.000Z"
     },
     {
       "id": "lead-1788111841514-dvhgd",
@@ -1237,6 +1237,68 @@
       "sender": "agent",
       "type": "text",
       "content": "OFERTAS DE FIN DE MES:\n\n🥩 COSTELETA DE CERDO\n2 kg x $15.000\nPromoción hasta agotar stock.\n\n🥩 COSTELETA DE TERNERA\n2 kg x $35.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA\n3 kg x $27.000\nPromoción hasta agotar stock.\n\n🥩 MILANESAS DE TERNERA\n2 kg x $24.990\nPromoción hasta agotar stock.\n\n🍗 PATA MUSLO\n3 kg x $13.990\nPromoción hasta agotar stock.\n\n🔥 BLEND PARRILLERO\nPagás 4 y llevás 6.\nPrecio informado: $7.900.\nPromoción hasta agotar stock.\n\n🔥 COMBO “ASADAZO”\n4 kg x $39.999\nIncluye:\n\nBocado\nChorizo\nAguja\nMorcilla\nFalda\nVino Howlmande de regalo\n\nPromoción hasta agotar stock.\n\n🌭 CHORI CRIOLLO\n2 kg x $10.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA — PROMOCIÓN ALTERNATIVA\n2 kg x $19.999\nPromoción hasta agotar stock.\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0D643303C0E272DD988",
+      "timestamp": "2026-08-30T18:50:07.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB008F3CF79E1F079B081",
+      "timestamp": "2026-08-30T18:52:42.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788115965715-8ft1hn",
+      "timestamp": "2026-08-30T18:52:45.714Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar."
+    },
+    {
+      "id": "msg-1788115966046-d0rl84",
+      "timestamp": "2026-08-30T18:52:46.046Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar."
+    },
+    {
+      "id": "3EB016F91DEBF2B0DDA60C",
+      "timestamp": "2026-08-30T18:52:45.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar.",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB00881B3113D2D19EEDF",
+      "timestamp": "2026-08-30T18:52:45.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar.",
       "mediaUrl": null,
       "audioDuration": 0
     }

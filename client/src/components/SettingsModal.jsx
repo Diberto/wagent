@@ -100,8 +100,6 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
-  if (!isOpen || !settings) return null;
-
   const handleSave = async (e) => {
     e?.preventDefault();
     setIsSaving(true);
@@ -277,6 +275,8 @@ export default function SettingsModal({ isOpen, onClose }) {
     { id: 'backups', label: 'Respaldos & Seguridad', icon: ShieldCheck },
     { id: 'updates', label: 'Actualizaciones GitHub', icon: RefreshCw },
   ];
+
+  if (!isOpen || !settings) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
