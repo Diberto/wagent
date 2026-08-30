@@ -25,6 +25,7 @@
     "@hapi/boom": "^10.0.1",
     "@sentropic/graphify": "^0.17.1",
     "@whiskeysockets/baileys": "^6.7.24",
+    "@woocommerce/woocommerce-rest-api": "^1.0.2",
     "compression": "^1.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

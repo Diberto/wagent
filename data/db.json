@@ -3,7 +3,7 @@
     "aiProvider": "gemini",
     "geminiApiKey": "AIzaSyAfWlsLZdxNv0kv-eD_57UhUQHbPVFKOrY",
     "openaiApiKey": "diberto77",
-    "aiModel": "gemini-pro-latest",
+    "aiModel": "gemini-flash-latest",
     "aiVoiceModel": "es-AR-TomasNeural",
     "ttsProvider": "elevenlabs",
     "agentName": "Carlos - Carnicero Virtual",
@@ -377,9 +377,9 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T22:07:46.000Z",
-      "lastMessage": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
-      "lastMessageAt": "2026-08-30T22:07:46.000Z",
+      "updatedAt": "2026-08-30T22:11:16.000Z",
+      "lastMessage": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
+      "lastMessageAt": "2026-08-30T22:11:16.000Z",
       "address": "ok quiero eso asi tal cual par",
       "notes": "Dirección: ok quiero eso asi tal cual par | Pedido #ORD-3642",
       "totalOrders": 1,
@@ -1259,6 +1259,130 @@
       "sender": "agent",
       "type": "text",
       "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0476D6A648FBB9F9AE5",
+      "timestamp": "2026-08-30T22:10:18.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola recuerdas mi pedido por favor",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127822163-54bjrb",
+      "timestamp": "2026-08-30T22:10:22.163Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩"
+    },
+    {
+      "id": "3EB0EE7F3D2113B2A00470",
+      "timestamp": "2026-08-30T22:10:21.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB09EAE1049B3779127A1",
+      "timestamp": "2026-08-30T22:10:27.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "recuerdas mi pedido?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127831347-y5yzu3",
+      "timestamp": "2026-08-30T22:10:31.347Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥"
+    },
+    {
+      "id": "3EB0AF6F206E4A14227261",
+      "timestamp": "2026-08-30T22:10:31.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0B41A95BA1867E9A960",
+      "timestamp": "2026-08-30T22:10:59.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127862242-yhseqr",
+      "timestamp": "2026-08-30T22:11:02.241Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame qué cortes estás buscando o para cuántas personas calculamos y te armo la propuesta perfecta. 🥩🔥"
+    },
+    {
+      "id": "3EB0790D7CDF895C751655",
+      "timestamp": "2026-08-30T22:11:02.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame qué cortes estás buscando o para cuántas personas calculamos y te armo la propuesta perfecta. 🥩🔥",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0716EC962FAD9CF7EBD",
+      "timestamp": "2026-08-30T22:11:13.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "puedes recordar mi ultimo pedido?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127876115-cpwj4u",
+      "timestamp": "2026-08-30T22:11:16.115Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥"
+    },
+    {
+      "id": "3EB0F4AD1EFF4350D59A62",
+      "timestamp": "2026-08-30T22:11:16.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
       "mediaUrl": null,
       "audioDuration": 0
     }

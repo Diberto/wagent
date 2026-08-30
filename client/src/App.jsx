@@ -14,6 +14,7 @@ import BranchesView from './components/BranchesView';
 import DriversView from './components/DriversView';
 import UsersView from './components/UsersView';
 import POSView from './components/POSView';
+import WooCommerceView from './components/WooCommerceView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
@@ -401,6 +402,10 @@ export default function App() {
 
         {currentTab === 'orders' && (
           <OrdersView socket={socket} />
+        )}
+
+        {currentTab === 'woo' && (
+          <WooCommerceView socket={socket} />
         )}
 
         {currentTab === 'drivers' && (

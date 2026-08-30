@@ -1439,6 +1439,65 @@ class DatabaseService {
     }
     return { success: true, user };
   }
+
+  // --- WooCommerce Integration ---
+  getWooCommerceLogs(limit = 50) {
+    const db = this.readDb();
+    return (db.wooLogs || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, limit);
+  }
+
+  addWooCommerceLog(logEntry) {
+    const db = this.readDb();
+    if (!db.wooLogs) db.wooLogs = [];
+    const entry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: new Date().toISOString(),
+      ...logEntry
+    };
+    db.wooLogs.unshift(entry);
+    if (db.wooLogs.length > 200) db.wooLogs = db.wooLogs.slice(0, 200);
+    this.writeDb(db);
+    return entry;
+  }
+
+  upsertProductsFromWooCommerce(wooProducts) {
+    const db = this.readDb();
+    if (!db.products) db.products = [];
+
+    let count = 0;
+    for (const wp of wooProducts) {
+      const idx = db.products.findIndex(p => p.wooId === wp.wooId || (p.sku && wp.sku && p.sku === wp.sku));
+      if (idx >= 0) {
+        db.products[idx] = {
+          ...db.products[idx],
+          ...wp,
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        db.products.push({
+          ...wp,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      count++;
+    }
+
+    this.writeDb(db);
+    return count;
+  }
+
+  updateOrderWooCommerce(orderId, wooData) {
+    const db = this.readDb();
+    if (!db.orders) return null;
+    const order = db.orders.find(o => o.id === orderId);
+    if (!order) return null;
+
+    Object.assign(order, wooData, { updatedAt: new Date().toISOString() });
+    this.writeDb(db);
+    return order;
+  }
 }
 
 export const db = new DatabaseService();
+

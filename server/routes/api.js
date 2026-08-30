@@ -9,10 +9,12 @@ import { AudioConverter } from '../services/audioConverter.js';
 import { UpdateService } from '../services/updater.js';
 import { BackupService } from '../services/backup.js';
 import { mercadoPagoService } from '../services/mercadopago.js';
+import { wooCommerceService } from '../services/woocommerce.js';
 import { CONFIG } from '../config/index.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
+  wooCommerceService.setSocketIO(io);
 
   // Configuración de Multer para subida de audios y archivos desde el panel web
   const storage = multer.diskStorage({
@@ -1137,5 +1139,96 @@ export function createApiRouter(whatsappService, io) {
     res.json(result);
   });
 
+  // =========================================================================
+  // --- 11. WooCommerce & WordPress REST API Integration ---
+  // =========================================================================
+  router.get('/woocommerce/status', async (req, res) => {
+    const settings = db.getSettings();
+    const isConfigured = Boolean(settings.wooUrl && settings.wooConsumerKey && settings.wooConsumerSecret);
+    const logs = db.getWooCommerceLogs(10);
+    const products = db.getProducts();
+    const wooProductsCount = products.filter(p => p.source === 'woocommerce' || p.wooId).length;
+
+    res.json({
+      isConfigured,
+      wooUrl: settings.wooUrl || '',
+      wooConsumerKey: settings.wooConsumerKey ? '••••••••' + settings.wooConsumerKey.slice(-4) : '',
+      wooSyncEnabled: Boolean(settings.wooSyncEnabled),
+      wooAutoPushOrders: Boolean(settings.wooAutoPushOrders),
+      wooLastSync: settings.wooLastSync || null,
+      totalWooProducts: wooProductsCount,
+      recentLogs: logs
+    });
+  });
+
+  router.post('/woocommerce/test', async (req, res) => {
+    const customConfig = req.body;
+    const result = await wooCommerceService.testConnection(customConfig);
+    res.json(result);
+  });
+
+  router.post('/woocommerce/settings', (req, res) => {
+    const {
+      wooUrl,
+      wooConsumerKey,
+      wooConsumerSecret,
+      wooSyncEnabled,
+      wooAutoPushOrders
+    } = req.body;
+
+    const updated = db.updateSettings({
+      ...(wooUrl !== undefined ? { wooUrl: wooUrl.trim().replace(/\/$/, '') } : {}),
+      ...(wooConsumerKey !== undefined ? { wooConsumerKey: wooConsumerKey.trim() } : {}),
+      ...(wooConsumerSecret !== undefined ? { wooConsumerSecret: wooConsumerSecret.trim() } : {}),
+      ...(wooSyncEnabled !== undefined ? { wooSyncEnabled: Boolean(wooSyncEnabled) } : {}),
+      ...(wooAutoPushOrders !== undefined ? { wooAutoPushOrders: Boolean(wooAutoPushOrders) } : {})
+    });
+
+    db.addWooCommerceLog({
+      type: 'settings_update',
+      status: 'success',
+      details: 'Ajustes de WooCommerce actualizados correctamente.'
+    });
+
+    io.emit('settings:update', updated);
+    res.json({ success: true, settings: updated });
+  });
+
+  router.post('/woocommerce/sync-products', async (req, res) => {
+    try {
+      const result = await wooCommerceService.syncProducts();
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/woocommerce/push-order/:orderId', async (req, res) => {
+    try {
+      const result = await wooCommerceService.pushOrder(req.params.orderId);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/woocommerce/logs', (req, res) => {
+    const limit = parseInt(req.query.limit, 10) || 50;
+    res.json(db.getWooCommerceLogs(limit));
+  });
+
+  // Webhook receiver para eventos provenientes de WordPress / WooCommerce
+  router.post('/webhooks/woocommerce', async (req, res) => {
+    const topic = req.headers['x-wc-webhook-topic'] || 'unknown';
+    try {
+      await wooCommerceService.handleWebhook(topic, req.body);
+      res.status(200).send('OK');
+    } catch (err) {
+      console.error('Error procesando webhook de WooCommerce:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   return router;
 }
+

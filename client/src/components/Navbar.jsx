@@ -24,6 +24,7 @@ import {
   ChevronDown,
   LogIn,
   ShieldCheck,
+  Globe,
   User
 } from 'lucide-react';
 
@@ -49,6 +50,7 @@ export default function Navbar({
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
     { id: 'pos', label: 'POS Mostrador', icon: Calculator },
     { id: 'orders', label: 'Pedidos', icon: PackageCheck },
+    { id: 'woo', label: 'WooCommerce', icon: Globe },
     { id: 'drivers', label: 'Repartidores', icon: Bike },
     { id: 'customers', label: 'Clientes', icon: Users },
     { id: 'branches', label: 'Sucursales', icon: Store },
