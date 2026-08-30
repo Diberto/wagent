@@ -340,6 +340,12 @@ export function createApiRouter(whatsappService, io) {
     res.json(item);
   });
 
+  router.post('/knowledge/:id/duplicate', (req, res) => {
+    const item = db.duplicateKnowledgeItem(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Item no encontrado' });
+    res.json(item);
+  });
+
   router.delete('/knowledge/:id', (req, res) => {
     db.deleteKnowledgeItem(req.params.id);
     res.json({ success: true });
@@ -357,6 +363,12 @@ export function createApiRouter(whatsappService, io) {
 
   router.put('/products/:id', (req, res) => {
     const product = db.updateProduct(req.params.id, req.body);
+    res.json(product);
+  });
+
+  router.post('/products/:id/duplicate', (req, res) => {
+    const product = db.duplicateProduct(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(product);
   });
 
@@ -462,7 +474,20 @@ export function createApiRouter(whatsappService, io) {
       }
     }
 
+  // Edit full order
+  router.put('/orders/:id', (req, res) => {
+    const updated = db.updateOrder(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+    io.emit('order:update', updated);
     res.json(updated);
+  });
+
+  // Duplicate order
+  router.post('/orders/:id/duplicate', (req, res) => {
+    const cloned = db.duplicateOrder(req.params.id);
+    if (!cloned) return res.status(404).json({ error: 'Pedido no encontrado' });
+    io.emit('order:new', cloned);
+    res.json(cloned);
   });
 
   router.delete('/orders/:id', (req, res) => {
@@ -478,6 +503,12 @@ export function createApiRouter(whatsappService, io) {
     res.json(customers);
   });
 
+  router.post('/customers', (req, res) => {
+    const newCustomer = db.findOrCreateLead(req.body);
+    io.emit('lead:update', newCustomer);
+    res.json(newCustomer);
+  });
+
   router.get('/customers/:id', (req, res) => {
     const profile = db.getCustomerProfile(req.params.id);
     if (!profile) return res.status(404).json({ error: 'Cliente no encontrado' });
@@ -489,6 +520,19 @@ export function createApiRouter(whatsappService, io) {
     if (!updated) return res.status(404).json({ error: 'Cliente no encontrado' });
     io.emit('lead:update', updated);
     res.json(updated);
+  });
+
+  router.post('/customers/:id/duplicate', (req, res) => {
+    const cloned = db.duplicateCustomer(req.params.id);
+    if (!cloned) return res.status(404).json({ error: 'Cliente no encontrado' });
+    io.emit('lead:update', cloned);
+    res.json(cloned);
+  });
+
+  router.delete('/customers/:id', (req, res) => {
+    db.deleteLead(req.params.id);
+    io.emit('lead:delete', { id: req.params.id });
+    res.json({ success: true });
   });
 
   // --- 6. Settings & Voice Testing ---

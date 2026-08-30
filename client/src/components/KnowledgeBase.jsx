@@ -12,7 +12,8 @@ import {
   X,
   Package,
   Layers,
-  HelpCircle
+  HelpCircle,
+  Copy
 } from 'lucide-react';
 
 export default function KnowledgeBase() {
@@ -68,6 +69,18 @@ export default function KnowledgeBase() {
       keywords: item.keywords ? item.keywords.join(', ') : ''
     });
     setIsModalOpen(true);
+  };
+
+  const handleDuplicate = async (id) => {
+    try {
+      const res = await fetch(`/api/knowledge/${id}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const cloned = await res.json();
+        setItems(prev => [cloned, ...prev]);
+      }
+    } catch (err) {
+      console.error('Error duplicando KB:', err);
+    }
   };
 
   const handleSave = async (e) => {
@@ -286,6 +299,13 @@ export default function KnowledgeBase() {
                     title="Editar"
                   >
                     <Edit3 size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDuplicate(item.id)}
+                    className="p-2 rounded-xl bg-slate-800 hover:bg-sky-950/40 text-slate-300 hover:text-sky-400 border border-slate-700/60 transition-colors"
+                    title="Duplicar"
+                  >
+                    <Copy size={14} />
                   </button>
                   <button
                     onClick={() => handleDelete(item.id)}

@@ -19,7 +19,12 @@ import {
   Send,
   MessageSquare,
   AlertCircle,
-  X
+  X,
+  Copy,
+  Edit3,
+  Plus,
+  Save,
+  CreditCard
 } from 'lucide-react';
 
 export default function OrdersView({ socket }) {
@@ -30,6 +35,10 @@ export default function OrdersView({ socket }) {
 
   // Status Change Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState(null); // { order, targetStatus, message, isSubmitting }
+
+  // Create / Edit Order Modal State
+  const [orderModal, setOrderModal] = useState(null); // null | { mode: 'create' | 'edit', data: { ... } }
+  const [itemsInputText, setItemsInputText] = useState('');
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -126,6 +135,18 @@ export default function OrdersView({ socket }) {
     }
   };
 
+  const handleDuplicateOrder = async (orderId) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const cloned = await res.json();
+        setOrders(prev => [cloned, ...prev]);
+      }
+    } catch (err) {
+      console.error('Error duplicando pedido:', err);
+    }
+  };
+
   const handleDeleteOrder = async (orderId) => {
     if (!window.confirm(`¿Eliminar el pedido #${orderId}?`)) return;
     try {
@@ -135,6 +156,75 @@ export default function OrdersView({ socket }) {
       }
     } catch (err) {
       console.error('Error eliminando pedido:', err);
+    }
+  };
+
+  const handleOpenCreateOrder = () => {
+    setOrderModal({
+      mode: 'create',
+      data: {
+        customerName: '',
+        phone: '',
+        address: '',
+        items: ['1x Combo Asadazo ($39.999)'],
+        totalAmount: 39999,
+        paymentMethod: 'Efectivo al repartidor',
+        status: 'pending',
+        notes: ''
+      }
+    });
+    setItemsInputText('1x Combo Asadazo ($39.999)');
+  };
+
+  const handleOpenEditOrder = (order) => {
+    setOrderModal({
+      mode: 'edit',
+      data: { ...order }
+    });
+    setItemsInputText(Array.isArray(order.items) ? order.items.join('\n') : (order.items || ''));
+  };
+
+  const handleSaveOrderForm = async (e) => {
+    e.preventDefault();
+    if (!orderModal) return;
+
+    const items = itemsInputText
+      .split('\n')
+      .map(i => i.trim())
+      .filter(Boolean);
+
+    const payload = {
+      ...orderModal.data,
+      items,
+      totalAmount: Number(orderModal.data.totalAmount) || 0
+    };
+
+    try {
+      if (orderModal.mode === 'create') {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const created = await res.json();
+          setOrders(prev => [created, ...prev]);
+          setOrderModal(null);
+        }
+      } else {
+        const res = await fetch(`/api/orders/${orderModal.data.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+          setOrderModal(null);
+        }
+      }
+    } catch (err) {
+      console.error('Error guardando pedido:', err);
     }
   };
 
@@ -184,17 +274,27 @@ export default function OrdersView({ socket }) {
               Gestión de Pedidos y Ventas
             </h1>
             <p className="text-xs text-slate-400">
-              Pedidos tomados automáticamente por la IA en WhatsApp y registrados en tiempo real
+              Crea, edita, duplica y despacha pedidos con aviso automático por WhatsApp
             </p>
           </div>
 
-          <button
-            onClick={fetchOrders}
-            className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#182229] hover:bg-[#202c33] border border-slate-700 text-slate-300 hover:text-white text-xs transition"
-          >
-            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
-            Actualizar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenCreateOrder}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-md transition"
+            >
+              <Plus size={14} />
+              Nuevo Pedido
+            </button>
+
+            <button
+              onClick={fetchOrders}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#182229] hover:bg-[#202c33] border border-slate-700 text-slate-300 hover:text-white text-xs transition"
+            >
+              <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+              Actualizar
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -277,7 +377,7 @@ export default function OrdersView({ socket }) {
         </div>
       </div>
 
-      {/* Orders Grid / Table */}
+      {/* Orders Grid */}
       {isLoading ? (
         <div className="py-16 text-center text-xs text-slate-500">
           <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-emerald-500" />
@@ -288,7 +388,7 @@ export default function OrdersView({ socket }) {
           <ShoppingBag size={36} className="mx-auto text-slate-600" />
           <div className="text-sm font-bold text-white">No hay pedidos registrados</div>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Cuando un cliente confirme su pedido y dirección por WhatsApp, el agente de IA registrará el pedido automáticamente aquí.
+            Cuando un cliente confirme su pedido por WhatsApp o hagas clic en "Nuevo Pedido", aparecerá aquí.
           </p>
         </div>
       ) : (
@@ -312,9 +412,12 @@ export default function OrdersView({ socket }) {
                   <span className="text-xs font-bold text-emerald-400">${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}</span>
                 </div>
 
-                <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                  <Calendar size={12} className="text-slate-500" />
-                  {new Date(order.createdAt).toLocaleString()}
+                <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Calendar size={12} className="text-slate-500" />
+                    {new Date(order.createdAt).toLocaleString()}
+                  </span>
+                  <span className="text-slate-400">{order.phone}</span>
                 </div>
               </div>
 
@@ -324,7 +427,7 @@ export default function OrdersView({ socket }) {
                   <MapPin size={13} className="text-rose-400 shrink-0" />
                   <span>Dirección de Entrega:</span>
                 </div>
-                <div className="text-slate-200 font-medium pl-5">{order.address || 'A convenir'}</div>
+                <div className="text-slate-200 font-medium pl-5 truncate">{order.address || 'A convenir'}</div>
               </div>
 
               {/* Items List */}
@@ -336,32 +439,50 @@ export default function OrdersView({ socket }) {
                       <div key={idx} className="truncate">{item}</div>
                     ))
                   ) : (
-                    <div className="text-slate-500">1x Combo Asadazo ($39.999)</div>
+                    <div className="text-slate-500">{order.items || '1x Combo Asadazo ($39.999)'}</div>
                   )}
                 </div>
               </div>
 
               {/* Status Selector & Actions */}
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
-                <select
-                  value={order.status}
-                  onChange={(e) => handleRequestStatusChange(order, e.target.value)}
-                  className="flex-1 bg-[#111b21] border border-slate-700/80 text-xs text-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="pending">⏳ Pendiente</option>
-                  <option value="preparing">🥩 En Preparación</option>
-                  <option value="in_transit">🚚 En Camino</option>
-                  <option value="delivered">✅ Entregado</option>
-                  <option value="cancelled">❌ Cancelado</option>
-                </select>
+              <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={order.status}
+                    onChange={(e) => handleRequestStatusChange(order, e.target.value)}
+                    className="flex-1 bg-[#111b21] border border-slate-700/80 text-xs text-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="pending">⏳ Pendiente</option>
+                    <option value="preparing">🥩 En Preparación</option>
+                    <option value="in_transit">🚚 En Camino</option>
+                    <option value="delivered">✅ Entregado</option>
+                    <option value="cancelled">❌ Cancelado</option>
+                  </select>
 
-                <button
-                  onClick={() => handleDeleteOrder(order.id)}
-                  className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
-                  title="Eliminar pedido"
-                >
-                  <Trash2 size={14} />
-                </button>
+                  <button
+                    onClick={() => handleOpenEditOrder(order)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                    title="Editar pedido"
+                  >
+                    <Edit3 size={14} />
+                  </button>
+
+                  <button
+                    onClick={() => handleDuplicateOrder(order.id)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
+                    title="Duplicar pedido"
+                  >
+                    <Copy size={14} />
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteOrder(order.id)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
+                    title="Eliminar pedido"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -451,6 +572,142 @@ export default function OrdersView({ socket }) {
                 {confirmModal.isSubmitting ? 'Enviando...' : 'Cambiar y Enviar WhatsApp'}
               </button>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Order Modal */}
+      {orderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-5">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <ShoppingBag size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {orderModal.mode === 'create' ? 'Nuevo Pedido Manual' : `Editar Pedido #${orderModal.data.id}`}
+                  </h3>
+                  <p className="text-xs text-slate-400">Detalles del cliente, cortes y monto total</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setOrderModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOrderForm} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Nombre del Cliente:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Juan Gonzalez"
+                    value={orderModal.data.customerName}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, customerName: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Teléfono / WhatsApp:</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: +54 9 351 626-2475"
+                    value={orderModal.data.phone}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, phone: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Dirección de Entrega:</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Roque Funes 1704, Barrio Urca"
+                  value={orderModal.data.address}
+                  onChange={(e) => setOrderModal({
+                    ...orderModal,
+                    data: { ...orderModal.data, address: e.target.value }
+                  })}
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Cortes / Combos (un ítem por línea):</label>
+                <textarea
+                  rows={3}
+                  placeholder="1x Combo Asadazo ($39.999)&#10;2 kg Costeleta de Cerdo ($15.000)"
+                  value={itemsInputText}
+                  onChange={(e) => setItemsInputText(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Monto Total ($):</label>
+                  <input
+                    type="number"
+                    required
+                    value={orderModal.data.totalAmount}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, totalAmount: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Medio de Pago:</label>
+                  <select
+                    value={orderModal.data.paymentMethod}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, paymentMethod: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  >
+                    <option value="Efectivo al repartidor">Efectivo al repartidor</option>
+                    <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                    <option value="Mercado Pago">Mercado Pago</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setOrderModal(null)}
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold transition"
+                >
+                  <Save size={14} />
+                  Guardar Pedido
+                </button>
+              </div>
+            </form>
 
           </div>
         </div>

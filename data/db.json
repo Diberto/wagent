@@ -31,10 +31,10 @@
       ],
       "totalAmount": 39999,
       "paymentMethod": "Efectivo al repartidor",
-      "status": "preparing",
+      "status": "in_transit",
       "notes": "Cliente confirmó pago en efectivo contraentrega.",
       "createdAt": "2026-08-30T19:32:20.000Z",
-      "updatedAt": "2026-08-30T19:38:54.000Z"
+      "updatedAt": "2026-08-30T19:46:17.030Z"
     }
   ],
   "knowledgeBase": [
@@ -186,13 +186,13 @@
         "Parrillero"
       ],
       "aiEnabled": true,
-      "unreadCount": 3,
+      "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T19:41:31.261Z",
+      "updatedAt": "2026-08-30T19:46:06.861Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalez",
       "phone": "+153051277086768",
-      "pushName": "Juan Gonzalez",
+      "pushName": "Don Juan",
       "address": "Roque Funes 1704, Barrio Urca",
       "totalOrders": 1,
       "totalSpent": 39999,

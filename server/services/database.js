@@ -643,6 +643,98 @@ class DatabaseService {
     return this.getCustomerProfile(lead.id);
   }
 
+  updateOrder(id, updates) {
+    const db = this.readDb();
+    const order = (db.orders || []).find(o => o.id === id);
+    if (order) {
+      Object.assign(order, updates, { updatedAt: new Date().toISOString() });
+      if (updates.totalAmount !== undefined) order.totalAmount = Number(updates.totalAmount) || 0;
+      this.writeDb(db);
+      return order;
+    }
+    return null;
+  }
+
+  duplicateOrder(id) {
+    const db = this.readDb();
+    const source = (db.orders || []).find(o => o.id === id);
+    if (!source) return null;
+
+    const cloned = {
+      ...source,
+      id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!db.orders) db.orders = [];
+    db.orders.unshift(cloned);
+    this.writeDb(db);
+    return cloned;
+  }
+
+  duplicateCustomer(id) {
+    const db = this.readDb();
+    const source = (db.leads || []).find(l => l.id === id || l.jid === id);
+    if (!source) return null;
+
+    const cloned = {
+      ...source,
+      id: `lead-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: `${source.name || 'Cliente'} (Copia)`,
+      pushName: `${source.pushName || 'Cliente'} (Copia)`,
+      jid: `copy_${Date.now()}@s.whatsapp.net`,
+      altJids: [],
+      totalOrders: 0,
+      totalSpent: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!db.leads) db.leads = [];
+    db.leads.unshift(cloned);
+    this.writeDb(db);
+    return this.getCustomerProfile(cloned.id);
+  }
+
+  duplicateProduct(id) {
+    const db = this.readDb();
+    const source = (db.products || []).find(p => p.id === id);
+    if (!source) return null;
+
+    const cloned = {
+      ...source,
+      id: `prod-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: `${source.name} (Copia)`,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!db.products) db.products = [];
+    db.products.push(cloned);
+    this.writeDb(db);
+    return cloned;
+  }
+
+  duplicateKnowledgeItem(id) {
+    const db = this.readDb();
+    const source = (db.knowledgeBase || []).find(k => k.id === id);
+    if (!source) return null;
+
+    const cloned = {
+      ...source,
+      id: `kb-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      title: `${source.title} (Copia)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!db.knowledgeBase) db.knowledgeBase = [];
+    db.knowledgeBase.push(cloned);
+    this.writeDb(db);
+    return cloned;
+  }
+
   updateOrderStatus(id, status) {
     const db = this.readDb();
     const order = (db.orders || []).find(o => o.id === id);

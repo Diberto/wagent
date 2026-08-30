@@ -103,6 +103,78 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
     }
   };
 
+  const handleDuplicateCustomer = async (customerId) => {
+    try {
+      const res = await fetch(`/api/customers/${customerId}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const cloned = await res.json();
+        setCustomers(prev => [cloned, ...prev]);
+        setSelectedCustomer(cloned);
+      }
+    } catch (err) {
+      console.error('Error duplicando cliente:', err);
+    }
+  };
+
+  const handleDeleteCustomer = async (customerId) => {
+    if (!window.confirm(`¿Eliminar la ficha de este cliente de la base de datos?`)) return;
+    try {
+      const res = await fetch(`/api/customers/${customerId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setCustomers(prev => prev.filter(c => c.id !== customerId));
+        setSelectedCustomer(null);
+      }
+    } catch (err) {
+      console.error('Error eliminando cliente:', err);
+    }
+  };
+
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    cookingPreference: 'Parrilla',
+    groupSize: '4 personas',
+    notes: ''
+  });
+
+  const handleCreateCustomerSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newCustomerForm,
+          preferences: {
+            favoriteCuts: [],
+            cookingPreference: newCustomerForm.cookingPreference,
+            groupSize: newCustomerForm.groupSize,
+            preferredPayment: 'Efectivo / Transferencia',
+            notes: newCustomerForm.notes
+          }
+        })
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setCustomers(prev => [created, ...prev]);
+        setSelectedCustomer(created);
+        setCreateModalOpen(false);
+        setNewCustomerForm({
+          name: '',
+          phone: '',
+          address: '',
+          cookingPreference: 'Parrilla',
+          groupSize: '4 personas',
+          notes: ''
+        });
+      }
+    } catch (err) {
+      console.error('Error creando cliente:', err);
+    }
+  };
+
   const handleAddFavoriteCut = (cutName) => {
     if (!cutName || !cutName.trim()) return;
     const cut = cutName.trim();
@@ -164,13 +236,23 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
             </p>
           </div>
 
-          <button
-            onClick={fetchCustomers}
-            className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#182229] hover:bg-[#202c33] border border-slate-700 text-slate-300 hover:text-white text-xs transition"
-          >
-            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
-            Actualizar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCreateModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-md transition"
+            >
+              <Plus size={14} />
+              Nuevo Cliente
+            </button>
+
+            <button
+              onClick={fetchCustomers}
+              className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#182229] hover:bg-[#202c33] border border-slate-700 text-slate-300 hover:text-white text-xs transition"
+            >
+              <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+              Actualizar
+            </button>
+          </div>
         </div>
 
         {/* Mini stats */}
@@ -356,12 +438,22 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                     {onSelectLeadForChat && (
                       <button
                         onClick={() => onSelectLeadForChat(selectedCustomer)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition"
+                        title="Abrir conversación"
                       >
                         <MessageSquare size={14} />
-                        Abrir Chat
+                        Chat
                       </button>
                     )}
+
+                    <button
+                      onClick={() => handleDuplicateCustomer(selectedCustomer.id)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#202c33] hover:bg-sky-950/40 text-slate-300 hover:text-sky-400 border border-slate-700 text-xs font-semibold transition"
+                      title="Duplicar ficha de cliente"
+                    >
+                      <Copy size={14} />
+                      Duplicar
+                    </button>
 
                     {isEditing ? (
                       <button
@@ -369,17 +461,25 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-md transition"
                       >
                         <Save size={14} />
-                        Guardar Ficha
+                        Guardar
                       </button>
                     ) : (
                       <button
                         onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-slate-200 text-xs font-semibold transition"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-slate-200 text-xs font-semibold transition"
                       >
                         <Edit3 size={14} />
-                        Editar Datos
+                        Editar
                       </button>
                     )}
+
+                    <button
+                      onClick={() => handleDeleteCustomer(selectedCustomer.id)}
+                      className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
+                      title="Eliminar cliente"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
 
@@ -626,6 +726,127 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
         </div>
 
       </div>
+
+      {/* Create Customer Modal */}
+      {createModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-5">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Nuevo Cliente</h3>
+                  <p className="text-xs text-slate-400">Registrar cliente y preferencias en la base de datos</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setCreateModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCustomerSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Nombre y Apellido:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Marcelo Perez"
+                    value={newCustomerForm.name}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Teléfono / WhatsApp:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: +54 9 351 555-1234"
+                    value={newCustomerForm.phone}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Dirección de Entrega:</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Av. Recta Martinoli 6500, Villa Belgrano"
+                  value={newCustomerForm.address}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Preferencia de Cocción:</label>
+                  <select
+                    value={newCustomerForm.cookingPreference}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, cookingPreference: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  >
+                    <option value="Parrilla / Asado">Parrilla / Asado</option>
+                    <option value="Horno y Estofados">Horno y Estofados</option>
+                    <option value="Milanesas">Milanesas</option>
+                    <option value="Comidas Diarias">Comidas Diarias</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Comensales Habituales:</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 4 a 6 personas"
+                    value={newCustomerForm.groupSize}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, groupSize: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Notas y Observaciones:</label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej: Prefiere cortes desgrasados, atiende por la tarde..."
+                  value={newCustomerForm.notes}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setCreateModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold transition"
+                >
+                  <Save size={14} />
+                  Guardar Cliente
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

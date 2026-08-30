@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Package, Plus, Search, Tag, DollarSign, Edit3, Trash2, 
-  RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X
+  RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X, Copy
 } from 'lucide-react';
 
 export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' }) {
@@ -146,6 +146,18 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     }
   };
 
+  const handleDuplicateProduct = async (id) => {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/products/${id}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const cloned = await res.json();
+        setProducts(prev => [cloned, ...prev]);
+      }
+    } catch (err) {
+      console.error('Error duplicating product:', err);
+    }
+  };
+
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -159,82 +171,71 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       {/* Header */}
       <div className="bg-[#111b21] border-b border-[#222e35] px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <ShoppingBag className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                Catálogo de Productos & Carnes
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium border border-emerald-500/30">
-                  {products.length} productos
-                </span>
-              </h1>
-              <p className="text-xs text-slate-400">
-                La IA utiliza este catálogo en tiempo real para cotizar, asesorar y cerrar ventas en WhatsApp.
-              </p>
-            </div>
-          </div>
+          <h1 className="text-xl font-bold text-white flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-emerald-400" />
+            Catálogo de Productos y Ofertas
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Administra los cortes, precios y combos que el Asesor de IA consultará para cotizar y cerrar ventas
+          </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={handleSyncWithWhatsApp}
             disabled={syncing}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-xs font-semibold text-slate-300 hover:text-white transition disabled:opacity-50"
-            title="Importar productos del catálogo de WhatsApp Business"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-slate-200 hover:text-white transition disabled:opacity-50"
+            title="Importar catálogo desde WhatsApp Business"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Sincronizando...' : 'Sincronizar con WhatsApp Business'}
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            <span>{syncing ? 'Sincronizando...' : 'Sincronizar Catálogo'}</span>
           </button>
 
           <button
             onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold transition shadow-lg shadow-emerald-500/20"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20 transition"
           >
             <Plus className="w-4 h-4" />
-            Nuevo Producto
+            <span>Nuevo Producto</span>
           </button>
         </div>
       </div>
 
       {/* Sync Message Alert */}
       {syncMessage && (
-        <div className={`mx-6 mt-4 p-3 rounded-xl border text-xs flex items-center gap-2 animate-in fade-in ${
+        <div className={`px-6 py-2.5 text-xs flex items-center gap-2 border-b ${
           syncMessage.type === 'success' 
             ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+            : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
         }`}>
           {syncMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-          {syncMessage.text}
+          <span>{syncMessage.text}</span>
         </div>
       )}
 
-      {/* Filter and Search Bar */}
-      <div className="px-6 py-3 bg-[#111b21]/60 border-b border-[#222e35] flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-1 max-w-md">
-          <div className="relative w-full">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Buscar por corte, producto o descripción..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-[#202c33] border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
+      {/* Search & Categories Bar */}
+      <div className="p-4 bg-[#111b21] border-b border-[#222e35] flex flex-wrap items-center justify-between gap-3">
+        <div className="relative flex-1 min-w-[240px] max-w-md">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, descripción o corte..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-1.5 bg-[#182229] border border-slate-700/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+          />
         </div>
 
-        {/* Category Badges */}
-        <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
+        {/* Category Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition ${
+              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
                 selectedCategory === cat
                   ? 'bg-emerald-500 text-slate-950 font-bold'
-                  : 'bg-[#202c33] hover:bg-[#2a3942] text-slate-400 hover:text-slate-200'
+                  : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
               }`}
             >
               {cat === 'all' ? 'Todos' : cat}
@@ -243,7 +244,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
         </div>
       </div>
 
-      {/* Products Grid */}
+      {/* Product Grid */}
       <div className="flex-1 overflow-y-auto p-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 text-slate-500">
@@ -283,6 +284,13 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                         title="Editar"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDuplicateProduct(prod.id)}
+                        className="p-1 hover:bg-[#202c33] text-slate-400 hover:text-sky-400 rounded-lg transition"
+                        title="Duplicar"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDeleteProduct(prod.id)}
