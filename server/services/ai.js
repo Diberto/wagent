@@ -398,6 +398,32 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
     }
 
     // =========================================================================
+    // 0.2 CONSULTA DIRECTA DE OFERTAS, PRECIOS, PROMOCIONES Y CORTES DISPONIBLES
+    // (Ej: "que tenes en oferta para asado", "que cortes hay en oferta", "que cortes hay en ofeta", "precios", "ofertas")
+    // =========================================================================
+    const isOffersQuery = /oferta|ofertas|ofeta|ofetas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|que corte|que cortes hay|cortes en oferta|cortes tenes|cortes tenés|carta|catalogo|catálogo|opciones/i.test(t);
+    const hasAddressOrOrderClose = /calle|av\.|avenida|barrio|funes|locelso|altura|dpto|domicilio/i.test(t) || /(?:quiero|dame|traeme|mandame|anotame)\s+[0-9]+/i.test(t);
+
+    if (isOffersQuery && !hasAddressOrOrderClose) {
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes')) ? lead.name : (nameGreeting || 'Don Juan');
+
+      return `¡Mirá ${clientName}! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n` +
+        `🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n` +
+        `🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n` +
+        `🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n` +
+        `• **Vacío Especial / Tierno:** $11.500 / kg\n` +
+        `• **Costillar / Asado de Tira:** $9.800 / kg\n` +
+        `• **Matambre de Cerdo:** $8.500 / kg\n` +
+        `• **Costeletas de Cerdo:** $7.500 / kg\n` +
+        `• **Chorizo Criollo Puro Cerdo:** $6.500 / kg\n` +
+        `• **Morcilla Bombón Parrillera:** $5.200 / kg\n` +
+        `• **Picada Especial:** $5.800 / kg\n` +
+        `• **Milanesas de Nalga preparadas:** $8.900 / kg\n` +
+        `• **Carbón Quebracho (bolsa grande):** $2.200\n\n` +
+        `👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚 [[STAGE:proposal]]`;
+    }
+
+    // =========================================================================
     // 1. EVALUACIÓN Y CÁLCULO DE COMENSALES (PASO 1: ASESORAMIENTO CONSULTIVO)
     // =========================================================================
     const comensalesMatch = t.match(/(?:somos|para|comemos|seremos|calcular\s+para)?\s*([0-9]+)\s*(?:personas|personas\s+para|comensales|amigos|invitados|para\s+el\s+asado)?/i);
