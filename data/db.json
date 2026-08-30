@@ -42,13 +42,18 @@
       "status": "preparing",
       "notes": "[Pago Simulado] Acreditado en Sandbox ($44399)",
       "createdAt": "2026-08-30T21:28:49.594Z",
-      "updatedAt": "2026-08-30T21:31:14.705Z",
+      "updatedAt": "2026-08-30T21:31:36.433Z",
       "paymentPreferenceId": "2050924390-7a7efadd-76ba-4cd0-ad95-2f057bba5ea7",
       "paymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-7a7efadd-76ba-4cd0-ad95-2f057bba5ea7",
       "paymentMode": "sandbox",
       "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-7a7efadd-76ba-4cd0-ad95-2f057bba5ea7",
       "paymentStatus": "paid",
-      "paidAt": "2026-08-30T21:31:14.704Z"
+      "paidAt": "2026-08-30T21:31:14.704Z",
+      "branchId": "br-1",
+      "branchName": "Sucursal Cerro de las Rosas",
+      "branchPhone": "+54 9 351 347-2864",
+      "branchStatus": "derived",
+      "branchNotifiedAt": "2026-08-30T21:31:36.433Z"
     },
     {
       "id": "ORD-9109",
@@ -386,7 +391,7 @@
         "Frecuente"
       ],
       "aiEnabled": true,
-      "unreadCount": 7,
+      "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
       "updatedAt": "2026-08-30T21:28:58.000Z",
       "jid": "153051277086768@lid",

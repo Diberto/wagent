@@ -927,6 +927,10 @@ export class WhatsAppManager {
     return result;
   }
 
+  get status() {
+    return this.primarySession?.status || 'disconnected';
+  }
+
   async sendMessage(jid, text, media = null, userId = 'default') {
     let session = this.getSession(userId);
     if (!session || session.status !== 'connected') {
@@ -941,6 +945,14 @@ export class WhatsAppManager {
       session = this.primarySession;
     }
     return session.sendDriverDispatchNotification(order, driver, notifyClient);
+  }
+
+  async sendBranchDerivationNotification(order, branch, notifyClient = true, userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session || session.status !== 'connected') {
+      session = this.primarySession;
+    }
+    return session.sendBranchDerivationNotification(order, branch, notifyClient);
   }
 }
 
