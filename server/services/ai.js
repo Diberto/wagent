@@ -10,27 +10,171 @@ import { mercadoPagoService } from './mercadopago.js';
  * Catálogo Maestro de Cortes y Precios de República de la Carne
  */
 const MASTER_CATALOG = [
-  { keywords: ['combo asadazo', 'combo “asadazo”', 'combo asado', 'asadazo', 'azadazo', 'asasazo', 'asadaso', 'azadaso', 'combo parrillero', 'combo 4kg', 'combo 4 kg', 'combo'], name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, unit: 'combo', category: 'Combos en Oferta' },
-  { keywords: ['tapa de cuadril', 'tapa cuadril', 'cuadril', 'colita de cuadril'], name: 'Tapa de Cuadril Seleccionada', price: 12800, unit: 'kg', category: 'Parrilla y Horno' },
-  { keywords: ['vacio', 'vacío', 'vacio tierno'], name: 'Vacío Especial Seleccionado', price: 11500, unit: 'kg', category: 'Parrilla' },
-  { keywords: ['costillar', 'asado de tira', 'tira de asado', 'costilla'], name: 'Costillar / Asado de Tira Novillito', price: 9800, unit: 'kg', category: 'Parrilla' },
-  { keywords: ['bife de chorizo', 'bife chorizo', 'ojo de bife', 'bife de lomo'], name: 'Bife de Chorizo Premium', price: 14500, unit: 'kg', category: 'Cortes Premium' },
-  { keywords: ['entraña', 'entrana', 'entrecot', 'enrecor'], name: 'Entraña Fina Seleccionada', price: 16900, unit: 'kg', category: 'Cortes Premium' },
-  { keywords: ['matambre de cerdo', 'matambrito de cerdo', 'matambre cerdo'], name: 'Matambrito de Cerdo Tiernizado', price: 8500, unit: 'kg', category: 'Cerdo y Parrilla' },
-  { keywords: ['matambre de vaca', 'matambre vacuno', 'matambre'], name: 'Matambre Vacuno', price: 9500, unit: 'kg', category: 'Parrilla y Horno' },
-  { keywords: ['bondiola', 'bondiola de cerdo'], name: 'Bondiola de Cerdo sin Hueso', price: 8900, unit: 'kg', category: 'Cerdo' },
-  { keywords: ['costeleta de cerdo', 'costeletas de cerdo', 'cerdo'], name: 'Costeletas de Cerdo (2kg x $15.000 promo)', price: 7500, unit: 'kg', category: 'Cerdo' },
-  { keywords: ['costeleta de ternera', 'costeletas de ternera', 'costeleta', 'costeletas'], name: 'Costeletas de Ternera (2kg x $35.000 promo)', price: 17500, unit: 'kg', category: 'Cortes Tradicionales' },
-  { keywords: ['chori criollo', 'chorizo criollo', 'chorizo', 'chorizos', 'chori'], name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', price: 5000, unit: 'kg', category: 'Embutidos' },
-  { keywords: ['morcilla', 'morcillas', 'morcilla bombon', 'morcilla bombón'], name: 'Morcilla Bombón Parrillera', price: 5200, unit: 'kg', category: 'Embutidos' },
-  { keywords: ['molleja', 'mollejas'], name: 'Mollejas de Corazón', price: 14800, unit: 'kg', category: 'Achuras' },
-  { keywords: ['chinchulin', 'chinchulines', 'chinchu'], name: 'Chinchulines Crocantes', price: 4800, unit: 'kg', category: 'Achuras' },
-  { keywords: ['molida intermedia', 'picada especial', 'molida', 'picada', 'carne picada'], name: 'Carne Molida Intermedia (3kg x $27.000 promo)', price: 9000, unit: 'kg', category: 'Diario y Preparados' },
-  { keywords: ['milanesas de ternera', 'milanesa de ternera', 'milanesas', 'milanesa'], name: 'Milanesas de Ternera preparadas (2kg x $24.990)', price: 12495, unit: 'kg', category: 'Diario y Preparados' },
-  { keywords: ['pata muslo', 'pollo', 'suprema de pollo', 'pechuga'], name: 'Pata Muslo Fresca (3kg x $13.990 promo)', price: 4660, unit: 'kg', category: 'Pollo' },
-  { keywords: ['carbon', 'carbón', 'bolsa de carbon'], name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, unit: 'bolsa', category: 'Almacén Parrillero' },
-  { keywords: ['vino', 'vino howlmande', 'howlmande', 'malbec'], name: 'Vino Howlmande Malbec Reserva', price: 5500, unit: 'botella', category: 'Bebidas' }
+  { 
+    keywords: ['combo asadazo', 'combo “asadazo”', 'combo asado', 'asadazo', 'azadazo', 'asasazo', 'asadaso', 'azadaso', 'combo parrillero', 'combo 4kg', 'combo 4 kg', 'combo'], 
+    name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', 
+    price: 39999, 
+    unit: 'combo', 
+    category: 'Combos en Oferta' 
+  },
+  { 
+    keywords: ['tapa de cuadril', 'tapa cuadril', 'colita de cuadril', 'cuadril'], 
+    name: 'Tapa de Cuadril Seleccionada', 
+    price: 12800, 
+    unit: 'kg', 
+    category: 'Parrilla y Horno' 
+  },
+  { 
+    keywords: ['vacio especial', 'vacío especial', 'vacio tierno', 'vacío tierno', 'vacio', 'vacío'], 
+    name: 'Vacío Especial Seleccionado', 
+    price: 11500, 
+    unit: 'kg', 
+    category: 'Parrilla' 
+  },
+  { 
+    keywords: ['costillar de novillito', 'asado de tira novillito', 'costillar', 'asado de tira', 'tira de asado', 'costilla novillito', 'costillar novillito', 'tira novillito'], 
+    name: 'Costillar / Asado de Tira Novillito', 
+    price: 9800, 
+    unit: 'kg', 
+    category: 'Parrilla' 
+  },
+  { 
+    keywords: ['bife de chorizo', 'bife chorizo', 'bifes de chorizo', 'ojo de bife', 'bife de lomo'], 
+    name: 'Bife de Chorizo Premium', 
+    price: 14500, 
+    unit: 'kg', 
+    category: 'Cortes Premium' 
+  },
+  { 
+    keywords: ['entraña fina', 'entrana fina', 'entraña', 'entrana', 'entrecot', 'enrecor'], 
+    name: 'Entraña Fina Seleccionada', 
+    price: 16900, 
+    unit: 'kg', 
+    category: 'Cortes Premium' 
+  },
+  { 
+    keywords: ['matambre de cerdo', 'matambrito de cerdo', 'matambre cerdo', 'matambrito cerdo', 'matambrito'], 
+    name: 'Matambrito de Cerdo Tiernizado', 
+    price: 8500, 
+    unit: 'kg', 
+    category: 'Cerdo y Parrilla' 
+  },
+  { 
+    keywords: ['matambre de vaca', 'matambre vacuno', 'matambre'], 
+    name: 'Matambre Vacuno', 
+    price: 9500, 
+    unit: 'kg', 
+    category: 'Parrilla y Horno' 
+  },
+  { 
+    keywords: ['bondiola de cerdo', 'bondiola cerdo', 'bondiola'], 
+    name: 'Bondiola de Cerdo sin Hueso', 
+    price: 8900, 
+    unit: 'kg', 
+    category: 'Cerdo' 
+  },
+  { 
+    keywords: ['costeleta de cerdo', 'costeletas de cerdo', 'costeleta cerdo', 'costeletas cerdo', 'chuleta de cerdo', 'chuletas de cerdo'], 
+    name: 'Costeletas de Cerdo (2kg x $15.000 promo)', 
+    price: 7500, 
+    unit: 'kg', 
+    category: 'Cerdo' 
+  },
+  { 
+    keywords: ['costeleta de ternera', 'costeletas de ternera', 'costeleta ternera', 'costeletas ternera', 'costeleta', 'costeletas'], 
+    name: 'Costeletas de Ternera (2kg x $35.000 promo)', 
+    price: 17500, 
+    unit: 'kg', 
+    category: 'Cortes Tradicionales' 
+  },
+  { 
+    keywords: ['chorizo criollo puro cerdo', 'chorizo de cerdo', 'chorizos de cerdo', 'chorizo cerdo', 'chorizos cerdo', 'chori de cerdo', 'choris de cerdo', 'chorizo criollo', 'chori criollo', 'chorizo puro cerdo', 'chorizo', 'chorizos', 'chori', 'choris'], 
+    name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', 
+    price: 5000, 
+    unit: 'kg', 
+    category: 'Embutidos' 
+  },
+  { 
+    keywords: ['morcilla bombon', 'morcilla bombón', 'morcillas bombon', 'morcillas bombón', 'morcilla', 'morcillas'], 
+    name: 'Morcilla Bombón Parrillera', 
+    price: 5200, 
+    unit: 'kg', 
+    category: 'Embutidos' 
+  },
+  { 
+    keywords: ['molleja de corazon', 'mollejas de corazon', 'molleja', 'mollejas'], 
+    name: 'Mollejas de Corazón', 
+    price: 14800, 
+    unit: 'kg', 
+    category: 'Achuras' 
+  },
+  { 
+    keywords: ['chinchulin', 'chinchulines', 'chinchu'], 
+    name: 'Chinchulines Crocantes', 
+    price: 4800, 
+    unit: 'kg', 
+    category: 'Achuras' 
+  },
+  { 
+    keywords: ['molida intermedia', 'picada especial', 'molida', 'picada', 'carne picada'], 
+    name: 'Carne Molida Intermedia (3kg x $27.000 promo)', 
+    price: 9000, 
+    unit: 'kg', 
+    category: 'Diario y Preparados' 
+  },
+  { 
+    keywords: ['milanesas de ternera', 'milanesa de ternera', 'milanesas', 'milanesa'], 
+    name: 'Milanesas de Ternera preparadas (2kg x $24.990)', 
+    price: 12495, 
+    unit: 'kg', 
+    category: 'Diario y Preparados' 
+  },
+  { 
+    keywords: ['pata muslo', 'pollo fresco', 'pollo', 'suprema de pollo', 'pechuga'], 
+    name: 'Pata Muslo Fresca (3kg x $13.990 promo)', 
+    price: 4660, 
+    unit: 'kg', 
+    category: 'Pollo' 
+  },
+  { 
+    keywords: ['carbon quebracho', 'carbón quebracho', 'bolsa de carbon', 'bolsa de carbón', 'carbon', 'carbón'], 
+    name: 'Carbón Quebracho Blanco (Bolsa Grande)', 
+    price: 2200, 
+    unit: 'bolsa', 
+    category: 'Almacén Parrillero' 
+  },
+  { 
+    keywords: ['vino howlmande', 'howlmande malbec', 'vino', 'howlmande', 'malbec'], 
+    name: 'Vino Howlmande Malbec Reserva', 
+    price: 5500, 
+    unit: 'botella', 
+    category: 'Bebidas' 
+  }
 ];
+
+/**
+ * Encuentra el producto que mejor encaja en un texto buscando la coincidencia de palabra clave más larga/específica
+ */
+function matchBestProduct(chunk) {
+  const c = (chunk || '').toLowerCase().trim();
+  if (!c) return null;
+
+  let bestMatch = null;
+  let maxKeywordLength = 0;
+
+  for (const prod of MASTER_CATALOG) {
+    for (const kw of prod.keywords) {
+      if (c.includes(kw)) {
+        if (kw.length > maxKeywordLength) {
+          maxKeywordLength = kw.length;
+          bestMatch = prod;
+        }
+      }
+    }
+  }
+
+  return bestMatch;
+}
 
 /**
  * Parsea cantidades tanto en dígitos ("2", "1.5") como en texto en español ("un solo", "dos", "medio")
@@ -74,46 +218,130 @@ function isGarbageAddress(addr) {
 
 /**
  * Extrae con precisión los cortes y cantidades pedidos a lo largo de la conversación, sin duplicar
+ * Soporta adición acumulativa ("quisiera agregar 1 kilo de chorizo") y corrección ("un solo combo")
  */
-function extractItemsFromHistoryAndText(history, text, products) {
+function extractItemsFromHistoryAndText(history, text, products, lead = null) {
   const isCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste/i.test(text || '');
+  const isAddition = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también/i.test(text || '');
 
-  const textToParse = isCorrection ? (text || '') : [
-    ...(history || []).filter(m => m.sender === 'user').map(m => m.content),
-    (text || '')
-  ].join('\n');
+  // 1. Extraer los ítems del mensaje actual
+  const currentChunks = (text || '').split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+  const currentItemsMap = new Map(); // name -> { prod, quantity }
 
-  const items = [];
-  let total = 0;
-  const processedCuts = new Set();
-
-  const chunks = textToParse.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
-  for (const chunk of chunks) {
-    const c = chunk.toLowerCase().trim();
-    if (!c) continue;
-
-    for (const prod of MASTER_CATALOG) {
-      if (prod.keywords.some(kw => c.includes(kw)) && !processedCuts.has(prod.name)) {
-        const quantity = parseQuantity(c);
-        const dbProd = (products || []).find(p => (p.name || '').toLowerCase() === prod.name.toLowerCase());
-        const unitPrice = dbProd ? Number(dbProd.price) : prod.price;
-        const sub = Math.round(unitPrice * quantity);
-
-        items.push(`• ${quantity} ${prod.unit} ${prod.name} — $${sub.toLocaleString('es-AR')}`);
-        total += sub;
-        processedCuts.add(prod.name);
-        break;
+  for (const chunk of currentChunks) {
+    const prod = matchBestProduct(chunk);
+    if (prod) {
+      const qty = parseQuantity(chunk);
+      if (currentItemsMap.has(prod.name)) {
+        currentItemsMap.get(prod.name).quantity += qty;
+      } else {
+        currentItemsMap.set(prod.name, { prod, quantity: qty });
       }
     }
   }
 
-  // Fallback a Combo Asadazo solo si no se detectó ningún corte en específico
+  // 2. Si es una adición ("agregar 1 kg de chorizo"), traemos los ítems previos de la orden activa o historial
+  const finalItemsMap = new Map();
+
+  if (isAddition) {
+    let previousItemsFound = false;
+    if (lead && (lead.jid || lead.id)) {
+      const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+      if (lastOrder && Array.isArray(lastOrder.items) && lastOrder.items.length > 0) {
+        for (const itemStr of lastOrder.items) {
+          const prod = matchBestProduct(itemStr);
+          if (prod) {
+            const qty = parseQuantity(itemStr);
+            finalItemsMap.set(prod.name, { prod, quantity: qty });
+            previousItemsFound = true;
+          }
+        }
+      }
+    }
+
+    if (!previousItemsFound) {
+      const prevTexts = (history || [])
+        .filter(m => m.sender === 'user')
+        .map(m => m.content)
+        .join('\n');
+
+      const prevChunks = prevTexts.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+      for (const chunk of prevChunks) {
+        const prod = matchBestProduct(chunk);
+        if (prod && !finalItemsMap.has(prod.name)) {
+          const qty = parseQuantity(chunk);
+          finalItemsMap.set(prod.name, { prod, quantity: qty });
+        }
+      }
+    }
+
+    if (finalItemsMap.size === 0) {
+      const defaultCombo = MASTER_CATALOG[0];
+      finalItemsMap.set(defaultCombo.name, { prod: defaultCombo, quantity: 1 });
+    }
+
+    // Sumar los nuevos ítems del mensaje actual
+    for (const [name, itemObj] of currentItemsMap.entries()) {
+      if (finalItemsMap.has(name)) {
+        finalItemsMap.get(name).quantity += itemObj.quantity;
+      } else {
+        finalItemsMap.set(name, itemObj);
+      }
+    }
+  } else if (isCorrection) {
+    for (const [name, itemObj] of currentItemsMap.entries()) {
+      finalItemsMap.set(name, itemObj);
+    }
+  } else {
+    const allText = [
+      ...(history || []).filter(m => m.sender === 'user').map(m => m.content),
+      (text || '')
+    ].join('\n');
+
+    const chunks = allText.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+    for (const chunk of chunks) {
+      const prod = matchBestProduct(chunk);
+      if (prod && !finalItemsMap.has(prod.name)) {
+        const qty = parseQuantity(chunk);
+        finalItemsMap.set(prod.name, { prod, quantity: qty });
+      }
+    }
+  }
+
+  if (finalItemsMap.size === 0) {
+    for (const [name, itemObj] of currentItemsMap.entries()) {
+      finalItemsMap.set(name, itemObj);
+    }
+  }
+
+  const items = [];
+  let total = 0;
+
+  for (const { prod, quantity } of finalItemsMap.values()) {
+    const dbProd = (products || []).find(p => (p.name || '').toLowerCase() === prod.name.toLowerCase());
+    const unitPrice = dbProd ? Number(dbProd.price) : prod.price;
+    const sub = Math.round(unitPrice * quantity);
+    items.push(`• ${quantity} ${prod.unit} ${prod.name} — $${sub.toLocaleString('es-AR')}`);
+    total += sub;
+  }
+
   if (items.length === 0) {
     items.push('• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999');
     total = 39999;
   }
 
-  return { items, total };
+  // Sincronizar en base de datos si hay una orden activa
+  if (lead && (lead.jid || lead.id)) {
+    const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+    if (lastOrder && (isAddition || isCorrection)) {
+      db.updateOrder(lastOrder.id, {
+        items,
+        totalAmount: total
+      });
+    }
+  }
+
+  return { items, total, addedItems: Array.from(currentItemsMap.values()) };
 }
 
 export class AIService {
@@ -391,17 +619,26 @@ export class AIService {
     }
 
     // =========================================================================
-    // 2. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y CORRECCIONES
-    // (Ej: "corrije, quiero un solo combo asasazo", "dame 1kg de vacio y 2 bolsas de carbon")
+    // 2. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y CORRECCIONES / ADICIONES
+    // (Ej: "quisiera agregar 1 kilo de chorizo de cerdo", "corrije, quiero un solo combo", "dame 1kg de vacio")
     // =========================================================================
-    const { items: detectedItems, total: detectedTotal } = extractItemsFromHistoryAndText([], rawText, products);
+    const isAdditionOrder = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también/i.test(t);
     const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste/i.test(t);
-    const hasRealItems = (detectedItems.length > 0 && !detectedItems[0].includes('• 1 combo Combo “Asadazo”')) || (detectedItems.length > 0 && /asadazo|combo|asasazo|azadazo/i.test(rawText));
+    
+    const { items: detectedItems, total: detectedTotal, addedItems } = extractItemsFromHistoryAndText(history, rawText, products, lead);
+    const hasRealItems = (detectedItems.length > 0 && !detectedItems[0].includes('• 1 combo Combo “Asadazo”')) || (detectedItems.length > 0 && /asadazo|combo|asasazo|azadazo/i.test(rawText)) || isAdditionOrder || isCorrectionOrder;
 
     if (hasRealItems && !hasAddressOrOrderClose) {
       const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
       const formattedTotal = `$${detectedTotal.toLocaleString('es-AR')}`;
-      const prefixGreeting = isCorrectionOrder ? `¡Corregido ${clientName}! 👍 Dejamos asentado tu pedido actualizado:` : `¡De diez ${clientName}! 🥩 Te separo los cortes solicitados:`;
+      
+      let prefixGreeting = `¡De diez ${clientName}! 🥩 Te separo los cortes solicitados:`;
+      if (isAdditionOrder && addedItems && addedItems.length > 0) {
+        const addedDesc = addedItems.map(a => `${a.quantity} ${a.prod.unit} ${a.prod.name}`).join(' y ');
+        prefixGreeting = `¡De diez ${clientName}! 🥩 Sumamos **${addedDesc}** a tu pedido:`;
+      } else if (isCorrectionOrder) {
+        prefixGreeting = `¡Corregido ${clientName}! 👍 Dejamos asentado tu pedido actualizado:`;
+      }
 
       return `${prefixGreeting}\n\n` +
         `📋 **Detalle de tu pedido:**\n` +

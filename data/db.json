@@ -29,6 +29,28 @@
   },
   "orders": [
     {
+      "id": "ORD-4319",
+      "jid": "",
+      "phone": "+54 9 351 999-8888",
+      "customerName": "Cliente POS Test",
+      "address": "Av. Menéndez Pidal 3575, Córdoba",
+      "items": [
+        "1x Combo Asadazo (4 kg) + Vino ($39.999)",
+        "2x Vacío Especial Novillito ($23.000)",
+        "1x Carbón Quebracho Blanco ($2.200)"
+      ],
+      "totalAmount": 65199,
+      "paymentMethod": "Mercado Pago (Sandbox)",
+      "status": "pending",
+      "notes": "",
+      "createdAt": "2026-08-30T22:48:14.703Z",
+      "updatedAt": "2026-08-30T22:48:15.521Z",
+      "paymentPreferenceId": "2050924390-6561ca4b-eb9b-4331-99ca-2b1b5e9cdc4e",
+      "paymentLink": "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6561ca4b-eb9b-4331-99ca-2b1b5e9cdc4e",
+      "paymentMode": "sandbox",
+      "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6561ca4b-eb9b-4331-99ca-2b1b5e9cdc4e"
+    },
+    {
       "id": "ORD-4133",
       "jid": "",
       "phone": "+54 9 351 999-8888",
@@ -2446,7 +2468,7 @@
         "requireConfirmation": true,
         "welcomeTemplate": "¡Hola! 👋 Carlos por acá, maestro carnicero de **República de la Carne**.\n\nPara agendarte en nuestro sistema y coordinar tus envíos directos en el día, ¿me indicarías por favor:\n👤 **Tu Nombre y Apellido**\n📍 **Tu Dirección de Entrega y Barrio** (o si preferís retirar por sucursal)\n\n¡Y contame qué cortes o promo tenías ganas de preparar hoy para armarte la propuesta perfecta! 🥩🔥"
       },
-      "updatedAt": "2026-08-30T22:44:08.910Z"
+      "updatedAt": "2026-08-30T22:48:14.695Z"
     },
     {
       "id": "auto-bbq-calculator",
