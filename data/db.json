@@ -188,7 +188,7 @@
       "aiEnabled": true,
       "unreadCount": 3,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T19:39:45.000Z",
+      "updatedAt": "2026-08-30T19:41:31.261Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalez",
       "phone": "+153051277086768",
@@ -212,25 +212,10 @@
       },
       "lastMessage": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
       "lastMessageAt": "2026-08-30T19:39:45.000Z",
-      "notes": "Dirección: Roque Funes 1704 | Pedido #ORD-1042"
-    },
-    {
-      "id": "lead-1788111841514-dvhgd",
-      "stage": "new_lead",
-      "value": 0,
-      "tags": [
-        "WhatsApp"
-      ],
-      "aiEnabled": true,
-      "unreadCount": 0,
-      "createdAt": "2026-08-30T17:44:01.514Z",
-      "updatedAt": "2026-08-30T19:24:09.627Z",
-      "jid": "153051277086768@s.whatsapp.net",
-      "name": "Don Juan",
-      "phone": "+153051277086768",
-      "pushName": "Don Juan",
-      "lastMessage": "🎤 [Nota de voz]",
-      "lastMessageAt": "2026-08-30T17:44:03.000Z"
+      "notes": "Dirección: Roque Funes 1704 | Pedido #ORD-1042",
+      "altJids": [
+        "153051277086768@s.whatsapp.net"
+      ]
     },
     {
       "id": "lead-1788118409496-l0ibc",
@@ -245,10 +230,11 @@
       "updatedAt": "2026-08-30T19:33:31.000Z",
       "jid": "5493513472864@s.whatsapp.net",
       "name": "Don Juan",
-      "phone": "+5493513472864",
+      "phone": "+54 9 351 347-2864",
       "pushName": "Don Juan",
       "lastMessage": "🎤 [Nota de voz]",
-      "lastMessageAt": "2026-08-30T19:33:31.000Z"
+      "lastMessageAt": "2026-08-30T19:33:31.000Z",
+      "altJids": []
     }
   ],
   "messages": [

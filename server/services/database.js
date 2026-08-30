@@ -2,6 +2,37 @@ import fs from 'fs';
 import path from 'path';
 import { CONFIG } from '../config/index.js';
 
+export function normalizePhoneNumber(raw) {
+  if (!raw) return '';
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Formato estándar celular de Argentina (+54 9 XXX XXX-XXXX)
+  if (digits.startsWith('549') && digits.length >= 12) {
+    const area = digits.slice(3, 6);
+    const firstPart = digits.slice(6, 9);
+    const lastPart = digits.slice(9);
+    return `+54 9 ${area} ${firstPart}-${lastPart}`;
+  } else if (digits.startsWith('54') && digits.length >= 11) {
+    const area = digits.slice(2, 5);
+    const firstPart = digits.slice(5, 8);
+    const lastPart = digits.slice(8);
+    return `+54 9 ${area} ${firstPart}-${lastPart}`;
+  } else if (digits.length === 10) {
+    const area = digits.slice(0, 3);
+    const firstPart = digits.slice(3, 6);
+    const lastPart = digits.slice(6);
+    return `+54 9 ${area} ${firstPart}-${lastPart}`;
+  }
+  return `+${digits}`;
+}
+
+export function extractCoreDigits(raw) {
+  if (!raw) return '';
+  const digits = String(raw).replace(/\D/g, '');
+  return digits.length >= 8 ? digits.slice(-8) : digits;
+}
+
 class DatabaseService {
   constructor() {
     this.dataDir = CONFIG.DATA_DIR;
@@ -106,37 +137,6 @@ class DatabaseService {
     this.writeDb(db);
     return true;
   }
-
-export function normalizePhoneNumber(raw) {
-  if (!raw) return '';
-  let digits = String(raw).replace(/\D/g, '');
-  if (!digits) return '';
-
-  // Formato estándar celular de Argentina (+54 9 XXX XXX-XXXX)
-  if (digits.startsWith('549') && digits.length >= 12) {
-    const area = digits.slice(3, 6);
-    const firstPart = digits.slice(6, 9);
-    const lastPart = digits.slice(9);
-    return `+54 9 ${area} ${firstPart}-${lastPart}`;
-  } else if (digits.startsWith('54') && digits.length >= 11) {
-    const area = digits.slice(2, 5);
-    const firstPart = digits.slice(5, 8);
-    const lastPart = digits.slice(8);
-    return `+54 9 ${area} ${firstPart}-${lastPart}`;
-  } else if (digits.length === 10) {
-    const area = digits.slice(0, 3);
-    const firstPart = digits.slice(3, 6);
-    const lastPart = digits.slice(6);
-    return `+54 9 ${area} ${firstPart}-${lastPart}`;
-  }
-  return `+${digits}`;
-}
-
-export function extractCoreDigits(raw) {
-  if (!raw) return '';
-  const digits = String(raw).replace(/\D/g, '');
-  return digits.length >= 8 ? digits.slice(-8) : digits;
-}
 
   // --- Leads / Contacts Matching & Reconciliation Engine ---
   getLeads() {
