@@ -17,7 +17,8 @@ import {
   Users,
   Store,
   Calculator,
-  Power
+  Power,
+  Bike
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -35,6 +36,7 @@ export default function Navbar({
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
     { id: 'pos', label: 'POS Mostrador', icon: Calculator },
     { id: 'orders', label: 'Pedidos', icon: PackageCheck },
+    { id: 'drivers', label: 'Repartidores', icon: Bike },
     { id: 'customers', label: 'Clientes', icon: Users },
     { id: 'branches', label: 'Sucursales', icon: Store },
     { id: 'catalog', label: 'Catálogo', icon: ShoppingBag },

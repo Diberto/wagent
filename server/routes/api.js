@@ -911,5 +911,85 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // --- 5.4 Delivery Drivers (Repartidores) Endpoints ---
+  router.get('/drivers', (req, res) => {
+    res.json(db.getDrivers());
+  });
+
+  router.post('/drivers', (req, res) => {
+    const created = db.createDriver(req.body);
+    io.emit('driver:new', created);
+    res.json(created);
+  });
+
+  router.get('/drivers/:id', (req, res) => {
+    const driver = db.getDriver(req.params.id);
+    if (!driver) return res.status(404).json({ error: 'Repartidor no encontrado' });
+    res.json(driver);
+  });
+
+  router.put('/drivers/:id', (req, res) => {
+    const updated = db.updateDriver(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Repartidor no encontrado' });
+    io.emit('driver:update', updated);
+    res.json(updated);
+  });
+
+  router.post('/drivers/:id/duplicate', (req, res) => {
+    const cloned = db.duplicateDriver(req.params.id);
+    if (!cloned) return res.status(404).json({ error: 'Repartidor no encontrado' });
+    io.emit('driver:new', cloned);
+    res.json(cloned);
+  });
+
+  router.delete('/drivers/:id', (req, res) => {
+    db.deleteDriver(req.params.id);
+    io.emit('driver:delete', req.params.id);
+    res.json({ success: true });
+  });
+
+  router.post('/drivers/:id/test-whatsapp', async (req, res) => {
+    try {
+      const driver = db.getDriver(req.params.id);
+      if (!driver) return res.status(404).json({ error: 'Repartidor no encontrado' });
+      if (!driver.phone) return res.status(400).json({ error: 'El repartidor no tiene número de teléfono registrado' });
+
+      const cleanPhone = driver.phone.replace(/\D/g, '');
+      const driverJid = `${cleanPhone}@s.whatsapp.net`;
+      const testMsg = `🛵🥩 *Prueba de Conexión WAgent - República de la Carne*\n\n¡Hola ${driver.name}! Tu línea de WhatsApp ha sido vinculada como Repartidor Oficial. Recibirás aquí las hojas de ruta y pedidos para entrega a domicilio.`;
+
+      await whatsappService.sendMessage(driverJid, testMsg);
+      res.json({ success: true, message: 'Mensaje de prueba enviado con éxito' });
+    } catch (err) {
+      console.error('Error enviando test a repartidor:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/orders/:id/assign-driver', async (req, res) => {
+    try {
+      const { driverId, notes, notifyClient = true } = req.body;
+      const result = db.assignOrderToDriver(req.params.id, driverId, notes);
+      if (!result) return res.status(404).json({ error: 'Pedido o Repartidor no encontrado' });
+
+      // Enviar ficha de despacho por WhatsApp al repartidor
+      await whatsappService.sendDriverDispatchNotification(result.order, result.driver, notifyClient);
+
+      io.emit('order:update', result.order);
+      io.emit('driver:update', result.driver);
+      res.json(result);
+    } catch (err) {
+      console.error('Error asignando pedido a repartidor:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- 5.5 Barcode Scanner Lookup Endpoint ---
+  router.get('/products/barcode/:code', (req, res) => {
+    const product = db.getProductByBarcode(req.params.code);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado para este código de barras' });
+    res.json(product);
+  });
+
   return router;
 }

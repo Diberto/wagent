@@ -955,6 +955,187 @@ class DatabaseService {
     this.writeDb(db);
     return { order, branch };
   }
+
+  // --- Delivery Drivers (Repartidores) System ---
+  getDrivers() {
+    const db = this.readDb();
+    if (!db.drivers || db.drivers.length === 0) {
+      db.drivers = [
+        {
+          id: 'drv-1',
+          name: 'Marcos Benítez',
+          phone: '+5493512345678',
+          vehicle: 'Moto Honda CG 150',
+          plate: 'A123BCD',
+          branchId: 'suc-cerro',
+          status: 'available',
+          activeDeliveriesCount: 0,
+          totalDeliveredCount: 142,
+          cashCollectedBalance: 0,
+          rating: 4.9,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: 'drv-2',
+          name: 'Lautaro Gómez',
+          phone: '+5493518765432',
+          vehicle: 'Moto Yamaha YBR 125',
+          plate: 'A987ZYX',
+          branchId: 'suc-urca',
+          status: 'available',
+          activeDeliveriesCount: 0,
+          totalDeliveredCount: 98,
+          cashCollectedBalance: 0,
+          rating: 4.8,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ];
+      this.writeDb(db);
+    }
+    return db.drivers;
+  }
+
+  getDriver(id) {
+    const db = this.readDb();
+    return (db.drivers || []).find(d => d.id === id);
+  }
+
+  getDriverByPhone(phoneOrJid) {
+    if (!phoneOrJid) return null;
+    const db = this.readDb();
+    const clean = phoneOrJid.replace(/\D/g, '');
+    const core = clean.slice(-8);
+
+    return (db.drivers || []).find(d => {
+      const dClean = (d.phone || '').replace(/\D/g, '');
+      const dCore = dClean.slice(-8);
+      return (dClean && clean && (dClean === clean || dClean.includes(clean) || clean.includes(dClean))) ||
+             (core.length >= 7 && dCore.length >= 7 && (core === dCore || dClean.includes(core) || clean.includes(dCore)));
+    }) || null;
+  }
+
+  createDriver(data) {
+    const db = this.readDb();
+    if (!db.drivers) db.drivers = [];
+
+    const newDriver = {
+      id: data.id || `drv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: data.name || 'Repartidor',
+      phone: data.phone || '',
+      vehicle: data.vehicle || 'Moto',
+      plate: data.plate || '',
+      branchId: data.branchId || null,
+      status: data.status || 'available', // 'available' | 'on_delivery' | 'offline'
+      activeDeliveriesCount: 0,
+      totalDeliveredCount: 0,
+      cashCollectedBalance: 0,
+      rating: data.rating || 5.0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    db.drivers.push(newDriver);
+    this.writeDb(db);
+    return newDriver;
+  }
+
+  updateDriver(id, updates) {
+    const db = this.readDb();
+    if (!db.drivers) db.drivers = [];
+
+    const idx = db.drivers.findIndex(d => d.id === id);
+    if (idx === -1) return null;
+
+    const updated = {
+      ...db.drivers[idx],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    db.drivers[idx] = updated;
+    this.writeDb(db);
+    return updated;
+  }
+
+  duplicateDriver(id) {
+    const db = this.readDb();
+    const source = (db.drivers || []).find(d => d.id === id);
+    if (!source) return null;
+
+    const cloned = {
+      ...source,
+      id: `drv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: `${source.name} (Copia)`,
+      cashCollectedBalance: 0,
+      activeDeliveriesCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!db.drivers) db.drivers = [];
+    db.drivers.push(cloned);
+    this.writeDb(db);
+    return cloned;
+  }
+
+  deleteDriver(id) {
+    const db = this.readDb();
+    db.drivers = (db.drivers || []).filter(d => d.id !== id);
+    this.writeDb(db);
+    return true;
+  }
+
+  assignOrderToDriver(orderId, driverId, notes = '') {
+    const db = this.readDb();
+    const order = (db.orders || []).find(o => o.id === orderId);
+    const driver = (db.drivers || []).find(d => d.id === driverId);
+    if (!order || !driver) return null;
+
+    order.driverId = driver.id;
+    order.driverName = driver.name;
+    order.driverPhone = driver.phone;
+    order.driverAssignedAt = new Date().toISOString();
+    order.driverStatus = 'assigned'; // 'assigned' | 'in_transit' | 'delivered' | 'rejected'
+    order.status = 'preparing';
+    if (notes) {
+      order.notes = order.notes ? `${order.notes}\n[Reparto] ${notes}` : `[Reparto] ${notes}`;
+    }
+    order.updatedAt = new Date().toISOString();
+
+    // Actualizar contador del repartidor
+    driver.activeDeliveriesCount = (driver.activeDeliveriesCount || 0) + 1;
+    driver.status = 'on_delivery';
+    driver.updatedAt = new Date().toISOString();
+
+    this.writeDb(db);
+    return { order, driver };
+  }
+
+  updateDriverCashBalance(driverId, amountDelta) {
+    const db = this.readDb();
+    const driver = (db.drivers || []).find(d => d.id === driverId);
+    if (!driver) return null;
+
+    driver.cashCollectedBalance = Math.max(0, (driver.cashCollectedBalance || 0) + (Number(amountDelta) || 0));
+    driver.updatedAt = new Date().toISOString();
+
+    this.writeDb(db);
+    return driver;
+  }
+
+  // --- Barcode & Product Lookup ---
+  getProductByBarcode(barcodeOrSku) {
+    if (!barcodeOrSku) return null;
+    const db = this.readDb();
+    const code = barcodeOrSku.trim().toLowerCase();
+    return (db.products || []).find(p => 
+      (p.barcode && p.barcode.toLowerCase() === code) ||
+      (p.sku && p.sku.toLowerCase() === code) ||
+      (p.id && p.id.toLowerCase() === code)
+    ) || null;
+  }
 }
 
 export const db = new DatabaseService();

@@ -25,12 +25,14 @@ import {
   Plus,
   Save,
   CreditCard,
-  Store
+  Store,
+  Bike
 } from 'lucide-react';
 
 export default function OrdersView({ socket }) {
   const [orders, setOrders] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +49,19 @@ export default function OrdersView({ socket }) {
 
   // Branch Derivation Modal State
   const [deriveModal, setDeriveModal] = useState(null); // null | { order, branchId, notes, notifyClient, isDeriving, deriveSuccess }
+
+  // Driver Assignment Modal State
+  const [assignDriverModal, setAssignDriverModal] = useState(null); // null | { order, driverId, notes, notifyClient, isAssigning, assignSuccess }
+
+  const fetchDrivers = async () => {
+    try {
+      const res = await fetch('/api/drivers');
+      const data = await res.json();
+      setDrivers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error cargando repartidores:', err);
+    }
+  };
 
   const fetchBranches = async () => {
     try {
@@ -74,6 +89,7 @@ export default function OrdersView({ socket }) {
   useEffect(() => {
     fetchOrders();
     fetchBranches();
+    fetchDrivers();
 
     if (socket) {
       socket.on('order:new', (newOrder) => {
@@ -88,13 +104,50 @@ export default function OrdersView({ socket }) {
         setOrders(prev => prev.filter(o => o.id !== deletedId));
       });
 
+      socket.on('driver:update', () => fetchDrivers());
+      socket.on('driver:new', () => fetchDrivers());
+
       return () => {
         socket.off('order:new');
         socket.off('order:update');
         socket.off('order:delete');
+        socket.off('driver:update');
+        socket.off('driver:new');
       };
     }
   }, [socket]);
+
+  // Hardware Barcode Scanner Listener for Orders View (Escanear Ticket #ORD-XXXX)
+  useEffect(() => {
+    let buffer = '';
+    let lastTime = Date.now();
+
+    const handleKeyDown = (e) => {
+      const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+      const now = Date.now();
+      const diff = now - lastTime;
+      lastTime = now;
+
+      if (e.key === 'Enter') {
+        if (buffer.length >= 3) {
+          const code = buffer.trim();
+          buffer = '';
+          setSearch(code);
+        } else {
+          buffer = '';
+        }
+      } else if (e.key.length === 1) {
+        if (diff > 120 && !isInput) {
+          buffer = e.key;
+        } else {
+          buffer += e.key;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const generateStatusNotification = (order, targetStatus) => {
     const name = order.customerName || 'Cliente';
@@ -349,6 +402,47 @@ export default function OrdersView({ socket }) {
     }
   };
 
+  const handleOpenAssignDriverModal = (order) => {
+    setAssignDriverModal({
+      order,
+      driverId: order.driverId || (drivers.length > 0 ? drivers[0].id : ''),
+      notes: '',
+      notifyClient: true,
+      isAssigning: false,
+      assignSuccess: false
+    });
+  };
+
+  const handleExecuteAssignDriver = async (e) => {
+    e.preventDefault();
+    if (!assignDriverModal || !assignDriverModal.driverId) return;
+
+    setAssignDriverModal(prev => ({ ...prev, isAssigning: true }));
+    try {
+      const res = await fetch(`/api/orders/${assignDriverModal.order.id}/assign-driver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: assignDriverModal.driverId,
+          notes: assignDriverModal.notes,
+          notifyClient: assignDriverModal.notifyClient
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        setAssignDriverModal(prev => ({ ...prev, isAssigning: false, assignSuccess: true }));
+        setTimeout(() => setAssignDriverModal(null), 2500);
+      } else {
+        alert(data.error || 'Error asignando repartidor');
+        setAssignDriverModal(prev => ({ ...prev, isAssigning: false }));
+      }
+    } catch (err) {
+      console.error('Error asignando repartidor:', err);
+      setAssignDriverModal(prev => ({ ...prev, isAssigning: false }));
+    }
+  };
+
   // Metrics
   const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
   const pendingCount = orders.filter(o => o.status === 'pending' || o.status === 'preparing').length;
@@ -588,6 +682,27 @@ export default function OrdersView({ socket }) {
                 )}
               </div>
 
+              {/* Driver Assignment Badge */}
+              <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Bike size={13} className="text-sky-400 shrink-0" />
+                  <span className="text-slate-300 font-semibold truncate">
+                    {order.driverName ? `Repartidor: ${order.driverName}` : 'Sin Repartidor Asignado'}
+                  </span>
+                </div>
+                {order.driverStatus && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
+                    order.driverStatus === 'in_transit'
+                      ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                      : order.driverStatus === 'delivered'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }`}>
+                    {order.driverStatus === 'in_transit' ? '🛵 En Camino' : order.driverStatus === 'delivered' ? '✅ Entregado' : '⏳ Asignado'}
+                  </span>
+                )}
+              </div>
+
               {/* Status Selector & Actions */}
               <div className="pt-2 border-t border-slate-800/80 space-y-2">
                 <div className="flex items-center gap-2">
@@ -602,6 +717,14 @@ export default function OrdersView({ socket }) {
                     <option value="delivered">✅ Entregado</option>
                     <option value="cancelled">❌ Cancelado</option>
                   </select>
+
+                  <button
+                    onClick={() => handleOpenAssignDriverModal(order)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
+                    title="Asignar Repartidor y Despachar por WhatsApp"
+                  >
+                    <Bike size={14} />
+                  </button>
 
                   <button
                     onClick={() => handleOpenDeriveModal(order)}
@@ -1075,6 +1198,105 @@ export default function OrdersView({ socket }) {
                   >
                     <Send size={13} className={deriveModal.isDeriving ? 'animate-spin' : ''} />
                     {deriveModal.isDeriving ? 'Derivando...' : '🏪 Derivar y Notificar por WhatsApp'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* Assign Delivery Driver Modal */}
+      {assignDriverModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold">
+                  <Bike size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Asignar Repartidor / Delivery</h3>
+                  <p className="text-xs text-slate-400">Pedido #{assignDriverModal.order.id} — {assignDriverModal.order.customerName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAssignDriverModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {assignDriverModal.assignSuccess ? (
+              <div className="py-6 text-center space-y-2">
+                <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
+                <div className="text-sm font-bold text-white">¡Repartidor Asignado y Despachado!</div>
+                <p className="text-xs text-slate-400">
+                  Se ha enviado la hoja de ruta con Google Maps y detalle del pedido al WhatsApp del repartidor.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleExecuteAssignDriver} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Seleccionar Repartidor:</label>
+                  <select
+                    required
+                    value={assignDriverModal.driverId}
+                    onChange={(e) => setAssignDriverModal({ ...assignDriverModal, driverId: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Selecciona un repartidor...</option>
+                    {drivers.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} — {d.vehicle || 'Moto'} ({d.phone || 'Sin tel'}) • {d.status === 'available' ? '🟢 Libre' : '🛵 En ruta'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Instrucciones / Notas de Entrega (Opcional):</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ej: Tocar timbre departamento 4B / Llevar cambio de $50.000"
+                    value={assignDriverModal.notes}
+                    onChange={(e) => setAssignDriverModal({ ...assignDriverModal, notes: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 resize-none"
+                  />
+                </div>
+
+                <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white">Avisar al Cliente por WhatsApp</div>
+                    <div className="text-[11px] text-slate-400">Notificarle el nombre del repartidor asignado</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={assignDriverModal.notifyClient}
+                    onChange={(e) => setAssignDriverModal({ ...assignDriverModal, notifyClient: e.target.checked })}
+                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setAssignDriverModal(null)}
+                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={assignDriverModal.isAssigning || !assignDriverModal.driverId}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50"
+                  >
+                    <Send size={13} className={assignDriverModal.isAssigning ? 'animate-spin' : ''} />
+                    {assignDriverModal.isAssigning ? 'Despachando...' : '🛵 Asignar y Enviar Hoja de Ruta'}
                   </button>
                 </div>
               </form>

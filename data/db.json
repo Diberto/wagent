@@ -41,7 +41,12 @@
       "status": "preparing",
       "notes": "",
       "createdAt": "2026-08-30T20:28:21.325Z",
-      "updatedAt": "2026-08-30T20:28:48.849Z"
+      "updatedAt": "2026-08-30T20:32:50.661Z",
+      "branchId": "br-1",
+      "branchName": "Sucursal Cerro de las Rosas",
+      "branchPhone": "+54 9 351 626-2475",
+      "branchStatus": "derived",
+      "branchNotifiedAt": "2026-08-30T20:32:50.661Z"
     },
     {
       "id": "ORD-6636",
@@ -219,6 +224,32 @@
   ],
   "leads": [
     {
+      "id": "lead-1788121971349-hjggu",
+      "jid": "5493516262475@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 626-2475",
+      "name": "+54 9 351 626-2475",
+      "pushName": "Contacto WhatsApp",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T20:32:51.349Z",
+      "updatedAt": "2026-08-30T20:32:50.000Z",
+      "lastMessage": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-8163*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* Juan Gonzalze (📞 +153051277086768)\n📍 *Destino / Entrega:* locelso 7100, Juan Gonzalze\n\n📋 *CORTES SOLICITADOS:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo / Transferencia\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
+      "lastMessageAt": "2026-08-30T20:32:50.000Z"
+    },
+    {
       "id": "lead-1788119701908-tuxrr",
       "jid": "80659922063454@lid",
       "altJids": [],
@@ -256,9 +287,9 @@
         "Frecuente"
       ],
       "aiEnabled": true,
-      "unreadCount": 9,
+      "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:28:58.000Z",
+      "updatedAt": "2026-08-30T20:32:51.000Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalze",
       "phone": "+153051277086768",
@@ -281,8 +312,8 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡Hola Juan Gonzalez! 🎉 Tu pedido #ORD-1042 ya figura entregado. ¡Esperamos que disfrutes de un excelente asado! Cualquier consulta o comentario sobre los cortes estamos a tu disposición. 🥩🙌",
-      "lastMessageAt": "2026-08-30T20:28:58.000Z",
+      "lastMessage": "¡Hola Juan Gonzalze! 🥩 Tu pedido *#ORD-8163* ha sido asignado a nuestra *Sucursal Cerro de las Rosas* (Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba). El equipo de corte ya fue notificado y está preparando todo para vos. 🙌",
+      "lastMessageAt": "2026-08-30T20:32:51.000Z",
       "notes": "Dirección: locelso 7100, Juan Gonzalze | Pedido #ORD-8163",
       "altJids": [
         "153051277086768@s.whatsapp.net"
@@ -3122,6 +3153,28 @@
       "sender": "agent",
       "type": "text",
       "content": "¡Hola Juan Gonzalez! 🎉 Tu pedido #ORD-1042 ya figura entregado. ¡Esperamos que disfrutes de un excelente asado! Cualquier consulta o comentario sobre los cortes estamos a tu disposición. 🥩🙌",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0A50476B6D3F58FF14D",
+      "timestamp": "2026-08-30T20:32:50.000Z",
+      "status": "sent",
+      "chatId": "5493516262475@s.whatsapp.net",
+      "sender": "agent",
+      "type": "text",
+      "content": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-8163*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* Juan Gonzalze (📞 +153051277086768)\n📍 *Destino / Entrega:* locelso 7100, Juan Gonzalze\n\n📋 *CORTES SOLICITADOS:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo / Transferencia\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB01DCA566120D31BA8CF",
+      "timestamp": "2026-08-30T20:32:51.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalze! 🥩 Tu pedido *#ORD-8163* ha sido asignado a nuestra *Sucursal Cerro de las Rosas* (Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba). El equipo de corte ya fue notificado y está preparando todo para vos. 🙌",
       "mediaUrl": null,
       "audioDuration": 0
     }

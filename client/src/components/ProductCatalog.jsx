@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Package, Plus, Search, Tag, DollarSign, Edit3, Trash2, 
-  RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X, Copy
+  RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X, Copy, Barcode
 } from 'lucide-react';
 
 export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' }) {
@@ -23,7 +23,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     description: '',
     stock: 50,
     isAvailable: true,
-    sku: ''
+    sku: '',
+    barcode: ''
   });
 
   const categories = [
@@ -102,7 +103,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       description: product.description || '',
       stock: product.stock ?? 50,
       isAvailable: product.isAvailable !== false,
-      sku: product.sku || ''
+      sku: product.sku || '',
+      barcode: product.barcode || ''
     });
     setIsModalOpen(true);
   };
@@ -420,6 +422,33 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                     value={formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                    <Barcode size={13} className="text-emerald-400" />
+                    Código de Barras (EAN / Pistola)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 7791234567890"
+                    value={formData.barcode}
+                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Código SKU / Referencia</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: CORTE-01"
+                    value={formData.sku}
+                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>

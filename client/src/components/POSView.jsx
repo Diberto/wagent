@@ -21,8 +21,26 @@ import {
   CheckCircle2, 
   Flame,
   ArrowRight,
-  Receipt
+  Receipt,
+  ScanLine,
+  Barcode
 } from 'lucide-react';
+
+const playScannerBeep = () => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1800, ctx.currentTime);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  } catch (e) {}
+};
 
 export default function POSView({ socket }) {
   // Products and branches data
@@ -33,6 +51,9 @@ export default function POSView({ socket }) {
   const [productSearch, setProductSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Barcode Scanner Gun Status
+  const [lastScannedProduct, setLastScannedProduct] = useState(null); // null | { name, code }
 
   // Parallel Cart Tabs State
   const [tabs, setTabs] = useState([
@@ -92,6 +113,53 @@ export default function POSView({ socket }) {
   useEffect(() => {
     fetchInitialData();
   }, []);
+
+  // Hardware Barcode Scanner Gun Global Listener
+  useEffect(() => {
+    let barcodeBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e) => {
+      const isInputFocused = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+      const currentTime = Date.now();
+      const timeDiff = currentTime - lastKeyTime;
+      lastKeyTime = currentTime;
+
+      if (e.key === 'Enter') {
+        if (barcodeBuffer.length >= 3) {
+          const scannedCode = barcodeBuffer.trim();
+          barcodeBuffer = '';
+
+          // Look up product by barcode, sku, id or name
+          const found = products.find(p => 
+            (p.barcode && p.barcode.toLowerCase() === scannedCode.toLowerCase()) ||
+            (p.sku && p.sku.toLowerCase() === scannedCode.toLowerCase()) ||
+            (p.id && p.id.toLowerCase() === scannedCode.toLowerCase()) ||
+            (p.name && p.name.toLowerCase().includes(scannedCode.toLowerCase()))
+          );
+
+          if (found) {
+            e.preventDefault();
+            playScannerBeep();
+            handleAddToCart(found, 1);
+            setLastScannedProduct({ name: found.name, code: scannedCode });
+            setTimeout(() => setLastScannedProduct(null), 3000);
+          }
+        } else {
+          barcodeBuffer = '';
+        }
+      } else if (e.key.length === 1) {
+        if (timeDiff > 120 && !isInputFocused) {
+          barcodeBuffer = e.key;
+        } else {
+          barcodeBuffer += e.key;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [products, activeCart]);
 
   // Multi-Tab management
   const handleAddNewTab = () => {
@@ -395,9 +463,17 @@ export default function POSView({ socket }) {
           </button>
         </div>
 
-        <div className="pb-2 hidden lg:flex items-center gap-2 text-xs text-slate-400 font-semibold">
-          <Store size={14} className="text-emerald-400" />
-          <span>Terminal POS Mostrador República de la Carne</span>
+        <div className="pb-2 hidden lg:flex items-center gap-3 text-xs">
+          {lastScannedProduct && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-xs font-bold animate-pulse">
+              <ScanLine size={14} />
+              <span>¡Escaneado: {lastScannedProduct.name}!</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 text-slate-400 font-semibold bg-[#182229] px-3 py-1 rounded-xl border border-slate-700">
+            <Barcode size={15} className="text-emerald-400" />
+            <span>Pistola de Escáner Lista</span>
+          </div>
         </div>
       </div>
 

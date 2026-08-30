@@ -10,6 +10,7 @@ import ProductCatalog from './components/ProductCatalog';
 import OrdersView from './components/OrdersView';
 import CustomersView from './components/CustomersView';
 import BranchesView from './components/BranchesView';
+import DriversView from './components/DriversView';
 import POSView from './components/POSView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
@@ -339,6 +340,10 @@ export default function App() {
 
         {currentTab === 'orders' && (
           <OrdersView socket={socket} />
+        )}
+
+        {currentTab === 'drivers' && (
+          <DriversView socket={socket} />
         )}
 
         {currentTab === 'customers' && (

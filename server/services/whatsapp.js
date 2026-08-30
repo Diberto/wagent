@@ -373,6 +373,14 @@ export class WhatsAppService {
       return;
     }
 
+    // 4.1 Si el mensaje proviene de un REPARTIDOR registrado
+    const driver = !isFromMe ? (db.getDriverByPhone(jid) || (lead?.phone ? db.getDriverByPhone(lead.phone) : null)) : null;
+    if (driver && !isFromMe) {
+      console.log(`🛵 Mensaje interactivo recibido del Repartidor: "${driver.name}" (${jid}): "${textContent}"`);
+      await this.handleDriverMessage(driver, jid, textContent);
+      return;
+    }
+
     // Si el mensaje viene de un cliente y la IA está activa (Control Global + Individual por Chat)
     const settings = db.getSettings();
     const isGlobalAiEnabled = settings.autoReplyEnabled !== false;
@@ -671,6 +679,150 @@ export class WhatsAppService {
     }
 
     await this.sendMessage(branchJid, helpMsg);
+  }
+
+  /**
+   * Envía notificación de despacho a un Repartidor por WhatsApp
+   */
+  async sendDriverDispatchNotification(order, driver, notifyClient = true) {
+    if (!driver.phone) return null;
+    const cleanPhone = driver.phone.replace(/\D/g, '');
+    const driverJid = `${cleanPhone}@s.whatsapp.net`;
+
+    const encodedAddress = encodeURIComponent(`${order.address || ''}, Cordoba, Argentina`);
+    const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+
+    const itemsSummary = Array.isArray(order.items) ? order.items.join('\n') : (order.items || '1x Combo Asadazo');
+    const amountToCollect = Number(order.totalAmount || 0).toLocaleString('es-AR');
+
+    const message = `🥩🛵 *¡NUEVO PEDIDO ASIGNADO PARA REPARTO!* #*${order.id}*\n\n` +
+      `👤 *Cliente:* ${order.customerName}\n` +
+      `📞 *Teléfono:* ${order.phone || 'Sin número'}\n` +
+      `📍 *Dirección de Entrega:* ${order.address || 'A convenir'}\n` +
+      `🗺️ *Google Maps:* ${mapsLink}\n\n` +
+      `📋 *DETALLE DEL PEDIDO:*\n${itemsSummary}\n\n` +
+      `💰 *Monto a Cobrar:* $${amountToCollect} (${order.paymentMethod || 'Efectivo'})\n` +
+      `${order.notes ? `📝 *Notas:* ${order.notes}\n` : ''}\n` +
+      `👉 *RESPONDÉ CON UN COMANDO PARA ACTUALIZAR EL ESTADO:*\n` +
+      `1️⃣ *1* o *EN CAMINO* ➔ Iniciar viaje (avisa al cliente)\n` +
+      `2️⃣ *2* o *ENTREGADO* ➔ Confirmar entrega y cobro de $${amountToCollect}\n` +
+      `3️⃣ *3* o *INCIDENCIA* ➔ Reportar problema (cliente no está, etc.)\n\n` +
+      `¡Buen viaje y gracias por tu trabajo en República de la Carne! 🥩🛵`;
+
+    await this.sendMessage(driverJid, message);
+
+    if (notifyClient) {
+      const clientJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (clientJid) {
+        const clientMsg = `¡Hola ${order.customerName}! 🥩🛵 Tu pedido *#${order.id}* ha sido asignado a nuestro repartidor *${driver.name}* (${driver.vehicle || 'Moto'}). En breve inicia su viaje a tu domicilio.`;
+        await this.sendMessage(clientJid, clientMsg);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Procesa mensajes y comandos interactivos enviados por Repartidores
+   */
+  async handleDriverMessage(driver, driverJid, textContent) {
+    const raw = (textContent || '').trim();
+    const t = raw.toLowerCase();
+
+    // Buscar pedidos asignados a este repartidor
+    const allOrders = db.getOrders();
+    let targetOrder = null;
+
+    // Si menciona un ID de pedido
+    const idMatch = raw.match(/#?(ORD-\d+)/i);
+    if (idMatch) {
+      targetOrder = allOrders.find(o => o.id.toUpperCase() === idMatch[1].toUpperCase());
+    }
+
+    // Si no mencionó pedido específico, tomar el último asignado o en tránsito
+    if (!targetOrder) {
+      targetOrder = allOrders.find(o => o.driverId === driver.id && (o.status === 'preparing' || o.status === 'in_transit' || o.status === 'pending'));
+    }
+
+    const isInTransit = /^(1|camino|en camino|viaje|iniciar|arranco|sali)$/i.test(t) || t.startsWith('1 ');
+    const isDelivered = /^(2|entregado|cobrado|listo|entregue|pago|finalizado)$/i.test(t) || t.startsWith('2 ');
+    const isIncident = /^(3|incidencia|problema|no esta|cerrado|rechazo)$/i.test(t) || t.startsWith('3 ');
+
+    if (isInTransit && targetOrder) {
+      const updated = db.updateOrderStatus(targetOrder.id, 'in_transit');
+      db.updateOrder(targetOrder.id, { driverStatus: 'in_transit' });
+      if (this.io) this.io.emit('order:update', updated);
+
+      const repReply = `🛵 ¡Excelente ${driver.name}! El pedido *#${targetOrder.id}* de ${targetOrder.customerName} figura ahora *EN CAMINO*. Le avisamos al cliente. ¡Conducí con cuidado!`;
+      await this.sendMessage(driverJid, repReply);
+
+      // Notificar al cliente
+      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (clientJid) {
+        const clientNotice = `¡Tu pedido *#${targetOrder.id}* está en camino hacia tu domicilio con *${driver.name}* (${driver.vehicle || 'Moto'})! 🚚🥩 Pronto tocará timbre.`;
+        await this.sendMessage(clientJid, clientNotice);
+      }
+      return;
+    }
+
+    if (isDelivered && targetOrder) {
+      const updated = db.updateOrderStatus(targetOrder.id, 'delivered');
+      db.updateOrder(targetOrder.id, { driverStatus: 'delivered' });
+      
+      // Si el pedido fue en efectivo, sumar al saldo a rendir del repartidor
+      if (targetOrder.paymentMethod && targetOrder.paymentMethod.toLowerCase().includes('efectivo')) {
+        db.updateDriverCashBalance(driver.id, targetOrder.totalAmount);
+      }
+
+      // Actualizar contadores del repartidor
+      db.updateDriver(driver.id, {
+        activeDeliveriesCount: Math.max(0, (driver.activeDeliveriesCount || 1) - 1),
+        totalDeliveredCount: (driver.totalDeliveredCount || 0) + 1,
+        status: (driver.activeDeliveriesCount || 1) <= 1 ? 'available' : 'on_delivery'
+      });
+
+      if (this.io) {
+        this.io.emit('order:update', updated);
+        this.io.emit('driver:update', db.getDriver(driver.id));
+      }
+
+      const repReply = `🎉 ¡Entrega confirmada! El pedido *#${targetOrder.id}* de ${targetOrder.customerName} ha sido marcado como ✅ *ENTREGADO*. Gracias por tu compromiso 🙌`;
+      await this.sendMessage(driverJid, repReply);
+
+      // Notificar al cliente
+      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (clientJid) {
+        const clientNotice = `¡Pedido *#${targetOrder.id}* entregado con éxito por ${driver.name}! 🙌 Muchas gracias por elegir República de la Carne. ¡Que disfrutes el asado! 🥩🔥`;
+        await this.sendMessage(clientJid, clientNotice);
+      }
+      return;
+    }
+
+    if (isIncident && targetOrder) {
+      db.updateOrder(targetOrder.id, { driverStatus: 'incident', notes: `${targetOrder.notes || ''}\n[Alerta Repartidor] Reportó incidencia: "${raw}"` });
+      if (this.io) this.io.emit('order:update', db.getOrder(targetOrder.id));
+
+      const repReply = `⚠️ Incidencia registrada para el pedido *#${targetOrder.id}*. Se ha dado aviso a los operadores del local para coordinar con el cliente.`;
+      await this.sendMessage(driverJid, repReply);
+      return;
+    }
+
+    // Hoja de ruta o ayuda
+    const pendingList = allOrders
+      .filter(o => o.driverId === driver.id && o.status !== 'delivered' && o.status !== 'cancelled');
+
+    let helpMsg = `🛵 *Hola ${driver.name} - Repartidor República de la Carne* 🥩\n\n`;
+    if (pendingList.length > 0) {
+      helpMsg += `📋 *TUS ENTREGAS PENDIENTES (${pendingList.length}):*\n`;
+      pendingList.forEach(o => {
+        helpMsg += `• *#${o.id}* | ${o.customerName} | ${o.address} | $${Number(o.totalAmount).toLocaleString('es-AR')}\n`;
+      });
+      helpMsg += `\n👉 Para interactuar, respondé:\n1️⃣ *1* o *EN CAMINO* (Inicia viaje)\n2️⃣ *2* o *ENTREGADO* (Confirma entrega y cobro)\n3️⃣ *3* o *INCIDENCIA* (Reporta problema)`;
+    } else {
+      helpMsg += `No tenés entregas pendientes asignadas en este momento. Cuando te asignen un pedido, te llegará la ficha con mapa y datos acá. 🥩🙌`;
+    }
+
+    await this.sendMessage(driverJid, helpMsg);
   }
 
   getStatus() {
