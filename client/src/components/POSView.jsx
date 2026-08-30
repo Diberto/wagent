@@ -622,6 +622,23 @@ export default function POSView({ socket }) {
                   </span>
                 )}
               </label>
+
+              {/* Direct Customer Dropdown Picker */}
+              <select
+                value=""
+                onChange={(e) => {
+                  const c = customers.find(x => x.id === e.target.value);
+                  if (c) handleSelectCustomer(c);
+                }}
+                className="w-full px-2.5 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+              >
+                <option value="">👤 Seleccionar cliente de la base de datos...</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name || c.pushName || 'Cliente'} — 📞 {c.phone || c.jid?.split('@')[0]} {c.address ? `(${c.address})` : ''}
+                  </option>
+                ))}
+              </select>
               
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -679,7 +696,7 @@ export default function POSView({ socket }) {
                   className="w-full px-2.5 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500"
                 >
                   {branches.map(b => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
+                    <option key={b.id} value={b.id}>📍 {b.name} ({b.address})</option>
                   ))}
                 </select>
               </div>

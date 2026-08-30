@@ -608,7 +608,9 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                     className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white font-bold focus:outline-none focus:border-purple-500"
                   >
                     {roles.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
+                      <option key={r.id} value={r.id}>
+                        {r.id === 'admin' ? '👑' : r.id === 'gerente' ? '📊' : r.id === 'encargado' ? '🏪' : r.id === 'cajero' ? '💳' : '🛵'} {r.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -623,9 +625,9 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                     })}
                     className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
                   >
-                    <option value="">Todas / Central</option>
+                    <option value="">🏢 Todas las Sucursales / Casa Central</option>
                     {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
+                      <option key={b.id} value={b.id}>📍 {b.name} ({b.address})</option>
                     ))}
                   </select>
                 </div>
@@ -640,9 +642,11 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                     })}
                     className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
                   >
-                    <option value="">Ninguno</option>
+                    <option value="">Sin vincular a repartidor</option>
                     {drivers.map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.vehicle})</option>
+                      <option key={d.id} value={d.id}>
+                        {d.vehicle === 'Auto' ? '🚗' : '🛵'} {d.name} ({d.vehicle} - {d.phone || 'Sin tel'})
+                      </option>
                     ))}
                   </select>
                 </div>

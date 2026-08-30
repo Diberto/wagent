@@ -33,6 +33,7 @@ export default function OrdersView({ socket }) {
   const [orders, setOrders] = useState([]);
   const [branches, setBranches] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +74,16 @@ export default function OrdersView({ socket }) {
     }
   };
 
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/customers');
+      const data = await res.json();
+      setCustomers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error cargando clientes:', err);
+    }
+  };
+
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
@@ -88,6 +99,9 @@ export default function OrdersView({ socket }) {
 
   useEffect(() => {
     fetchOrders();
+    fetchBranches();
+    fetchDrivers();
+    fetchCustomers();
     fetchBranches();
     fetchDrivers();
 
@@ -910,6 +924,43 @@ export default function OrdersView({ socket }) {
             </div>
 
             <form onSubmit={handleSaveOrderForm} className="space-y-4 text-xs">
+              
+              {/* Quick Customer Picker */}
+              <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1.5">
+                <label className="text-slate-300 font-semibold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                    <Users size={14} /> Seleccionar Cliente de la Base de Datos:
+                  </span>
+                  <span className="text-[10px] text-slate-500">Autocompleta nombre, tel y dirección</span>
+                </label>
+                <select
+                  onChange={(e) => {
+                    const c = customers.find(x => x.id === e.target.value);
+                    if (c) {
+                      setOrderModal({
+                        ...orderModal,
+                        data: {
+                          ...orderModal.data,
+                          customerName: c.name || c.pushName || orderModal.data.customerName,
+                          phone: c.phone || c.jid?.split('@')[0] || orderModal.data.phone,
+                          address: c.address || orderModal.data.address,
+                          branchId: c.preferredBranchId || orderModal.data.branchId,
+                          branchName: branches.find(b => b.id === (c.preferredBranchId || orderModal.data.branchId))?.name || orderModal.data.branchName
+                        }
+                      });
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white font-medium focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="">👤 Elegir cliente existente para autocompletar...</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || c.pushName || 'Cliente'} — 📞 {c.phone || c.jid?.split('@')[0]} {c.address ? `(${c.address})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-slate-300 font-semibold">Nombre del Cliente:</label>
@@ -922,7 +973,7 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, customerName: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
 
@@ -936,7 +987,7 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, phone: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
@@ -951,7 +1002,7 @@ export default function OrdersView({ socket }) {
                     ...orderModal,
                     data: { ...orderModal.data, address: e.target.value }
                   })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -962,7 +1013,7 @@ export default function OrdersView({ socket }) {
                   placeholder="1x Combo Asadazo ($39.999)&#10;2 kg Costeleta de Cerdo ($15.000)"
                   value={itemsInputText}
                   onChange={(e) => setItemsInputText(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono"
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -977,10 +1028,30 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, totalAmount: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-bold"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-bold focus:outline-none focus:border-emerald-500"
                   />
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Estado del Pedido:</label>
+                  <select
+                    value={orderModal.data.status || 'pending'}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, status: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="pending">⏳ Pendiente</option>
+                    <option value="preparing">🥩 En Preparación (Carnicería)</option>
+                    <option value="in_transit">🛵 En Reparto / Despachado</option>
+                    <option value="delivered">✅ Entregado / Finalizado</option>
+                    <option value="cancelled">❌ Cancelado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <label className="text-slate-300 font-semibold">Medio de Pago:</label>
                   <select
@@ -989,11 +1060,11 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, paymentMethod: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500"
                   >
                     <option value="Efectivo al repartidor">💵 Efectivo al repartidor</option>
                     <option value="Mercado Pago">💳 Mercado Pago</option>
-                    <option value="Mercado Pago (Sandbox)">🧪 Mercado Pago (Modo Sandbox / Test)</option>
+                    <option value="Mercado Pago (Sandbox)">🧪 Mercado Pago (Sandbox)</option>
                     <option value="Transferencia Bancaria">📱 Transferencia Bancaria</option>
                     <option value="Tarjeta de Débito / Crédito">💳 Tarjeta Débito / Crédito</option>
                   </select>
@@ -1014,11 +1085,37 @@ export default function OrdersView({ socket }) {
                         }
                       });
                     }}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="">Sin Sucursal (Central)</option>
+                    <option value="">🏢 Central / General</option>
                     {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
+                      <option key={b.id} value={b.id}>📍 {b.name} ({b.address})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Repartidor Asignado:</label>
+                  <select
+                    value={orderModal.data.driverId || ''}
+                    onChange={(e) => {
+                      const selected = drivers.find(d => d.id === e.target.value);
+                      setOrderModal({
+                        ...orderModal,
+                        data: {
+                          ...orderModal.data,
+                          driverId: e.target.value,
+                          driverName: selected ? selected.name : ''
+                        }
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">🛵 Sin Repartidor Asignado</option>
+                    {drivers.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.vehicle === 'Auto' ? '🚗' : '🛵'} {d.name} ({d.vehicle}) - {d.status === 'busy' ? 'Ocupado' : 'Disponible'}
+                      </option>
                     ))}
                   </select>
                 </div>

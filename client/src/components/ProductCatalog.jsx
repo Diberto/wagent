@@ -374,28 +374,37 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="Parrilla">Parrilla</option>
-                    <option value="Cortes Premium">Cortes Premium</option>
-                    <option value="Horno y Olla">Horno y Olla</option>
-                    <option value="Milanesas y Preparados">Milanesas y Preparados</option>
-                    <option value="Achuras y Embutidos">Achuras y Embutidos</option>
-                    <option value="Comidas Diarias">Comidas Diarias</option>
-                    <option value="Combos y Promociones">Combos y Promociones</option>
-                    <option value="General">General</option>
+                    {Array.from(new Set([
+                      'Parrilla',
+                      'Cortes Premium',
+                      'Horno y Olla',
+                      'Milanesas y Preparados',
+                      'Achuras y Embutidos',
+                      'Comidas Diarias',
+                      'Combos y Promociones',
+                      'Bebidas & Almacén',
+                      'General',
+                      ...products.map(p => p.category).filter(Boolean)
+                    ])).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Unidad</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Unidad de Medida</label>
                   <select
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="kg">Por Kilo (kg)</option>
-                    <option value="unidad">Por Unidad</option>
-                    <option value="combo">Por Combo</option>
+                    <option value="unidad">Por Unidad (un)</option>
+                    <option value="combo">Por Combo (promo)</option>
                     <option value="paquete">Por Paquete</option>
+                    <option value="bolsa">Por Bolsa (carbón)</option>
+                    <option value="botella">Por Botella (vino/bebida)</option>
+                    <option value="bandeja">Por Bandeja</option>
                   </select>
                 </div>
               </div>

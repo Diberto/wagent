@@ -30,6 +30,7 @@ import {
 export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [customers, setCustomers] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
@@ -68,9 +69,20 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
     }
   };
 
+  const fetchDrivers = async () => {
+    try {
+      const res = await fetch('/api/drivers');
+      const data = await res.json();
+      setDrivers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error cargando repartidores:', err);
+    }
+  };
+
   useEffect(() => {
     fetchCustomers();
     fetchBranches();
+    fetchDrivers();
 
     if (socket) {
       socket.on('lead:update', () => fetchCustomers());
@@ -760,14 +772,41 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                         })}
                         className="w-full bg-[#182229] border border-slate-700 text-xs text-white rounded-lg p-1.5"
                       >
-                        <option value="">Sin sucursal fija</option>
+                        <option value="">🏢 Sin sucursal fija (Cualquiera)</option>
                         {branches.map(b => (
-                          <option key={b.id} value={b.id}>{b.name}</option>
+                          <option key={b.id} value={b.id}>📍 {b.name} ({b.address})</option>
                         ))}
                       </select>
                     ) : (
                       <div className="text-xs font-bold text-sky-400 truncate">
                         {branches.find(b => b.id === selectedCustomer.preferredBranchId)?.name || 'Sin sucursal asignada'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1">
+                    <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                      🛵 Repartidor Habitual
+                    </span>
+                    {isEditing ? (
+                      <select
+                        value={editForm.preferredDriverId || ''}
+                        onChange={(e) => setEditForm({
+                          ...editForm,
+                          preferredDriverId: e.target.value
+                        })}
+                        className="w-full bg-[#182229] border border-slate-700 text-xs text-white rounded-lg p-1.5"
+                      >
+                        <option value="">Sin repartidor fijo</option>
+                        {drivers.map(d => (
+                          <option key={d.id} value={d.id}>
+                            {d.vehicle === 'Auto' ? '🚗' : '🛵'} {d.name} ({d.vehicle})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="text-xs font-bold text-emerald-400 truncate">
+                        {drivers.find(d => d.id === selectedCustomer.preferredDriverId)?.name || 'Cualquier repartidor'}
                       </div>
                     )}
                   </div>
