@@ -12,7 +12,8 @@ import {
   Smartphone,
   PhoneForwarded,
   UserCheck,
-  ShoppingBag
+  ShoppingBag,
+  PackageCheck
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -26,9 +27,10 @@ export default function Navbar({
 }) {
   const tabs = [
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
-    { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingBag },
-    { id: 'kanban', label: 'Embudo de Ventas', icon: Kanban },
-    { id: 'callcenter', label: 'Centro de Llamadas', icon: PhoneCall },
+    { id: 'orders', label: 'Pedidos', icon: PackageCheck },
+    { id: 'catalog', label: 'Catálogo', icon: ShoppingBag },
+    { id: 'kanban', label: 'Embudo', icon: Kanban },
+    { id: 'callcenter', label: 'Llamadas', icon: PhoneCall },
     { id: 'knowledge', label: 'Base de Conocimiento', icon: BookOpen },
     { id: 'analytics', label: 'Métricas', icon: BarChart3 },
   ];

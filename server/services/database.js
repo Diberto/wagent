@@ -372,6 +372,66 @@ class DatabaseService {
       stagesCount
     };
   }
+
+  // --- Orders System ---
+  getOrders() {
+    const db = this.readDb();
+    return (db.orders || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  getOrder(id) {
+    const db = this.readDb();
+    return (db.orders || []).find(o => o.id === id);
+  }
+
+  getLatestOrderByJid(jid) {
+    const db = this.readDb();
+    const orders = (db.orders || []).filter(o => o.jid === jid || (o.phone && jid && jid.includes(o.phone)));
+    return orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
+  }
+
+  createOrder(orderData) {
+    const db = this.readDb();
+    if (!db.orders) db.orders = [];
+
+    const newOrder = {
+      id: orderData.id || `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      jid: orderData.jid || '',
+      phone: orderData.phone || (orderData.jid ? orderData.jid.split('@')[0] : ''),
+      customerName: orderData.customerName || 'Cliente',
+      address: orderData.address || '',
+      items: orderData.items || [],
+      totalAmount: Number(orderData.totalAmount) || 0,
+      paymentMethod: orderData.paymentMethod || 'Efectivo / Transferencia',
+      status: orderData.status || 'pending', // 'pending' | 'preparing' | 'in_transit' | 'delivered' | 'cancelled'
+      notes: orderData.notes || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    db.orders.unshift(newOrder);
+    this.writeDb(db);
+    return newOrder;
+  }
+
+  updateOrderStatus(id, status) {
+    const db = this.readDb();
+    const order = (db.orders || []).find(o => o.id === id);
+    if (order) {
+      order.status = status;
+      order.updatedAt = new Date().toISOString();
+      this.writeDb(db);
+      return order;
+    }
+    return null;
+  }
+
+  deleteOrder(id) {
+    const db = this.readDb();
+    db.orders = (db.orders || []).filter(o => o.id !== id);
+    this.writeDb(db);
+    return true;
+  }
 }
 
 export const db = new DatabaseService();

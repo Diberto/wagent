@@ -7,6 +7,7 @@ import CallCenter from './components/CallCenter';
 import KnowledgeBase from './components/KnowledgeBase';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import ProductCatalog from './components/ProductCatalog';
+import OrdersView from './components/OrdersView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
@@ -293,6 +294,10 @@ export default function App() {
             onSendAudio={handleSendAudio}
             onCallLead={(lead) => handleOpenCallModal(lead)}
           />
+        )}
+
+        {currentTab === 'orders' && (
+          <OrdersView socket={socket} />
         )}
 
         {currentTab === 'catalog' && (

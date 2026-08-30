@@ -412,6 +412,31 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // --- 5.1 Orders Management System ---
+  router.get('/orders', (req, res) => {
+    res.json(db.getOrders());
+  });
+
+  router.post('/orders', (req, res) => {
+    const order = db.createOrder(req.body);
+    io.emit('order:new', order);
+    res.json(order);
+  });
+
+  router.patch('/orders/:id/status', (req, res) => {
+    const { status } = req.body;
+    const updated = db.updateOrderStatus(req.params.id, status);
+    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+    io.emit('order:update', updated);
+    res.json(updated);
+  });
+
+  router.delete('/orders/:id', (req, res) => {
+    db.deleteOrder(req.params.id);
+    io.emit('order:delete', req.params.id);
+    res.json({ success: true });
+  });
+
   // --- 6. Settings & Voice Testing ---
   router.get('/settings', (req, res) => {
     res.json({

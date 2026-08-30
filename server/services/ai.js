@@ -338,6 +338,21 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     const products = db.getProducts();
 
     // =========================================================================
+    // 0.5 CONSULTA DE PEDIDO REGISTRADO / RECORDATORIO DE PEDIDO
+    // (Ej: "recuerda mi pedido?", "como va mi pedido?", "mi pedido", "que pedi?")
+    // =========================================================================
+    const isOrderInquiry = /recuerda|recordas|mi pedido|estado|cuando llega|que pedi|tienen mi pedido|pedido registrado/i.test(t);
+    if (isOrderInquiry) {
+      const existingOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+      if (existingOrder) {
+        return `¡Hola ${existingOrder.customerName || nameGreeting}! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #${existingOrder.id}\n📋 *Detalle:*\n${existingOrder.items.join('\n')}\n💰 *Total:* $${existingOrder.totalAmount.toLocaleString('es-AR')}\n📍 *Entrega:* ${existingOrder.address}\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩`;
+      } else if (lead.notes && lead.notes.includes('Dirección de entrega:')) {
+        const address = lead.notes.replace('Dirección de entrega: ', '');
+        return `¡Hola${nameGreeting}! 👋 Sí, tengo agendado tu pedido del Combo Asadazo ($39.999) para entrega en: **${address}**.\n\n¿Querés que te lo confirmemos para despacho ahora mismo? 🥩`;
+      }
+    }
+
+    // =========================================================================
     // 1. DETECTOR DE DATOS DE ENVÍO / DIRECCIÓN / CONFIRMACIÓN DE PEDIDO
     // (Ej: "a mi domicilio, Locelso 7089, Juan Gonzalez mi nombre completo")
     // =========================================================================
@@ -388,14 +403,12 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     if (!cleanAddress || cleanAddress.length < 3) cleanAddress = rawText.trim();
 
     // 1.3 Si el usuario envía SOLO su nombre (ej: "Juan Gonzalez" o "Soy Juan Gonzalez")
-    const isJustName = (extractedNameFromText || (t.split(/\s+/).length >= 1 && t.split(/\s+/).length <= 4 && !/[0-9]/.test(t) && !hasAddress && !/hola|buen|que|cuanto|precio|costo|combo|asado|carne|picada|oferta|gracias|ok|si|no/i.test(t)));
+    const isJustName = (extractedNameFromText || (t.split(/\s+/).length >= 1 && t.split(/\s+/).length <= 4 && !/[0-9]/.test(t) && !hasAddress && !/hola|buen|que|cuanto|precio|costo|combo|asado|carne|picada|oferta|gracias|ok|si|no|recuerda|recordas|pedido|como/i.test(t)));
 
     if (isJustName && !hasAddress && t.length >= 3 && t.length <= 45) {
       const finalName = extractedNameFromText || rawText.replace(/^(soy|me llamo|mi nombre es|mi nombre|mi onmbre)\s+/i, '').trim();
       
       if (finalName.length >= 2) {
-        db.updateLead(lead.jid || lead.id, { name: finalName, pushName: finalName });
-
         // Recuperar dirección previa guardada
         let savedAddress = lead.notes?.replace('Dirección de entrega: ', '') || '';
         if (!savedAddress || savedAddress === 'A coordinar') {
@@ -416,10 +429,28 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
           totalAmount += 39999;
         }
 
-        const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
-        db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
+        // Crear Pedido Oficial en Base de Datos
+        const newOrder = db.createOrder({
+          jid: lead.jid || lead.id,
+          phone: lead.phone || (lead.jid ? lead.jid.split('@')[0] : ''),
+          customerName: finalName,
+          address: savedAddress,
+          items: orderItems,
+          totalAmount: totalAmount,
+          paymentMethod: 'Efectivo / Transferencia',
+          status: 'pending'
+        });
 
-        return `¡Perfecto ${finalName}! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalName}\n📍 *Destino de Entrega:* ${savedAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
+        const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
+        db.updateLead(lead.jid || lead.id, { 
+          name: finalName, 
+          pushName: finalName, 
+          value: totalAmount, 
+          stage: 'closed_won',
+          notes: `Dirección: ${savedAddress} | Pedido #${newOrder.id}`
+        });
+
+        return `¡Perfecto ${finalName}! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #${newOrder.id}\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalName}\n📍 *Destino de Entrega:* ${savedAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
       }
     }
 
@@ -436,8 +467,6 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
 
       // Si tenemos el nombre del cliente (ya sea en este mensaje o guardado)
       if (finalClientName) {
-        db.updateLead(lead.jid || lead.id, { name: finalClientName, pushName: finalClientName });
-
         let orderItems = [];
         let totalAmount = 0;
 
@@ -449,10 +478,28 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
           totalAmount += 39999;
         }
 
-        const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
-        db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
+        // Crear Pedido Oficial en Base de Datos
+        const newOrder = db.createOrder({
+          jid: lead.jid || lead.id,
+          phone: lead.phone || (lead.jid ? lead.jid.split('@')[0] : ''),
+          customerName: finalClientName,
+          address: cleanAddress,
+          items: orderItems,
+          totalAmount: totalAmount,
+          paymentMethod: 'Efectivo / Transferencia',
+          status: 'pending'
+        });
 
-        return `¡Excelente ${finalClientName}! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalClientName}\n📍 *Destino de Entrega:* ${cleanAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
+        const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
+        db.updateLead(lead.jid || lead.id, { 
+          name: finalClientName, 
+          pushName: finalClientName, 
+          value: totalAmount, 
+          stage: 'closed_won',
+          notes: `Dirección: ${cleanAddress} | Pedido #${newOrder.id}`
+        });
+
+        return `¡Excelente ${finalClientName}! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #${newOrder.id}\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalClientName}\n📍 *Destino de Entrega:* ${cleanAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
       }
 
       // Si NO hay nombre en absoluto
