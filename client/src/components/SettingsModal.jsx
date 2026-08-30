@@ -287,6 +287,30 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
+  // ElevenLabs Conversational Agent
+  const [isTestingElevenAgent, setIsTestingElevenAgent] = useState(false);
+  const [elevenAgentTestResult, setElevenAgentTestResult] = useState(null);
+
+  const handleTestElevenAgent = async () => {
+    setIsTestingElevenAgent(true);
+    setElevenAgentTestResult(null);
+    try {
+      const res = await fetch('/api/elevenlabs/agent/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: settings.elevenlabsAgentId || 'agent_3701khpbdw76fyqb7pd3gj6a1a8g'
+        })
+      });
+      const data = await res.json();
+      setElevenAgentTestResult(data);
+    } catch (err) {
+      setElevenAgentTestResult({ success: false, error: err.message });
+    } finally {
+      setIsTestingElevenAgent(false);
+    }
+  };
+
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
     { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
@@ -862,9 +886,30 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              {/* Configuración específica de ElevenLabs */}
+              {/* Configuración específica de ElevenLabs & Eleven Agents */}
               {settings.ttsProvider === 'elevenlabs' && (
-                <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-3 animate-in fade-in">
+                <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-4 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                        <Bot size={14} className="text-purple-400" />
+                        Agente Conversacional ElevenLabs (Eleven Agents)
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Configura el agente inteligente de voz en tiempo real mediante WebSocket y WebRTC
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.elevenlabsAgentEnabled ?? true}
+                        onChange={(e) => setSettings({ ...settings, elevenlabsAgentEnabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-semibold text-purple-300 mb-1">ElevenLabs API Key</label>
                     <input
@@ -872,37 +917,116 @@ export default function SettingsModal({ isOpen, onClose }) {
                       placeholder="sk_..."
                       value={settings.elevenlabsApiKey || ''}
                       onChange={(e) => setSettings({ ...settings, elevenlabsApiKey: e.target.value })}
-                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono"
                     />
                     <span className="text-[10px] text-slate-400 mt-1 block">
                       Obtén tu API Key en <a href="https://elevenlabs.io" target="_blank" rel="noreferrer" className="text-purple-400 underline">elevenlabs.io</a>
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-purple-300 mb-1">Modelo de ElevenLabs</label>
+                      <label className="block text-xs font-semibold text-purple-300 mb-1">ID del Agente (Agent ID)</label>
+                      <input
+                        type="text"
+                        placeholder="agent_3701khpbdw76fyqb7pd3gj6a1a8g"
+                        value={settings.elevenlabsAgentId || 'agent_3701khpbdw76fyqb7pd3gj6a1a8g'}
+                        onChange={(e) => setSettings({ ...settings, elevenlabsAgentId: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Identificador único del agente en ElevenLabs</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-purple-300 mb-1">ID de Voz (Voice ID)</label>
+                      <input
+                        type="text"
+                        placeholder="9rvdnhrYoXoUt4igKpBw"
+                        value={settings.elevenlabsVoiceId || '9rvdnhrYoXoUt4igKpBw'}
+                        onChange={(e) => setSettings({ ...settings, elevenlabsVoiceId: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Voz asignada al carnicero/asesor</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-purple-300 mb-1">Modelo de Voz / TTS</label>
                       <select
-                        value={settings.elevenlabsModelId || 'eleven_multilingual_v2'}
+                        value={settings.elevenlabsModelId || 'eleven_turbo_v2_5'}
                         onChange={(e) => setSettings({ ...settings, elevenlabsModelId: e.target.value })}
                         className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
                       >
-                        <option value="eleven_multilingual_v2">eleven_multilingual_v2 (Mejor español)</option>
-                        <option value="eleven_turbo_v2_5">eleven_turbo_v2_5 (Baja latencia)</option>
+                        <option value="eleven_turbo_v2_5">eleven_turbo_v2_5 (Recomendado - Baja latencia)</option>
+                        <option value="eleven_multilingual_v2">eleven_multilingual_v2 (Alta expresividad)</option>
                         <option value="eleven_flash_v2_5">eleven_flash_v2_5 (Ultra rápido)</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-purple-300 mb-1">ID de Voz o Clonada</label>
+                      <label className="block text-xs font-semibold text-purple-300 mb-1">Nombre del Agente</label>
                       <input
                         type="text"
-                        placeholder="21m00Tcm4TlvDq8ikWAM"
-                        value={settings.elevenlabsVoiceId || ''}
-                        onChange={(e) => setSettings({ ...settings, elevenlabsVoiceId: e.target.value })}
+                        placeholder="República de la Carne"
+                        value={settings.elevenlabsAgentName || 'República de la Carne'}
+                        onChange={(e) => setSettings({ ...settings, elevenlabsAgentName: e.target.value })}
                         className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-purple-300 mb-1">Mensaje Inicial (First Message)</label>
+                    <input
+                      type="text"
+                      placeholder="¡Hola! Gracias por comunicarte con nosotros, ¿en qué puedo ayudarte hoy?"
+                      value={settings.elevenlabsFirstMessage || '¡Hola! Gracias por comunicarte con nosotros, ¿en qué puedo ayudarte hoy?'}
+                      onChange={(e) => setSettings({ ...settings, elevenlabsFirstMessage: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  {/* Probar Conexión con ElevenLabs Agent */}
+                  <div className="pt-2 border-t border-purple-500/20 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={handleTestElevenAgent}
+                      disabled={isTestingElevenAgent}
+                      className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 text-xs font-bold transition-all"
+                    >
+                      {isTestingElevenAgent ? (
+                        <RefreshCw size={14} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={14} />
+                      )}
+                      {isTestingElevenAgent ? 'Verificando Agente en ElevenLabs...' : 'Probar Conexión con Agente de ElevenLabs'}
+                    </button>
+
+                    {elevenAgentTestResult && (
+                      <div className={`p-3 rounded-xl text-xs border ${
+                        elevenAgentTestResult.success 
+                          ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300' 
+                          : 'bg-rose-950/30 border-rose-500/40 text-rose-300'
+                      }`}>
+                        {elevenAgentTestResult.success ? (
+                          <div className="space-y-1">
+                            <div className="font-bold flex items-center gap-1.5">
+                              <CheckCircle2 size={14} /> ¡Agente de ElevenLabs Conectado Exitosamente!
+                            </div>
+                            <div className="text-[11px] opacity-90">
+                              • <b>ID:</b> <span className="font-mono">{elevenAgentTestResult.agentId}</span><br />
+                              • <b>Voz:</b> <span className="font-mono">{elevenAgentTestResult.voiceId}</span> ({elevenAgentTestResult.modelId})<br />
+                              • <b>WebSocket:</b> <span className="font-mono text-[10px]">{elevenAgentTestResult.isSigned ? 'Signed URL Segura' : 'Conexión Directa'}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <b>Error conectando con ElevenLabs:</b> {elevenAgentTestResult.error}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

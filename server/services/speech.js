@@ -147,7 +147,7 @@ export class SpeechService {
 
     if (!voice) {
       if (provider === 'elevenlabs') {
-        voice = settings.elevenlabsVoiceId || 'pNInz6obpgDQGcFmaJgB';
+        voice = settings.elevenlabsVoiceId || '9rvdnhrYoXoUt4igKpBw';
       } else if (provider === 'openai') {
         voice = 'nova';
       } else {
@@ -160,8 +160,8 @@ export class SpeechService {
     try {
       // 1. ElevenLabs TTS (Ultra-realista, clonación y voces premium)
       if (provider === 'elevenlabs' && settings.elevenlabsApiKey) {
-        let voiceId = voice || settings.elevenlabsVoiceId || 'pNInz6obpgDQGcFmaJgB';
-        const modelId = settings.elevenlabsModelId || 'eleven_multilingual_v2';
+        let voiceId = voice || settings.elevenlabsVoiceId || '9rvdnhrYoXoUt4igKpBw';
+        const modelId = settings.elevenlabsModelId || 'eleven_turbo_v2_5';
 
         let elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
           method: 'POST',

@@ -11,6 +11,7 @@ import { BackupService } from '../services/backup.js';
 import { mercadoPagoService } from '../services/mercadopago.js';
 import { wooCommerceService } from '../services/woocommerce.js';
 import { DEFAULT_AUTOMATIONS } from '../services/automation.js';
+import { ElevenLabsAgentService } from '../services/elevenlabsAgent.js';
 import { CONFIG } from '../config/index.js';
 
 export function createApiRouter(whatsappService, io) {
@@ -879,6 +880,49 @@ export function createApiRouter(whatsappService, io) {
     }
     const voices = await SpeechService.fetchElevenLabsVoices(apiKey);
     res.json(voices);
+  });
+
+  // --- ElevenLabs Conversational AI Agent (Eleven Agents) ---
+  router.get('/elevenlabs/agent/config', (req, res) => {
+    res.json(ElevenLabsAgentService.getAgentConfig());
+  });
+
+  router.post('/elevenlabs/agent/signed-url', async (req, res) => {
+    try {
+      const { agentId } = req.body || {};
+      const result = await ElevenLabsAgentService.getSignedUrl(agentId);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/elevenlabs/agent/initiation-data', (req, res) => {
+    try {
+      const { leadJid, customerName, phoneNumber, address, customFirstMessage, extraVariables } = req.body || {};
+      const lead = leadJid ? db.getLead(leadJid) : null;
+      const data = ElevenLabsAgentService.buildInitiationClientData({
+        lead,
+        customerName,
+        phoneNumber,
+        address,
+        customFirstMessage,
+        extraVariables
+      });
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/elevenlabs/agent/test', async (req, res) => {
+    try {
+      const { agentId } = req.body || {};
+      const result = await ElevenLabsAgentService.testAgentConnection(agentId);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Prueba de síntesis de voz en vivo en el navegador
