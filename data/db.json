@@ -90,26 +90,45 @@
       "id": "kb-1788107375738-hatrq",
       "createdAt": "2026-08-30T16:29:35.738Z",
       "updatedAt": "2026-08-30T17:54:42.356Z"
+    },
+    {
+      "title": "Productos, cortes de vaca, cerdo y pollo",
+      "category": "Productos & Precios",
+      "content": "🥩 CARNES — Lista \nAguja\nBife de chorizo\nBocado ancho\nBocado fino\nBola de lomo\nColita de cuadril\nCosteleta\nCosteleta ancha\nCostilla\nCostilla del medio\nCuadril\nEntraña\nEnrecor\nFalda\nFalda especial\nGrasa\nHueso\nJamón cuadrado\nLomo\nMarucha\nMatambre\nMolida intermedia\nNalga\nOsobuco\nPalomita\nPaleta\nPeceto\nPuchero común\nTapa asado\nTapa cuadril\nTapa de cuadril\nTapa nalga\nTortuguita\nVacío\n🐖 Cerdo\nBondiola de cerdo sin hueso\nCosteleta de cerdo\nCostilla de cerdo\nMatambre\nPulpa de cerdo\nVacío de cerdo\n🍗 Pollo\nAlita de pollo\nMenudo de pollo\nMilanesa de pollo\nPata muslo de pollo\nPechuga de pollo con hueso\nPollo\nSuprema de pollo\n🌭 Embutidos\nChorizo colorado\nChorizo con cheddar\nChorizo criollo\nChorizo de cerdo\nMorcilla\nMorcilla vasca\nSalchichas\n🐄 Achuras / menudencias\nChinchulín\nHígado\nMolleja\nMondongo\nRabo\nRiñón\nSesos\nTripa gorda",
+      "productPrice": null,
+      "keywords": [
+        "productos",
+        "lista",
+        "vaca",
+        "cerdo",
+        "pollo",
+        "achuras",
+        "asado",
+        "carne"
+      ],
+      "id": "kb-1788114011540-f55o0",
+      "createdAt": "2026-08-30T18:20:11.540Z",
+      "updatedAt": "2026-08-30T18:20:31.206Z"
     }
   ],
   "leads": [
     {
       "id": "lead-1788107987079-jk80w",
-      "stage": "proposal",
+      "stage": "negotiating",
       "value": 0,
       "tags": [
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 1,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T18:13:52.000Z",
+      "updatedAt": "2026-08-30T18:36:42.000Z",
       "jid": "153051277086768@lid",
       "name": "Don Juan",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
-      "lastMessage": "Vendemos carnes de vaca, cerdo y pollo de primera calidad, los mejores precios\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊",
-      "lastMessageAt": "2026-08-30T18:13:52.000Z"
+      "lastMessage": "🎤 [Nota de voz]",
+      "lastMessageAt": "2026-08-30T18:36:42.000Z"
     },
     {
       "id": "lead-1788111841514-dvhgd",
@@ -986,6 +1005,132 @@
       "content": "Vendemos carnes de vaca, cerdo y pollo de primera calidad, los mejores precios\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB0E768B7929D22B1FC1F",
+      "timestamp": "2026-08-30T18:20:53.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788114059773-n8jowa",
+      "timestamp": "2026-08-30T18:20:59.772Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! ¿Cómo le va? Disculpá la demora, acá Carlos al habla. \n\nTenemos una **Carne Picada Especial** bárbara, 100% pulpa magra seleccionada, bien fresquita para empanadas, pastel de papa o lo que vaya a preparar. El kilo está a **$5.800**.\n\n¿Se lo preparamos para envío a domicilio o prefiere pasar a retirarlo por sucursal?"
+    },
+    {
+      "id": "3EB09C8D55B3B0565F8386",
+      "timestamp": "2026-08-30T18:20:59.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! ¿Cómo le va? Disculpá la demora, acá Carlos al habla. \n\nTenemos una **Carne Picada Especial** bárbara, 100% pulpa magra seleccionada, bien fresquita para empanadas, pastel de papa o lo que vaya a preparar. El kilo está a **$5.800**.\n\n¿Se lo preparamos para envío a domicilio o prefiere pasar a retirarlo por sucursal?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB03CE55C535E316CD7FC",
+      "timestamp": "2026-08-30T18:21:08.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero 1 quilo de carne molida",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788114074976-fdlp9h",
+      "timestamp": "2026-08-30T18:21:14.975Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente, Don Juan! Ya te anoto el kilito de **Carne Picada Especial** ($5.800), bien magra y fresca como se debe 🥩.\n\nDecime, ¿preferís que te lo enviemos a domicilio o pasás a retirarlo por la sucursal? Si es con envío, pasame tu dirección y coordinamos también la forma de pago (efectivo, Mercado Pago, transferencia o tarjeta)."
+    },
+    {
+      "id": "3EB09E5A75FDB6603C130C",
+      "timestamp": "2026-08-30T18:21:14.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente, Don Juan! Ya te anoto el kilito de **Carne Picada Especial** ($5.800), bien magra y fresca como se debe 🥩.\n\nDecime, ¿preferís que te lo enviemos a domicilio o pasás a retirarlo por la sucursal? Si es con envío, pasame tu dirección y coordinamos también la forma de pago (efectivo, Mercado Pago, transferencia o tarjeta).",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB091162D359DAEA480B1",
+      "timestamp": "2026-08-30T18:21:35.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero la lista de precios de asado",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788114100935-gi0pbw",
+      "timestamp": "2026-08-30T18:21:40.934Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una, Don Juan! Acá te paso los precios de nuestros cortes parrilleros estrella, todo novillito tierno y de primera calidad:\n\n🥩 **Costilla / Asado de Novillito:** $7.800 / kg  \n🥩 **Vacío Especial:** $8.900 / kg  \n🥩 **Matambre Vacuno:** $8.200 / kg  \n🥩 **Entraña Fina:** $9.900 / kg  \n🥩 **Bife de Chorizo / Ojo de Bife:** $9.500 / kg  \n🌭 **Chorizo Puro Cerdo Criollo:** $4.500 / kg  \n🌭 **Morcilla Bombón Criolla:** $3.800 / kg  \n🔥 **Combo Asado Completo (4 personas):** $24.000 *(1.5kg costilla + 1kg vacío + 4 chorizos + 2 morcillas)*\n\n¿Te gustaría que te sumemos algún corte parrillero al kilito de picada que me pediste? Contame para cuántos son y te asesoro con las cantidades justas."
+    },
+    {
+      "id": "3EB0B9947328D3B0520C5C",
+      "timestamp": "2026-08-30T18:21:40.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una, Don Juan! Acá te paso los precios de nuestros cortes parrilleros estrella, todo novillito tierno y de primera calidad:\n\n🥩 **Costilla / Asado de Novillito:** $7.800 / kg  \n🥩 **Vacío Especial:** $8.900 / kg  \n🥩 **Matambre Vacuno:** $8.200 / kg  \n🥩 **Entraña Fina:** $9.900 / kg  \n🥩 **Bife de Chorizo / Ojo de Bife:** $9.500 / kg  \n🌭 **Chorizo Puro Cerdo Criollo:** $4.500 / kg  \n🌭 **Morcilla Bombón Criolla:** $3.800 / kg  \n🔥 **Combo Asado Completo (4 personas):** $24.000 *(1.5kg costilla + 1kg vacío + 4 chorizos + 2 morcillas)*\n\n¿Te gustaría que te sumemos algún corte parrillero al kilito de picada que me pediste? Contame para cuántos son y te asesoro con las cantidades justas.",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "2A956AFD9BFE661EEDFE",
+      "timestamp": "2026-08-30T18:36:28.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "audio",
+      "content": "Sí, quería saber eh un asado para cuatro personas.",
+      "mediaUrl": "/media/audio_1788114988880_hi46kf.mp3",
+      "audioDuration": 3
+    },
+    {
+      "id": "msg-1788115003268-dtq2mt",
+      "timestamp": "2026-08-30T18:36:43.267Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Un buen asado nunca falla! 🔥 Para calcular bien, recomendamos unos 500g de carne por persona. Contamos con Costilla ($7.800/kg), Vacío ($8.900/kg), Entraña ($9.900/kg) y Chorizo criollo ($4.500/kg).\n\n¿Para cuántas personas sería el asado y te armamos el pedido a medida? 🥩",
+      "mediaUrl": "/media/tts_raw_1788114996759_m14el.mp3",
+      "audioDuration": 16
+    },
+    {
+      "id": "3EB072A2AB12C72B86B84B",
+      "timestamp": "2026-08-30T18:36:42.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788115004685_kj1bvq.mp3",
+      "audioDuration": 25
     }
   ],
   "calls": [

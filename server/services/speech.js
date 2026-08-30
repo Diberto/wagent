@@ -128,15 +128,16 @@ export class SpeechService {
 
     const settings = db.getSettings();
     let provider = settings.ttsProvider || 'edge';
-    let voice = customVoice || settings.aiVoiceModel || 'es-MX-DaliaNeural';
+    let voice = customVoice;
 
-    // Auto-detectar proveedor si la voz específica lo indica
-    if (voice.startsWith('es-')) {
-      provider = 'edge';
-    } else if (['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].includes(voice)) {
-      provider = 'openai';
-    } else if (voice.length >= 20 && !voice.startsWith('es-')) {
-      provider = 'elevenlabs';
+    if (!voice) {
+      if (provider === 'elevenlabs') {
+        voice = settings.elevenlabsVoiceId || 'pNInz6obpgDQGcFmaJgB';
+      } else if (provider === 'openai') {
+        voice = 'nova';
+      } else {
+        voice = settings.aiVoiceModel || 'es-AR-TomasNeural';
+      }
     }
 
     const tempRawMp3 = path.join(CONFIG.MEDIA_DIR, `tts_raw_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.mp3`);
@@ -144,10 +145,10 @@ export class SpeechService {
     try {
       // 1. ElevenLabs TTS (Ultra-realista, clonación y voces premium)
       if (provider === 'elevenlabs' && settings.elevenlabsApiKey) {
-        const voiceId = voice || settings.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+        let voiceId = voice || settings.elevenlabsVoiceId || 'pNInz6obpgDQGcFmaJgB';
         const modelId = settings.elevenlabsModelId || 'eleven_multilingual_v2';
 
-        const elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        let elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
           method: 'POST',
           headers: {
             'xi-api-key': settings.elevenlabsApiKey,
@@ -166,13 +167,38 @@ export class SpeechService {
           })
         });
 
+        // Si la voz de librería es rechazada en cuenta Free (400/402), reintentar con voz estándar oficial (Adam)
+        if (!elevenRes.ok && (elevenRes.status === 400 || elevenRes.status === 402)) {
+          console.warn(`⚠️ Voz ${voiceId} requiere plan pago en ElevenLabs. Usando voz estándar oficial Adam (pNInz6obpgDQGcFmaJgB)...`);
+          voiceId = 'pNInz6obpgDQGcFmaJgB';
+          elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            method: 'POST',
+            headers: {
+              'xi-api-key': settings.elevenlabsApiKey,
+              'Content-Type': 'application/json',
+              'Accept': 'audio/mpeg'
+            },
+            body: JSON.stringify({
+              text,
+              model_id: modelId,
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.75,
+                style: 0.0,
+                use_speaker_boost: true
+              }
+            })
+          });
+        }
+
         if (elevenRes.ok) {
           const arrayBuffer = await elevenRes.arrayBuffer();
           fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
+          console.log(`🎙️ [ElevenLabs] Audio sintetizado con éxito (${voiceId})`);
         } else {
           const errText = await elevenRes.text();
           console.warn(`⚠️ ElevenLabs error (${elevenRes.status}): ${errText}. Usando Edge Neural como respaldo...`);
-          await this.generateEdgeTts(text, 'es-MX-DaliaNeural', tempRawMp3);
+          await this.generateEdgeTts(text, settings.aiVoiceModel || 'es-AR-TomasNeural', tempRawMp3);
         }
       } else if (provider === 'openai' && settings.openaiApiKey) {
         // 2. OpenAI TTS si está configurado
