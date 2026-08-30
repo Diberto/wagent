@@ -651,11 +651,13 @@ export function createApiRouter(whatsappService, io) {
 
       const preference = await mercadoPagoService.createPaymentPreference(orderData);
       
-      // Si el pedido existe, guardar el preferenceId y el link de pago
+      // Si el pedido existe, guardar el preferenceId, el link de pago y el modo
       if (order) {
         db.updateOrder(order.id, {
+          paymentMethod: preference.isSandbox ? 'Mercado Pago (Sandbox)' : 'Mercado Pago',
           paymentPreferenceId: preference.id,
-          paymentLink: preference.initPoint,
+          paymentLink: preference.checkoutUrl,
+          paymentMode: preference.mode,
           sandboxPaymentLink: preference.sandboxInitPoint
         });
       }
@@ -664,7 +666,9 @@ export function createApiRouter(whatsappService, io) {
       if (sendWhatsApp) {
         const targetJid = jid || order?.jid || (phone ? `${phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
         if (targetJid && whatsappService.status === 'connected') {
-          const paymentMsg = `¡Hola ${orderData.customerName}! 🥩💳 Acá tenés el link de pago oficial de Mercado Pago para tu pedido #${orderData.id} por $${Number(orderData.totalAmount).toLocaleString('es-AR')}:\n\n🔗 ${preference.initPoint}\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia. En cuanto se acredite, ¡comenzamos la preparación de tu pedido!`;
+          const modeTag = preference.isSandbox ? '🧪 *[MODO PRUEBAS / SANDBOX]*\n' : '';
+          const sandboxNote = preference.isSandbox ? '\n*(Enlace de prueba Sandbox - No debita dinero real)*' : '';
+          const paymentMsg = `${modeTag}¡Hola ${orderData.customerName}! 🥩💳 Acá tenés el link de pago ${preference.isSandbox ? 'de prueba ' : ''}de Mercado Pago para tu pedido #${orderData.id} por $${Number(orderData.totalAmount).toLocaleString('es-AR')}:\n\n🔗 ${preference.checkoutUrl}\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia.${sandboxNote}\n\nEn cuanto se acredite, ¡comenzamos la preparación de tu pedido!`;
           
           await whatsappService.sendMessage(targetJid, paymentMsg);
 

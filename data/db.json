@@ -3,7 +3,7 @@
     "aiProvider": "gemini",
     "geminiApiKey": "AIzaSyAfWlsLZdxNv0kv-eD_57UhUQHbPVFKOrY",
     "openaiApiKey": "diberto77",
-    "aiModel": "gemini-flash-latest",
+    "aiModel": "gemini-pro-latest",
     "aiVoiceModel": "es-AR-TomasNeural",
     "ttsProvider": "elevenlabs",
     "agentName": "Carlos - Carnicero Virtual",
@@ -27,6 +27,22 @@
     "mercadopagoAutoSendLink": true
   },
   "orders": [
+    {
+      "id": "ORD-2865",
+      "jid": "153051277086768@lid",
+      "phone": "+153051277086768",
+      "customerName": "de Juan Gonzalez",
+      "address": "locelso 7089 anombre de Juan Gonzalez",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo / Transferencia",
+      "status": "pending",
+      "notes": "",
+      "createdAt": "2026-08-30T20:45:04.034Z",
+      "updatedAt": "2026-08-30T20:45:04.035Z"
+    },
     {
       "id": "ORD-8163",
       "jid": "153051277086768@lid",
@@ -292,17 +308,17 @@
         "Frecuente"
       ],
       "aiEnabled": true,
-      "unreadCount": 1,
+      "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:42:16.000Z",
+      "updatedAt": "2026-08-30T20:45:26.000Z",
       "jid": "153051277086768@lid",
-      "name": "Juan Gonzalze",
+      "name": "de Juan Gonzalez",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
-      "address": "locelso 7100, Juan Gonzalze",
-      "totalOrders": 4,
-      "totalSpent": 159996,
-      "lastOrderAt": "2026-08-30T20:28:21.325Z",
+      "address": "locelso 7089 anombre de Juan Gonzalez",
+      "totalOrders": 5,
+      "totalSpent": 199995,
+      "lastOrderAt": "2026-08-30T20:45:04.034Z",
       "preferences": {
         "favoriteCuts": [
           "Combo Asadazo",
@@ -317,13 +333,13 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
-      "lastMessageAt": "2026-08-30T20:42:16.000Z",
-      "notes": "Dirección: locelso 7100, Juan Gonzalze | Pedido #ORD-8163",
+      "lastMessage": "¡De diez de Juan Gonzalez! 🥩💳 Para abonar tu pedido **#ORD-2865** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌",
+      "lastMessageAt": "2026-08-30T20:45:26.000Z",
+      "notes": "Dirección: locelso 7089 anombre de Juan Gonzalez | Pedido #ORD-2865",
       "altJids": [
         "153051277086768@s.whatsapp.net"
       ],
-      "lastOrderId": "ORD-8163"
+      "lastOrderId": "ORD-2865"
     },
     {
       "id": "lead-1788118409496-l0ibc",
@@ -3246,6 +3262,130 @@
       "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB0181907009EA0F1C35F",
+      "timestamp": "2026-08-30T20:44:35.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788122679554-rblzsd",
+      "timestamp": "2026-08-30T20:44:39.553Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB065EC8643E63AFE647F",
+      "timestamp": "2026-08-30T20:44:39.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0DD12C43B8F17FD9712",
+      "timestamp": "2026-08-30T20:44:46.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788122689596-54g8hz",
+      "timestamp": "2026-08-30T20:44:49.594Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩"
+    },
+    {
+      "id": "3EB041CA5145FDD8D4DEF4",
+      "timestamp": "2026-08-30T20:44:49.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB054846F47C366AEF25A",
+      "timestamp": "2026-08-30T20:45:00.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "locelso 7089 anombre de Juan Gonzalez",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788122704207-e0se4m",
+      "timestamp": "2026-08-30T20:45:04.206Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente de Juan Gonzalez! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-2865\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* de Juan Gonzalez\n📍 *Destino de Entrega:* locelso 7089 anombre de Juan Gonzalez\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]"
+    },
+    {
+      "id": "3EB0D65931E45654A2522B",
+      "timestamp": "2026-08-30T20:45:04.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente de Juan Gonzalez! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-2865\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* de Juan Gonzalez\n📍 *Destino de Entrega:* locelso 7089 anombre de Juan Gonzalez\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0B1D57CF4405A87902C",
+      "timestamp": "2026-08-30T20:45:22.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quisiera abonar con mercadopago",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788122726322-428byz",
+      "timestamp": "2026-08-30T20:45:26.321Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez de Juan Gonzalez! 🥩💳 Para abonar tu pedido **#ORD-2865** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌"
+    },
+    {
+      "id": "3EB05B561140131DA1AE57",
+      "timestamp": "2026-08-30T20:45:26.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez de Juan Gonzalez! 🥩💳 Para abonar tu pedido **#ORD-2865** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [
@@ -3518,6 +3658,286 @@
       "rating": 4.8,
       "createdAt": "2026-08-30T20:39:32.099Z",
       "updatedAt": "2026-08-30T20:39:32.099Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "usr-admin",
+      "name": "Carlos Rodríguez",
+      "username": "admin",
+      "email": "admin@republicadelacarne.com",
+      "role": "admin",
+      "branchId": null,
+      "driverId": null,
+      "pin": "1234",
+      "avatar": "CR",
+      "status": "active",
+      "permissions": {
+        "canEditSettings": true,
+        "canManageUsers": true,
+        "canDeleteOrders": true,
+        "canManageBranches": true,
+        "canManageDrivers": true,
+        "canManageProducts": true,
+        "canViewFinancials": true,
+        "canToggleAi": true
+      },
+      "tabs": [
+        "inbox",
+        "pos",
+        "orders",
+        "drivers",
+        "customers",
+        "branches",
+        "catalog",
+        "kanban",
+        "callcenter",
+        "knowledge",
+        "analytics",
+        "users",
+        "settings"
+      ],
+      "createdAt": "2026-08-30T20:43:47.657Z"
+    },
+    {
+      "id": "usr-gerencia",
+      "name": "Juan Ignacio Rossi",
+      "username": "gerencia",
+      "email": "gerencia@republicadelacarne.com",
+      "role": "gerencia",
+      "branchId": null,
+      "driverId": null,
+      "pin": "5555",
+      "avatar": "JR",
+      "status": "active",
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": true,
+        "canManageDrivers": true,
+        "canManageProducts": true,
+        "canViewFinancials": true,
+        "canToggleAi": false
+      },
+      "tabs": [
+        "analytics",
+        "orders",
+        "customers",
+        "branches",
+        "drivers",
+        "pos",
+        "catalog",
+        "inbox"
+      ],
+      "createdAt": "2026-08-30T20:43:47.657Z"
+    },
+    {
+      "id": "usr-encargado",
+      "name": "Walter Giménez",
+      "username": "encargado.cerro",
+      "email": "cerro@republicadelacarne.com",
+      "role": "encargado",
+      "branchId": "suc-cerro",
+      "driverId": null,
+      "pin": "2222",
+      "avatar": "WG",
+      "status": "active",
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": false,
+        "canManageDrivers": true,
+        "canManageProducts": false,
+        "canViewFinancials": false,
+        "canToggleAi": false
+      },
+      "tabs": [
+        "pos",
+        "orders",
+        "drivers",
+        "customers",
+        "catalog",
+        "inbox"
+      ],
+      "createdAt": "2026-08-30T20:43:47.657Z"
+    },
+    {
+      "id": "usr-cajero",
+      "name": "Sofía Peralta",
+      "username": "caja.urca",
+      "email": "caja.urca@republicadelacarne.com",
+      "role": "cajero",
+      "branchId": "suc-urca",
+      "driverId": null,
+      "pin": "3333",
+      "avatar": "SP",
+      "status": "active",
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": false,
+        "canManageDrivers": false,
+        "canManageProducts": false,
+        "canViewFinancials": false,
+        "canToggleAi": false
+      },
+      "tabs": [
+        "pos",
+        "orders",
+        "customers",
+        "catalog"
+      ],
+      "createdAt": "2026-08-30T20:43:47.657Z"
+    },
+    {
+      "id": "usr-repartidor",
+      "name": "Marcos Benítez",
+      "username": "reparto.marcos",
+      "email": "marcos@republicadelacarne.com",
+      "role": "repartidor",
+      "branchId": "suc-cerro",
+      "driverId": "drv-1",
+      "pin": "4444",
+      "avatar": "MB",
+      "status": "active",
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": false,
+        "canManageDrivers": false,
+        "canManageProducts": false,
+        "canViewFinancials": false,
+        "canToggleAi": false
+      },
+      "tabs": [
+        "drivers",
+        "orders"
+      ],
+      "createdAt": "2026-08-30T20:43:47.657Z"
+    }
+  ],
+  "roles": [
+    {
+      "id": "admin",
+      "name": "Administrador General",
+      "description": "Control total de la plataforma, ajustes de IA, usuarios y finanzas",
+      "tabs": [
+        "inbox",
+        "pos",
+        "orders",
+        "drivers",
+        "customers",
+        "branches",
+        "catalog",
+        "kanban",
+        "callcenter",
+        "knowledge",
+        "analytics",
+        "users",
+        "settings"
+      ],
+      "permissions": {
+        "canEditSettings": true,
+        "canManageUsers": true,
+        "canDeleteOrders": true,
+        "canManageBranches": true,
+        "canManageDrivers": true,
+        "canManageProducts": true,
+        "canViewFinancials": true,
+        "canToggleAi": true
+      }
+    },
+    {
+      "id": "gerencia",
+      "name": "Gerencia & Dirección",
+      "description": "Supervisión de métricas, pedidos, clientes, sucursales y reportes",
+      "tabs": [
+        "analytics",
+        "orders",
+        "customers",
+        "branches",
+        "drivers",
+        "pos",
+        "catalog",
+        "inbox"
+      ],
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": true,
+        "canManageDrivers": true,
+        "canManageProducts": true,
+        "canViewFinancials": true,
+        "canToggleAi": false
+      }
+    },
+    {
+      "id": "encargado",
+      "name": "Encargado de Sucursal",
+      "description": "Gestión de pedidos de su sede, POS mostrador, clientes y asignación de repartidores",
+      "tabs": [
+        "pos",
+        "orders",
+        "drivers",
+        "customers",
+        "catalog",
+        "inbox"
+      ],
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": false,
+        "canManageDrivers": true,
+        "canManageProducts": false,
+        "canViewFinancials": false,
+        "canToggleAi": false
+      }
+    },
+    {
+      "id": "cajero",
+      "name": "Cajero / Operador de Ventas",
+      "description": "Punto de venta mostrador, cobros con Mercado Pago / Efectivo y pedidos rápidos",
+      "tabs": [
+        "pos",
+        "orders",
+        "customers",
+        "catalog"
+      ],
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": false,
+        "canManageDrivers": false,
+        "canManageProducts": false,
+        "canViewFinancials": false,
+        "canToggleAi": false
+      }
+    },
+    {
+      "id": "repartidor",
+      "name": "Repartidor / Cadete",
+      "description": "Hojas de ruta de entregas, estado de viaje y saldo de efectivo en mano",
+      "tabs": [
+        "drivers",
+        "orders"
+      ],
+      "permissions": {
+        "canEditSettings": false,
+        "canManageUsers": false,
+        "canDeleteOrders": false,
+        "canManageBranches": false,
+        "canManageDrivers": false,
+        "canManageProducts": false,
+        "canViewFinancials": false,
+        "canToggleAi": false
+      }
     }
   ]
 }

@@ -7,8 +7,22 @@ class MercadoPagoService {
 
   getCredentials() {
     const settings = db.getSettings();
+    const mode = settings.mercadopagoMode || 'sandbox'; // 'sandbox' | 'production'
+    const isSandbox = mode === 'sandbox';
+
+    // Live Access Token
+    const prodAccessToken = settings.mercadopagoAccessToken || 'APP_USR-963262173359779-083015-7a288c6669f44248572a6202c5de2fb0-2050924390';
+    // Sandbox Access Token
+    const sandboxAccessToken = settings.mercadopagoSandboxAccessToken || settings.mercadopagoAccessToken || 'APP_USR-963262173359779-083015-7a288c6669f44248572a6202c5de2fb0-2050924390';
+
+    const activeAccessToken = isSandbox ? sandboxAccessToken : prodAccessToken;
+
     return {
-      accessToken: settings.mercadopagoAccessToken || 'APP_USR-963262173359779-083015-7a288c6669f44248572a6202c5de2fb0-2050924390',
+      mode,
+      isSandbox,
+      accessToken: activeAccessToken,
+      prodAccessToken,
+      sandboxAccessToken,
       publicKey: settings.mercadopagoPublicKey || 'APP_USR-f2e52862-ab7d-411d-a43f-3e6c417eff9e',
       appId: settings.mercadopagoAppId || '963262173359779',
       userId: settings.mercadopagoUserId || '2050924390',
@@ -22,15 +36,15 @@ class MercadoPagoService {
    * Verifica la conexión y validez de las credenciales con Mercado Pago
    */
   async testConnection() {
-    const { accessToken } = this.getCredentials();
-    if (!accessToken) {
+    const creds = this.getCredentials();
+    if (!creds.accessToken) {
       return { success: false, error: 'No se ha configurado el Access Token de Mercado Pago' };
     }
 
     try {
       const response = await fetch(`${this.baseUrl}/users/me`, {
         headers: {
-          'Authorization': `Bearer ${accessToken}`
+          'Authorization': `Bearer ${creds.accessToken}`
         }
       });
 
@@ -42,6 +56,8 @@ class MercadoPagoService {
       const data = await response.json();
       return {
         success: true,
+        mode: creds.mode,
+        isSandbox: creds.isSandbox,
         user: {
           id: data.id,
           nickname: data.nickname,
@@ -60,11 +76,11 @@ class MercadoPagoService {
    * Crea una Preferencia de Pago Checkout Pro para un pedido
    */
   async createPaymentPreference(orderData) {
-    const { accessToken, enabled } = this.getCredentials();
-    if (!enabled) {
+    const creds = this.getCredentials();
+    if (!creds.enabled) {
       throw new Error('La integración de Mercado Pago está deshabilitada en la configuración');
     }
-    if (!accessToken) {
+    if (!creds.accessToken) {
       throw new Error('Falta el Access Token de Mercado Pago');
     }
 
@@ -73,7 +89,8 @@ class MercadoPagoService {
 
     const orderId = orderData.id || `ORD-${Date.now()}`;
     const amount = Number(orderData.totalAmount) || 1000;
-    const title = `Pedido #${orderId} - ${businessName}`;
+    const modeTag = creds.isSandbox ? '[TEST / SANDBOX]' : '';
+    const title = `${modeTag} Pedido #${orderId} - ${businessName}`.trim();
     const description = Array.isArray(orderData.items) 
       ? orderData.items.join(' • ') 
       : (orderData.items || 'Cortes de carne y productos parrilleros');
@@ -110,7 +127,7 @@ class MercadoPagoService {
       const response = await fetch(`${this.baseUrl}/checkout/preferences`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${creds.accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(preferencePayload)
@@ -123,8 +140,17 @@ class MercadoPagoService {
       }
 
       const preference = await response.json();
+
+      // En modo Sandbox usar sandbox_init_point para que no cobre dinero real
+      const checkoutUrl = creds.isSandbox && preference.sandbox_init_point 
+        ? preference.sandbox_init_point 
+        : preference.init_point;
+
       return {
         id: preference.id,
+        mode: creds.mode,
+        isSandbox: creds.isSandbox,
+        checkoutUrl,
         initPoint: preference.init_point,
         sandboxInitPoint: preference.sandbox_init_point,
         orderId

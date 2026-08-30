@@ -965,11 +965,13 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, paymentMethod: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold"
                   >
-                    <option value="Efectivo al repartidor">Efectivo al repartidor</option>
-                    <option value="Transferencia Bancaria">Transferencia Bancaria</option>
-                    <option value="Mercado Pago">Mercado Pago</option>
+                    <option value="Efectivo al repartidor">💵 Efectivo al repartidor</option>
+                    <option value="Mercado Pago">💳 Mercado Pago</option>
+                    <option value="Mercado Pago (Sandbox)">🧪 Mercado Pago (Modo Sandbox / Test)</option>
+                    <option value="Transferencia Bancaria">📱 Transferencia Bancaria</option>
+                    <option value="Tarjeta de Débito / Crédito">💳 Tarjeta Débito / Crédito</option>
                   </select>
                 </div>
 
@@ -1057,14 +1059,36 @@ export default function OrdersView({ socket }) {
                   </div>
                 )}
 
+                {/* Mode Badge */}
+                <div className="flex items-center justify-between p-2.5 rounded-2xl bg-[#111b21] border border-slate-800">
+                  <div className="text-slate-400 font-bold text-[11px]">Ambiente de Mercado Pago:</div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                    paymentModal.linkData.isSandbox
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
+                      : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                  }`}>
+                    {paymentModal.linkData.isSandbox ? '🧪 MODO PRUEBAS (SANDBOX)' : '🚀 MODO PRODUCCIÓN (EN VIVO)'}
+                  </span>
+                </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-slate-300 font-semibold">Link de Pago Oficial (Checkout Pro):</label>
+                  <label className="text-slate-300 font-semibold flex items-center justify-between">
+                    <span>Link de Pago Generado:</span>
+                    <a
+                      href={paymentModal.linkData.checkoutUrl || paymentModal.linkData.initPoint}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-400 hover:underline text-[11px]"
+                    >
+                      Abrir enlace ↗
+                    </a>
+                  </label>
                   <div className="p-3 rounded-2xl bg-[#111b21] border border-slate-700/80 text-[#009ee3] font-mono text-xs break-all select-all flex items-center justify-between gap-2">
-                    <span className="truncate">{paymentModal.linkData.initPoint}</span>
+                    <span className="truncate">{paymentModal.linkData.checkoutUrl || paymentModal.linkData.initPoint}</span>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText(paymentModal.linkData.initPoint);
+                        navigator.clipboard.writeText(paymentModal.linkData.checkoutUrl || paymentModal.linkData.initPoint);
                         alert('¡Link de pago copiado al portapapeles!');
                       }}
                       className="p-1.5 rounded-lg bg-[#182229] hover:bg-[#202c33] text-slate-300 hover:text-white border border-slate-700 shrink-0"
@@ -1074,6 +1098,28 @@ export default function OrdersView({ socket }) {
                     </button>
                   </div>
                 </div>
+
+                {/* If Sandbox Mode, show test cards guide */}
+                {paymentModal.linkData.isSandbox && (
+                  <div className="p-3 bg-[#111b21] border border-amber-500/30 rounded-2xl space-y-1.5 text-[11px]">
+                    <div className="text-amber-400 font-bold flex items-center gap-1">
+                      <span>🧪 Tarjeta de Prueba para Pagar en Modo Test:</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 font-mono bg-[#182229] p-2 rounded-xl border border-slate-800">
+                      <div>
+                        <div className="text-slate-400 font-sans text-[10px]">Mastercard Test:</div>
+                        <div className="text-emerald-400 font-bold select-all">5031 7557 3453 0451</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-400 font-sans text-[10px]">Vto / CVV:</div>
+                        <div className="text-slate-300">11/27 • 123</div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Este link usa el entorno Sandbox de Mercado Pago y no descontará dinero real.
+                    </p>
+                  </div>
+                )}
 
                 <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1 text-[11px] text-slate-400">
                   <div>👤 <b>Cliente:</b> {paymentModal.order.customerName} ({paymentModal.order.phone})</div>

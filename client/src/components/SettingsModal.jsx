@@ -601,7 +601,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                   <div>
                     {mpTestResult.success ? (
                       <div>
-                        <span className="font-bold">¡Conexión Exitosa con Mercado Pago!</span> Cuenta: <b>{mpTestResult.user?.nickname || 'Vendedor'}</b> (ID: {mpTestResult.user?.id}) — Listo para cobrar en vivo.
+                        <span className="font-bold">¡Conexión Exitosa con Mercado Pago!</span> Modo: <b className="uppercase font-mono">{mpTestResult.mode}</b> — Cuenta: <b>{mpTestResult.user?.nickname || 'Vendedor'}</b> (ID: {mpTestResult.user?.id})
                       </div>
                     ) : (
                       <div>
@@ -611,6 +611,87 @@ export default function SettingsModal({ isOpen, onClose }) {
                   </div>
                 </div>
               )}
+
+              {/* ENVIRONMENT MODE SWITCHER (Sandbox vs Production) */}
+              <div className="p-4 bg-[#182229] border border-slate-800 rounded-3xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                      <span>Ambiente de Operación:</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                        settings.mercadopagoMode === 'production'
+                          ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                          : 'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse'
+                      }`}>
+                        {settings.mercadopagoMode === 'production' ? '🚀 PRODUCCIÓN (Cobros Reales)' : '🧪 MODO PRUEBAS (Sandbox - Sin Dinero Real)'}
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Elige si los links de pago generarán transacciones reales o pagos simulados para pruebas
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, mercadopagoMode: 'sandbox' })}
+                    className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                      settings.mercadopagoMode !== 'production'
+                        ? 'bg-amber-500/15 border-amber-500/50 text-white shadow-md'
+                        : 'bg-[#111b21] border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-lg">🧪</span>
+                    <div>
+                      <div className="text-xs font-bold text-amber-400">Modo Pruebas (Sandbox)</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        Genera links de prueba (`sandbox_init_point`). Permite probar pagos con tarjetas de test sin debitar dinero.
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, mercadopagoMode: 'production' })}
+                    className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 ${
+                      settings.mercadopagoMode === 'production'
+                        ? 'bg-emerald-500/15 border-emerald-500/50 text-white shadow-md'
+                        : 'bg-[#111b21] border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-lg">🚀</span>
+                    <div>
+                      <div className="text-xs font-bold text-emerald-400">Modo Producción (En Vivo)</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        Genera links oficiales en vivo (`init_point`) para cobrar dinero real a tus clientes.
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Sandbox Test Cards Cheat Sheet */}
+                {settings.mercadopagoMode !== 'production' && (
+                  <div className="p-3 bg-[#111b21] border border-amber-500/30 rounded-2xl space-y-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                      <span>💳 Tarjetas de Prueba para Testear en Sandbox:</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+                      <div className="p-2 rounded-xl bg-[#182229] border border-slate-800 space-y-0.5">
+                        <div className="text-slate-400 font-sans font-bold">Mastercard Aprobada:</div>
+                        <div className="text-emerald-400 font-bold select-all">5031 7557 3453 0451</div>
+                        <div className="text-slate-400">Vto: 11/27 • CVV: 123 • DNI: 12345678</div>
+                      </div>
+
+                      <div className="p-2 rounded-xl bg-[#182229] border border-slate-800 space-y-0.5">
+                        <div className="text-slate-400 font-sans font-bold">Visa Aprobada:</div>
+                        <div className="text-sky-400 font-bold select-all">4024 0071 5200 0000</div>
+                        <div className="text-slate-400">Vto: 11/27 • CVV: 123 • DNI: 12345678</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Toggles */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
