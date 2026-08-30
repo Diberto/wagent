@@ -78,6 +78,21 @@ export class SpeechService {
         }
       }
 
+      // 1.1 Intentar con Groq Whisper (alta velocidad y precisión)
+      const groqKey = settings.groqApiKey || (settings.customApiKey && settings.customApiKey.startsWith('gsk_') ? settings.customApiKey : null);
+      if (groqKey) {
+        const groq = new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1' });
+        const transcription = await groq.audio.transcriptions.create({
+          file: fs.createReadStream(mp3Path),
+          model: 'whisper-large-v3',
+          language: 'es'
+        });
+
+        if (transcription && transcription.text) {
+          return transcription.text.trim();
+        }
+      }
+
       // 2. Intentar con Google Gemini Multimodal si hay API key válida de Gemini
       const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
       if (isValidGeminiKey) {

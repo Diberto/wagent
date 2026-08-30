@@ -561,12 +561,43 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
     }
 
     // =========================================================================
-    // 6. SALUDOS Y ATENCIÓN CONSULTIVA
+    // 5.5 ACLARACIONES, CORRECCIONES Y OBJECIONES ("no te pedí eso", "eso no", "espera")
     // =========================================================================
-    if (/^(hola|buen|buenas|que tal|saludos|hey|alo)/i.test(t)) {
-      return `¡Hola${nameGreeting}! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido paso a paso para que no te falte nada.\n\n¿Estás buscando cortes para un asado con amigos, almuerzo familiar o carne para el freezer de la semana? Contame para cuántos comensales calculamos y te armo la mejor propuesta. 🥩🔥`;
+    if (/no te pedí|no pedi|otra cosa|eso no|no es eso|te equivocaste|para nada|te dije|no gracias|no quiero eso/i.test(t)) {
+      return `¡Tenés toda la razón${nameGreeting}, disculpame la confusión! 🥩 Contame exactamente qué corte o pedido tenías en mente, o qué te gustaría cambiar, y te lo armo a tu medida paso a paso. 🙌`;
     }
 
-    return `¡Con gusto${nameGreeting}! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Contame qué comida estás planeando y para cuántas personas, y armamos el pedido juntos paso a paso con envío en el día. 🥩`;
+    // =========================================================================
+    // 5.6 PREGUNTAS POR CORTES ESPECÍFICOS (CATÁLOGO EN TIEMPO REAL)
+    // =========================================================================
+    const matchedProduct = products.find(p => t.includes((p.name || '').toLowerCase()) || ((p.aliases || []).some(a => t.includes(a.toLowerCase()))));
+    if (matchedProduct) {
+      const unit = matchedProduct.unit || 'kg';
+      const formattedPrice = `$${Number(matchedProduct.price).toLocaleString('es-AR')}`;
+      return `¡Sí, tenemos **${matchedProduct.name}** fresco de novillito de primera! 🥩\n\nEstá a **${formattedPrice} / ${unit}**.\n\n¿Cuántos ${unit} te gustaría que te preparemos o querés combinarlo con algún otro corte?`;
+    }
+
+    // =========================================================================
+    // 6. SALUDOS Y ATENCIÓN CONSULTIVA
+    // =========================================================================
+    if (/^(hola|buen|buenas|que tal|saludos|hey|alo|buenos dias|buenas tardes|buenas noches)/i.test(t)) {
+      const greetings = [
+        `¡Hola${nameGreeting}! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame para cuántos comensales calculamos y te armo la propuesta perfecta. 🥩🔥`,
+        `¡Buenas${nameGreeting}! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩`,
+        `¡Hola${nameGreeting}! Qué lindo saludarte. Tenemos ingresos frescos de costillares, vacíos, achuras y milanesas preparadas. ¿Qué tenías ganas de preparar hoy? 🥩🙌`
+      ];
+      const selected = greetings[Math.floor(Math.random() * greetings.length)];
+      return selected;
+    }
+
+    // =========================================================================
+    // 7. RESPUESTA DINÁMICA CONTEXTUAL POR DEFECTO (NUNCA ROBÓTICA)
+    // =========================================================================
+    const fallbackVariations = [
+      `¡Excelente${nameGreeting}! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩`,
+      `¡Tomado nota${nameGreeting}! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥`,
+      `¡De diez${nameGreeting}! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩`
+    ];
+    return fallbackVariations[Math.floor(Math.random() * fallbackVariations.length)];
   }
 }
