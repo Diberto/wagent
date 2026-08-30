@@ -141,8 +141,9 @@ class MercadoPagoService {
 
       const preference = await response.json();
 
-      // En modo Sandbox usar sandbox_init_point para que no cobre dinero real
-      const checkoutUrl = creds.isSandbox && preference.sandbox_init_point 
+      // Si el token es de producción (APP_USR-), usar siempre init_point para evitar el error de sesión en sandbox
+      const isTokenProd = creds.accessToken && creds.accessToken.startsWith('APP_USR');
+      const checkoutUrl = (creds.isSandbox && !isTokenProd && preference.sandbox_init_point)
         ? preference.sandbox_init_point 
         : preference.init_point;
 
