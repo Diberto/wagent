@@ -81,14 +81,25 @@ class DatabaseService {
   }
 
   writeDb(data) {
+    const jsonStr = JSON.stringify(data, null, 2);
     try {
-      const tempPath = `${this.dbFile}.tmp`;
-      fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
-      fs.renameSync(tempPath, this.dbFile);
+      fs.writeFileSync(this.dbFile, jsonStr, 'utf8');
       return true;
     } catch (error) {
-      console.error('Error writing to database:', error);
-      return false;
+      try {
+        const tempPath = `${this.dbFile}.tmp`;
+        fs.writeFileSync(tempPath, jsonStr, 'utf8');
+        try {
+          fs.copyFileSync(tempPath, this.dbFile);
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        } catch {
+          fs.renameSync(tempPath, this.dbFile);
+        }
+        return true;
+      } catch (retryErr) {
+        console.error('Error writing to database:', retryErr.message);
+        return false;
+      }
     }
   }
 
