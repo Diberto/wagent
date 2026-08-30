@@ -1366,6 +1366,79 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // =========================================================================
+  // --- ELEVENLABS CONVERSATIONAL AI AGENT & SYSTEM INTEGRATION ENDPOINTS ---
+  // Ref: https://elevenlabs.io/docs/eleven-agents/api-reference/eleven-agents/websocket
+  // =========================================================================
+  router.get('/elevenlabs/agent/config', (req, res) => {
+    res.json(ElevenLabsAgentService.getAgentConfig());
+  });
+
+  router.post('/elevenlabs/agent/signed-url', async (req, res) => {
+    const { agentId } = req.body;
+    const result = await ElevenLabsAgentService.getSignedUrl(agentId);
+    res.json(result);
+  });
+
+  router.post('/elevenlabs/agent/initiation-data', (req, res) => {
+    const { leadJid, customerName, phoneNumber, address, customFirstMessage, extraVariables } = req.body;
+    const lead = leadJid ? db.getLead(leadJid) : null;
+    const data = ElevenLabsAgentService.buildInitiationClientData({
+      lead,
+      customerName,
+      phoneNumber,
+      address,
+      customFirstMessage,
+      extraVariables
+    });
+    res.json(data);
+  });
+
+  router.post('/elevenlabs/agent/test', async (req, res) => {
+    const { agentId } = req.body;
+    const result = await ElevenLabsAgentService.testAgentConnection(agentId);
+    res.json(result);
+  });
+
+  // --- Herramientas del Sistema para el Agente (Webhooks / Function Calling) ---
+  router.get('/elevenlabs/agent/tools/products', (req, res) => {
+    const { category, search } = req.query;
+    res.json(ElevenLabsAgentService.getCatalogProducts({ category, search }));
+  });
+
+  router.get('/elevenlabs/agent/tools/branches', (req, res) => {
+    res.json(ElevenLabsAgentService.getBranchesInfo());
+  });
+
+  router.post('/elevenlabs/agent/tools/create-order', async (req, res) => {
+    const result = await ElevenLabsAgentService.createOrderFromAgent(req.body);
+    if (result.success) {
+      io.emit('order:new', db.getOrder(result.orderId));
+      io.emit('orders:updated', db.getOrders());
+    }
+    res.json(result);
+  });
+
+  router.post('/elevenlabs/agent/tools/order-status', (req, res) => {
+    const { phone, jid, phoneNumber } = req.body;
+    res.json(ElevenLabsAgentService.getCustomerOrderStatus(phone || jid || phoneNumber));
+  });
+
+  router.post('/elevenlabs/agent/tools/update-customer', (req, res) => {
+    const result = ElevenLabsAgentService.updateCustomerData(req.body);
+    if (result.success) {
+      io.emit('lead:update', result.customer);
+      io.emit('leads:update', db.getLeads());
+    }
+    res.json(result);
+  });
+
+  router.post('/elevenlabs/agent/tools/execute', async (req, res) => {
+    const { toolName, parameters, context } = req.body;
+    const result = await ElevenLabsAgentService.executeTool(toolName, parameters, context);
+    res.json(result);
+  });
+
   return router;
 }
 

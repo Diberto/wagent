@@ -1,6 +1,6 @@
 import { db } from './database.js';
 
-class MercadoPagoService {
+export class MercadoPagoService {
   constructor() {
     this.baseUrl = 'https://api.mercadopago.com';
   }

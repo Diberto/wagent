@@ -63,7 +63,40 @@ export class SpeechService {
         mp3Path = await AudioConverter.convertOggToMp3(audioPath);
       }
 
-      // 1. Intentar con OpenAI Whisper si hay API key válida de OpenAI
+      // 1. Prioridad: ElevenLabs Scribe Speech-to-Text (Ultra precisión y comprensión de español)
+      if (settings.elevenlabsApiKey) {
+        try {
+          const fileBuffer = fs.readFileSync(mp3Path);
+          const formData = new FormData();
+          const blob = new Blob([fileBuffer], { type: 'audio/mpeg' });
+          formData.append('file', blob, 'audio.mp3');
+          formData.append('model_id', 'scribe_v1');
+          formData.append('language_code', 'es');
+
+          const scribeRes = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+            method: 'POST',
+            headers: {
+              'xi-api-key': settings.elevenlabsApiKey
+            },
+            body: formData
+          });
+
+          if (scribeRes.ok) {
+            const scribeData = await scribeRes.json();
+            if (scribeData.text && scribeData.text.trim()) {
+              console.log(`🎙️ [ElevenLabs Scribe STT] Audio transcrito con éxito: "${scribeData.text.trim()}"`);
+              return scribeData.text.trim();
+            }
+          } else {
+            const errText = await scribeRes.text();
+            console.warn(`[ElevenLabs STT] Status ${scribeRes.status}: ${errText}`);
+          }
+        } catch (elevenErr) {
+          console.warn('[ElevenLabs STT] Error conectando:', elevenErr.message);
+        }
+      }
+
+      // 2. Intentar con OpenAI Whisper si hay API key válida de OpenAI
       const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
       if (isValidOpenAiKey) {
         const openai = new OpenAI({ apiKey: settings.openaiApiKey });
@@ -78,7 +111,7 @@ export class SpeechService {
         }
       }
 
-      // 1.1 Intentar con Groq Whisper (alta velocidad y precisión)
+      // 2.1 Intentar con Groq Whisper (alta velocidad y precisión)
       const groqKey = settings.groqApiKey || (settings.customApiKey && settings.customApiKey.startsWith('gsk_') ? settings.customApiKey : null);
       if (groqKey) {
         const groq = new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1' });
@@ -93,35 +126,39 @@ export class SpeechService {
         }
       }
 
-      // 2. Intentar con Google Gemini Multimodal si hay API key válida de Gemini
+      // 3. Intentar con Google Gemini Multimodal si hay API key válida de Gemini
       const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
       if (isValidGeminiKey) {
-        const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+        try {
+          const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
+          const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
-        const audioBuffer = fs.readFileSync(mp3Path);
-        const base64Audio = audioBuffer.toString('base64');
+          const audioBuffer = fs.readFileSync(mp3Path);
+          const base64Audio = audioBuffer.toString('base64');
 
-        const result = await model.generateContent([
-          {
-            inlineData: {
-              mimeType: 'audio/mp3',
-              data: base64Audio
+          const result = await model.generateContent([
+            {
+              inlineData: {
+                mimeType: 'audio/mp3',
+                data: base64Audio
+              }
+            },
+            {
+              text: 'Transcribe este audio en español con máxima fidelidad. Devuelve ÚNICAMENTE el texto transcrito sin explicaciones ni comillas adicionales.'
             }
-          },
-          {
-            text: 'Transcribe este audio en español con máxima fidelidad. Devuelve ÚNICAMENTE el texto transcrito sin explicaciones ni comillas adicionales.'
-          }
-        ]);
+          ]);
 
-        const text = result.response.text();
-        if (text) {
-          return text.trim();
+          const text = result.response.text();
+          if (text) {
+            return text.trim();
+          }
+        } catch (geminiErr) {
+          console.warn('Gemini STT error:', geminiErr.message);
         }
       }
 
-      // 3. Si no hay API key para STT, devolver mensaje amigable
-      console.log('Nota de voz recibida sin API Key de transcripción. Usando detección estándar.');
+      // 4. Si no hay transcripción disponible, devolver aviso descriptivo
+      console.log('Nota de voz recibida sin transcripción activa.');
       return '[Nota de voz recibida del cliente]';
     } catch (error) {
       console.warn('Advertencia en transcripción de audio:', error.message);

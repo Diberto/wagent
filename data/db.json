@@ -33,6 +33,57 @@
   },
   "orders": [
     {
+      "id": "ORD-3246",
+      "jid": "5493515551234@s.whatsapp.net",
+      "phone": "+54 9 351 555-1234",
+      "customerName": "Juan Carlos Test",
+      "address": "Av. Rafael Núñez 4500, Córdoba",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999",
+        "• 1x Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $10.000"
+      ],
+      "totalAmount": 49999,
+      "paymentMethod": "Efectivo contraentrega",
+      "status": "pending",
+      "notes": "Pedido generado por Agente Conversacional ElevenLabs",
+      "createdAt": "2026-08-30T23:17:36.929Z",
+      "updatedAt": "2026-08-30T23:17:36.929Z"
+    },
+    {
+      "id": "ORD-1592",
+      "jid": "5493515551234@s.whatsapp.net",
+      "phone": "+54 9 351 555-1234",
+      "customerName": "Juan Carlos Test",
+      "address": "Av. Rafael Núñez 4500, Córdoba",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999",
+        "• 1x Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $10.000"
+      ],
+      "totalAmount": 49999,
+      "paymentMethod": "Efectivo contraentrega",
+      "status": "pending",
+      "notes": "Pedido generado por Agente Conversacional ElevenLabs",
+      "createdAt": "2026-08-30T23:17:13.000Z",
+      "updatedAt": "2026-08-30T23:17:13.000Z"
+    },
+    {
+      "id": "ORD-4497",
+      "jid": "5493515551234@s.whatsapp.net",
+      "phone": "+54 9 351 555-1234",
+      "customerName": "Juan Carlos Test",
+      "address": "Av. Rafael Núñez 4500, Córdoba",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999",
+        "• 1x Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $10.000"
+      ],
+      "totalAmount": 49999,
+      "paymentMethod": "Efectivo contraentrega",
+      "status": "pending",
+      "notes": "Pedido generado por Agente Conversacional ElevenLabs",
+      "createdAt": "2026-08-30T23:16:48.848Z",
+      "updatedAt": "2026-08-30T23:16:48.848Z"
+    },
+    {
       "id": "ORD-4319",
       "jid": "",
       "phone": "+54 9 351 999-8888",
@@ -236,6 +287,42 @@
   ],
   "leads": [
     {
+      "id": "lead-1788131808839-bcusa",
+      "jid": "5493515551234@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 555-1234",
+      "name": "Juan Carlos VIP",
+      "pushName": "Juan Carlos VIP",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp",
+        "Cliente Comprador",
+        "Cliente VIP",
+        "Frecuente"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [
+          "Combo “Asadazo”",
+          "Chorizo Criollo Puro Cerdo"
+        ],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T23:16:48.839Z",
+      "updatedAt": "2026-08-30T23:17:36.938Z",
+      "address": "Av. Rafael Núñez 4500, Dpto 4B",
+      "totalOrders": 3,
+      "totalSpent": 149997,
+      "lastOrderAt": "2026-08-30T23:17:36.929Z",
+      "lastOrderId": "ORD-3246",
+      "notes": "Cliente preferencial - Prefiere retiro los viernes"
+    },
+    {
       "id": "lead-test-7",
       "jid": "5493510007777@s.whatsapp.net",
       "altJids": [],
@@ -248,7 +335,7 @@
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 5,
+      "unreadCount": 0,
       "preferences": {
         "favoriteCuts": [],
         "cookingPreference": "Parrilla",
@@ -373,7 +460,7 @@
       ],
       "phone": "+153051277086768",
       "name": "Don Juan",
-      "pushName": "Don Juan",
+      "pushName": "+153051277086768",
       "stage": "proposal",
       "value": 39999,
       "tags": [
@@ -382,7 +469,7 @@
         "Cliente VIP"
       ],
       "aiEnabled": true,
-      "unreadCount": 8,
+      "unreadCount": 0,
       "preferences": {
         "favoriteCuts": [
           "Combo “Asadazo”",
@@ -394,9 +481,9 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T23:06:50.000Z",
+      "updatedAt": "2026-08-30T23:17:21.000Z",
       "lastMessage": "🎤 [Nota de voz]",
-      "lastMessageAt": "2026-08-30T23:06:50.000Z",
+      "lastMessageAt": "2026-08-30T23:17:21.000Z",
       "address": "domicilio, locelso 7100",
       "notes": "Dirección registrada: domicilio, locelso 7100 | Nombre: Don Juan",
       "totalOrders": 2,
@@ -2626,9 +2713,253 @@
       "status": "sent",
       "sender": "user",
       "content": "abono al retirar"
+    },
+    {
+      "id": "msg-1788131452191-jj7m3c",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:10:52.190Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Hola! 👋 Vimos que intentaste comunicarte con nosotros. En este momento nuestras líneas están ocupadas atendiendo clientes, pero no queremos dejarte esperando 😊\n\nSoy Carlos, el asistente virtual de República de la Carne. Puedo ayudarte con cortes, precios, promociones, sucursales, horarios o incluso recomendarte qué carne llevar según lo que quieras preparar. 🥩\n\nContame, ¿qué necesitás?",
+      "mediaUrl": "/media/tts_raw_1788131447806_rltqt.mp3",
+      "audioDuration": 21
+    },
+    {
+      "id": "3EB0CFC0C08BAD49F87D00",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:10:51.000Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131452705_vyr7rf.mp3",
+      "audioDuration": 27
+    },
+    {
+      "id": "msg-1788131786618-rs4bkx",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:16:26.617Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Hola! 👋 Vimos que intentaste comunicarte con nosotros. En este momento nuestras líneas están ocupadas atendiendo clientes, pero no queremos dejarte esperando 😊\n\nSoy Carlos, el asistente virtual de República de la Carne. Puedo ayudarte con cortes, precios, promociones, sucursales, horarios o incluso recomendarte qué carne llevar según lo que quieras preparar. 🥩\n\nContame, ¿qué necesitás?",
+      "mediaUrl": "/media/tts_raw_1788131782410_tjjrc.mp3",
+      "audioDuration": 21
+    },
+    {
+      "id": "3EB022450870674AF9E7D2",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:16:26.000Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131787786_7h8g4j.mp3",
+      "audioDuration": 28
+    },
+    {
+      "id": "msg-1788131839898-n1ui11",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:17:19.898Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Hola! 👋 Vimos que intentaste comunicarte con nosotros. En este momento nuestras líneas están ocupadas atendiendo clientes, pero no queremos dejarte esperando 😊\n\nSoy Carlos, el asistente virtual de República de la Carne. Puedo ayudarte con cortes, precios, promociones, sucursales, horarios o incluso recomendarte qué carne llevar según lo que quieras preparar. 🥩\n\nContame, ¿qué necesitás?",
+      "mediaUrl": "/media/tts_raw_1788131836591_4yesm.mp3",
+      "audioDuration": 21
+    },
+    {
+      "id": "msg-1788131841494-p9zrr7",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:17:21.493Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Hola! 👋 Vimos que intentaste comunicarte con nosotros. En este momento nuestras líneas están ocupadas atendiendo clientes, pero no queremos dejarte esperando 😊\n\nSoy Carlos, el asistente virtual de República de la Carne. Puedo ayudarte con cortes, precios, promociones, sucursales, horarios o incluso recomendarte qué carne llevar según lo que quieras preparar. 🥩\n\nContame, ¿qué necesitás?",
+      "mediaUrl": "/media/tts_raw_1788131838350_wox67.mp3",
+      "audioDuration": 21
+    },
+    {
+      "id": "3EB0047ED79CEE017EE9E6",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:17:19.000Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131840996_ym6l9m.mp3",
+      "audioDuration": 27
+    },
+    {
+      "id": "3EB0FB9D51E2E91191C819",
+      "chatId": "153051277086768@lid",
+      "timestamp": "2026-08-30T23:17:21.000Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131842362_1s2a5u.mp3",
+      "audioDuration": 27
     }
   ],
   "calls": [
+    {
+      "id": "call-1788131843149-h5i9n",
+      "timestamp": "2026-08-30T23:17:23.148Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (terminate)"
+    },
+    {
+      "id": "call-1788131835337-456jz",
+      "timestamp": "2026-08-30T23:17:15.336Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131835325-3yzvt",
+      "timestamp": "2026-08-30T23:17:15.323Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131835315-mcyp6",
+      "timestamp": "2026-08-30T23:17:15.313Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131834075-iol9n",
+      "timestamp": "2026-08-30T23:17:14.073Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": true,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (offer)"
+    },
+    {
+      "id": "call-1788131803501-4r3n5",
+      "timestamp": "2026-08-30T23:16:43.499Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (terminate)"
+    },
+    {
+      "id": "call-1788131803352-3jqla",
+      "timestamp": "2026-08-30T23:16:43.351Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (accept)"
+    },
+    {
+      "id": "call-1788131781857-ab3uw",
+      "timestamp": "2026-08-30T23:16:21.856Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131781848-wef0j",
+      "timestamp": "2026-08-30T23:16:21.847Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131781839-etsic",
+      "timestamp": "2026-08-30T23:16:21.839Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131779898-s7f9x",
+      "timestamp": "2026-08-30T23:16:19.897Z",
+      "direction": "incoming",
+      "status": "ringing",
+      "duration": 0,
+      "aiFollowUpSent": true,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (offer)"
+    },
+    {
+      "id": "call-1788131445311-femjt",
+      "timestamp": "2026-08-30T23:10:45.309Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (terminate)"
+    },
+    {
+      "id": "call-1788131445299-9xlmc",
+      "timestamp": "2026-08-30T23:10:45.297Z",
+      "direction": "incoming",
+      "status": "ringing",
+      "duration": 0,
+      "aiFollowUpSent": true,
+      "chatId": "153051277086768@lid",
+      "callerNumber": "+153051277086768",
+      "callerName": "+153051277086768",
+      "notes": "Llamada de voz de WhatsApp (offer)"
+    },
     {
       "id": "call-1788131208265-0v3r1",
       "timestamp": "2026-08-30T23:06:48.263Z",
