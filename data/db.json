@@ -41,7 +41,10 @@
       "status": "preparing",
       "notes": "",
       "createdAt": "2026-08-30T20:09:18.064Z",
-      "updatedAt": "2026-08-30T20:09:34.787Z"
+      "updatedAt": "2026-08-30T20:18:01.316Z",
+      "paymentPreferenceId": "2050924390-6312e69b-5204-487b-a44b-c792df651611",
+      "paymentLink": "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611",
+      "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611"
     },
     {
       "id": "ORD-1042",

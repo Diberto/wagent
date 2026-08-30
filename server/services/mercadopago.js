@@ -98,6 +98,11 @@ class MercadoPagoService {
       external_reference: String(orderId),
       statement_descriptor: 'REP CARNE',
       binary_mode: true,
+      back_urls: {
+        success: 'https://mercadopago.com.ar',
+        failure: 'https://mercadopago.com.ar',
+        pending: 'https://mercadopago.com.ar'
+      },
       auto_return: 'approved'
     };
 
