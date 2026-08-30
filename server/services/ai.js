@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { db } from './database.js';
 import { SpeechService } from './speech.js';
+import { mercadoPagoService } from './mercadopago.js';
 
 export class AIService {
   /**
@@ -336,6 +337,19 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     const customerName = lead.pushName || lead.name || '';
     const nameGreeting = customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') ? ` ${customerName}` : '';
     const products = db.getProducts();
+
+    // =========================================================================
+    // 0.35 SOLICITUD DE LINK DE PAGO / MERCADO PAGO
+    // =========================================================================
+    const isLinkRequest = /link|link de pago|marcado pago|mercadopago|mercado pago|tarjeta|abonar con mp|pagar con mp/i.test(t);
+    if (isLinkRequest) {
+      const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+      const amount = lastOrder ? lastOrder.totalAmount : 39999;
+      const orderId = lastOrder ? lastOrder.id : `ORD-${Date.now().toString().slice(-4)}`;
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes')) ? lead.name : (nameGreeting || 'Don Juan');
+      
+      return `¡De diez ${clientName}! 🥩💳 Para abonar tu pedido **#${orderId}** por **$${amount.toLocaleString('es-AR')}** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* \`republica.carne.mp\`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌`;
+    }
 
     // =========================================================================
     // 0.4 CONFIRMACIÓN DE MÉTODO DE PAGO (Ej: "efectivo", "abono al repartidor", "transferencia")

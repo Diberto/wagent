@@ -256,9 +256,9 @@
         "Frecuente"
       ],
       "aiEnabled": true,
-      "unreadCount": 4,
+      "unreadCount": 5,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:23:10.000Z",
+      "updatedAt": "2026-08-30T20:26:59.000Z",
       "jid": "153051277086768@lid",
       "name": "hola",
       "phone": "+153051277086768",
@@ -281,8 +281,8 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante.",
-      "lastMessageAt": "2026-08-30T20:23:10.000Z",
+      "lastMessage": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "lastMessageAt": "2026-08-30T20:26:59.000Z",
       "notes": "Dirección: domicilio abono en efectivo al recibirlo | Pedido #ORD-3024",
       "altJids": [
         "153051277086768@s.whatsapp.net"
@@ -2929,6 +2929,37 @@
       "content": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante.",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB05D3F4AF01C20977365",
+      "timestamp": "2026-08-30T20:26:53.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121619316-l7it7x",
+      "timestamp": "2026-08-30T20:26:59.315Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB06FE18822F2C576BE09",
+      "timestamp": "2026-08-30T20:26:59.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [
@@ -3059,6 +3090,78 @@
       "isAvailable": true,
       "sku": "",
       "updatedAt": "2026-08-30T19:22:24.794Z"
+    }
+  ],
+  "branches": [
+    {
+      "id": "br-1",
+      "name": "Sucursal Cerro de las Rosas",
+      "address": "Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba",
+      "phone": "+54 9 351 626-2475",
+      "phoneNormalized": "+5493516262475",
+      "managerName": "Roberto Gomez",
+      "email": "cerro@republicadelacarne.com",
+      "hours": "Lun a Sáb 8:00 a 20:30 | Dom 9:00 a 14:00",
+      "coverageZones": [
+        "Cerro de las Rosas",
+        "Urca",
+        "Villa Belgrano",
+        "Argüello"
+      ],
+      "isActive": true,
+      "createdAt": "2026-08-30T17:00:00.000Z"
+    },
+    {
+      "id": "br-2",
+      "name": "Sucursal Urca",
+      "address": "Av. Menéndez Pidal 3600, Urca, Córdoba",
+      "phone": "+54 9 351 555-0102",
+      "phoneNormalized": "+5493515550102",
+      "managerName": "Marcos Díaz",
+      "email": "urca@republicadelacarne.com",
+      "hours": "Lun a Sáb 8:30 a 20:30 | Dom 9:00 a 13:30",
+      "coverageZones": [
+        "Urca",
+        "Parque Tablada",
+        "Chateau Carreras"
+      ],
+      "isActive": true,
+      "createdAt": "2026-08-30T17:00:00.000Z"
+    },
+    {
+      "id": "br-3",
+      "name": "Sucursal General Paz",
+      "address": "Av. 24 de Septiembre 1150, B° General Paz, Córdoba",
+      "phone": "+54 9 351 555-0103",
+      "phoneNormalized": "+5493515550103",
+      "managerName": "Romina Paz",
+      "email": "gralpaz@republicadelacarne.com",
+      "hours": "Lun a Sáb 8:00 a 21:00 | Dom 9:30 a 14:00",
+      "coverageZones": [
+        "General Paz",
+        "Centro",
+        "Alta Córdoba",
+        "Juniors"
+      ],
+      "isActive": true,
+      "createdAt": "2026-08-30T17:00:00.000Z"
+    },
+    {
+      "id": "br-4",
+      "name": "Sucursal Villa Belgrano",
+      "address": "Av. Recta Martinolli 5800, Villa Belgrano, Córdoba",
+      "phone": "+54 9 351 555-0104",
+      "phoneNormalized": "+5493515550104",
+      "managerName": "Carlos Vaca",
+      "email": "villabelgrano@republicadelacarne.com",
+      "hours": "Lun a Sáb 8:30 a 20:30 | Dom 9:00 a 14:00",
+      "coverageZones": [
+        "Villa Belgrano",
+        "Villa Warcalde",
+        "Granja de Funes"
+      ],
+      "isActive": true,
+      "createdAt": "2026-08-30T17:00:00.000Z"
     }
   ]
 }
