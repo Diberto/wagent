@@ -40,6 +40,9 @@ export default function OrdersView({ socket }) {
   const [orderModal, setOrderModal] = useState(null); // null | { mode: 'create' | 'edit', data: { ... } }
   const [itemsInputText, setItemsInputText] = useState('');
 
+  // Mercado Pago Payment Link Modal
+  const [paymentModal, setPaymentModal] = useState(null); // null | { order, linkData, isGenerating, isSending, sendSuccess }
+
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
@@ -225,6 +228,67 @@ export default function OrdersView({ socket }) {
       }
     } catch (err) {
       console.error('Error guardando pedido:', err);
+    }
+  };
+
+  const handleOpenPaymentLink = async (order) => {
+    setPaymentModal({
+      order,
+      linkData: null,
+      isGenerating: true,
+      isSending: false,
+      sendSuccess: false
+    });
+
+    try {
+      const res = await fetch('/api/mercadopago/create-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          amount: order.totalAmount,
+          customerName: order.customerName,
+          phone: order.phone,
+          items: order.items,
+          sendWhatsApp: false
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPaymentModal(prev => ({ ...prev, linkData: data, isGenerating: false }));
+      } else {
+        alert(`Error generando link de Mercado Pago: ${data.error || 'Verifica credenciales'}`);
+        setPaymentModal(null);
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      setPaymentModal(null);
+    }
+  };
+
+  const handleSendPaymentLinkWhatsApp = async () => {
+    if (!paymentModal || !paymentModal.order) return;
+    setPaymentModal(prev => ({ ...prev, isSending: true }));
+    try {
+      const res = await fetch('/api/mercadopago/create-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: paymentModal.order.id,
+          amount: paymentModal.order.totalAmount,
+          customerName: paymentModal.order.customerName,
+          phone: paymentModal.order.phone,
+          items: paymentModal.order.items,
+          sendWhatsApp: true
+        })
+      });
+      if (res.ok) {
+        setPaymentModal(prev => ({ ...prev, isSending: false, sendSuccess: true }));
+        setTimeout(() => setPaymentModal(null), 2500);
+      }
+    } catch (err) {
+      console.error('Error enviando WhatsApp:', err);
+      setPaymentModal(prev => ({ ...prev, isSending: false }));
     }
   };
 
@@ -458,6 +522,14 @@ export default function OrdersView({ socket }) {
                     <option value="delivered">✅ Entregado</option>
                     <option value="cancelled">❌ Cancelado</option>
                   </select>
+
+                  <button
+                    onClick={() => handleOpenPaymentLink(order)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-700/60 transition"
+                    title="Cobrar con Mercado Pago"
+                  >
+                    <CreditCard size={14} />
+                  </button>
 
                   <button
                     onClick={() => handleOpenEditOrder(order)}
@@ -708,6 +780,94 @@ export default function OrdersView({ socket }) {
                 </button>
               </div>
             </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* Mercado Pago Payment Link Modal */}
+      {paymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#009ee3]/20 text-[#009ee3] flex items-center justify-center font-bold">
+                  <CreditCard size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Link de Cobro Mercado Pago</h3>
+                  <p className="text-xs text-slate-400">Pedido #{paymentModal.order.id} — ${Number(paymentModal.order.totalAmount).toLocaleString('es-AR')}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPaymentModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {paymentModal.isGenerating ? (
+              <div className="py-10 text-center text-xs text-slate-400">
+                <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-[#009ee3]" />
+                Generando Checkout Pro de Mercado Pago...
+              </div>
+            ) : paymentModal.linkData ? (
+              <div className="space-y-4 text-xs">
+                
+                {paymentModal.sendSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-2 font-semibold">
+                    <Check size={16} /> ¡Link de pago enviado por WhatsApp al cliente con éxito!
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-slate-300 font-semibold">Link de Pago Oficial (Checkout Pro):</label>
+                  <div className="p-3 rounded-2xl bg-[#111b21] border border-slate-700/80 text-[#009ee3] font-mono text-xs break-all select-all flex items-center justify-between gap-2">
+                    <span className="truncate">{paymentModal.linkData.initPoint}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(paymentModal.linkData.initPoint);
+                        alert('¡Link de pago copiado al portapapeles!');
+                      }}
+                      className="p-1.5 rounded-lg bg-[#182229] hover:bg-[#202c33] text-slate-300 hover:text-white border border-slate-700 shrink-0"
+                      title="Copiar Link"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1 text-[11px] text-slate-400">
+                  <div>👤 <b>Cliente:</b> {paymentModal.order.customerName} ({paymentModal.order.phone})</div>
+                  <div>💰 <b>Total a cobrar:</b> ${Number(paymentModal.order.totalAmount).toLocaleString('es-AR')}</div>
+                  <div>💳 <b>Métodos permitidos:</b> Débito, Crédito, Dinero en cuenta MP, Transferencia</div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModal(null)}
+                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                  >
+                    Cerrar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendPaymentLinkWhatsApp}
+                    disabled={paymentModal.isSending}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50"
+                  >
+                    <Send size={13} />
+                    {paymentModal.isSending ? 'Enviando...' : '📱 Enviar por WhatsApp'}
+                  </button>
+                </div>
+
+              </div>
+            ) : null}
 
           </div>
         </div>

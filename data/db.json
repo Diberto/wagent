@@ -17,9 +17,32 @@
     "elevenlabsApiKey": "sk_846f7c214b2f7b89b114576336fff2edd9d142f54e650309",
     "elevenlabsModelId": "eleven_multilingual_v2",
     "elevenlabsVoiceId": "pNInz6obpgDQGcFmaJgB",
-    "nvidiaApiKey": "diberto77"
+    "nvidiaApiKey": "diberto77",
+    "mercadopagoAccessToken": "APP_USR-963262173359779-083015-7a288c6669f44248572a6202c5de2fb0-2050924390",
+    "mercadopagoPublicKey": "APP_USR-f2e52862-ab7d-411d-a43f-3e6c417eff9e",
+    "mercadopagoAppId": "963262173359779",
+    "mercadopagoUserId": "2050924390",
+    "mercadopagoTestUser": "TESTUSER1028937958",
+    "mercadopagoEnabled": true,
+    "mercadopagoAutoSendLink": true
   },
   "orders": [
+    {
+      "id": "ORD-6636",
+      "jid": "153051277086768@lid",
+      "phone": "+153051277086768",
+      "customerName": "Juan Gonzalez",
+      "address": "domicilio abono en efectivo al recibirlo",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo al repartidor",
+      "status": "preparing",
+      "notes": "",
+      "createdAt": "2026-08-30T20:09:18.064Z",
+      "updatedAt": "2026-08-30T20:09:34.787Z"
+    },
     {
       "id": "ORD-1042",
       "jid": "153051277086768@lid",
@@ -204,44 +227,47 @@
     },
     {
       "id": "lead-1788107987079-jk80w",
-      "stage": "proposal",
+      "stage": "closed_won",
       "value": 39999,
       "tags": [
         "WhatsApp",
         "Cliente Comprador",
-        "Parrillero"
+        "Parrillero",
+        "Cliente VIP"
       ],
       "aiEnabled": true,
-      "unreadCount": 4,
+      "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:09:14.000Z",
+      "updatedAt": "2026-08-30T20:09:34.000Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalez",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
       "address": "domicilio abono en efectivo al recibirlo",
-      "totalOrders": 1,
-      "totalSpent": 39999,
-      "lastOrderAt": "2026-08-30T19:22:00.000Z",
+      "totalOrders": 2,
+      "totalSpent": 79998,
+      "lastOrderAt": "2026-08-30T20:09:18.064Z",
       "preferences": {
         "favoriteCuts": [
           "Combo Asadazo",
           "Bocado",
           "Falda",
           "Chorizo Criollo",
-          "Morcilla Bombón"
+          "Morcilla Bombón",
+          "Combo “Asadazo”"
         ],
         "cookingPreference": "Parrilla / Asado",
         "groupSize": "4 a 6 personas",
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "Juan Gonzalez",
-      "lastMessageAt": "2026-08-30T20:09:14.000Z",
-      "notes": "Dirección: domicilio abono en efectivo al recibirlo",
+      "lastMessage": "¡De diez Juan Gonzalez! 🥩🔥 Ya quedó asentado tu medio de pago: **Efectivo contraentrega** para tu pedido **#ORD-6636**.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌",
+      "lastMessageAt": "2026-08-30T20:09:34.000Z",
+      "notes": "Dirección: domicilio abono en efectivo al recibirlo | Pedido #ORD-6636",
       "altJids": [
         "153051277086768@s.whatsapp.net"
-      ]
+      ],
+      "lastOrderId": "ORD-6636"
     },
     {
       "id": "lead-1788118409496-l0ibc",
@@ -2706,6 +2732,57 @@
       "sender": "user",
       "type": "text",
       "content": "Juan Gonzalez",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788120558144-9j8hb6",
+      "timestamp": "2026-08-30T20:09:18.143Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Perfecto Juan Gonzalez! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-6636\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* Juan Gonzalez\n📍 *Destino de Entrega:* domicilio abono en efectivo al recibirlo\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]"
+    },
+    {
+      "id": "3EB01542B84AF304FEEF0A",
+      "timestamp": "2026-08-30T20:09:18.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Perfecto Juan Gonzalez! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-6636\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* Juan Gonzalez\n📍 *Destino de Entrega:* domicilio abono en efectivo al recibirlo\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0C8B17EF1F46A3061E8",
+      "timestamp": "2026-08-30T20:09:30.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "efectivo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788120575186-h98e9q",
+      "timestamp": "2026-08-30T20:09:35.184Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Juan Gonzalez! 🥩🔥 Ya quedó asentado tu medio de pago: **Efectivo contraentrega** para tu pedido **#ORD-6636**.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌"
+    },
+    {
+      "id": "3EB08B6E1C14D7E5248C4D",
+      "timestamp": "2026-08-30T20:09:34.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Juan Gonzalez! 🥩🔥 Ya quedó asentado tu medio de pago: **Efectivo contraentrega** para tu pedido **#ORD-6636**.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌",
       "mediaUrl": null,
       "audioDuration": 0
     }

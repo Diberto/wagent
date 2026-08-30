@@ -8,6 +8,7 @@ import { AIService } from '../services/ai.js';
 import { AudioConverter } from '../services/audioConverter.js';
 import { UpdateService } from '../services/updater.js';
 import { BackupService } from '../services/backup.js';
+import { mercadoPagoService } from '../services/mercadopago.js';
 import { CONFIG } from '../config/index.js';
 
 export function createApiRouter(whatsappService, io) {
@@ -536,6 +537,149 @@ export function createApiRouter(whatsappService, io) {
     db.deleteLead(req.params.id);
     io.emit('lead:delete', { id: req.params.id });
     res.json({ success: true });
+  });
+
+  // --- 5.3 Mercado Pago Integration ---
+  router.get('/mercadopago/status', async (req, res) => {
+    const creds = mercadoPagoService.getCredentials();
+    const test = await mercadoPagoService.testConnection();
+    res.json({
+      credentials: {
+        publicKey: creds.publicKey,
+        appId: creds.appId,
+        userId: creds.userId,
+        testUser: creds.testUser,
+        enabled: creds.enabled,
+        autoSendLink: creds.autoSendLink
+      },
+      connection: test
+    });
+  });
+
+  router.post('/mercadopago/test', async (req, res) => {
+    const result = await mercadoPagoService.testConnection();
+    res.json(result);
+  });
+
+  router.post('/mercadopago/create-link', async (req, res) => {
+    try {
+      const { orderId, amount, customerName, phone, items, sendWhatsApp, jid } = req.body;
+      const order = orderId ? db.getOrder(orderId) : null;
+      
+      const orderData = order || {
+        id: orderId || `ORD-${Date.now()}`,
+        totalAmount: amount || 1000,
+        customerName: customerName || 'Cliente',
+        phone: phone || '',
+        items: items || ['Pedido de Carnicería']
+      };
+
+      const preference = await mercadoPagoService.createPaymentPreference(orderData);
+      
+      // Si el pedido existe, guardar el preferenceId y el link de pago
+      if (order) {
+        db.updateOrder(order.id, {
+          paymentPreferenceId: preference.id,
+          paymentLink: preference.initPoint,
+          sandboxPaymentLink: preference.sandboxInitPoint
+        });
+      }
+
+      // Si se solicitó enviar por WhatsApp
+      if (sendWhatsApp) {
+        const targetJid = jid || order?.jid || (phone ? `${phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+        if (targetJid && whatsappService.status === 'connected') {
+          const paymentMsg = `¡Hola ${orderData.customerName}! 🥩💳 Acá tenés el link de pago oficial de Mercado Pago para tu pedido #${orderData.id} por $${Number(orderData.totalAmount).toLocaleString('es-AR')}:\n\n🔗 ${preference.initPoint}\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia. En cuanto se acredite, ¡comenzamos la preparación de tu pedido!`;
+          
+          await whatsappService.sendMessage(targetJid, paymentMsg);
+
+          const savedMsg = db.saveMessage({
+            chatId: targetJid,
+            sender: 'agent',
+            type: 'text',
+            content: paymentMsg,
+            timestamp: new Date().toISOString()
+          });
+
+          const lead = db.getLead(targetJid);
+          if (lead) {
+            db.updateLead(lead.id, {
+              lastMessage: paymentMsg,
+              lastMessageAt: new Date().toISOString()
+            });
+          }
+
+          io.emit('chat:message', { message: savedMsg, lead });
+        }
+      }
+
+      res.json({
+        success: true,
+        ...preference
+      });
+    } catch (err) {
+      console.error('Error generando link de pago de Mercado Pago:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/mercadopago/webhook', async (req, res) => {
+    try {
+      const { type, action, data } = req.body;
+      const topic = type || req.query.topic;
+      const paymentId = (data && data.id) || req.query.id;
+
+      if ((topic === 'payment' || action === 'payment.created' || action === 'payment.updated') && paymentId) {
+        const payment = await mercadoPagoService.getPayment(paymentId);
+        
+        if (payment && (payment.status === 'approved' || payment.status === 'accredited')) {
+          const orderId = payment.external_reference;
+          console.log(`💰 ¡Pago acreditado en Mercado Pago para pedido #${orderId}! Monto: $${payment.transaction_amount}`);
+          
+          if (orderId) {
+            const updatedOrder = db.updateOrderStatus(orderId, 'preparing');
+            if (updatedOrder) {
+              db.updateOrder(orderId, {
+                paymentStatus: 'paid',
+                paymentMethod: 'Mercado Pago (Acreditado)',
+                paymentId: String(paymentId)
+              });
+              io.emit('order:update', updatedOrder);
+
+              // Notificar al cliente por WhatsApp que su pago fue recibido con éxito
+              const targetJid = updatedOrder.jid || (updatedOrder.phone ? `${updatedOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+              if (targetJid && whatsappService.status === 'connected') {
+                const confirmMsg = `¡Pago recibido con éxito! 🎉🥩 Ya registramos tu acreditación de Mercado Pago por $${Number(payment.transaction_amount).toLocaleString('es-AR')} para el pedido #${orderId}. Tus cortes pasan de inmediato a preparación. ¡Muchas gracias! 🙌`;
+                
+                await whatsappService.sendMessage(targetJid, confirmMsg);
+
+                const savedMsg = db.saveMessage({
+                  chatId: targetJid,
+                  sender: 'agent',
+                  type: 'text',
+                  content: confirmMsg,
+                  timestamp: new Date().toISOString()
+                });
+
+                const lead = db.getLead(targetJid);
+                if (lead) {
+                  db.updateLead(lead.id, {
+                    lastMessage: confirmMsg,
+                    lastMessageAt: new Date().toISOString()
+                  });
+                }
+
+                io.emit('chat:message', { message: savedMsg, lead });
+              }
+            }
+          }
+        }
+      }
+      res.sendStatus(200);
+    } catch (err) {
+      console.error('Error procesando webhook de Mercado Pago:', err);
+      res.sendStatus(500);
+    }
   });
 
   // --- 6. Settings & Voice Testing ---

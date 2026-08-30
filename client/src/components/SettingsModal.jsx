@@ -24,7 +24,9 @@ import {
   FileJson,
   CheckCircle2,
   AlertCircle,
-  Trash2
+  Trash2,
+  CreditCard,
+  Copy
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 
@@ -267,8 +269,27 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   }, [activeTab]);
 
+  // Mercado Pago
+  const [isTestingMp, setIsTestingMp] = useState(false);
+  const [mpTestResult, setMpTestResult] = useState(null);
+
+  const handleTestMercadoPago = async () => {
+    setIsTestingMp(true);
+    setMpTestResult(null);
+    try {
+      const res = await fetch('/api/mercadopago/test', { method: 'POST' });
+      const data = await res.json();
+      setMpTestResult(data);
+    } catch (err) {
+      setMpTestResult({ success: false, error: err.message });
+    } finally {
+      setIsTestingMp(false);
+    }
+  };
+
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
+    { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
     { id: 'voice', label: 'Voz & Síntesis (TTS)', icon: Volume2 },
     { id: 'automation', label: 'Llamadas & Auto-Respuestas', icon: PhoneCall },
     { id: 'prompt', label: 'Prompt del Agente', icon: Sliders },
@@ -525,6 +546,181 @@ export default function SettingsModal({ isOpen, onClose }) {
                   </div>
                 </div>
               )}
+
+            </div>
+          )}
+
+          {/* TAB MERCADO PAGO */}
+          {activeTab === 'mercadopago' && (
+            <div className="space-y-4 animate-in fade-in">
+              {/* Banner Header Mercado Pago */}
+              <div className="p-4 rounded-2xl bg-[#009ee3]/10 border border-[#009ee3]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#009ee3] text-white flex items-center justify-center font-extrabold text-sm shadow-md shadow-[#009ee3]/30">
+                    MP
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      Mercado Pago Checkout Pro & Cobros
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                        🇦🇷 Argentina
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300">
+                      Genera links de pago oficiales y cobra por WhatsApp con acreditación automática
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTestMercadoPago}
+                  disabled={isTestingMp}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#009ee3] hover:bg-[#0081ba] text-white text-xs font-bold shadow-md transition disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={isTestingMp ? 'animate-spin' : ''} />
+                  {isTestingMp ? 'Verificando...' : '⚡ Probar Conexión'}
+                </button>
+              </div>
+
+              {/* Status Test Result Alert */}
+              {mpTestResult && (
+                <div className={`p-3 rounded-2xl border text-xs flex items-center gap-2.5 ${
+                  mpTestResult.success
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                }`}>
+                  {mpTestResult.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <div>
+                    {mpTestResult.success ? (
+                      <div>
+                        <span className="font-bold">¡Conexión Exitosa con Mercado Pago!</span> Cuenta: <b>{mpTestResult.user?.nickname || 'Vendedor'}</b> (ID: {mpTestResult.user?.id}) — Listo para cobrar en vivo.
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="font-bold">Error de Conexión:</span> {mpTestResult.error || 'Revisa las credenciales ingresadas.'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Toggles */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 bg-[#182229] border border-slate-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white">Habilitar Mercado Pago</div>
+                    <div className="text-[11px] text-slate-400">Permite generar links y recibir webhooks</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.mercadopagoEnabled !== false}
+                    onChange={(e) => setSettings({ ...settings, mercadopagoEnabled: e.target.checked })}
+                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                  />
+                </div>
+
+                <div className="p-3 bg-[#182229] border border-slate-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white">Auto-Enviar Link por WhatsApp</div>
+                    <div className="text-[11px] text-slate-400">Cuando el cliente elija Mercado Pago</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.mercadopagoAutoSendLink !== false}
+                    onChange={(e) => setSettings({ ...settings, mercadopagoAutoSendLink: e.target.checked })}
+                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Credenciales */}
+              <div className="space-y-3 p-4 rounded-2xl bg-[#182229] border border-slate-800">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Credenciales de la Aplicación</h4>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Access Token (Producción / Prueba)</label>
+                  <input
+                    type="password"
+                    placeholder="APP_USR-..."
+                    value={settings.mercadopagoAccessToken || ''}
+                    onChange={(e) => setSettings({ ...settings, mercadopagoAccessToken: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#009ee3]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Public Key</label>
+                  <input
+                    type="text"
+                    placeholder="APP_USR-..."
+                    value={settings.mercadopagoPublicKey || ''}
+                    onChange={(e) => setSettings({ ...settings, mercadopagoPublicKey: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#009ee3]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">N.° de Aplicación (App ID)</label>
+                    <input
+                      type="text"
+                      placeholder="963262173359779"
+                      value={settings.mercadopagoAppId || ''}
+                      onChange={(e) => setSettings({ ...settings, mercadopagoAppId: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">User ID</label>
+                    <input
+                      type="text"
+                      placeholder="2050924390"
+                      value={settings.mercadopagoUserId || ''}
+                      onChange={(e) => setSettings({ ...settings, mercadopagoUserId: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Usuario de Prueba</label>
+                    <input
+                      type="text"
+                      placeholder="TESTUSER1028937958"
+                      value={settings.mercadopagoTestUser || ''}
+                      onChange={(e) => setSettings({ ...settings, mercadopagoTestUser: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Webhook Info Box */}
+              <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                    <CreditCard size={14} className="text-[#009ee3]" />
+                    URL de Webhook / Notificaciones IPN:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/api/mercadopago/webhook`);
+                      alert('¡URL de Webhook copiada!');
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#202c33] text-slate-300 hover:text-white border border-slate-700 text-[11px]"
+                  >
+                    <Copy size={11} /> Copiar
+                  </button>
+                </div>
+                <div className="p-2 rounded-xl bg-[#182229] font-mono text-[11px] text-[#009ee3] select-all truncate border border-slate-800">
+                  {window.location.origin}/api/mercadopago/webhook
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Al recibir un pago acreditado, WAgent actualizará automáticamente el estado del pedido a <b>En Preparación</b> y le enviará un WhatsApp de confirmación al cliente.
+                </p>
+              </div>
 
             </div>
           )}

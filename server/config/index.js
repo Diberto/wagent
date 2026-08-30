@@ -36,6 +36,13 @@ export const CONFIG = {
     aiModel: process.env.AI_MODEL || 'gemini-1.5-flash',
     aiVoiceModel: process.env.AI_VOICE_MODEL || 'es-MX-DaliaNeural',
     ttsProvider: process.env.TTS_PROVIDER || 'edge', // 'edge' | 'openai' | 'elevenlabs'
+    mercadopagoAccessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || 'APP_USR-963262173359779-083015-7a288c6669f44248572a6202c5de2fb0-2050924390',
+    mercadopagoPublicKey: process.env.MERCADOPAGO_PUBLIC_KEY || 'APP_USR-f2e52862-ab7d-411d-a43f-3e6c417eff9e',
+    mercadopagoAppId: process.env.MERCADOPAGO_APP_ID || '963262173359779',
+    mercadopagoUserId: process.env.MERCADOPAGO_USER_ID || '2050924390',
+    mercadopagoTestUser: process.env.MERCADOPAGO_TEST_USER || 'TESTUSER1028937958',
+    mercadopagoEnabled: true,
+    mercadopagoAutoSendLink: true,
     agentName: 'Sara - Asesora Virtual',
     businessName: 'Mi Empresa',
     autoReplyEnabled: true,
