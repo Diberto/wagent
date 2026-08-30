@@ -435,7 +435,7 @@ export class WhatsAppService {
             }
           } else {
             // Enviar Mensaje de Texto
-            await this.sendMessage(jid, responseText);
+            await this.sendTextMessage(jid, responseText);
 
             const savedAiMsg = db.saveMessage({
               chatId: jid,

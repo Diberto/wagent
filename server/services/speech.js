@@ -17,8 +17,9 @@ export class SpeechService {
     const settings = db.getSettings();
 
     try {
-      // 1. Intentar con OpenAI Whisper si hay API key de OpenAI
-      if (settings.openaiApiKey) {
+      // 1. Intentar con OpenAI Whisper si hay API key válida de OpenAI
+      const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
+      if (isValidOpenAiKey) {
         const openai = new OpenAI({ apiKey: settings.openaiApiKey });
         let fileStreamPath = audioPath;
 
@@ -86,15 +87,24 @@ export class SpeechService {
    */
   static async textToSpeech(text, customVoice = null) {
     const settings = db.getSettings();
-    const voice = customVoice || settings.aiVoiceModel || 'es-MX-DaliaNeural';
-    const provider = settings.ttsProvider || 'edge';
+    let provider = settings.ttsProvider || 'edge';
+    let voice = customVoice || settings.aiVoiceModel || 'es-MX-DaliaNeural';
+
+    // Auto-detectar proveedor si la voz específica lo indica
+    if (voice.startsWith('es-')) {
+      provider = 'edge';
+    } else if (['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].includes(voice)) {
+      provider = 'openai';
+    } else if (voice.length >= 20 && !voice.startsWith('es-')) {
+      provider = 'elevenlabs';
+    }
 
     const tempRawMp3 = path.join(CONFIG.MEDIA_DIR, `tts_raw_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.mp3`);
 
     try {
       // 1. ElevenLabs TTS (Ultra-realista, clonación y voces premium)
       if (provider === 'elevenlabs' && settings.elevenlabsApiKey) {
-        const voiceId = customVoice || settings.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+        const voiceId = voice || settings.elevenlabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
         const modelId = settings.elevenlabsModelId || 'eleven_multilingual_v2';
 
         const elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -116,50 +126,42 @@ export class SpeechService {
           })
         });
 
-        if (!elevenRes.ok) {
+        if (elevenRes.ok) {
+          const arrayBuffer = await elevenRes.arrayBuffer();
+          fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
+        } else {
           const errText = await elevenRes.text();
-          throw new Error(`ElevenLabs API Error (${elevenRes.status}): ${errText}`);
+          console.warn(`⚠️ ElevenLabs error (${elevenRes.status}): ${errText}. Usando Edge Neural como respaldo...`);
+          await this.generateEdgeTts(text, 'es-MX-DaliaNeural', tempRawMp3);
         }
-
-        const arrayBuffer = await elevenRes.arrayBuffer();
-        fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
       } else if (provider === 'openai' && settings.openaiApiKey) {
         // 2. OpenAI TTS si está configurado
-        const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-        const validOpenAiVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-        const openAiVoice = validOpenAiVoices.includes(voice) ? voice : 'nova';
+        try {
+          const openai = new OpenAI({ apiKey: settings.openaiApiKey });
+          const validOpenAiVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+          const openAiVoice = validOpenAiVoices.includes(voice) ? voice : 'nova';
 
-        const mp3Response = await openai.audio.speech.create({
-          model: 'tts-1',
-          voice: openAiVoice,
-          input: text
-        });
+          const mp3Response = await openai.audio.speech.create({
+            model: 'tts-1',
+            voice: openAiVoice,
+            input: text
+          });
 
-        const buffer = Buffer.from(await mp3Response.arrayBuffer());
-        fs.writeFileSync(tempRawMp3, buffer);
+          const buffer = Buffer.from(await mp3Response.arrayBuffer());
+          fs.writeFileSync(tempRawMp3, buffer);
+        } catch (openaiErr) {
+          console.warn(`⚠️ OpenAI TTS error: ${openaiErr.message}. Usando Edge Neural como respaldo...`);
+          await this.generateEdgeTts(text, 'es-MX-DaliaNeural', tempRawMp3);
+        }
       } else {
         // 3. Microsoft Edge Neural TTS (Gratuito, ultra realista y rápido)
-        const tts = new MsEdgeTTS();
-        await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-        const tempDir = path.join(CONFIG.MEDIA_DIR, `tts_tmp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
-        fs.mkdirSync(tempDir, { recursive: true });
-        
-        await tts.toFile(tempDir, text);
-        const generatedMp3 = path.join(tempDir, 'audio.mp3');
-        
-        if (fs.existsSync(generatedMp3)) {
-          fs.copyFileSync(generatedMp3, tempRawMp3);
-          try {
-            fs.unlinkSync(generatedMp3);
-            fs.rmdirSync(tempDir);
-          } catch (e) {}
-        }
+        const edgeVoice = voice.startsWith('es-') ? voice : 'es-MX-DaliaNeural';
+        await this.generateEdgeTts(text, edgeVoice, tempRawMp3);
       }
 
       // Convertir a WhatsApp PTT (.ogg con codec libopus)
       const oggPath = await AudioConverter.convertToWhatsAppPtt(tempRawMp3);
 
-      // Calcular duración aproximada basada en palabras si no se lee con ffprobe (aprox 150 palabras/min = 2.5 palabras/seg)
       const wordCount = text.split(/\s+/).length;
       const estimatedDuration = Math.max(2, Math.round(wordCount / 2.5));
 
@@ -170,7 +172,39 @@ export class SpeechService {
       };
     } catch (error) {
       console.error('Error en Text-to-Speech:', error);
-      throw error;
+      // Último intento de contingencia garantizado
+      try {
+        await this.generateEdgeTts(text, 'es-MX-DaliaNeural', tempRawMp3);
+        const oggPath = await AudioConverter.convertToWhatsAppPtt(tempRawMp3);
+        return {
+          oggPath,
+          mp3Path: tempRawMp3,
+          durationSeconds: 3
+        };
+      } catch (fallbackError) {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Helper para generar audio con Microsoft Edge Neural TTS
+   */
+  static async generateEdgeTts(text, voice, targetMp3Path) {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const tempDir = path.join(CONFIG.MEDIA_DIR, `tts_tmp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+    
+    await tts.toFile(tempDir, text);
+    const generatedMp3 = path.join(tempDir, 'audio.mp3');
+    
+    if (fs.existsSync(generatedMp3)) {
+      fs.copyFileSync(generatedMp3, targetMp3Path);
+      try {
+        fs.unlinkSync(generatedMp3);
+        fs.rmdirSync(tempDir);
+      } catch (e) {}
     }
   }
 
