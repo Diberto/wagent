@@ -213,19 +213,38 @@
       "stage": "closed_won",
       "value": 39999,
       "tags": [
-        "WhatsApp"
+        "WhatsApp",
+        "Cliente Comprador",
+        "Parrillero"
       ],
       "aiEnabled": true,
       "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T19:32:30.000Z",
+      "updatedAt": "2026-08-30T19:34:00.000Z",
       "jid": "153051277086768@lid",
-      "name": "efectivo",
+      "name": "Juan Gonzalez",
       "phone": "+153051277086768",
-      "pushName": "efectivo",
-      "lastMessage": "¡Perfecto efectivo! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* efectivo\n📍 *Destino de Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "pushName": "Juan Gonzalez",
+      "address": "Roque Funes 1704, Barrio Urca",
+      "totalOrders": 1,
+      "totalSpent": 39999,
+      "lastOrderAt": "2026-08-30T19:22:00.000Z",
+      "preferences": {
+        "favoriteCuts": [
+          "Combo Asadazo",
+          "Bocado",
+          "Falda",
+          "Chorizo Criollo",
+          "Morcilla Bombón"
+        ],
+        "cookingPreference": "Parrilla / Asado",
+        "groupSize": "4 a 6 personas",
+        "preferredPayment": "Efectivo al repartidor",
+        "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
+      },
+      "lastMessage": "quiero un combo asadazo para roque funes 1704, a nombre de Juan Gonzalez, abono al repartidor",
       "lastMessageAt": "2026-08-30T19:32:30.000Z",
-      "notes": "Dirección: Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983 | Pedido #ORD-6098"
+      "notes": "Dirección: Roque Funes 1704 | Pedido #ORD-1042"
     },
     {
       "id": "lead-1788111841514-dvhgd",

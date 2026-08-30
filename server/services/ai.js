@@ -338,6 +338,21 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     const products = db.getProducts();
 
     // =========================================================================
+    // 0.4 CONFIRMACIÓN DE MÉTODO DE PAGO (Ej: "efectivo", "abono al repartidor", "transferencia")
+    // =========================================================================
+    const isPaymentChoice = /^(efectivo|transferencia|transferir|al repartidor|contra entrega|contraentrega|por mp|mercado pago|pago al recibir|abono al repartidor|abono en efectivo)$/i.test(t.trim()) ||
+                           /^(efectivo al repartidor|por transferencia|abono en efectivo|al recibir)$/i.test(t.trim());
+    if (isPaymentChoice) {
+      const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+      const payMethod = /transferencia|transferir|mp|mercado/i.test(t) ? 'Transferencia Bancaria' : 'Efectivo contraentrega';
+      if (lastOrder) {
+        db.updateOrderStatus(lastOrder.id, 'preparing');
+      }
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes')) ? lead.name : (nameGreeting || 'Don Juan');
+      return `¡De diez ${clientName}! 🥩🔥 Ya quedó asentado tu medio de pago: **${payMethod}**${lastOrder ? ` para tu pedido **#${lastOrder.id}**` : ''}.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌`;
+    }
+
+    // =========================================================================
     // 0.5 CONSULTA DE PEDIDO REGISTRADO / RECORDATORIO DE PEDIDO
     // (Ej: "recuerda mi pedido?", "como va mi pedido?", "mi pedido", "que pedi?")
     // =========================================================================
@@ -346,15 +361,15 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
       const existingOrder = db.getLatestOrderByJid(lead.jid || lead.id);
       if (existingOrder) {
         return `¡Hola ${existingOrder.customerName || nameGreeting}! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #${existingOrder.id}\n📋 *Detalle:*\n${existingOrder.items.join('\n')}\n💰 *Total:* $${existingOrder.totalAmount.toLocaleString('es-AR')}\n📍 *Entrega:* ${existingOrder.address}\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩`;
-      } else if (lead.notes && lead.notes.includes('Dirección de entrega:')) {
-        const address = lead.notes.replace('Dirección de entrega: ', '');
+      } else if (lead.notes && lead.notes.includes('Dirección:')) {
+        const address = lead.notes.replace('Dirección: ', '').split('|')[0].trim();
         return `¡Hola${nameGreeting}! 👋 Sí, tengo agendado tu pedido del Combo Asadazo ($39.999) para entrega en: **${address}**.\n\n¿Querés que te lo confirmemos para despacho ahora mismo? 🥩`;
       }
     }
 
     // =========================================================================
     // 1. DETECTOR DE DATOS DE ENVÍO / DIRECCIÓN / CONFIRMACIÓN DE PEDIDO
-    // (Ej: "a mi domicilio, Locelso 7089, Juan Gonzalez mi nombre completo")
+    // (Ej: "quiero un combo asadazo para roque funes 1704, a nombre de Juan Gonzalez, abono al repartidor")
     // =========================================================================
     const hasAddress = /calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|funes|locelso|domicilio|[0-9]{3,5}/i.test(t) || 
                        (rawText.includes(',') && /[0-9]/.test(rawText));
@@ -363,29 +378,46 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     const history = db.getMessages(lead.jid || lead.id, 10);
     const historyText = history.map(m => m.content).join(' ').toLowerCase();
 
-    // 1.1 Intentar extraer Nombre de Persona de cualquier parte del mensaje
+    // 1.1 Extracción precisa de Nombre de Persona
     let extractedNameFromText = '';
     
-    // a) "Juan Gonzalez mi nombre completo" o "Juan Gonzalez es mi nombre"
-    const reverseNameMatch = rawText.match(/([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)\s+(?:mi nombre(?: completo)?|es mi nombre|mi onmbre)/i);
-    if (reverseNameMatch && reverseNameMatch[1].trim().length >= 3) {
-      extractedNameFromText = reverseNameMatch[1].replace(/^(a|en|para|de)\s+/i, '').trim();
-    }
-    
-    // b) "mi nombre Juan Gonzalez" o "soy Juan Gonzalez" o "a nombre de Juan Gonzalez"
-    if (!extractedNameFromText) {
-      const forwardNameMatch = rawText.match(/(?:mi nombre(?: es| completo)?|mi onmbre|nombre:?|soy|a nombre de|para)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+)/i);
-      if (forwardNameMatch && forwardNameMatch[1].trim().length >= 3) {
-        extractedNameFromText = forwardNameMatch[1].replace(/^(es|de)\s+/i, '').trim();
+    // a) "a nombre de Juan Gonzalez" o "para Juan Gonzalez" o "nombre: Juan Gonzalez"
+    const explicitNameMatch = rawText.match(/(?:a nombre de|nombre:?|para)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)(?:,|$|\.|\babono|\bpago|\ben efectivo|\bpor transferencia)/i);
+    if (explicitNameMatch && explicitNameMatch[1].trim().length >= 3) {
+      const candidate = explicitNameMatch[1].trim();
+      if (!/funes|locelso|duarte|quiros|urca|calle|av|combo|asado|repartidor|efectivo/i.test(candidate)) {
+        extractedNameFromText = candidate;
       }
     }
 
-    // c) Si hay comas, revisar si algún fragmento es un nombre de persona (ej: "a mi domicilio, Locelso 7089, Juan Gonzalez")
+    // b) "Juan Gonzalez mi nombre completo" o "Juan Gonzalez es mi nombre"
+    if (!extractedNameFromText) {
+      const reverseNameMatch = rawText.match(/([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)\s+(?:mi nombre(?: completo)?|es mi nombre|mi onmbre)/i);
+      if (reverseNameMatch && reverseNameMatch[1].trim().length >= 3) {
+        const candidate = reverseNameMatch[1].replace(/^(a|en|para|de)\s+/i, '').trim();
+        if (!/funes|locelso|duarte|quiros|urca|calle|av|combo|asado|repartidor|efectivo/i.test(candidate)) {
+          extractedNameFromText = candidate;
+        }
+      }
+    }
+    
+    // c) "mi nombre Juan Gonzalez" o "soy Juan Gonzalez"
+    if (!extractedNameFromText) {
+      const forwardNameMatch = rawText.match(/(?:mi nombre(?: es| completo)?|mi onmbre|soy)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+)/i);
+      if (forwardNameMatch && forwardNameMatch[1].trim().length >= 3) {
+        const candidate = forwardNameMatch[1].replace(/^(es|de)\s+/i, '').trim();
+        if (!/funes|locelso|duarte|quiros|urca|calle|av|combo|asado|repartidor|efectivo/i.test(candidate)) {
+          extractedNameFromText = candidate;
+        }
+      }
+    }
+
+    // d) Si hay comas, revisar si algún fragmento es puramente nombre (ej: "Locelso 7089, Juan Gonzalez")
     if (!extractedNameFromText && rawText.includes(',')) {
       const parts = rawText.split(',');
       for (const part of parts) {
-        const clean = part.replace(/(?:mi nombre(?: completo)?|es mi nombre|mi onmbre)/gi, '').trim();
-        if (clean.length >= 3 && clean.length <= 35 && !/[0-9]/.test(clean) && !/calle|av|domicilio|entrega|envio|esquina|casa|depto|piso|barrio|zona/i.test(clean)) {
+        const clean = part.replace(/(?:mi nombre(?: completo)?|es mi nombre|mi onmbre|a nombre de|para)/gi, '').trim();
+        if (clean.length >= 3 && clean.length <= 30 && !/[0-9]/.test(clean) && !/calle|av|funes|locelso|duarte|quiros|urca|domicilio|entrega|envio|esquina|casa|depto|piso|barrio|zona|abono|pago|efectivo|repartidor|transferencia|combo|asadazo/i.test(clean)) {
           extractedNameFromText = clean;
           break;
         }
@@ -394,8 +426,11 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
 
     // 1.2 Limpiar la dirección quitando muletillas
     let cleanAddress = rawText
+      .replace(/^(?:hola,?\s*)?(?:quiero|mandame|enviame|traeme|armame)?\s*(?:un\s*)?(?:combo\s*)?(?:asadazo\s*)?(?:para|a)?\s*/gi, '')
       .replace(/a mi domicilio,?\s*/gi, '')
-      .replace(/(?:mi nombre(?: es| completo)?|a nombre de|soy)?\s*[A-Za-zÁÉÍÓÚáéíóúñÑ ]*(?:mi nombre(?: completo)?|mi onmbre)/gi, '')
+      .replace(/(?:a nombre de|nombre:?|para|soy)?\s*[A-Za-zÁÉÍÓÚáéíóúñÑ ]*(?:mi nombre(?: completo)?|mi onmbre)/gi, '')
+      .replace(/,\s*a nombre de\s+[A-Za-zÁÉÍÓÚáéíóúñÑ ]+/gi, '')
+      .replace(/,\s*(?:abono|pago|en efectivo|al repartidor|por transferencia)[^,]*/gi, '')
       .replace(/,\s*,/g, ',')
       .replace(/^,\s*/, '')
       .replace(/,\s*$/, '')
@@ -403,14 +438,14 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     if (!cleanAddress || cleanAddress.length < 3) cleanAddress = rawText.trim();
 
     // 1.3 Si el usuario envía SOLO su nombre (ej: "Juan Gonzalez" o "Soy Juan Gonzalez")
-    const isJustName = (extractedNameFromText || (t.split(/\s+/).length >= 1 && t.split(/\s+/).length <= 4 && !/[0-9]/.test(t) && !hasAddress && !/hola|buen|que|cuanto|precio|costo|combo|asado|carne|picada|oferta|gracias|ok|si|no|recuerda|recordas|pedido|como/i.test(t)));
+    const isJustName = (extractedNameFromText || (t.split(/\s+/).length >= 1 && t.split(/\s+/).length <= 4 && !/[0-9]/.test(t) && !hasAddress && !/hola|buen|que|cuanto|precio|costo|combo|asado|carne|picada|oferta|gracias|ok|si|no|recuerda|recordas|pedido|como|efectivo|transferencia|repartidor|abono|pago/i.test(t)));
 
     if (isJustName && !hasAddress && t.length >= 3 && t.length <= 45) {
       const finalName = extractedNameFromText || rawText.replace(/^(soy|me llamo|mi nombre es|mi nombre|mi onmbre)\s+/i, '').trim();
       
-      if (finalName.length >= 2) {
+      if (finalName.length >= 2 && !/efectivo|transferencia|repartidor|funes/i.test(finalName)) {
         // Recuperar dirección previa guardada
-        let savedAddress = lead.notes?.replace('Dirección de entrega: ', '') || '';
+        let savedAddress = lead.address || lead.notes?.replace('Dirección: ', '').split('|')[0].trim() || '';
         if (!savedAddress || savedAddress === 'A coordinar') {
           const addressMsg = history.find(m => m.sender === 'user' && /locelso|funes|calle|av|[0-9]{3,5}/i.test(m.content));
           if (addressMsg) {
@@ -437,7 +472,7 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
           address: savedAddress,
           items: orderItems,
           totalAmount: totalAmount,
-          paymentMethod: 'Efectivo / Transferencia',
+          paymentMethod: 'Efectivo al repartidor',
           status: 'pending'
         });
 
@@ -445,6 +480,7 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
         db.updateLead(lead.jid || lead.id, { 
           name: finalName, 
           pushName: finalName, 
+          address: savedAddress,
           value: totalAmount, 
           stage: 'closed_won',
           notes: `Dirección: ${savedAddress} | Pedido #${newOrder.id}`
@@ -457,11 +493,11 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     // 1.4 Si el mensaje contiene Dirección
     if (hasAddress && t.length > 5) {
       // Guardar dirección en notas del lead
-      db.updateLead(lead.jid || lead.id, { notes: `Dirección de entrega: ${cleanAddress}` });
+      db.updateLead(lead.jid || lead.id, { address: cleanAddress, notes: `Dirección: ${cleanAddress}` });
 
       // Si se extrajo un nombre válido en este mismo mensaje
       let finalClientName = extractedNameFromText;
-      if (!finalClientName && customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') && customerName !== 'Don Juan') {
+      if (!finalClientName && customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') && customerName !== 'Don Juan' && !customerName.includes('recuerda') && !customerName.includes('efectivo') && !customerName.includes('funes')) {
         finalClientName = customerName;
       }
 
@@ -494,6 +530,7 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
         db.updateLead(lead.jid || lead.id, { 
           name: finalClientName, 
           pushName: finalClientName, 
+          address: cleanAddress,
           value: totalAmount, 
           stage: 'closed_won',
           notes: `Dirección: ${cleanAddress} | Pedido #${newOrder.id}`
