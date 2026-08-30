@@ -28,20 +28,20 @@
   },
   "orders": [
     {
-      "id": "ORD-3024",
+      "id": "ORD-8163",
       "jid": "153051277086768@lid",
       "phone": "+153051277086768",
-      "customerName": "hola",
-      "address": "domicilio abono en efectivo al recibirlo",
+      "customerName": "Juan Gonzalze",
+      "address": "locelso 7100, Juan Gonzalze",
       "items": [
         "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
       ],
       "totalAmount": 39999,
-      "paymentMethod": "Efectivo al repartidor",
-      "status": "pending",
+      "paymentMethod": "Efectivo / Transferencia",
+      "status": "preparing",
       "notes": "",
-      "createdAt": "2026-08-30T20:21:41.298Z",
-      "updatedAt": "2026-08-30T20:21:41.298Z"
+      "createdAt": "2026-08-30T20:28:21.325Z",
+      "updatedAt": "2026-08-30T20:28:48.849Z"
     },
     {
       "id": "ORD-6636",
@@ -73,10 +73,10 @@
       ],
       "totalAmount": 39999,
       "paymentMethod": "Efectivo al repartidor",
-      "status": "in_transit",
+      "status": "delivered",
       "notes": "Cliente confirmó pago en efectivo contraentrega.",
       "createdAt": "2026-08-30T19:32:20.000Z",
-      "updatedAt": "2026-08-30T19:52:28.097Z"
+      "updatedAt": "2026-08-30T20:28:58.980Z"
     }
   ],
   "knowledgeBase": [
@@ -246,7 +246,7 @@
     },
     {
       "id": "lead-1788107987079-jk80w",
-      "stage": "negotiating",
+      "stage": "closed_won",
       "value": 39999,
       "tags": [
         "WhatsApp",
@@ -256,17 +256,17 @@
         "Frecuente"
       ],
       "aiEnabled": true,
-      "unreadCount": 5,
+      "unreadCount": 9,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:26:59.000Z",
+      "updatedAt": "2026-08-30T20:28:58.000Z",
       "jid": "153051277086768@lid",
-      "name": "hola",
+      "name": "Juan Gonzalze",
       "phone": "+153051277086768",
-      "pushName": "Don Juan",
-      "address": "domicilio abono en efectivo al recibirlo",
-      "totalOrders": 3,
-      "totalSpent": 119997,
-      "lastOrderAt": "2026-08-30T20:21:41.298Z",
+      "pushName": "Juan Gonzalze",
+      "address": "locelso 7100, Juan Gonzalze",
+      "totalOrders": 4,
+      "totalSpent": 159996,
+      "lastOrderAt": "2026-08-30T20:28:21.325Z",
       "preferences": {
         "favoriteCuts": [
           "Combo Asadazo",
@@ -281,13 +281,13 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
-      "lastMessageAt": "2026-08-30T20:26:59.000Z",
-      "notes": "Dirección: domicilio abono en efectivo al recibirlo | Pedido #ORD-3024",
+      "lastMessage": "¡Hola Juan Gonzalez! 🎉 Tu pedido #ORD-1042 ya figura entregado. ¡Esperamos que disfrutes de un excelente asado! Cualquier consulta o comentario sobre los cortes estamos a tu disposición. 🥩🙌",
+      "lastMessageAt": "2026-08-30T20:28:58.000Z",
+      "notes": "Dirección: locelso 7100, Juan Gonzalze | Pedido #ORD-8163",
       "altJids": [
         "153051277086768@s.whatsapp.net"
       ],
-      "lastOrderId": "ORD-3024"
+      "lastOrderId": "ORD-8163"
     },
     {
       "id": "lead-1788118409496-l0ibc",
@@ -2958,6 +2958,170 @@
       "sender": "agent",
       "type": "text",
       "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB02B8E35D634E7DD3CC3",
+      "timestamp": "2026-08-30T20:27:10.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "que tienen para ofrecer para un asado para 4 personar",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121634203-qu5ges",
+      "timestamp": "2026-08-30T20:27:14.202Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Un buen asado nunca falla Don Juan! 🔥 Para calcular bien, recomendamos unos 500g de carne por persona. Contamos con:\n• *Combo Asadazo (4 personas + vino):* $39.999\n• *Costilla de Novillito:* $7.800/kg\n• *Vacío Especial:* $8.900/kg\n• *Entraña Fina:* $9.900/kg\n• *Chorizo Criollo:* $4.500/kg\n\n¿Para cuántas personas vas a prender el fuego y te armamos el pedido a medida? 🥩"
+    },
+    {
+      "id": "3EB0425FA06929F567F860",
+      "timestamp": "2026-08-30T20:27:14.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Un buen asado nunca falla Don Juan! 🔥 Para calcular bien, recomendamos unos 500g de carne por persona. Contamos con:\n• *Combo Asadazo (4 personas + vino):* $39.999\n• *Costilla de Novillito:* $7.800/kg\n• *Vacío Especial:* $8.900/kg\n• *Entraña Fina:* $9.900/kg\n• *Chorizo Criollo:* $4.500/kg\n\n¿Para cuántas personas vas a prender el fuego y te armamos el pedido a medida? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB05A9D64554DC8297B04",
+      "timestamp": "2026-08-30T20:27:26.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "4",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121649219-3j4j0f",
+      "timestamp": "2026-08-30T20:27:29.218Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB030EAB6255EB809CA8F",
+      "timestamp": "2026-08-30T20:27:29.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB02C69A0A538848A1D0E",
+      "timestamp": "2026-08-30T20:27:49.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero combo asazado",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121673169-g562j3",
+      "timestamp": "2026-08-30T20:27:53.168Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩"
+    },
+    {
+      "id": "3EB0DEE1538620E3CB4767",
+      "timestamp": "2026-08-30T20:27:53.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB08AD03E63824A5C6443",
+      "timestamp": "2026-08-30T20:28:18.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "locelso 7100, Juan Gonzalze",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121701506-mpstuf",
+      "timestamp": "2026-08-30T20:28:21.505Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Juan Gonzalze! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-8163\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* Juan Gonzalze\n📍 *Destino de Entrega:* locelso 7100, Juan Gonzalze\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]"
+    },
+    {
+      "id": "3EB0EDEED9AC852574CE36",
+      "timestamp": "2026-08-30T20:28:21.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Juan Gonzalze! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-8163\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* Juan Gonzalze\n📍 *Destino de Entrega:* locelso 7100, Juan Gonzalze\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121728862-82f5or",
+      "timestamp": "2026-08-30T20:28:48.860Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalze! 🥩 Te avisamos que tu pedido #ORD-8163 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor."
+    },
+    {
+      "id": "3EB0BB2432ACA8C999578F",
+      "timestamp": "2026-08-30T20:28:48.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalze! 🥩 Te avisamos que tu pedido #ORD-8163 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor.",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121738992-baxkvc",
+      "timestamp": "2026-08-30T20:28:58.991Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 🎉 Tu pedido #ORD-1042 ya figura entregado. ¡Esperamos que disfrutes de un excelente asado! Cualquier consulta o comentario sobre los cortes estamos a tu disposición. 🥩🙌"
+    },
+    {
+      "id": "3EB0D8412A24B7552522A9",
+      "timestamp": "2026-08-30T20:28:58.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 🎉 Tu pedido #ORD-1042 ya figura entregado. ¡Esperamos que disfrutes de un excelente asado! Cualquier consulta o comentario sobre los cortes estamos a tu disposición. 🥩🙌",
       "mediaUrl": null,
       "audioDuration": 0
     }

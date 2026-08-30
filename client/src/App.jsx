@@ -10,6 +10,7 @@ import ProductCatalog from './components/ProductCatalog';
 import OrdersView from './components/OrdersView';
 import CustomersView from './components/CustomersView';
 import BranchesView from './components/BranchesView';
+import POSView from './components/POSView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
@@ -21,6 +22,7 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
   const [calls, setCalls] = useState([]);
+  const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
   
   // WhatsApp Baileys State
   const [whatsappStatus, setWhatsappStatus] = useState('disconnected');
@@ -65,13 +67,45 @@ export default function App() {
       .catch(err => console.error('Error cargando estado de WhatsApp:', err));
   };
 
+  const loadSettings = () => {
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.autoReplyEnabled === 'boolean') {
+          setGlobalAiEnabled(data.autoReplyEnabled);
+        }
+      })
+      .catch(err => console.error('Error cargando settings:', err));
+  };
+
+  const handleToggleGlobalAi = async () => {
+    try {
+      const nextState = !globalAiEnabled;
+      setGlobalAiEnabled(nextState);
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoReplyEnabled: nextState })
+      });
+    } catch (err) {
+      console.error('Error alternando estado global de IA:', err);
+    }
+  };
+
   useEffect(() => {
     loadLeads();
     loadCalls();
     loadWhatsAppStatus();
+    loadSettings();
 
     socket.on('connect', () => {
       console.log('Conectado a Socket.IO');
+    });
+
+    socket.on('settings:update', (newSettings) => {
+      if (newSettings && typeof newSettings.autoReplyEnabled === 'boolean') {
+        setGlobalAiEnabled(newSettings.autoReplyEnabled);
+      }
     });
 
     socket.on('whatsapp:status', (data) => {
@@ -279,6 +313,8 @@ export default function App() {
         onOpenQR={() => setIsQRModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenCallModal={() => handleOpenCallModal(null)}
+        globalAiEnabled={globalAiEnabled}
+        onToggleGlobalAi={handleToggleGlobalAi}
         unreadCount={totalUnreadCount}
       />
 
@@ -295,6 +331,10 @@ export default function App() {
             onSendAudio={handleSendAudio}
             onCallLead={(lead) => handleOpenCallModal(lead)}
           />
+        )}
+
+        {currentTab === 'pos' && (
+          <POSView socket={socket} />
         )}
 
         {currentTab === 'orders' && (

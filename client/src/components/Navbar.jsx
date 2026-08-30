@@ -15,7 +15,9 @@ import {
   ShoppingBag,
   PackageCheck,
   Users,
-  Store
+  Store,
+  Calculator,
+  Power
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -25,10 +27,13 @@ export default function Navbar({
   onOpenQR, 
   onOpenSettings,
   onOpenCallModal,
+  globalAiEnabled = true,
+  onToggleGlobalAi,
   unreadCount = 0
 }) {
   const tabs = [
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
+    { id: 'pos', label: 'POS Mostrador', icon: Calculator },
     { id: 'orders', label: 'Pedidos', icon: PackageCheck },
     { id: 'customers', label: 'Clientes', icon: Users },
     { id: 'branches', label: 'Sucursales', icon: Store },
@@ -94,10 +99,27 @@ export default function Navbar({
       {/* Right Actions & Status */}
       <div className="flex items-center gap-2.5">
         
+        {/* Master AI Auto-Reply Switch Button */}
+        <button
+          onClick={onToggleGlobalAi}
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold border transition-all active:scale-95 ${
+            globalAiEnabled
+              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/25 shadow-sm shadow-emerald-500/10'
+              : 'bg-amber-500/15 text-amber-400 border-amber-500/40 hover:bg-amber-500/25 shadow-sm'
+          }`}
+          title={globalAiEnabled ? 'Agente IA Respondiendo en automático (Clic para pausar a nivel general)' : 'Agente IA Pausado (Clic para reactivar auto-respuestas globales)'}
+        >
+          <Bot size={15} className={globalAiEnabled ? 'text-emerald-400 animate-pulse' : 'text-amber-400'} />
+          <span className="hidden sm:inline">
+            IA: {globalAiEnabled ? 'ON' : 'OFF'}
+          </span>
+          <span className={`w-2 h-2 rounded-full ${globalAiEnabled ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+        </button>
+
         {/* Outbound Call Button */}
         <button
           onClick={onOpenCallModal}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 text-xs font-bold border border-slate-700/60 shadow-sm transition-all active:scale-95"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 text-xs font-bold border border-slate-700/60 shadow-sm transition-all active:scale-95"
           title="Abrir Marcador Telefónico y Realizar Llamada de Voz"
         >
           <PhoneCall size={14} className="text-emerald-400" />

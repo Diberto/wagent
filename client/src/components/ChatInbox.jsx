@@ -17,7 +17,10 @@ import {
   MoreVertical,
   Volume2,
   PhoneCall,
-  UserCheck
+  UserCheck,
+  Edit2,
+  Save,
+  X
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 
@@ -38,6 +41,10 @@ export default function ChatInbox({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [filterStage, setFilterStage] = useState('all');
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+
+  // Inline Phone Editing State
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
 
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -280,8 +287,41 @@ export default function ChatInbox({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  {selectedLead.name || selectedLead.pushName}
-                  <span className="text-xs font-normal text-slate-400">{selectedLead.phone}</span>
+                  <span>{selectedLead.name || selectedLead.pushName}</span>
+                  {isEditingPhone ? (
+                    <form onSubmit={handleSavePhone} className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={phoneInput}
+                        onChange={(e) => setPhoneInput(e.target.value)}
+                        placeholder="+54 9 351..."
+                        className="px-2 py-0.5 rounded bg-[#182229] border border-slate-700 text-xs text-white font-mono"
+                        autoFocus
+                      />
+                      <button type="submit" className="p-1 text-emerald-400 hover:text-white" title="Guardar teléfono">
+                        <Save size={12} />
+                      </button>
+                      <button type="button" onClick={() => setIsEditingPhone(false)} className="p-1 text-slate-400 hover:text-white">
+                        <X size={12} />
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="flex items-center gap-1 group">
+                      <span className="text-xs font-normal text-slate-400 font-mono">
+                        {selectedLead.phone || 'Sin número'}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setPhoneInput(selectedLead.phone || '');
+                          setIsEditingPhone(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-emerald-400 transition p-0.5"
+                        title="Editar número de teléfono real"
+                      >
+                        <Edit2 size={11} />
+                      </button>
+                    </div>
+                  )}
                 </h3>
                 <div className="flex items-center gap-2 text-xs text-slate-400">
                   <span className="flex items-center gap-1">

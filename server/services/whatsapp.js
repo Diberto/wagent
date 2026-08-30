@@ -325,6 +325,23 @@ export class WhatsAppService {
       return;
     }
 
+    // Detección y actualización automática de teléfono si el cliente lo escribe en el chat
+    if (!isFromMe && textContent) {
+      const phoneRegexMatch = textContent.match(/(?:\+?54\s*9?\s*)?(?:35\d{1,2}|11|2\d{2,3})\s*[\s.-]?\d{3,4}[\s.-]?\d{3,4}/);
+      if (phoneRegexMatch) {
+        const rawFound = phoneRegexMatch[0];
+        const digitsOnly = rawFound.replace(/\D/g, '');
+        if (digitsOnly.length >= 8) {
+          const norm = normalizePhoneNumber(rawFound);
+          if (norm && (!lead.phone || lead.phone.startsWith('+1') || lead.phone.includes('@lid') || lead.phone.length < 8)) {
+            console.log(`📱 Teléfono real detectado en texto para lead ${lead.id}: ${norm}`);
+            db.updateLead(lead.id, { phone: norm });
+            lead = db.getLead(jid);
+          }
+        }
+      }
+    }
+
     console.log(`📩 [WhatsApp ${isFromMe ? 'Saliente' : 'Entrante'}] De ${pushName} (${lead?.phone || jid}): "${textContent}" (Tipo: ${messageType})`);
 
     // Guardar mensaje en base de datos
@@ -356,10 +373,13 @@ export class WhatsAppService {
       return;
     }
 
-    // Si el mensaje viene de un cliente y la IA está activa
+    // Si el mensaje viene de un cliente y la IA está activa (Control Global + Individual por Chat)
     const settings = db.getSettings();
-    if (!isFromMe && lead.aiEnabled && settings.autoReplyEnabled) {
-      console.log(`🤖 Agente de IA procesando respuesta automática para ${jid}...`);
+    const isGlobalAiEnabled = settings.autoReplyEnabled !== false;
+    const isLeadAiEnabled = lead.aiEnabled !== false;
+
+    if (!isFromMe && isGlobalAiEnabled && isLeadAiEnabled) {
+      console.log(`🤖 Agente de IA procesando respuesta automática para ${jid} (Global: ON, Chat: ON)...`);
 
       // Marcar como leído
       try {

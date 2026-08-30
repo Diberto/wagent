@@ -18,28 +18,47 @@ export class AIService {
   static async generateReply({ jid, incomingText, isAudioInput = false }) {
     const settings = db.getSettings();
     const lead = db.getLead(jid) || { name: 'Cliente', stage: 'new_lead', tags: [] };
-    const history = db.getMessages(jid, 12);
+    // Optimización de tokens: Sliding window reducida a los 6 mensajes más recientes y relevantes
+    const history = db.getMessages(jid, 6);
     const knowledgeBase = db.getKnowledgeBase();
-
-    // 1. Contexto de base de conocimiento (RAG) y Catálogo de Productos
     const products = db.getProducts();
-    const productCatalogContext = products.map((p, i) => {
-      return `• [PRODUCTO #${i + 1}] ${p.name} | Categoría: ${p.category || 'General'} | Precio: $${p.price} por ${p.unit || 'kg'} | Stock: ${p.isAvailable ? 'Disponible' : 'Agotado'} | Detalles: ${p.description || 'Calidad garantizada'}`;
+
+    // Optimización RAG: Filtrar productos relevantes a la consulta para no saturar el prompt
+    const queryTokens = (incomingText || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    let relevantProducts = products.filter(p => {
+      const pText = `${p.name} ${p.category || ''} ${p.description || ''}`.toLowerCase();
+      return queryTokens.some(tok => pText.includes(tok));
+    });
+
+    if (relevantProducts.length === 0) {
+      // Si no hay coincidencia directa, enviar solo los productos principales / combos destacados
+      relevantProducts = products.slice(0, 6);
+    } else if (relevantProducts.length > 8) {
+      relevantProducts = relevantProducts.slice(0, 8);
+    }
+
+    const productCatalogContext = relevantProducts.map((p, i) => {
+      return `• ${p.name} ($${p.price}/${p.unit || 'kg'}) | ${p.description || 'Disponible'}`;
     }).join('\n');
 
-    const kbContext = knowledgeBase.map((item, index) => {
-      let entry = `[INFO #${index + 1}] ${item.title} (${item.category}):\n${item.content}`;
-      if (item.productPrice) {
-        entry += `\nPrecio: $${item.productPrice}`;
-      }
-      return entry;
-    }).join('\n\n');
+    // Optimización RAG: Filtrar artículos KB relevantes
+    let relevantKB = knowledgeBase.filter(item => {
+      const kbText = `${item.title} ${item.category || ''} ${item.content || ''} ${(item.keywords || []).join(' ')}`.toLowerCase();
+      return queryTokens.some(tok => kbText.includes(tok));
+    });
 
-    // 2. Historial formateado
+    if (relevantKB.length === 0) {
+      relevantKB = knowledgeBase.slice(0, 3);
+    } else if (relevantKB.length > 4) {
+      relevantKB = relevantKB.slice(0, 4);
+    }
+
+    const kbContext = relevantKB.map(item => `[${item.title}]: ${item.content}`).join('\n');
+
+    // 2. Historial formateado token-efficient
     const formattedHistory = history.map(msg => {
-      const role = msg.sender === 'user' ? 'Cliente' : 'Asesor (Tú)';
-      const typeNote = msg.type === 'audio' ? ' [Nota de voz]' : '';
-      return `${role}${typeNote}: ${msg.content}`;
+      const role = msg.sender === 'user' ? 'Cliente' : 'Asesor';
+      return `${role}: ${msg.content}`;
     }).join('\n');
 
     // 3. Prompt de sistema enriquecido
