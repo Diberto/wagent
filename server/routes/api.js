@@ -437,6 +437,26 @@ export function createApiRouter(whatsappService, io) {
     res.json({ success: true });
   });
 
+  // --- 5.2 Customer Memory & Dossier System ---
+  router.get('/customers', (req, res) => {
+    const leads = db.getLeads();
+    const customers = leads.map(l => db.getCustomerProfile(l.id));
+    res.json(customers);
+  });
+
+  router.get('/customers/:id', (req, res) => {
+    const profile = db.getCustomerProfile(req.params.id);
+    if (!profile) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(profile);
+  });
+
+  router.put('/customers/:id', (req, res) => {
+    const updated = db.updateCustomerProfile(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Cliente no encontrado' });
+    io.emit('lead:update', updated);
+    res.json(updated);
+  });
+
   // --- 6. Settings & Voice Testing ---
   router.get('/settings', (req, res) => {
     res.json({

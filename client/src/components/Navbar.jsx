@@ -13,7 +13,8 @@ import {
   PhoneForwarded,
   UserCheck,
   ShoppingBag,
-  PackageCheck
+  PackageCheck,
+  Users
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -28,6 +29,7 @@ export default function Navbar({
   const tabs = [
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
     { id: 'orders', label: 'Pedidos', icon: PackageCheck },
+    { id: 'customers', label: 'Clientes', icon: Users },
     { id: 'catalog', label: 'Catálogo', icon: ShoppingBag },
     { id: 'kanban', label: 'Embudo', icon: Kanban },
     { id: 'callcenter', label: 'Llamadas', icon: PhoneCall },

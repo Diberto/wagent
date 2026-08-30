@@ -410,8 +410,90 @@ class DatabaseService {
     };
 
     db.orders.unshift(newOrder);
+
+    // Actualizar Memoria y Estadísticas del Cliente en la Base de Datos de Leads
+    const targetJid = newOrder.jid;
+    const lead = (db.leads || []).find(l => l.jid === targetJid || (l.phone && newOrder.phone && l.phone.includes(newOrder.phone)));
+    if (lead) {
+      lead.name = newOrder.customerName || lead.name;
+      lead.pushName = newOrder.customerName || lead.pushName;
+      lead.address = newOrder.address || lead.address;
+      lead.totalOrders = (lead.totalOrders || 0) + 1;
+      lead.totalSpent = (lead.totalSpent || 0) + newOrder.totalAmount;
+      lead.lastOrderAt = newOrder.createdAt;
+      lead.lastOrderId = newOrder.id;
+
+      // Preferencias gastronómicas del cliente
+      if (!lead.preferences) {
+        lead.preferences = {
+          favoriteCuts: [],
+          cookingPreference: 'Parrilla',
+          preferredPayment: newOrder.paymentMethod,
+          groupSize: '4 personas',
+          notes: ''
+        };
+      }
+
+      // Agregar cortes de la orden a favoritos si no están
+      if (Array.isArray(newOrder.items)) {
+        newOrder.items.forEach(item => {
+          const cutName = item.replace(/^[•\d\sx]+/, '').split('—')[0].split('(')[0].trim();
+          if (cutName && !lead.preferences.favoriteCuts.includes(cutName)) {
+            lead.preferences.favoriteCuts.push(cutName);
+          }
+        });
+      }
+
+      // Etiquetas automáticas por fidelidad
+      if (!lead.tags) lead.tags = [];
+      if (!lead.tags.includes('Cliente Comprador')) lead.tags.push('Cliente Comprador');
+      if (lead.totalSpent >= 50000 && !lead.tags.includes('Cliente VIP')) lead.tags.push('Cliente VIP');
+      if (lead.totalOrders >= 3 && !lead.tags.includes('Frecuente')) lead.tags.push('Frecuente');
+
+      lead.updatedAt = new Date().toISOString();
+    }
+
     this.writeDb(db);
     return newOrder;
+  }
+
+  getCustomerProfile(jidOrId) {
+    const db = this.readDb();
+    const lead = (db.leads || []).find(l => l.id === jidOrId || l.jid === jidOrId);
+    if (!lead) return null;
+
+    const orders = (db.orders || []).filter(o => o.jid === lead.jid || (o.phone && lead.phone && lead.phone.includes(o.phone)));
+    const totalSpent = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+
+    return {
+      ...lead,
+      orders,
+      totalOrders: orders.length,
+      totalSpent,
+      averageTicket: orders.length > 0 ? Math.round(totalSpent / orders.length) : 0,
+      lastOrder: orders[0] || null,
+      preferences: lead.preferences || {
+        favoriteCuts: [],
+        cookingPreference: 'Parrilla',
+        preferredPayment: 'Efectivo / Transferencia',
+        groupSize: '4 personas',
+        notes: ''
+      }
+    };
+  }
+
+  updateCustomerProfile(jidOrId, updates) {
+    const db = this.readDb();
+    const lead = (db.leads || []).find(l => l.id === jidOrId || l.jid === jidOrId);
+    if (!lead) return null;
+
+    if (updates.preferences) {
+      lead.preferences = { ...(lead.preferences || {}), ...updates.preferences };
+    }
+    Object.assign(lead, updates);
+    lead.updatedAt = new Date().toISOString();
+    this.writeDb(db);
+    return this.getCustomerProfile(lead.id);
   }
 
   updateOrderStatus(id, status) {

@@ -8,6 +8,7 @@ import KnowledgeBase from './components/KnowledgeBase';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import ProductCatalog from './components/ProductCatalog';
 import OrdersView from './components/OrdersView';
+import CustomersView from './components/CustomersView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
@@ -298,6 +299,16 @@ export default function App() {
 
         {currentTab === 'orders' && (
           <OrdersView socket={socket} />
+        )}
+
+        {currentTab === 'customers' && (
+          <CustomersView 
+            socket={socket} 
+            onSelectLeadForChat={(lead) => {
+              setSelectedLead(lead);
+              setCurrentTab('inbox');
+            }} 
+          />
         )}
 
         {currentTab === 'catalog' && (
