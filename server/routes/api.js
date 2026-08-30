@@ -26,15 +26,21 @@ export function createApiRouter(whatsappService, io) {
   });
   const upload = multer({ storage });
 
-  // --- 1. WhatsApp Connection & QR ---
+  // --- 1. WhatsApp Connection & Multi-Operator QR ---
   router.get('/whatsapp/status', (req, res) => {
-    res.json(whatsappService.getStatus());
+    const userId = req.query.userId || 'default';
+    res.json(whatsappService.getStatus(userId));
+  });
+
+  router.get('/whatsapp/sessions', (req, res) => {
+    res.json(whatsappService.getAllSessionsStatus());
   });
 
   router.post('/whatsapp/connect', async (req, res) => {
     try {
-      await whatsappService.initialize();
-      res.json({ success: true, message: 'Inicializando conexión de WhatsApp' });
+      const userId = req.body.userId || 'default';
+      const status = await whatsappService.connectUserSession(userId);
+      res.json({ success: true, message: `Inicializando conexión de WhatsApp para ${userId}`, status });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -42,8 +48,9 @@ export function createApiRouter(whatsappService, io) {
 
   router.post('/whatsapp/disconnect', async (req, res) => {
     try {
-      await whatsappService.disconnect();
-      res.json({ success: true, message: 'WhatsApp desconectado exitosamente' });
+      const userId = req.body.userId || 'default';
+      const status = await whatsappService.disconnectUserSession(userId);
+      res.json({ success: true, message: `WhatsApp de ${userId} desconectado exitosamente`, status });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -698,6 +705,37 @@ export function createApiRouter(whatsappService, io) {
       });
     } catch (err) {
       console.error('Error generando link de pago de Mercado Pago:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/mercadopago/simulate-payment', async (req, res) => {
+    try {
+      const { orderId } = req.body;
+      const order = db.getOrder(orderId);
+      if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+      // Actualizar pedido a estado preparando y pagado en simulación
+      const updatedOrder = db.updateOrderStatus(orderId, 'preparing');
+      const finalOrder = db.updateOrder(orderId, {
+        paymentStatus: 'paid',
+        paymentMethod: 'Mercado Pago (Sandbox Test)',
+        paidAt: new Date().toISOString(),
+        notes: order.notes ? `${order.notes}\n[Pago Simulado] Acreditado en Sandbox ($${order.totalAmount})` : `[Pago Simulado] Acreditado en Sandbox ($${order.totalAmount})`
+      });
+
+      io.emit('order:update', finalOrder);
+
+      // Notificar al cliente por WhatsApp
+      const targetJid = finalOrder.jid || (finalOrder.phone ? `${finalOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (targetJid && whatsappService.status === 'connected') {
+        const confirmMsg = `🧪 *[TEST SANDBOX]* ¡Pago de $${Number(finalOrder.totalAmount).toLocaleString('es-AR')} simulado y acreditado con éxito! 🎉🥩 Tu pedido #${finalOrder.id} ya ingresó al sector de corte para su preparación.`;
+        await whatsappService.sendMessage(targetJid, confirmMsg);
+      }
+
+      res.json({ success: true, order: finalOrder });
+    } catch (err) {
+      console.error('Error simulando pago en Sandbox:', err);
       res.status(500).json({ error: err.message });
     }
   });

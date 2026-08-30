@@ -361,6 +361,30 @@ export default function OrdersView({ socket }) {
     }
   };
 
+  const handleSimulatePayment = async () => {
+    if (!paymentModal || !paymentModal.order) return;
+    setPaymentModal(prev => ({ ...prev, isSimulating: true }));
+    try {
+      const res = await fetch('/api/mercadopago/simulate-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: paymentModal.order.id })
+      });
+      const data = await res.json();
+      if (res.ok && data.order) {
+        setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        setPaymentModal(prev => ({ ...prev, isSimulating: false, simulateSuccess: true }));
+        setTimeout(() => setPaymentModal(null), 2000);
+      } else {
+        alert(data.error || 'Error al simular pago');
+        setPaymentModal(prev => ({ ...prev, isSimulating: false }));
+      }
+    } catch (err) {
+      console.error('Error simulando pago:', err);
+      setPaymentModal(prev => ({ ...prev, isSimulating: false }));
+    }
+  };
+
   const handleOpenDeriveModal = (order) => {
     setDeriveModal({
       order,
@@ -1099,11 +1123,19 @@ export default function OrdersView({ socket }) {
                   </div>
                 </div>
 
-                {/* If Sandbox Mode, show test cards guide */}
+                {/* Success Feedback Alerts */}
+                {paymentModal.simulateSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-2 font-semibold">
+                    <Check size={16} /> ¡Pago simulado y acreditado con éxito! Pedido actualizado a preparación.
+                  </div>
+                )}
+
+                {/* If Sandbox Mode, show test cards guide and Incognito tip */}
                 {paymentModal.linkData.isSandbox && (
-                  <div className="p-3 bg-[#111b21] border border-amber-500/30 rounded-2xl space-y-1.5 text-[11px]">
-                    <div className="text-amber-400 font-bold flex items-center gap-1">
-                      <span>🧪 Tarjeta de Prueba para Pagar en Modo Test:</span>
+                  <div className="p-3 bg-[#111b21] border border-amber-500/30 rounded-2xl space-y-2 text-[11px]">
+                    <div className="text-amber-400 font-bold flex items-center justify-between">
+                      <span className="flex items-center gap-1">🧪 Tarjeta de Prueba para Modo Test:</span>
+                      <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded font-mono">Sandbox ARS</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 font-mono bg-[#182229] p-2 rounded-xl border border-slate-800">
                       <div>
@@ -1111,13 +1143,17 @@ export default function OrdersView({ socket }) {
                         <div className="text-emerald-400 font-bold select-all">5031 7557 3453 0451</div>
                       </div>
                       <div>
-                        <div className="text-slate-400 font-sans text-[10px]">Vto / CVV:</div>
-                        <div className="text-slate-300">11/27 • 123</div>
+                        <div className="text-slate-400 font-sans text-[10px]">Vto / CVV / DNI:</div>
+                        <div className="text-slate-300">11/27 • 123 • 12345678</div>
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-500">
-                      Este link usa el entorno Sandbox de Mercado Pago y no descontará dinero real.
-                    </p>
+                    
+                    {/* Incognito warning tip */}
+                    <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-[10px] text-amber-300 leading-relaxed">
+                      💡 <b>¿Te dio el error <i>"Una de las partes es de prueba"</i>?</b><br/>
+                      Mercado Pago bloquea links de prueba si tu navegador tiene tu cuenta real iniciada.
+                      👉 <b>Solución:</b> Abre el link en una <b>Ventana de Incógnito / Privada</b> o haz clic en <b>"Simular Pago Aprobado"</b> abajo para probar el flujo sin pasar por Mercado Pago.
+                    </div>
                   </div>
                 )}
 
@@ -1127,24 +1163,41 @@ export default function OrdersView({ socket }) {
                   <div>💳 <b>Métodos permitidos:</b> Débito, Crédito, Dinero en cuenta MP, Transferencia</div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentModal(null)}
-                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
-                  >
-                    Cerrar
-                  </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                  <div>
+                    {paymentModal.linkData.isSandbox && (
+                      <button
+                        type="button"
+                        onClick={handleSimulatePayment}
+                        disabled={paymentModal.isSimulating}
+                        className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition disabled:opacity-50"
+                        title="Simular aprobación inmediata de pago sin abrir Mercado Pago"
+                      >
+                        <RefreshCw size={13} className={paymentModal.isSimulating ? 'animate-spin' : ''} />
+                        {paymentModal.isSimulating ? 'Simulando...' : '🧪 Simular Pago Aprobado'}
+                      </button>
+                    )}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={handleSendPaymentLinkWhatsApp}
-                    disabled={paymentModal.isSending}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50"
-                  >
-                    <Send size={13} />
-                    {paymentModal.isSending ? 'Enviando...' : '📱 Enviar por WhatsApp'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentModal(null)}
+                      className="px-3.5 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800 text-xs"
+                    >
+                      Cerrar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSendPaymentLinkWhatsApp}
+                      disabled={paymentModal.isSending}
+                      className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition disabled:opacity-50"
+                    >
+                      <Send size={13} />
+                      {paymentModal.isSending ? 'Enviando...' : '📱 Enviar por WhatsApp'}
+                    </button>
+                  </div>
                 </div>
 
               </div>

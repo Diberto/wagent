@@ -9,7 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { CONFIG } from './config/index.js';
 import { db } from './services/database.js';
-import { WhatsAppService } from './services/whatsapp.js';
+import { WhatsAppManager } from './services/whatsapp.js';
 import { BackupService } from './services/backup.js';
 import { createApiRouter } from './routes/api.js';
 
@@ -69,15 +69,16 @@ app.use('/media', express.static(CONFIG.MEDIA_DIR, {
   etag: true
 }));
 
-// Instanciar servicio de WhatsApp con Baileys
-const whatsapp = new WhatsAppService(io);
+// Instanciar Gestor Multi-Instancia de WhatsApp con Baileys
+const whatsapp = new WhatsAppManager(io);
 
 // Rutas de API REST
 app.use('/api', createApiRouter(whatsapp, io));
 
 // Gestión de conexiones WebSockets
 io.on('connection', (socket) => {
-  socket.emit('whatsapp:status', whatsapp.getStatus());
+  socket.emit('whatsapp:status', whatsapp.getStatus('default'));
+  socket.emit('whatsapp:sessions', whatsapp.getAllSessionsStatus());
 });
 
 // Servir frontend en producción con optimización de caché
@@ -115,7 +116,7 @@ server.listen(PORT, async () => {
   const authDir = CONFIG.AUTH_DIR;
   if (fs.existsSync(authDir) && fs.readdirSync(authDir).length > 0) {
     console.log('Credenciales de sesión encontradas. Conectando a WhatsApp...');
-    whatsapp.initialize();
+    whatsapp.initializePrimary();
   }
 
   // Inicializar sistema de respaldos automáticos programados

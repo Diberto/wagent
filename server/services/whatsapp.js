@@ -51,8 +51,10 @@ function extractTextMessage(content) {
 }
 
 export class WhatsAppService {
-  constructor(io) {
+  constructor(io, sessionId = 'default', authDir = null) {
     this.io = io;
+    this.sessionId = sessionId;
+    this.authDir = authDir || (sessionId === 'default' ? CONFIG.AUTH_DIR : path.join(CONFIG.DATA_DIR, `auth_info_baileys_${sessionId}`));
     this.sock = null;
     this.status = 'disconnected'; // 'disconnected' | 'connecting' | 'connected' | 'qr_ready'
     this.qrCode = null;
@@ -67,13 +69,13 @@ export class WhatsAppService {
       this.status = 'connecting';
       this.emitStatus();
 
-      if (!fs.existsSync(CONFIG.AUTH_DIR)) {
-        fs.mkdirSync(CONFIG.AUTH_DIR, { recursive: true });
+      if (!fs.existsSync(this.authDir)) {
+        fs.mkdirSync(this.authDir, { recursive: true });
       }
 
-      const { state, saveCreds } = await useMultiFileAuthState(CONFIG.AUTH_DIR);
+      const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
       const { version, isLatest } = await fetchLatestBaileysVersion();
-      console.log(`Iniciando Baileys WhatsApp v${version.join('.')} (Latest: ${isLatest})`);
+      console.log(`Iniciando Baileys WhatsApp [Sesión: ${this.sessionId}] v${version.join('.')} (Latest: ${isLatest})`);
 
       const logger = pino({ level: 'silent' });
 
@@ -82,7 +84,7 @@ export class WhatsAppService {
         logger,
         printQRInTerminal: false,
         auth: state,
-        browser: ['WAgent CRM', 'Chrome', '124.0.0'],
+        browser: [`WAgent CRM (${this.sessionId})`, 'Chrome', '124.0.0'],
         syncFullHistory: false,
         generateHighQualityLinkPreview: true
       });
@@ -825,8 +827,26 @@ export class WhatsAppService {
     await this.sendMessage(driverJid, helpMsg);
   }
 
+  async disconnect() {
+    try {
+      this.status = 'disconnected';
+      this.qrCode = null;
+      this.qrDataUrl = null;
+      this.user = null;
+      if (this.sock) {
+        this.sock.end(new Error('Manual user disconnect'));
+        this.sock = null;
+      }
+      this.emitStatus();
+    } catch (e) {
+      console.error(`Error desconectando sesión de WhatsApp [${this.sessionId}]:`, e);
+    }
+  }
+
   getStatus() {
     return {
+      sessionId: this.sessionId,
+      userId: this.sessionId,
       status: this.status,
       qrCode: this.qrCode,
       qrDataUrl: this.qrDataUrl,
@@ -836,16 +856,91 @@ export class WhatsAppService {
 
   emitStatus() {
     if (this.io) {
-      this.io.emit('whatsapp:status', this.getStatus());
+      const statusData = this.getStatus();
+      this.io.emit('whatsapp:status', statusData);
+      this.io.emit(`whatsapp:status:${this.sessionId}`, statusData);
     }
   }
 
   emitQR() {
     if (this.io) {
-      this.io.emit('whatsapp:qr', {
+      const qrData = {
+        sessionId: this.sessionId,
+        userId: this.sessionId,
         qrCode: this.qrCode,
         qrDataUrl: this.qrDataUrl
-      });
+      };
+      this.io.emit('whatsapp:qr', qrData);
+      this.io.emit(`whatsapp:qr:${this.sessionId}`, qrData);
     }
   }
 }
+
+/**
+ * Gestor Multi-Instancia / Multi-Operador de WhatsApp
+ */
+export class WhatsAppManager {
+  constructor(io) {
+    this.io = io;
+    this.sessions = new Map();
+    // Sesión Maestra Principal
+    this.primarySession = new WhatsAppService(io, 'default', CONFIG.AUTH_DIR);
+    this.sessions.set('default', this.primarySession);
+  }
+
+  async initializePrimary() {
+    await this.primarySession.initialize();
+  }
+
+  getSession(userId = 'default') {
+    const id = userId || 'default';
+    if (!this.sessions.has(id)) {
+      const authDir = id === 'default' ? CONFIG.AUTH_DIR : path.join(CONFIG.DATA_DIR, `auth_info_baileys_${id}`);
+      const service = new WhatsAppService(this.io, id, authDir);
+      this.sessions.set(id, service);
+    }
+    return this.sessions.get(id);
+  }
+
+  async connectUserSession(userId) {
+    const session = this.getSession(userId);
+    await session.initialize();
+    return session.getStatus();
+  }
+
+  async disconnectUserSession(userId) {
+    const session = this.getSession(userId);
+    await session.disconnect();
+    return session.getStatus();
+  }
+
+  getStatus(userId = 'default') {
+    const session = this.getSession(userId);
+    return session.getStatus();
+  }
+
+  getAllSessionsStatus() {
+    const result = {};
+    for (const [id, session] of this.sessions.entries()) {
+      result[id] = session.getStatus();
+    }
+    return result;
+  }
+
+  async sendMessage(jid, text, media = null, userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session || session.status !== 'connected') {
+      session = this.primarySession;
+    }
+    return session.sendMessage(jid, text, media);
+  }
+
+  async sendDriverDispatchNotification(order, driver, notifyClient = true, userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session || session.status !== 'connected') {
+      session = this.primarySession;
+    }
+    return session.sendDriverDispatchNotification(order, driver, notifyClient);
+  }
+}
+

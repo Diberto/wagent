@@ -37,11 +37,15 @@
         "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
       ],
       "totalAmount": 39999,
-      "paymentMethod": "Efectivo / Transferencia",
+      "paymentMethod": "Mercado Pago (Sandbox)",
       "status": "pending",
       "notes": "",
       "createdAt": "2026-08-30T20:45:04.034Z",
-      "updatedAt": "2026-08-30T20:45:04.035Z"
+      "updatedAt": "2026-08-30T20:58:49.417Z",
+      "paymentPreferenceId": "2050924390-23356eda-d42d-459b-b50b-b4b7af475c54",
+      "paymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-23356eda-d42d-459b-b50b-b4b7af475c54",
+      "paymentMode": "sandbox",
+      "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-23356eda-d42d-459b-b50b-b4b7af475c54"
     },
     {
       "id": "ORD-8163",
@@ -310,7 +314,7 @@
       "aiEnabled": true,
       "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:45:26.000Z",
+      "updatedAt": "2026-08-30T21:05:26.000Z",
       "jid": "153051277086768@lid",
       "name": "de Juan Gonzalez",
       "phone": "+153051277086768",
@@ -333,8 +337,8 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡De diez de Juan Gonzalez! 🥩💳 Para abonar tu pedido **#ORD-2865** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌",
-      "lastMessageAt": "2026-08-30T20:45:26.000Z",
+      "lastMessage": "🎤 [Nota de voz]",
+      "lastMessageAt": "2026-08-30T21:05:26.000Z",
       "notes": "Dirección: locelso 7089 anombre de Juan Gonzalez | Pedido #ORD-2865",
       "altJids": [
         "153051277086768@s.whatsapp.net"
@@ -3386,6 +3390,132 @@
       "content": "¡De diez de Juan Gonzalez! 🥩💳 Para abonar tu pedido **#ORD-2865** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB0148D25AF837EC3FC9F",
+      "timestamp": "2026-08-30T20:55:19.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788123324052-jdbcvn",
+      "timestamp": "2026-08-30T20:55:24.051Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB02CB9883A04199D6F08",
+      "timestamp": "2026-08-30T20:55:23.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0B9BFD45FAA3812BA51",
+      "timestamp": "2026-08-30T20:55:36.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un link nuevo de pago del peidido 2865",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788123340265-9dd7kn",
+      "timestamp": "2026-08-30T20:55:40.263Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "🧪 *[MODO PRUEBAS / SANDBOX]*\n¡De diez de Juan Gonzalez! 🥩💳 Para abonar tu pedido **#ORD-2865** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n*(Enlace de prueba Sandbox - Usar tarjetas de test de Mercado Pago, no debita dinero real)*\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌"
+    },
+    {
+      "id": "3EB0CB3E090ABC85421F16",
+      "timestamp": "2026-08-30T20:55:40.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "🧪 *[MODO PRUEBAS / SANDBOX]*\n¡De diez de Juan Gonzalez! 🥩💳 Para abonar tu pedido **#ORD-2865** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n*(Enlace de prueba Sandbox - Usar tarjetas de test de Mercado Pago, no debita dinero real)*\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788123529432-wugxb9",
+      "timestamp": "2026-08-30T20:58:49.431Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "🧪 *[MODO PRUEBAS / SANDBOX]*\n¡Hola de Juan Gonzalez! 🥩💳 Acá tenés el link de pago de prueba de Mercado Pago para tu pedido #ORD-2865 por $39.999:\n\n🔗 https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-23356eda-d42d-459b-b50b-b4b7af475c54\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia.\n*(Enlace de prueba Sandbox - No debita dinero real)*\n\nEn cuanto se acredite, ¡comenzamos la preparación de tu pedido!"
+    },
+    {
+      "id": "3EB0B5C74FBC0BD9567CEB",
+      "timestamp": "2026-08-30T20:58:49.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "🧪 *[MODO PRUEBAS / SANDBOX]*\n¡Hola de Juan Gonzalez! 🥩💳 Acá tenés el link de pago de prueba de Mercado Pago para tu pedido #ORD-2865 por $39.999:\n\n🔗 https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-23356eda-d42d-459b-b50b-b4b7af475c54\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia.\n*(Enlace de prueba Sandbox - No debita dinero real)*\n\nEn cuanto se acredite, ¡comenzamos la preparación de tu pedido!",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788123908267-9yfeaa",
+      "timestamp": "2026-08-30T21:05:08.266Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "🎤 [Nota de voz enviada por asesor]",
+      "mediaUrl": "/media/audio_1788123907031_lzw2we.mp3",
+      "audioDuration": 5
+    },
+    {
+      "id": "3EB0356FBE01612CCA8F0B",
+      "timestamp": "2026-08-30T21:05:07.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788123909664_kjjvnm.mp3",
+      "audioDuration": 2
+    },
+    {
+      "id": "msg-1788123926810-mqfun5",
+      "timestamp": "2026-08-30T21:05:26.809Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "🎤 [Nota de voz enviada por asesor]",
+      "mediaUrl": "/media/audio_1788123925869_qyd66b.mp3",
+      "audioDuration": 5
+    },
+    {
+      "id": "3EB0133C5224C8702DD02C",
+      "timestamp": "2026-08-30T21:05:26.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788123933188_h3xx24.mp3",
+      "audioDuration": 4
     }
   ],
   "calls": [

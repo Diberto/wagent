@@ -519,7 +519,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* QR Code Modal */}
+      {/* QR Code Modal (Multi-Operator WhatsApp) */}
       <QRModal
         isOpen={isQRModalOpen}
         onClose={() => setIsQRModalOpen(false)}
@@ -528,6 +528,9 @@ export default function App() {
         user={whatsappUser}
         onConnect={handleConnectWhatsApp}
         onDisconnect={handleDisconnectWhatsApp}
+        currentUser={currentUser}
+        allUsers={allUsers}
+        socket={socket}
       />
 
       {/* Settings Modal */}
