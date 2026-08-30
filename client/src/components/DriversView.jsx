@@ -22,7 +22,9 @@ import {
   Car, 
   Truck, 
   User, 
-  Store
+  Store,
+  List,
+  LayoutGrid
 } from 'lucide-react';
 
 export default function DriversView({ socket }) {
@@ -30,6 +32,7 @@ export default function DriversView({ socket }) {
   const [branches, setBranches] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('drivers_view_mode') || 'table');
   const [isLoading, setIsLoading] = useState(true);
 
   // Create / Edit Driver Modal
@@ -268,7 +271,7 @@ export default function DriversView({ socket }) {
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
+      {/* Filter, Search & View Mode Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#111b21] p-2.5 rounded-2xl border border-slate-800">
         <div className="relative w-full sm:w-80">
           <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -281,29 +284,63 @@ export default function DriversView({ socket }) {
           />
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 text-xs">
-          {[
-            { id: 'all', label: 'Todos' },
-            { id: 'available', label: '🟢 Disponibles' },
-            { id: 'on_delivery', label: '🛵 En Reparto' },
-            { id: 'offline', label: '⚪ Desconectados' }
-          ].map(f => (
+        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 text-xs">
+          <div className="flex items-center gap-1">
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'available', label: '🟢 Disponibles' },
+              { id: 'on_delivery', label: '🛵 En Reparto' },
+              { id: 'offline', label: '⚪ Desconectados' }
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setStatusFilter(f.id)}
+                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition ${
+                  statusFilter === f.id
+                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                    : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Toggle View Mode */}
+          <div className="flex items-center bg-[#182229] border border-slate-700/60 rounded-xl p-1 shrink-0">
             <button
-              key={f.id}
-              onClick={() => setStatusFilter(f.id)}
-              className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition ${
-                statusFilter === f.id
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+              type="button"
+              onClick={() => {
+                setViewMode('table');
+                localStorage.setItem('drivers_view_mode', 'table');
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                viewMode === 'table' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
+              title="Vista en Lista / Tabla detallada"
             >
-              {f.label}
+              <List size={13} />
+              <span className="hidden sm:inline">Lista</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                localStorage.setItem('drivers_view_mode', 'grid');
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                viewMode === 'grid' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Vista en Tarjetas"
+            >
+              <LayoutGrid size={13} />
+              <span className="hidden sm:inline">Tarjetas</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Drivers Cards Grid */}
+      {/* Drivers Content: List / Table or Grid */}
       <div className="flex-1 overflow-y-auto pr-1">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
@@ -314,7 +351,125 @@ export default function DriversView({ socket }) {
             <Bike size={36} className="mx-auto text-slate-600" />
             <div>No hay repartidores registrados en este filtro.</div>
           </div>
+        ) : viewMode === 'table' ? (
+          /* VISTA EN FORMATO LISTA / TABLA DETALLADA */
+          <div className="bg-[#182229] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Repartidor</th>
+                    <th className="py-3 px-4">WhatsApp</th>
+                    <th className="py-3 px-4">Vehículo / Patente</th>
+                    <th className="py-3 px-4">Sucursal Base</th>
+                    <th className="py-3 px-4">Entregas</th>
+                    <th className="py-3 px-4">Caja en Mano</th>
+                    <th className="py-3 px-4">Estado</th>
+                    <th className="py-3 px-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredDrivers.map(driver => {
+                    const branch = branches.find(b => b.id === driver.branchId);
+                    const isTesting = testingDriverId === driver.id;
+                    const isTestSuccess = testSuccessId === driver.id;
+
+                    return (
+                      <tr key={driver.id} className="hover:bg-[#202c33]/50 transition-colors">
+                        <td className="py-3.5 px-4 min-w-[160px]">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-[#111b21] border border-slate-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                              {getVehicleIcon(driver.vehicle)}
+                            </div>
+                            <div>
+                              <div className="font-bold text-white">{driver.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">ID: {driver.id}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                          {driver.phone || 'Sin WhatsApp'}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="font-semibold text-slate-200">{driver.vehicle || 'Moto'}</div>
+                          {driver.plate && <div className="text-[10px] text-slate-400 font-mono">Patente: {driver.plate}</div>}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap text-slate-300">
+                          {branch?.name || 'Central'}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap font-mono text-slate-200">
+                          <span className="text-white font-bold">{driver.totalDeliveredCount || 0}</span> ({driver.activeDeliveriesCount || 0} activos)
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap font-black font-mono text-amber-400">
+                          ${(driver.cashCollectedBalance || 0).toLocaleString('es-AR')}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                            driver.status === 'available'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : driver.status === 'on_delivery'
+                              ? 'bg-sky-500/10 text-sky-400 border-sky-500/30 animate-pulse'
+                              : 'bg-slate-700/30 text-slate-400 border-slate-700'
+                          }`}>
+                            {driver.status === 'available' ? 'Disponible' : driver.status === 'on_delivery' ? 'En Reparto' : 'Desconectado'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleTestWhatsApp(driver)}
+                              disabled={isTesting}
+                              className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition ${
+                                isTestSuccess
+                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                                  : 'bg-[#111b21] hover:bg-emerald-950/40 text-emerald-400 border-slate-700/60'
+                              }`}
+                              title="Test interactivo por WhatsApp"
+                            >
+                              <MessageSquare size={12} className="inline mr-1" />
+                              {isTesting ? '...' : isTestSuccess ? 'OK' : 'Test'}
+                            </button>
+                            {(driver.cashCollectedBalance > 0) && (
+                              <button
+                                onClick={() => handleResetCashBalance(driver)}
+                                className="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-bold transition"
+                                title="Rendir Caja"
+                              >
+                                Rendir
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenEditDriver(driver)}
+                              className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                              title="Editar repartidor"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDuplicateDriver(driver.id)}
+                              className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
+                              title="Duplicar repartidor"
+                            >
+                              <Copy size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDriver(driver.id)}
+                              className="p-1.5 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
+                              title="Eliminar repartidor"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
+          /* VISTA EN FORMATO CUADRÍCULA / TARJETAS */
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredDrivers.map(driver => {
               const branch = branches.find(b => b.id === driver.branchId);

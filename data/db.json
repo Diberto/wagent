@@ -228,7 +228,7 @@
       ],
       "phone": "+153051277086768",
       "name": "mi domicilio",
-      "pushName": "mi domicilio",
+      "pushName": "Don Juan",
       "stage": "proposal",
       "value": 39999,
       "tags": [
@@ -249,9 +249,9 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T22:19:18.063Z",
-      "lastMessage": "¡Hola mi domicilio! 🥩 Te avisamos que tu pedido #ORD-5859 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor.",
-      "lastMessageAt": "2026-08-30T22:19:18.062Z",
+      "updatedAt": "2026-08-30T22:22:11.000Z",
+      "lastMessage": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
+      "lastMessageAt": "2026-08-30T22:22:11.000Z",
       "address": "Retiro en Sucursal Cerro de las Rosas",
       "notes": "Dirección: ok quiero eso asi tal cual par | Pedido #ORD-3642",
       "totalOrders": 2,
@@ -316,7 +316,7 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T20:32:51.349Z",
-      "updatedAt": "2026-08-30T20:32:50.000Z",
+      "updatedAt": "2026-08-30T22:23:35.732Z",
       "lastMessage": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-8163*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* Juan Gonzalze (📞 +153051277086768)\n📍 *Destino / Entrega:* locelso 7100, Juan Gonzalze\n\n📋 *CORTES SOLICITADOS:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo / Transferencia\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
       "lastMessageAt": "2026-08-30T20:32:50.000Z"
     },
@@ -1319,6 +1319,130 @@
       "sender": "agent",
       "type": "text",
       "content": "¡Hola mi domicilio! 🥩 Te avisamos que tu pedido #ORD-5859 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor."
+    },
+    {
+      "id": "3EB07A7BF2AFC209D8852D",
+      "timestamp": "2026-08-30T22:21:05.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128468410-uhnllz",
+      "timestamp": "2026-08-30T22:21:08.409Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩"
+    },
+    {
+      "id": "3EB00A4BDE1EF15C557782",
+      "timestamp": "2026-08-30T22:21:08.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0F796657F86B1F52739",
+      "timestamp": "2026-08-30T22:21:28.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128496222-5mx1iw",
+      "timestamp": "2026-08-30T22:21:36.221Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$39.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB0D6A44E789F267724AE",
+      "timestamp": "2026-08-30T22:21:36.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$39.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB04C8D2D23927A455EE3",
+      "timestamp": "2026-08-30T22:21:55.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "no, retiro por sucursal roque funes",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128518534-0hr0zr",
+      "timestamp": "2026-08-30T22:21:58.534Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "🏪 **Nuestras 6 Sucursales en Córdoba y Gran Córdoba:**\n\n1. **Urca Central:** Av. José Roque Funes 1115 (📞 +54 9 3513 906947) — Lun a Sáb 9 a 21 hs | Dom 9 a 13:30 hs.\n2. **Urca 2 (Alto Tejeda):** Av. Menéndez Pidal 3575 (📞 +54 9 3518 623195).\n3. **Intercountry (Corteza Mall):** Av. Los Álamos 1015 (📞 +54 9 3518 623194) — Todos los días 9 a 21 hs.\n4. **Duarte Quirós:** Av. Duarte Quirós 5130 (📞 +54 9 3518 156595) — 9 a 13:30 y 17 a 21 hs.\n5. **Villa Allende (Mercadito de la Villa):** Av. Figueroa Alcorta 480 (📞 +54 9 3513 540031).\n6. **Country San Isidro (Alto Tejeda):** Av. Padre Luchesse km 2 (📞 +54 9 3518 769099).\n\n🛵 **¡También tenemos Delivery en el día a todo Córdoba!** ¿Por cuál sucursal preferís retirar o a qué dirección te lo enviamos? 🥩"
+    },
+    {
+      "id": "3EB0E69A419FE4C1568211",
+      "timestamp": "2026-08-30T22:21:58.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "🏪 **Nuestras 6 Sucursales en Córdoba y Gran Córdoba:**\n\n1. **Urca Central:** Av. José Roque Funes 1115 (📞 +54 9 3513 906947) — Lun a Sáb 9 a 21 hs | Dom 9 a 13:30 hs.\n2. **Urca 2 (Alto Tejeda):** Av. Menéndez Pidal 3575 (📞 +54 9 3518 623195).\n3. **Intercountry (Corteza Mall):** Av. Los Álamos 1015 (📞 +54 9 3518 623194) — Todos los días 9 a 21 hs.\n4. **Duarte Quirós:** Av. Duarte Quirós 5130 (📞 +54 9 3518 156595) — 9 a 13:30 y 17 a 21 hs.\n5. **Villa Allende (Mercadito de la Villa):** Av. Figueroa Alcorta 480 (📞 +54 9 3513 540031).\n6. **Country San Isidro (Alto Tejeda):** Av. Padre Luchesse km 2 (📞 +54 9 3518 769099).\n\n🛵 **¡También tenemos Delivery en el día a todo Córdoba!** ¿Por cuál sucursal preferís retirar o a qué dirección te lo enviamos? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0E5722B0EBDC46592BD",
+      "timestamp": "2026-08-30T22:22:08.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "1",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128531468-om4trd",
+      "timestamp": "2026-08-30T22:22:11.467Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩"
+    },
+    {
+      "id": "3EB0E6F073F36112289B73",
+      "timestamp": "2026-08-30T22:22:11.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [

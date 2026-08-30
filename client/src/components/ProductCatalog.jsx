@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Package, Plus, Search, Tag, DollarSign, Edit3, Trash2, 
-  RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X, Copy, Barcode
+  RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X, Copy, Barcode,
+  List, LayoutGrid
 } from 'lucide-react';
 
 export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' }) {
@@ -9,6 +10,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('catalog_view_mode') || 'table');
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
   
@@ -215,7 +217,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
         </div>
       )}
 
-      {/* Search & Categories Bar */}
+      {/* Search, Categories and View Mode Bar */}
       <div className="p-4 bg-[#111b21] border-b border-[#222e35] flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[240px] max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -228,25 +230,59 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
           />
         </div>
 
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
-          {categories.map(cat => (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+          {/* Category Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                  selectedCategory === cat
+                    ? 'bg-emerald-500 text-slate-950 font-bold'
+                    : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                {cat === 'all' ? 'Todos' : cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Toggle View Mode */}
+          <div className="flex items-center bg-[#182229] border border-slate-700/60 rounded-xl p-1 shrink-0 ml-auto">
             <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                selectedCategory === cat
-                  ? 'bg-emerald-500 text-slate-950 font-bold'
-                  : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+              type="button"
+              onClick={() => {
+                setViewMode('table');
+                localStorage.setItem('catalog_view_mode', 'table');
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition ${
+                viewMode === 'table' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
+              title="Vista en Lista / Tabla detallada"
             >
-              {cat === 'all' ? 'Todos' : cat}
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Lista</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                localStorage.setItem('catalog_view_mode', 'grid');
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition ${
+                viewMode === 'grid' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Vista en Tarjetas"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tarjetas</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Product Grid */}
+      {/* Product Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 text-slate-500">
@@ -267,7 +303,88 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
               Crear primer producto
             </button>
           </div>
+        ) : viewMode === 'table' ? (
+          /* VISTA EN FORMATO LISTA / TABLA DE PRODUCTOS */
+          <div className="bg-[#182229] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Código / SKU</th>
+                    <th className="py-3 px-4">Nombre del Corte / Producto</th>
+                    <th className="py-3 px-4">Categoría</th>
+                    <th className="py-3 px-4">Precio / Unidad</th>
+                    <th className="py-3 px-4">Stock</th>
+                    <th className="py-3 px-4">Disponibilidad</th>
+                    <th className="py-3 px-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredProducts.map(prod => (
+                    <tr key={prod.id} className="hover:bg-[#202c33]/50 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                        {prod.sku || prod.barcode || `PROD-${prod.id.slice(-4)}`}
+                      </td>
+                      <td className="py-3.5 px-4 min-w-[200px]">
+                        <div className="font-bold text-white">{prod.name}</div>
+                        {prod.description && (
+                          <div className="text-[11px] text-slate-400 line-clamp-1">{prod.description}</div>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-[#202c33] text-emerald-400 border border-emerald-500/20">
+                          {prod.category || 'General'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-extrabold text-white whitespace-nowrap">
+                        <span className="text-emerald-400">${Number(prod.price).toLocaleString()}</span>
+                        <span className="text-[10px] text-slate-400 font-normal ml-0.5">/{prod.unit || 'kg'}</span>
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-300 font-mono">
+                        {prod.stock !== undefined ? prod.stock : 50} {prod.unit || 'kg'}
+                      </td>
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          prod.isAvailable !== false
+                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                        }`}>
+                          {prod.isAvailable !== false ? 'Disponible' : 'Agotado'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditModal(prod)}
+                            className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-emerald-400 rounded-lg transition"
+                            title="Editar producto"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDuplicateProduct(prod.id)}
+                            className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-sky-400 rounded-lg transition"
+                            title="Duplicar producto"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(prod.id)}
+                            className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-rose-400 rounded-lg transition"
+                            title="Eliminar producto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
+          /* VISTA EN FORMATO CUADRÍCULA / TARJETAS */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredProducts.map(prod => (
               <div

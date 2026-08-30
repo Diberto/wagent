@@ -27,7 +27,9 @@ import {
   CreditCard,
   Store,
   Bike,
-  Users
+  Users,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 
 export default function OrdersView({ socket }) {
@@ -37,6 +39,7 @@ export default function OrdersView({ socket }) {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('orders_view_mode') || 'table');
   const [isLoading, setIsLoading] = useState(true);
 
   // Status Change Confirmation Modal State
@@ -595,8 +598,8 @@ export default function OrdersView({ socket }) {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#111b21] p-3 rounded-2xl border border-slate-800">
+      {/* Filter, Search and View Mode Bar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#111b21] p-3 rounded-2xl border border-slate-800">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
@@ -608,30 +611,64 @@ export default function OrdersView({ socket }) {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: 'all', label: 'Todos' },
-            { id: 'pending', label: 'Pendientes' },
-            { id: 'preparing', label: 'En Preparación' },
-            { id: 'in_transit', label: 'En Camino' },
-            { id: 'delivered', label: 'Entregados' }
-          ].map(tab => (
+        <div className="flex items-center justify-between sm:justify-end gap-2 overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-1 bg-[#182229] p-1 rounded-xl border border-slate-800 shrink-0">
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'pending', label: 'Pendientes' },
+              { id: 'preparing', label: 'Preparación' },
+              { id: 'in_transit', label: 'En Camino' },
+              { id: 'delivered', label: 'Entregados' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                  statusFilter === tab.id
+                    ? 'bg-emerald-500 text-slate-950 font-bold shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Toggle View Mode: List / Table vs Grid / Cards */}
+          <div className="flex items-center bg-[#182229] border border-slate-700/60 rounded-xl p-1 shrink-0">
             <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                statusFilter === tab.id
-                  ? 'bg-emerald-500 text-slate-950 font-bold'
-                  : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+              type="button"
+              onClick={() => {
+                setViewMode('table');
+                localStorage.setItem('orders_view_mode', 'table');
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                viewMode === 'table' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
+              title="Vista en Lista / Tabla detallada"
             >
-              {tab.label}
+              <List size={14} />
+              <span className="hidden sm:inline">Lista</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                localStorage.setItem('orders_view_mode', 'grid');
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                viewMode === 'grid' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Vista en Tarjetas"
+            >
+              <LayoutGrid size={14} />
+              <span className="hidden sm:inline">Tarjetas</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Orders Grid */}
+      {/* Orders Content */}
       {isLoading ? (
         <div className="py-16 text-center text-xs text-slate-500">
           <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-emerald-500" />
@@ -645,7 +682,145 @@ export default function OrdersView({ socket }) {
             Cuando un cliente confirme su pedido por WhatsApp o hagas clic en "Nuevo Pedido", aparecerá aquí.
           </p>
         </div>
+      ) : viewMode === 'table' ? (
+        /* VISTA EN FORMATO LISTA / TABLA DETALLADA */
+        <div className="bg-[#182229] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
+                <tr>
+                  <th className="py-3 px-4">Pedido ID</th>
+                  <th className="py-3 px-4">Fecha / Hora</th>
+                  <th className="py-3 px-4">Cliente & Contacto</th>
+                  <th className="py-3 px-4">Cortes / Ítems</th>
+                  <th className="py-3 px-4">Total</th>
+                  <th className="py-3 px-4">Estado</th>
+                  <th className="py-3 px-4">Entrega / Sucursal</th>
+                  <th className="py-3 px-4">Pago</th>
+                  <th className="py-3 px-4 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {filteredOrders.map(order => (
+                  <tr key={order.id} className="hover:bg-[#202c33]/50 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                      #{order.id}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap text-[11px]">
+                      {new Date(order.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}{' '}
+                      {new Date(order.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="py-3.5 px-4 min-w-[160px]">
+                      <div className="font-bold text-white truncate">{order.customerName || 'Cliente'}</div>
+                      <div className="text-slate-400 text-[11px] font-mono">{order.phone || 'Sin teléfono'}</div>
+                    </td>
+                    <td className="py-3.5 px-4 max-w-xs">
+                      <div className="truncate text-slate-200" title={Array.isArray(order.items) ? order.items.join('\n') : order.items}>
+                        {Array.isArray(order.items) && order.items.length > 0 ? (
+                          order.items.join(', ')
+                        ) : (
+                          order.items || 'Combo Asadazo'
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 font-extrabold text-white whitespace-nowrap">
+                      ${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleRequestStatusChange(order, e.target.value)}
+                        className="bg-[#111b21] border border-slate-700/80 text-[11px] font-semibold text-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                      >
+                        <option value="pending">⏳ Pendiente</option>
+                        <option value="preparing">🥩 Preparación</option>
+                        <option value="in_transit">🚚 En Camino</option>
+                        <option value="delivered">✅ Entregado</option>
+                        <option value="cancelled">❌ Cancelado</option>
+                      </select>
+                    </td>
+                    <td className="py-3.5 px-4 max-w-[180px]">
+                      <div className="text-slate-300 truncate font-medium flex items-center gap-1" title={order.address || 'A convenir'}>
+                        <MapPin size={11} className="text-rose-400 shrink-0" />
+                        <span className="truncate">{order.address || 'A convenir'}</span>
+                      </div>
+                      {order.branchName && (
+                        <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5 truncate">
+                          <Store size={10} className="shrink-0" />
+                          <span className="truncate">{order.branchName}</span>
+                        </div>
+                      )}
+                      {order.driverName && (
+                        <div className="text-[10px] text-sky-400 flex items-center gap-1 mt-0.5 truncate">
+                          <Bike size={10} className="shrink-0" />
+                          <span className="truncate">{order.driverName}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap text-[11px]">
+                      <div className="text-slate-300 font-semibold">{order.paymentMethod || 'Efectivo'}</div>
+                      {order.mpPaymentId ? (
+                        <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
+                          <CheckCircle2 size={10} /> MP Pagado
+                        </span>
+                      ) : order.paymentLink ? (
+                        <span className="text-[10px] text-sky-400">Link enviado</span>
+                      ) : null}
+                    </td>
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => handleOpenAssignDriverModal(order)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
+                          title="Asignar Repartidor por WhatsApp"
+                        >
+                          <Bike size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDeriveModal(order)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                          title="Derivar a Sucursal"
+                        >
+                          <Store size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenPaymentLink(order)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-700/60 transition"
+                          title="Cobrar con Mercado Pago"
+                        >
+                          <CreditCard size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditOrder(order)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                          title="Editar pedido"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateOrder(order.id)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
+                          title="Duplicar pedido"
+                        >
+                          <Copy size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteOrder(order.id)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
+                          title="Eliminar pedido"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* VISTA EN FORMATO CUADRÍCULA / TARJETAS */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredOrders.map(order => (
             <div

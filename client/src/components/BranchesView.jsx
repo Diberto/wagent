@@ -21,12 +21,15 @@ import {
   Package,
   X,
   Save,
-  MessageSquare
+  MessageSquare,
+  List,
+  LayoutGrid
 } from 'lucide-react';
 
 export default function BranchesView({ socket }) {
   const [branches, setBranches] = useState([]);
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('branches_view_mode') || 'table');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBranch, setSelectedBranch] = useState(null);
 
@@ -285,20 +288,54 @@ export default function BranchesView({ socket }) {
           </div>
         )}
 
-        {/* Search Bar */}
-        <div className="relative">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre de sucursal, dirección, encargado, teléfono o barrio de cobertura..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-[#182229] border border-slate-800 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-          />
+        {/* Search & View Mode Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre de sucursal, dirección, encargado, teléfono o barrio de cobertura..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-[#182229] border border-slate-800 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+            />
+          </div>
+
+          {/* Toggle View Mode */}
+          <div className="flex items-center bg-[#182229] border border-slate-700/60 rounded-2xl p-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('table');
+                localStorage.setItem('branches_view_mode', 'table');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                viewMode === 'table' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Vista en Lista / Tabla detallada"
+            >
+              <List size={14} />
+              <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                localStorage.setItem('branches_view_mode', 'grid');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                viewMode === 'grid' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Vista en Tarjetas"
+            >
+              <LayoutGrid size={14} />
+              <span className="hidden sm:inline">Tarjetas</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Grid: Branches Cards */}
+      {/* Main Content: Branches Cards or List */}
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center py-16">
           <RefreshCw size={28} className="animate-spin text-emerald-500" />
@@ -319,7 +356,102 @@ export default function BranchesView({ socket }) {
             </button>
           )}
         </div>
+      ) : viewMode === 'table' ? (
+        /* VISTA EN FORMATO LISTA / TABLA DETALLADA */
+        <div className="bg-[#182229] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
+                <tr>
+                  <th className="py-3 px-4">Sucursal</th>
+                  <th className="py-3 px-4">Dirección</th>
+                  <th className="py-3 px-4">WhatsApp Encargado</th>
+                  <th className="py-3 px-4">Encargado</th>
+                  <th className="py-3 px-4">Zonas de Cobertura</th>
+                  <th className="py-3 px-4">Estado</th>
+                  <th className="py-3 px-4 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {filteredBranches.map(branch => (
+                  <tr key={branch.id} className="hover:bg-[#202c33]/50 transition-colors">
+                    <td className="py-3.5 px-4 min-w-[180px]">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                          <Store size={15} />
+                        </div>
+                        <div>
+                          <div className="font-bold text-white">{branch.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">ID: {branch.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 max-w-xs truncate text-slate-300">
+                      {branch.address || 'Sin dirección'}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                      {branch.phone || 'Sin teléfono'}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-300 font-semibold whitespace-nowrap">
+                      {branch.managerName || 'No asignado'}
+                    </td>
+                    <td className="py-3.5 px-4 max-w-xs truncate">
+                      {Array.isArray(branch.coverageZones) && branch.coverageZones.length > 0 ? (
+                        branch.coverageZones.join(', ')
+                      ) : (
+                        <span className="text-slate-500">Todas</span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full font-bold border ${
+                        branch.isActive
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      }`}>
+                        {branch.isActive ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => handleTestWhatsApp(branch.id, branch.name)}
+                          disabled={testSendingId === branch.id || !branch.phone}
+                          className="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold transition disabled:opacity-50"
+                          title="Enviar ping de prueba"
+                        >
+                          💬 Test
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditBranch(branch)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                          title="Editar sucursal"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateBranch(branch.id)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
+                          title="Duplicar sucursal"
+                        >
+                          <Copy size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBranch(branch.id, branch.name)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
+                          title="Eliminar sucursal"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* VISTA EN FORMATO CUADRÍCULA / TARJETAS */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredBranches.map(branch => (
             <div
@@ -399,12 +531,12 @@ export default function BranchesView({ socket }) {
                     <div className="text-xs font-bold text-white">{branch.metrics?.totalOrders || 0}</div>
                   </div>
                   <div className="p-2 rounded-xl bg-[#111b21] border border-slate-800">
-                    <div className="text-[10px] text-slate-400">En Curso</div>
-                    <div className="text-xs font-bold text-amber-400">{branch.metrics?.pendingOrders || 0}</div>
+                    <div className="text-[10px] text-slate-400">Ventas</div>
+                    <div className="text-xs font-bold text-emerald-400">${(branch.metrics?.totalSales || 0).toLocaleString('es-AR')}</div>
                   </div>
                   <div className="p-2 rounded-xl bg-[#111b21] border border-slate-800">
-                    <div className="text-[10px] text-slate-400">Ventas</div>
-                    <div className="text-xs font-bold text-emerald-400">${((branch.metrics?.totalSales || 0) / 1000).toFixed(0)}k</div>
+                    <div className="text-[10px] text-slate-400">WhatsApp</div>
+                    <div className="text-xs font-bold text-emerald-400">Online</div>
                   </div>
                 </div>
               </div>
