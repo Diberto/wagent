@@ -7,6 +7,32 @@ import { SpeechService } from './speech.js';
 import { mercadoPagoService } from './mercadopago.js';
 
 /**
+ * Catálogo Maestro de Cortes y Precios de República de la Carne
+ */
+const MASTER_CATALOG = [
+  { keywords: ['tapa de cuadril', 'tapa cuadril', 'cuadril', 'colita de cuadril'], name: 'Tapa de Cuadril Seleccionada', price: 12800, unit: 'kg', category: 'Parrilla y Horno' },
+  { keywords: ['vacio', 'vacío', 'vacio tierno'], name: 'Vacío Especial Seleccionado', price: 11500, unit: 'kg', category: 'Parrilla' },
+  { keywords: ['costilla', 'costillar', 'asado de tira', 'tira de asado', 'asado'], name: 'Costillar / Asado de Tira Novillito', price: 9800, unit: 'kg', category: 'Parrilla' },
+  { keywords: ['bife de chorizo', 'bife chorizo', 'ojo de bife', 'bife de lomo'], name: 'Bife de Chorizo Premium', price: 14500, unit: 'kg', category: 'Cortes Premium' },
+  { keywords: ['entraña', 'entrana', 'entrecot', 'enrecor'], name: 'Entraña Fina Seleccionada', price: 16900, unit: 'kg', category: 'Cortes Premium' },
+  { keywords: ['matambre de cerdo', 'matambrito de cerdo', 'matambre cerdo'], name: 'Matambrito de Cerdo Tiernizado', price: 8500, unit: 'kg', category: 'Cerdo y Parrilla' },
+  { keywords: ['matambre de vaca', 'matambre vacuno', 'matambre'], name: 'Matambre Vacuno', price: 9500, unit: 'kg', category: 'Parrilla y Horno' },
+  { keywords: ['bondiola', 'bondiola de cerdo'], name: 'Bondiola de Cerdo sin Hueso', price: 8900, unit: 'kg', category: 'Cerdo' },
+  { keywords: ['costeleta de cerdo', 'costeletas de cerdo', 'cerdo'], name: 'Costeletas de Cerdo (2kg x $15.000 promo)', price: 7500, unit: 'kg', category: 'Cerdo' },
+  { keywords: ['costeleta de ternera', 'costeletas de ternera', 'costeleta', 'costeletas'], name: 'Costeletas de Ternera (2kg x $35.000 promo)', price: 17500, unit: 'kg', category: 'Cortes Tradicionales' },
+  { keywords: ['chori criollo', 'chorizo criollo', 'chorizo', 'chorizos', 'chori'], name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', price: 5000, unit: 'kg', category: 'Embutidos' },
+  { keywords: ['morcilla', 'morcillas', 'morcilla bombon', 'morcilla bombón'], name: 'Morcilla Bombón Parrillera', price: 5200, unit: 'kg', category: 'Embutidos' },
+  { keywords: ['molleja', 'mollejas'], name: 'Mollejas de Corazón', price: 14800, unit: 'kg', category: 'Achuras' },
+  { keywords: ['chinchulin', 'chinchulines', 'chinchu'], name: 'Chinchulines Crocantes', price: 4800, unit: 'kg', category: 'Achuras' },
+  { keywords: ['molida intermedia', 'picada especial', 'molida', 'picada', 'carne picada'], name: 'Carne Molida Intermedia (3kg x $27.000 promo)', price: 9000, unit: 'kg', category: 'Diario y Preparados' },
+  { keywords: ['milanesas de ternera', 'milanesa de ternera', 'milanesas', 'milanesa'], name: 'Milanesas de Ternera preparadas (2kg x $24.990)', price: 12495, unit: 'kg', category: 'Diario y Preparados' },
+  { keywords: ['pata muslo', 'pollo', 'suprema de pollo', 'pechuga'], name: 'Pata Muslo Fresca (3kg x $13.990 promo)', price: 4660, unit: 'kg', category: 'Pollo' },
+  { keywords: ['carbon', 'carbón', 'bolsa de carbon'], name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, unit: 'bolsa', category: 'Almacén Parrillero' },
+  { keywords: ['vino', 'vino howlmande', 'howlmande', 'malbec'], name: 'Vino Howlmande Malbec Reserva', price: 5500, unit: 'botella', category: 'Bebidas' },
+  { keywords: ['combo asadazo', 'asadazo', 'combo asado', 'combo 4kg'], name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, unit: 'combo', category: 'Combos en Oferta' }
+];
+
+/**
  * Extrae con precisión los cortes y cantidades pedidos a lo largo de la conversación
  */
 function extractItemsFromHistoryAndText(history, text, products) {
@@ -17,103 +43,40 @@ function extractItemsFromHistoryAndText(history, text, products) {
 
   const items = [];
   let total = 0;
+  const processedCuts = new Set();
 
   // 1. Combo Asadazo
   if (/asadazo|combo asado|combo “asadazo”/i.test(allUserTexts)) {
     const qtyMatch = allUserTexts.match(/([0-9]+)\s*(?:x|combo|combos)?\s*asadazo/i);
     const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
     const price = 39999 * qty;
-    items.push(`• ${qty}x Combo “Asadazo” (4 kg cortes + Vino de regalo) — $${price.toLocaleString('es-AR')}`);
+    items.push(`• ${qty}x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $${price.toLocaleString('es-AR')}`);
     total += price;
+    processedCuts.add('asadazo');
   }
 
-  // 2. Línea por línea para detectar cortes y cantidades
-  const lines = allUserTexts.split('\n');
-  for (const line of lines) {
-    const l = line.toLowerCase().trim();
-    if (!l) continue;
+  // 2. Búsqueda y cotejo frase por frase (separando por saltos, comas, puntos y conectores "y", "con", "más")
+  const chunks = allUserTexts.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+  for (const chunk of chunks) {
+    const c = chunk.toLowerCase().trim();
+    if (!c) continue;
 
-    const kgMatch = l.match(/([0-9]+(?:[\.,][0-9]+)?)\s*(?:kilo|kg|quilo|kilos|kgs|bolsa|bolsas|botella|botellas|x)?/i);
-    const quantity = kgMatch ? parseFloat(kgMatch[1].replace(',', '.')) : 1;
+    // Buscar cantidad (ej: 2 kilos, 2kg, 2.5 kg, 3 bolsas)
+    const qtyMatch = c.match(/([0-9]+(?:[\.,][0-9]+)?)\s*(?:kilo|kg|quilo|kilos|kgs|bolsa|bolsas|botella|botellas|x)?/i);
+    const quantity = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
 
-    // Vacío
-    if (/vacio|vacío/i.test(l) && !items.some(i => i.toLowerCase().includes('vacío') || i.toLowerCase().includes('vacio'))) {
-      const p = products.find(x => /vacio|vacío/i.test(x.name)) || { price: 11500, unit: 'kg', name: 'Vacío Seleccionado' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
+    for (const prod of MASTER_CATALOG) {
+      if (prod.keywords.some(kw => c.includes(kw)) && !processedCuts.has(prod.name)) {
+        // Encontrar precio actualizado de DB si existe
+        const dbProd = (products || []).find(p => (p.name || '').toLowerCase() === prod.name.toLowerCase());
+        const unitPrice = dbProd ? Number(dbProd.price) : prod.price;
+        const sub = Math.round(unitPrice * quantity);
 
-    // Chorizo
-    if (/chori|chorizo|chorizos/i.test(l) && !items.some(i => i.toLowerCase().includes('chori'))) {
-      const p = products.find(x => /chori/i.test(x.name)) || { price: 6500, unit: 'kg', name: 'Chorizo Criollo Puro Cerdo' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Costilla / Asado
-    if (/costilla|costillar|tira de asado|asado de tira/i.test(l) && !items.some(i => i.toLowerCase().includes('costilla') || i.toLowerCase().includes('costillar'))) {
-      const p = products.find(x => /costilla|costillar/i.test(x.name)) || { price: 9800, unit: 'kg', name: 'Costillar de Novillito' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Picada / Molida
-    if (/picada|molida/i.test(l) && !items.some(i => i.toLowerCase().includes('picada') || i.toLowerCase().includes('molida'))) {
-      const p = products.find(x => /picada|molida/i.test(x.name)) || { price: 5800, unit: 'kg', name: 'Picada Especial' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Milanesas
-    if (/milanesa|milanesas/i.test(l) && !items.some(i => i.toLowerCase().includes('milanesa'))) {
-      const p = products.find(x => /milanesa/i.test(x.name)) || { price: 9200, unit: 'kg', name: 'Milanesas de Novillito' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Costeletas / Cerdo
-    if (/costeleta|costeletas|cerdo/i.test(l) && !items.some(i => i.toLowerCase().includes('costeleta') || i.toLowerCase().includes('cerdo'))) {
-      const p = products.find(x => /costeleta|cerdo/i.test(x.name)) || { price: 7500, unit: 'kg', name: 'Costeletas de Cerdo' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Morcilla
-    if (/morcilla|morcillas/i.test(l) && !items.some(i => i.toLowerCase().includes('morcilla'))) {
-      const p = products.find(x => /morcilla/i.test(x.name)) || { price: 5200, unit: 'kg', name: 'Morcilla Bombón' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Matambre
-    if (/matambre/i.test(l) && !items.some(i => i.toLowerCase().includes('matambre'))) {
-      const p = products.find(x => /matambre/i.test(x.name)) || { price: 9500, unit: 'kg', name: 'Matambre de Cerdo / Vaca' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity} ${p.unit || 'kg'} ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Carbón
-    if (/carbon|carbón/i.test(l) && !items.some(i => i.toLowerCase().includes('carbón') || i.toLowerCase().includes('carbon'))) {
-      const p = products.find(x => /carbon|carbón/i.test(x.name)) || { price: 2200, unit: 'bolsa', name: 'Carbón Quebracho Blanco' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity}x ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
-    }
-
-    // Vino
-    if (/vino/i.test(l) && !items.some(i => i.toLowerCase().includes('vino'))) {
-      const p = products.find(x => /vino/i.test(x.name)) || { price: 5500, unit: 'botella', name: 'Vino Howlmande Malbec' };
-      const sub = p.price * quantity;
-      items.push(`• ${quantity}x ${p.name} — $${sub.toLocaleString('es-AR')}`);
-      total += sub;
+        items.push(`• ${quantity} ${prod.unit} ${prod.name} — $${sub.toLocaleString('es-AR')}`);
+        total += sub;
+        processedCuts.add(prod.name);
+        break;
+      }
     }
   }
 
@@ -166,47 +129,6 @@ export class AIService {
 
     const kbContext = relevantKB.map(item => `[${item.title}]: ${item.content}`).join('\n');
 
-    const formattedHistory = history.map(msg => {
-      const role = msg.sender === 'user' ? 'Cliente' : 'Asesor Carnicero';
-      return `${role}: ${msg.content}`;
-    }).join('\n');
-
-    const systemInstruction = `${settings.systemPrompt}
-
-DATOS DEL CLIENTE EN ESTE CHAT:
-- Nombre / Perfil: ${lead.pushName || lead.name || 'Cliente'}
-- Teléfono: ${lead.phone || jid.split('@')[0]}
-- Etapa en CRM: ${lead.stage || 'Nuevo Lead'}
-- Notas previas: ${lead.notes || 'Sin notas'}
-
-CATÁLOGO OFICIAL DE PRODUCTOS Y PRECIOS DISPONIBLES (República de la Carne):
-${productCatalogContext || 'Consultar con asesor.'}
-
-BASE DE CONOCIMIENTOS DE LA EMPRESA (HORARIOS, SUCURSALES, ENVÍOS, PAGOS):
-${kbContext || 'Envíos en el día dentro de las 24 hs. Sucursales: Urca, Cerro de las Rosas, General Paz, Villa Belgrano.'}
-
-METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
-1. PASO 1 (EVALUACIÓN Y CÁLCULO DE COMENSALES):
-   - Si el cliente pregunta qué llevar o menciona cuántos comensales son:
-     • Calcula 500g por persona para asado (o 300g para diario).
-     • Propone una combinación equilibrada con precios exactos y subtotal.
-     • Pregúntale si le gusta la propuesta o si prefiere cambiar algún corte.
-2. PASO 2 (PERSONALIZACIÓN Y ADICIONALES):
-   - Si el cliente confirma o modifica cortes (ej: "2kg de vacio y 2kg de chorizos", "sacame el cerdo", "sumá carbón"):
-     • Confirma los cortes, calcula el subtotal exacto y sugiere complementos (carbón, vino Howlmande, achuras).
-     • Pregunta si prefiere entrega a domicilio o retiro por sucursal.
-3. PASO 3 (DATOS DE ENTREGA):
-   - Pide la dirección exacta y nombre completo para la entrega.
-4. PASO 4 (RESUMEN OFICIAL Y PAGO):
-   - Muestra el resumen estructurado con total en ARS y opciones de pago:
-     📋 *RESUMEN DE TU PEDIDO:*
-     • [Productos pedidos, cantidades y precios]
-     💰 *Total a abonar:* $[Monto total]
-     📍 *Entrega:* [Dirección informada]
-     🚚 *Despacho:* Programado para el día (dentro de las 24 hs).
-     💳 *Medios de Pago:* 1️⃣ Efectivo al recibir, 2️⃣ Transferencia (Alias: republica.carne.mp), 3️⃣ Mercado Pago.
-   - Incluye al final: [[STAGE:closed_won]] [[PAYMENT_AMOUNT:monto_total]]`;
-
     let replyText = '';
 
     try {
@@ -215,98 +137,30 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
       const isValidNvidiaKey = settings.nvidiaApiKey && settings.nvidiaApiKey.startsWith('nvapi-');
       const isValidCustom = settings.customBaseUrl && settings.customBaseUrl.startsWith('http');
 
-      if (settings.aiProvider === 'nvidia' && isValidNvidiaKey) {
-        const nvidia = new OpenAI({
-          apiKey: settings.nvidiaApiKey,
-          baseURL: 'https://integrate.api.nvidia.com/v1'
-        });
-
-        const messages = [{ role: 'system', content: systemInstruction }];
-        history.forEach(m => {
-          messages.push({
-            role: m.sender === 'user' ? 'user' : 'assistant',
-            content: m.content
-          });
-        });
-        if (messages[messages.length - 1]?.content !== incomingText) {
-          messages.push({ role: 'user', content: incomingText });
-        }
-
-        const completion = await nvidia.chat.completions.create({
-          model: settings.nvidiaModel || 'meta/llama-3.3-70b-instruct',
-          messages,
-          temperature: 0.6,
-          max_tokens: 450
-        });
-
-        replyText = completion.choices[0]?.message?.content || '';
-      } else if (settings.aiProvider === 'custom' && isValidCustom) {
-        const customClient = new OpenAI({
-          apiKey: settings.customApiKey || 'dummy-key',
-          baseURL: settings.customBaseUrl
-        });
-
-        const messages = [{ role: 'system', content: systemInstruction }];
-        history.forEach(m => {
-          messages.push({
-            role: m.sender === 'user' ? 'user' : 'assistant',
-            content: m.content
-          });
-        });
-        if (messages[messages.length - 1]?.content !== incomingText) {
-          messages.push({ role: 'user', content: incomingText });
-        }
-
-        const completion = await customClient.chat.completions.create({
-          model: settings.customModel || 'llama3',
-          messages,
-          temperature: 0.6,
-          max_tokens: 450
-        });
-
-        replyText = completion.choices[0]?.message?.content || '';
-      } else if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
+      if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const configuredModel = settings.aiModel;
-        const modelName = (configuredModel && (configuredModel.includes('latest') || configuredModel.includes('3.'))) 
-          ? configuredModel 
-          : 'gemini-flash-latest';
-        
-        let model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction
-        });
+        let modelName = settings.aiModel || 'gemini-pro-latest';
+        let model = genAI.getGenerativeModel({ model: modelName });
 
-        const prompt = `HISTORIAL DE LA CONVERSACIÓN:\n${formattedHistory}\n\nÚLTIMO MENSAJE DEL CLIENTE: "${incomingText}"\n\nTu respuesta como Asesor Carnicero:`;
+        const prompt = `System Instruction:\n${settings.systemPrompt}\n\nCliente: ${incomingText}\n\nResponde como el carnicero Carlos:`;
         try {
           const result = await model.generateContent(prompt);
           replyText = result.response.text();
-        } catch (mErr) {
-          console.warn(`⚠️ Error con modelo ${modelName}, reintentando con gemini-flash-latest:`, mErr.message);
-          const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-flash-latest', systemInstruction });
-          const result = await fallbackModel.generateContent(prompt);
-          replyText = result.response.text();
+        } catch (geminiErr) {
+          console.warn(`Error con modelo ${modelName}, usando motor inteligente directo:`, geminiErr.message);
+          replyText = this.generateDynamicReply(incomingText, lead, knowledgeBase, settings);
         }
       } else if (settings.aiProvider === 'openai' && isValidOpenAiKey) {
         const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-        const messages = [{ role: 'system', content: systemInstruction }];
-        history.forEach(m => {
-          messages.push({
-            role: m.sender === 'user' ? 'user' : 'assistant',
-            content: m.content
-          });
-        });
-        if (messages[messages.length - 1]?.content !== incomingText) {
-          messages.push({ role: 'user', content: incomingText });
-        }
-
         const completion = await openai.chat.completions.create({
           model: settings.aiModel || 'gpt-4o-mini',
-          messages,
+          messages: [
+            { role: 'system', content: settings.systemPrompt },
+            { role: 'user', content: incomingText }
+          ],
           temperature: 0.7,
           max_tokens: 450
         });
-
         replyText = completion.choices[0]?.message?.content || '';
       } else {
         replyText = this.generateDynamicReply(incomingText, lead, knowledgeBase, settings);
@@ -354,7 +208,7 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
   }
 
   /**
-   * Generador de respuestas dinámicas e inteligentes paso a paso cuando no hay API Key externa
+   * Generador de respuestas dinámicas, ágiles, coherentes y altamente consultivas
    */
   static generateDynamicReply(text, lead, knowledgeBase, settings) {
     const t = (text || '').toLowerCase().trim();
@@ -373,7 +227,7 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
       const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
       const amount = lastOrder ? lastOrder.totalAmount : 39999;
       const orderId = lastOrder ? lastOrder.id : `ORD-${Date.now().toString().slice(-4)}`;
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes')) ? lead.name : (nameGreeting || 'Don Juan');
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
       
       const isSandbox = (settings.mercadopagoMode || 'sandbox') === 'sandbox';
       const sandboxTag = isSandbox ? '💳 *[MERCADO PAGO CHECKOUT PRO]*\n' : '';
@@ -393,44 +247,46 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
       if (lastOrder) {
         db.updateOrderStatus(lastOrder.id, 'preparing');
       }
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes')) ? lead.name : (nameGreeting || 'Don Juan');
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
       return `¡De diez ${clientName}! 🥩🔥 Ya quedó asentado tu medio de pago: **${payMethod}**${lastOrder ? ` para tu pedido **#${lastOrder.id}**` : ''}.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌`;
     }
 
     // =========================================================================
     // 0.2 CONSULTA DIRECTA DE OFERTAS, PRECIOS, PROMOCIONES Y CORTES DISPONIBLES
-    // (Ej: "que tenes en oferta para asado", "que cortes hay en oferta", "que cortes hay en ofeta", "precios", "ofertas")
     // =========================================================================
     const isOffersQuery = /oferta|ofertas|ofeta|ofetas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|que corte|que cortes hay|cortes en oferta|cortes tenes|cortes tenés|carta|catalogo|catálogo|opciones/i.test(t);
-    const hasAddressOrOrderClose = /calle|av\.|avenida|barrio|funes|locelso|altura|dpto|domicilio/i.test(t) || /(?:quiero|dame|traeme|mandame|anotame)\s+[0-9]+/i.test(t);
+    const hasAddressOrOrderClose = /calle|av\.|avenida|barrio|funes|locelso|tupac|yupanqui|altura|dpto|domicilio/i.test(t);
 
     if (isOffersQuery && !hasAddressOrOrderClose) {
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes')) ? lead.name : (nameGreeting || 'Don Juan');
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
 
       return `¡Mirá ${clientName}! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n` +
         `🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n` +
         `🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n` +
         `🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n` +
+        `• **Tapa de Cuadril Seleccionada:** $12.800 / kg\n` +
         `• **Vacío Especial / Tierno:** $11.500 / kg\n` +
         `• **Costillar / Asado de Tira:** $9.800 / kg\n` +
-        `• **Matambre de Cerdo:** $8.500 / kg\n` +
-        `• **Costeletas de Cerdo:** $7.500 / kg\n` +
-        `• **Chorizo Criollo Puro Cerdo:** $6.500 / kg\n` +
+        `• **Bife de Chorizo Premium:** $14.500 / kg\n` +
+        `• **Entraña Fina:** $16.900 / kg\n` +
+        `• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n` +
+        `• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n` +
         `• **Morcilla Bombón Parrillera:** $5.200 / kg\n` +
-        `• **Picada Especial:** $5.800 / kg\n` +
-        `• **Milanesas de Nalga preparadas:** $8.900 / kg\n` +
+        `• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n` +
+        `• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n` +
+        `• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n` +
         `• **Carbón Quebracho (bolsa grande):** $2.200\n\n` +
         `👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚 [[STAGE:proposal]]`;
     }
 
     // =========================================================================
-    // 1. EVALUACIÓN Y CÁLCULO DE COMENSALES (PASO 1: ASESORAMIENTO CONSULTIVO)
+    // 1. CÁLCULO DE COMENSALES (SOLO SI DICE EXPLÍCITAMENTE "PERSONAS", "COMENSALES", "INVITADOS")
     // =========================================================================
-    const comensalesMatch = t.match(/(?:somos|para|comemos|seremos|calcular\s+para)?\s*([0-9]+)\s*(?:personas|personas\s+para|comensales|amigos|invitados|para\s+el\s+asado)?/i);
-    const isAsadoContext = /asado|parrilla|fuego|carne|asadaso|asadazo|costilla|vacio/i.test(t) || comensalesMatch;
+    const explicitPeopleMatch = t.match(/(?:somos|para|comemos|seremos|calcular\s+para)\s*([0-9]+)\s*(?:personas|comensales|amigos|invitados|bocas)/i) ||
+                                t.match(/([0-9]+)\s+(?:personas|comensales|amigos|invitados|bocas)/i);
 
-    if (comensalesMatch && isAsadoContext) {
-      const count = parseInt(comensalesMatch[1], 10);
+    if (explicitPeopleMatch) {
+      const count = parseInt(explicitPeopleMatch[1], 10);
       if (count >= 2 && count <= 50) {
         const totalKg = (count * 0.5).toFixed(1).replace('.0', '');
         
@@ -441,56 +297,75 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
             `o si preferís cortes a elección:\n` +
             `• 1.5 kg Vacío Seleccionado ($17.250)\n` +
             `• 1.0 kg Costeletas de Cerdo ($7.500)\n` +
-            `• 0.5 kg Chorizo Criollo ($3.250)\n` +
-            `💰 Total a elección: **$28.000**`;
+            `• 0.5 kg Chorizo Criollo ($2.500)\n` +
+            `💰 Total a elección: **$27.250**`;
         } else if (count <= 8) {
           recommendation = `🔥 Para **${count} personas**, calculamos unos **${totalKg} kg de carne** para que coman de diez. Te armo esta propuesta equilibrada:\n\n` +
             `• 2.0 kg Costillar de Novillito ($19.600)\n` +
             `• 1.5 kg Vacío Seleccionado ($17.250)\n` +
-            `• 1.0 kg Chorizo Criollo Puro Cerdo ($6.500)\n` +
+            `• 1.0 kg Chorizo Criollo Puro Cerdo ($5.000)\n` +
             `• 1.0 kg Morcilla Bombón ($5.200)\n` +
-            `💰 *Subtotal estimado (${totalKg} kg):* **$48.550**\n` +
+            `💰 *Subtotal estimado (${totalKg} kg):* **$47.050**\n` +
             `🎁 ¡Sumamos 1 bolsa de carbón quebracho ($2.200) o Vino Howlmande si lo confirmamos hoy!`;
         } else {
           recommendation = `🔥 ¡Tremendo asado para **${count} personas**! Calculamos unos **${totalKg} kg de carne** en total. Te recomiendo armar:\n\n` +
             `• 4.0 kg Costillar / Asado de Tira ($39.200)\n` +
             `• 3.0 kg Vacío Especial ($34.500)\n` +
-            `• 2.0 kg Chorizo Criollo ($13.000)\n` +
+            `• 2.0 kg Chorizo Criollo ($10.000)\n` +
             `• 1.5 kg Morcilla Bombón ($7.800)\n` +
             `• 1.5 kg Matambre de Cerdo ($12.750)\n` +
-            `💰 *Total estimado (${totalKg} kg):* **$107.250**`;
+            `💰 *Total estimado (${totalKg} kg):* **$104.250**`;
         }
 
-        return `¡De diez${nameGreeting}! 🥩 ${recommendation}\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)? [[STAGE:qualified]]`;
+        return `¡De diez${nameGreeting}! 🥩 ${recommendation}\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (tapa de cuadril, entraña, achuras)? [[STAGE:qualified]]`;
       }
     }
 
     // =========================================================================
-    // 2. DETECTOR DE LISTA DE CORTES / ÍTEMS SOLICITADOS (PASO 2: CONSTRUCCIÓN)
-    // (Ej: "Quiero 2kg de chorizos, 2kg de vacio", "dame 1kg de picada")
+    // 2. DETECCIÓN EXACTA DE ÍTEMS Y CANTIDADES (INDIVIDUALES O MÚLTIPLES)
+    // (Ej: "Estoy buscando tapa de cuadril 2 kilos", "dame 1kg de vacio y 2 bolsas de carbon")
     // =========================================================================
-    const hasCutsMention = /vacio|vacío|chori|chorizo|costilla|costillar|picada|molida|milanesa|milanesas|costeleta|cerdo|morcilla|matambre|asadazo|combo/i.test(t);
-    const hasAddress = /calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|funes|locelso|tupac|yupanqui|domicilio|[0-9]{3,5}/i.test(t) || 
-                       (rawText.includes(',') && /[0-9]/.test(rawText));
+    const { items: detectedItems, total: detectedTotal } = extractItemsFromHistoryAndText([], rawText, products);
+    const hasRealItems = (detectedItems.length > 0 && !detectedItems[0].includes('• 1x Combo “Asadazo”')) || (detectedItems.length > 0 && /asadazo/i.test(rawText));
 
-    if (hasCutsMention && !hasAddress) {
-      const { items, total } = extractItemsFromHistoryAndText(history, rawText, products);
-      const formattedTotal = `$${total.toLocaleString('es-AR')}`;
+    if (hasRealItems && !hasAddressOrOrderClose) {
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
+      const formattedTotal = `$${detectedTotal.toLocaleString('es-AR')}`;
 
-      return `¡Anotado${nameGreeting}! 🥩 Te separo los cortes solicitados:\n\n${items.join('\n')}\n💰 *Subtotal acumulado:* **${formattedTotal}**\n\n👉 **Siguiente paso:** ¿Te gustaría sumar 1 bolsa de carbón quebracho ($2.200) o vino Howlmande ($5.500), o pasamos a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal**? 🥩 [[STAGE:proposal]]`;
+      return `¡De diez ${clientName}! 🥩 Te separo los cortes solicitados:\n\n` +
+        `📋 **Detalle de tu pedido:**\n` +
+        `${detectedItems.join('\n')}\n` +
+        `💰 **Subtotal acumulado:** **${formattedTotal}**\n\n` +
+        `👉 **¿Te gustaría sumar algún complemento?**\n` +
+        `• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n` +
+        `• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n` +
+        `• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚 [[STAGE:proposal]]`;
+    }
+
+    // =========================================================================
+    // 2.1 CONSULTA DE PRECIO DE UN CORTE ESPECÍFICO SIN CANTIDAD ("cuanto sale la entraña")
+    // =========================================================================
+    const matchedCatalogItem = MASTER_CATALOG.find(item => 
+      item.keywords.some(kw => t.includes(kw))
+    );
+
+    if (matchedCatalogItem && !hasAddressOrOrderClose) {
+      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
+      const formattedUnit = `$${matchedCatalogItem.price.toLocaleString('es-AR')}`;
+      return `¡Sí, ${clientName}! 🥩 Tenemos **${matchedCatalogItem.name}** fresca y de excelente terneza a **${formattedUnit} por ${matchedCatalogItem.unit}**.\n\n¿Cuántos ${matchedCatalogItem.unit} te gustaría que te separemos para tu pedido? 🙌 [[STAGE:proposal]]`;
     }
 
     // =========================================================================
     // 3. DETECTOR DE DATOS DE ENVÍO / DIRECCIÓN / CIERRE DE PEDIDO (PASO 3 Y 4)
     // =========================================================================
+    const hasAddress = (/calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|funes|locelso|tupac|yupanqui|domicilio/i.test(t) || (rawText.includes(',') && /[0-9]/.test(rawText))) && !/(?:kilo|kg|quilo|bolsa|botella)/i.test(t);
+
     if (hasAddress && t.length > 5) {
-      // Extracción inteligente de nombre y dirección
       let extractedName = '';
       let cleanAddress = rawText;
 
       const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
       if (lines.length >= 2) {
-        // Formato multilínea: Línea 1 = Nombre, Línea 2 = Dirección
         const line1 = lines[0];
         const line2 = lines.slice(1).join(', ');
         if (!/[0-9]/.test(line1) && line1.length >= 3 && line1.length <= 35) {
@@ -505,17 +380,6 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
           const candidate = explicitNameMatch[1].trim();
           if (!/funes|locelso|duarte|quiros|urca|calle|av|combo|asado|repartidor|efectivo|tupac|yupanqui/i.test(candidate)) {
             extractedName = candidate;
-          }
-        }
-      }
-
-      if (!extractedName && rawText.includes(',')) {
-        const parts = rawText.split(',');
-        for (const part of parts) {
-          const clean = part.replace(/(?:mi nombre(?: completo)?|es mi nombre|mi onmbre|a nombre de|para)/gi, '').trim();
-          if (clean.length >= 3 && clean.length <= 30 && !/[0-9]/.test(clean) && !/calle|av|funes|locelso|duarte|quiros|urca|tupac|yupanqui|domicilio|entrega|envio|esquina|casa|depto|piso|barrio|zona|abono|pago|efectivo|repartidor|transferencia|combo|asadazo/i.test(clean)) {
-            extractedName = clean;
-            break;
           }
         }
       }
@@ -535,12 +399,11 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
       db.updateLead(lead.jid || lead.id, { address: cleanAddress, notes: `Dirección: ${cleanAddress}` });
 
       let finalClientName = extractedName;
-      if (!finalClientName && customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') && customerName !== 'Don Juan' && !customerName.includes('recuerda') && !customerName.includes('efectivo') && !customerName.includes('funes')) {
+      if (!finalClientName && customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') && customerName !== 'Don Juan' && !customerName.includes('recuerda') && !customerName.includes('efectivo') && !customerName.includes('funes') && !customerName.includes('domicilio')) {
         finalClientName = customerName;
       }
 
       if (finalClientName) {
-        // Extraer los ítems y totales reales de la conversación
         const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, rawText, products);
 
         const newOrder = db.createOrder({
@@ -572,56 +435,44 @@ METODOLOGÍA DE ASESORAMIENTO Y ARMADO DE PEDIDO PASO A PASO:
     }
 
     // =========================================================================
-    // 4. COMBOS Y OFERTAS
+    // 4. SUCURSALES, HORARIOS Y UBICACIONES (BASE DE CONOCIMIENTO OFICIAL)
     // =========================================================================
-    const isComboQuery = /combo|asadazo|azadado|asadado|azadazo/i.test(t);
-    if (isComboQuery) {
-      return `¡El **Combo “Asadazo”** viene completísimo para la parrilla! 🔥\n\nIncluye **4 kg** de cortes seleccionados:\n🥩 Bocado parrillero\n🥩 Aguja tierna\n🥩 Falda especial\n🌭 Chorizo puro cerdo\n🌭 Morcilla bombón\n🎁 **De regalo:** 1 Vino Howlmande\n\n💰 **Precio Promo:** **$39.999**.\n\n👉 **Paso 1:** ¿Te gustaría sumar carbón ($2.200) o pasamos a coordinar la **entrega a domicilio / retiro por sucursal**? 🥩 [[STAGE:proposal]]`;
+    if (t.includes('sucursal') || t.includes('sucursales') || t.includes('donde') || t.includes('direccion') || t.includes('horario') || t.includes('urca') || t.includes('quiros') || t.includes('villa allende') || t.includes('san isidro')) {
+      return `🏪 **Nuestras 6 Sucursales en Córdoba y Gran Córdoba:**\n\n` +
+        `1. **Urca Central:** Av. José Roque Funes 1115 (📞 +54 9 3513 906947) — Lun a Sáb 9 a 21 hs | Dom 9 a 13:30 hs.\n` +
+        `2. **Urca 2 (Alto Tejeda):** Av. Menéndez Pidal 3575 (📞 +54 9 3518 623195).\n` +
+        `3. **Intercountry (Corteza Mall):** Av. Los Álamos 1015 (📞 +54 9 3518 623194) — Todos los días 9 a 21 hs.\n` +
+        `4. **Duarte Quirós:** Av. Duarte Quirós 5130 (📞 +54 9 3518 156595) — 9 a 13:30 y 17 a 21 hs.\n` +
+        `5. **Villa Allende (Mercadito de la Villa):** Av. Figueroa Alcorta 480 (📞 +54 9 3513 540031).\n` +
+        `6. **Country San Isidro (Alto Tejeda):** Av. Padre Luchesse km 2 (📞 +54 9 3518 769099).\n\n` +
+        `🛵 **¡También tenemos Delivery en el día a todo Córdoba!** ¿Por cuál sucursal preferís retirar o a qué dirección te lo enviamos? 🥩`;
     }
 
     // =========================================================================
-    // 5. SUCURSALES / UBICACIONES
-    // =========================================================================
-    if (t.includes('sucursal') || t.includes('donde') || t.includes('direccion') || t.includes('horario') || t.includes('urca') || t.includes('quiros') || t.includes('villa allende')) {
-      return `Contamos con 4 sucursales principales en Córdoba:\n\n1. **Urca Central:** Av. José Roque Funes 1115\n2. **Cerro de las Rosas:** Av. Rafael Núñez 4200\n3. **General Paz:** Av. 24 de Septiembre 1120\n4. **Villa Belgrano:** Av. Recta Martinolli 6500\n\n¡Además hacemos envíos a domicilio en el día! ¿En qué barrio o zona estás así coordinamos tu entrega? 🚚`;
-    }
-
-    // =========================================================================
-    // 5.5 ACLARACIONES, CORRECCIONES Y OBJECIONES ("no te pedí eso", "eso no", "espera")
+    // 5. ACLARACIONES, CORRECCIONES Y OBJECIONES
     // =========================================================================
     if (/no te pedí|no pedi|otra cosa|eso no|no es eso|te equivocaste|para nada|te dije|no gracias|no quiero eso/i.test(t)) {
       return `¡Tenés toda la razón${nameGreeting}, disculpame la confusión! 🥩 Contame exactamente qué corte o pedido tenías en mente, o qué te gustaría cambiar, y te lo armo a tu medida paso a paso. 🙌`;
     }
 
     // =========================================================================
-    // 5.6 PREGUNTAS POR CORTES ESPECÍFICOS (CATÁLOGO EN TIEMPO REAL)
-    // =========================================================================
-    const matchedProduct = products.find(p => t.includes((p.name || '').toLowerCase()) || ((p.aliases || []).some(a => t.includes(a.toLowerCase()))));
-    if (matchedProduct) {
-      const unit = matchedProduct.unit || 'kg';
-      const formattedPrice = `$${Number(matchedProduct.price).toLocaleString('es-AR')}`;
-      return `¡Sí, tenemos **${matchedProduct.name}** fresco de novillito de primera! 🥩\n\nEstá a **${formattedPrice} / ${unit}**.\n\n¿Cuántos ${unit} te gustaría que te preparemos o querés combinarlo con algún otro corte?`;
-    }
-
-    // =========================================================================
-    // 6. SALUDOS Y ATENCIÓN CONSULTIVA
+    // 6. SALUDOS
     // =========================================================================
     if (/^(hola|buen|buenas|que tal|saludos|hey|alo|buenos dias|buenas tardes|buenas noches)/i.test(t)) {
       const greetings = [
-        `¡Hola${nameGreeting}! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame para cuántos comensales calculamos y te armo la propuesta perfecta. 🥩🔥`,
+        `¡Hola${nameGreeting}! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame qué cortes estás buscando o para cuántas personas calculamos y te armo la propuesta perfecta. 🥩🔥`,
         `¡Buenas${nameGreeting}! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩`,
-        `¡Hola${nameGreeting}! Qué lindo saludarte. Tenemos ingresos frescos de costillares, vacíos, achuras y milanesas preparadas. ¿Qué tenías ganas de preparar hoy? 🥩🙌`
+        `¡Hola${nameGreeting}! Qué lindo saludarte. Tenemos ingresos frescos de costillares, tapa de cuadril, vacíos, achuras y milanesas preparadas. ¿Qué tenías ganas de preparar hoy? 🥩🙌`
       ];
-      const selected = greetings[Math.floor(Math.random() * greetings.length)];
-      return selected;
+      return greetings[Math.floor(Math.random() * greetings.length)];
     }
 
     // =========================================================================
-    // 7. RESPUESTA DINÁMICA CONTEXTUAL POR DEFECTO (NUNCA ROBÓTICA)
+    // 7. RESPUESTA DINÁMICA CONTEXTUAL POR DEFECTO
     // =========================================================================
     const fallbackVariations = [
       `¡Excelente${nameGreeting}! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩`,
-      `¡Tomado nota${nameGreeting}! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥`,
+      `¡Tomado nota${nameGreeting}! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥`,
       `¡De diez${nameGreeting}! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩`
     ];
     return fallbackVariations[Math.floor(Math.random() * fallbackVariations.length)];

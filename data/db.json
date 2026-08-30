@@ -317,7 +317,7 @@
       "phone": "+51788782809330",
       "name": "Juan",
       "pushName": "Juan",
-      "stage": "qualified",
+      "stage": "proposal",
       "value": 0,
       "tags": [
         "WhatsApp"
@@ -332,9 +332,9 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:54:20.039Z",
-      "updatedAt": "2026-08-30T21:57:25.000Z",
-      "lastMessage": "¡De diez Juan! 🥩 🔥 Para **2 personas**, calculamos unos **2 a 2.5 kg de carne** en total. Te recomiendo:\n\n• **1x Combo Asadazo (4 kg):** Incluye Bocado, Aguja, Falda, Chori criollo, Morcilla + Vino de regalo ➔ **$39.999** (¡Te queda abundante y con vino incluido!).\no si preferís cortes a elección:\n• 1.5 kg Vacío Seleccionado ($17.250)\n• 1.0 kg Costeletas de Cerdo ($7.500)\n• 0.5 kg Chorizo Criollo ($3.250)\n💰 Total a elección: **$28.000**\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)?",
-      "lastMessageAt": "2026-08-30T21:57:25.000Z"
+      "updatedAt": "2026-08-30T21:58:20.000Z",
+      "lastMessage": "¡Anotado Juan! 🥩 Te separo los cortes solicitados:\n\n• 1 kg Bife de Chorizo / Ojo de Bife — $9.500\n💰 *Subtotal acumulado:* **$9.500**\n\n👉 **Siguiente paso:** ¿Te gustaría sumar 1 bolsa de carbón quebracho ($2.200) o vino Howlmande ($5.500), o pasamos a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal**? 🥩",
+      "lastMessageAt": "2026-08-30T21:58:20.000Z"
     },
     {
       "id": "lead-1788126699370-eb54j",
@@ -1026,6 +1026,37 @@
       "sender": "agent",
       "type": "text",
       "content": "¡De diez Juan! 🥩 🔥 Para **2 personas**, calculamos unos **2 a 2.5 kg de carne** en total. Te recomiendo:\n\n• **1x Combo Asadazo (4 kg):** Incluye Bocado, Aguja, Falda, Chori criollo, Morcilla + Vino de regalo ➔ **$39.999** (¡Te queda abundante y con vino incluido!).\no si preferís cortes a elección:\n• 1.5 kg Vacío Seleccionado ($17.250)\n• 1.0 kg Costeletas de Cerdo ($7.500)\n• 0.5 kg Chorizo Criollo ($3.250)\n💰 Total a elección: **$28.000**\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (entraña, achuras, mollejas)?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3A3124714DD6BD756300",
+      "timestamp": "2026-08-30T21:58:17.000Z",
+      "status": "received",
+      "chatId": "51788782809330@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Tenes alguna primo en chorizo criollo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127101020-pi9ils",
+      "timestamp": "2026-08-30T21:58:21.019Z",
+      "status": "sent",
+      "chatId": "51788782809330@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Anotado Juan! 🥩 Te separo los cortes solicitados:\n\n• 1 kg Bife de Chorizo / Ojo de Bife — $9.500\n💰 *Subtotal acumulado:* **$9.500**\n\n👉 **Siguiente paso:** ¿Te gustaría sumar 1 bolsa de carbón quebracho ($2.200) o vino Howlmande ($5.500), o pasamos a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal**? 🥩"
+    },
+    {
+      "id": "3EB039192692804427FD0C",
+      "timestamp": "2026-08-30T21:58:20.000Z",
+      "status": "sent",
+      "chatId": "51788782809330@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Anotado Juan! 🥩 Te separo los cortes solicitados:\n\n• 1 kg Bife de Chorizo / Ojo de Bife — $9.500\n💰 *Subtotal acumulado:* **$9.500**\n\n👉 **Siguiente paso:** ¿Te gustaría sumar 1 bolsa de carbón quebracho ($2.200) o vino Howlmande ($5.500), o pasamos a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal**? 🥩",
       "mediaUrl": null,
       "audioDuration": 0
     }
