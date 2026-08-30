@@ -166,15 +166,15 @@
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 4,
+      "unreadCount": 2,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T18:57:22.000Z",
+      "updatedAt": "2026-08-30T19:09:24.000Z",
       "jid": "153051277086768@lid",
       "name": "Don Juan",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
-      "lastMessage": "He registrado tu mensaje: \"como viene el combo?\". ¿Deseas consultar sobre alguno de nuestros productos, formas de pago, envíos o prefieres que un asesor te asista personalmente? 😊",
-      "lastMessageAt": "2026-08-30T18:57:22.000Z"
+      "lastMessage": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
+      "lastMessageAt": "2026-08-30T19:09:24.000Z"
     },
     {
       "id": "lead-1788111841514-dvhgd",
@@ -1516,6 +1516,172 @@
       "sender": "agent",
       "type": "text",
       "content": "He registrado tu mensaje: \"como viene el combo?\". ¿Deseas consultar sobre alguno de nuestros productos, formas de pago, envíos o prefieres que un asesor te asista personalmente? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0FBA1B724F8A2485524",
+      "timestamp": "2026-08-30T19:01:13.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788116476827-yr6wu8",
+      "timestamp": "2026-08-30T19:01:16.826Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB070E26051FDAF230EF1",
+      "timestamp": "2026-08-30T19:01:16.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB00AD2B347D74F5474C3",
+      "timestamp": "2026-08-30T19:06:12.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asazado",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788116775776-8r2mpz",
+      "timestamp": "2026-08-30T19:06:15.775Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩"
+    },
+    {
+      "id": "3EB02509A614992CEF12BD",
+      "timestamp": "2026-08-30T19:06:15.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB031470C03D7F538EA0E",
+      "timestamp": "2026-08-30T19:06:42.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "a mi domicilio, jose roque funes 1704, esquina gregorio velez",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0C4DAF16F1033E44D76",
+      "timestamp": "2026-08-30T19:08:20.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "mi onmbre Juan gonzalez",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788116904738-3414ed",
+      "timestamp": "2026-08-30T19:08:24.738Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB09DE99362412BEBA00C",
+      "timestamp": "2026-08-30T19:08:24.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0567B9AF2182FDF0FF6",
+      "timestamp": "2026-08-30T19:09:06.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "no, solo eso",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788116949628-7v8t3r",
+      "timestamp": "2026-08-30T19:09:09.627Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB072CDDF5570435B111E",
+      "timestamp": "2026-08-30T19:09:09.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0486015D65E08ED5251",
+      "timestamp": "2026-08-30T19:09:21.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo unicamente",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788116964851-d79kyo",
+      "timestamp": "2026-08-30T19:09:24.850Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩"
+    },
+    {
+      "id": "3EB03DDA78DE3BA574B869",
+      "timestamp": "2026-08-30T19:09:24.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
       "mediaUrl": null,
       "audioDuration": 0
     }

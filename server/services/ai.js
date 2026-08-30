@@ -339,17 +339,65 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
 
     // =========================================================================
     // 1. DETECTOR DE DATOS DE ENVÍO / DIRECCIÓN / CONFIRMACIÓN DE PEDIDO
-    // (Ej: "Juan Gonzales, calle angel locelso 7100", "av siempre viva 123", "barrio...")
+    // (Ej: "a mi domicilio, jose roque funes 1704, esquina", "calle angel locelso 7100")
     // =========================================================================
-    const hasAddress = /calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|[0-9]{3,5}/i.test(t) || 
+    const hasAddress = /calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|funes|locelso|[0-9]{3,5}/i.test(t) || 
                        (rawText.includes(',') && /[0-9]/.test(rawText));
     
+    // Obtener historial previo
+    const history = db.getMessages(lead.jid || lead.id, 10);
+    const historyText = history.map(m => m.content).join(' ').toLowerCase();
+
+    // 1.1 Si el usuario responde con su Nombre (o si viene con prefijo como 'mi nombre...', 'soy...')
+    const lastBotMessage = [...history].reverse().find(m => m.sender === 'assistant')?.content || '';
+    const hasNamePrefix = /^(soy|a nombre de|me llamo|mi nombre|mi onmbre|nombre:?|para)\s+/i.test(t) || t.includes('onmbre') || (t.includes('nombre') && !t.includes('?'));
+    const isReplyingName = lastBotMessage.toLowerCase().includes('a nombre de quién') || 
+                           lastBotMessage.toLowerCase().includes('nombre y apellido') ||
+                           lastBotMessage.toLowerCase().includes('nombre completo') ||
+                           hasNamePrefix;
+
+    if (isReplyingName && !hasAddress && t.length > 2 && t.length < 60) {
+      let extractedName = rawText.replace(/^(soy|a nombre de|me llamo|mi nombre es|mi nombre|mi onmbre es|mi onmbre|nombre:?)\s+/i, '').trim();
+      extractedName = extractedName.replace(/[.,]/g, '').trim();
+      if (extractedName.length < 2 && rawText.length > 2) {
+        extractedName = rawText.trim();
+      }
+      
+      if (extractedName.length > 1) {
+        db.updateLead(lead.jid || lead.id, { name: extractedName, pushName: extractedName });
+        
+        // Recuperar dirección previa guardada en notas o historial
+        let savedAddress = lead.notes?.replace('Dirección de entrega: ', '') || '';
+        if (!savedAddress || savedAddress === 'A coordinar') {
+          const addressMsg = history.find(m => m.sender === 'user' && /funes|locelso|calle|av|[0-9]{3,5}/i.test(m.content));
+          if (addressMsg) savedAddress = addressMsg.content;
+        }
+        if (!savedAddress) savedAddress = 'A convenir';
+        
+        let orderItems = [];
+        let totalAmount = 0;
+        if (historyText.includes('asadazo') || historyText.includes('combo')) {
+          orderItems.push('• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999');
+          totalAmount += 39999;
+        } else {
+          orderItems.push('• 1x Combo Asado Seleccionado — $24.000');
+          totalAmount += 24000;
+        }
+
+        const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
+        db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
+
+        return `¡Perfecto ${extractedName}! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${extractedName}\n📍 *Destino:* ${savedAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
+      }
+    }
+    
+    // 1.2 Si el cliente envía la Dirección
     if (hasAddress && t.length > 5) {
       // Extraer posible nombre si viene antes de la coma (ej: "Juan Gonzales, calle...")
-      let clientName = customerName;
+      let clientName = '';
       if (rawText.includes(',')) {
         const parts = rawText.split(',');
-        if (parts[0].trim().length > 3 && !/calle|av/i.test(parts[0])) {
+        if (parts[0].trim().length > 3 && !/calle|av|domicilio|entrega|envio/i.test(parts[0])) {
           clientName = parts[0].trim();
           db.updateLead(lead.jid || lead.id, { name: clientName, pushName: clientName });
         }
@@ -358,10 +406,8 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
       // Guardar dirección en notas del lead
       db.updateLead(lead.jid || lead.id, { notes: `Dirección de entrega: ${rawText}` });
 
-      // Buscar en el historial qué productos o combos se hablaron
-      const history = db.getMessages(lead.jid || lead.id, 10);
-      const historyText = history.map(m => m.content).join(' ').toLowerCase();
-
+      // Buscar qué combo o corte pidió
+      let comboName = 'Combo Asadazo ($39.999)';
       let orderItems = [];
       let totalAmount = 0;
 
@@ -378,29 +424,24 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
         totalAmount += 5800;
       }
 
-      if (historyText.includes('costeleta') || t.includes('costeleta')) {
-        orderItems.push('• 2 kg Costeleta de Cerdo en Promoción — $15.000');
-        totalAmount += 15000;
-      }
-
-      if (historyText.includes('milanesa') || t.includes('milanesa')) {
-        orderItems.push('• 2 kg Milanesas de Ternera Rebozadas — $24.990');
-        totalAmount += 24990;
-      }
-
-      // Si no detectó productos específicos del historial, asignar pedido estándar
       if (orderItems.length === 0) {
-        orderItems.push('• 1x Combo Asado Seleccionado — $24.000');
-        totalAmount = 24000;
+        orderItems.push('• 1x Combo Asadazo (4 kg + Vino de regalo) — $39.999');
+        totalAmount = 39999;
       }
 
-      // Formatear Total
-      const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
+      // Si NO sabemos el nombre real del cliente, se lo pedimos cordialmente para etiquetar el paquete
+      const isGenericName = !clientName && (!customerName || customerName.includes('Contacto') || customerName.startsWith('+') || customerName === 'Don Juan');
+      if (isGenericName) {
+        db.updateLead(lead.jid || lead.id, { stage: 'proposal' });
+        return `¡Excelente! Ya registré tu dirección: **${rawText.trim()}** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊 [[STAGE:proposal]]`;
+      }
 
-      // Actualizar CRM Lead a Ganado con el Monto del Trato
+      // Si ya tenemos el nombre, generamos el ticket completo de confirmación
+      const finalName = clientName || customerName;
+      const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
       db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
 
-      return `¡Excelente${clientName ? ` ${clientName}` : ''}! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n📍 *Destino de Entrega:* ${rawText.trim()}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
+      return `¡Excelente ${finalName}! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalName}\n📍 *Destino de Entrega:* ${rawText.trim()}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
     }
 
     // =========================================================================

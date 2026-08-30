@@ -147,6 +147,18 @@ class DatabaseService {
     }
   }
 
+  updateLead(jidOrId, updates) {
+    const db = this.readDb();
+    const lead = (db.leads || []).find(l => l.id === jidOrId || l.jid === jidOrId);
+    if (lead) {
+      Object.assign(lead, updates);
+      lead.updatedAt = new Date().toISOString();
+      this.writeDb(db);
+      return lead;
+    }
+    return null;
+  }
+
   updateLeadStage(jidOrId, stage) {
     const db = this.readDb();
     const lead = (db.leads || []).find(l => l.id === jidOrId || l.jid === jidOrId);
