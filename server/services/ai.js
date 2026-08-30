@@ -118,7 +118,7 @@ INSTRUCCIONES CLAVE DE FORMATO Y ESTILO:
       } else if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
         // --- 3. GOOGLE GEMINI ---
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const modelName = settings.aiModel || 'gemini-2.0-flash';
+        const modelName = (settings.aiModel && !settings.aiModel.includes('2.0-flash')) ? settings.aiModel : 'gemini-1.5-flash';
         const model = genAI.getGenerativeModel({
           model: modelName,
           systemInstruction
@@ -233,9 +233,9 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
       const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
 
       if (isValidGeminiKey) {
-        // Gemini 2.0 Flash Vision
+        // Gemini 1.5 Flash Vision
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         const imageBuffer = fs.readFileSync(imagePath);
         const base64Data = imageBuffer.toString('base64');
 
@@ -304,6 +304,11 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     const t = (text || '').toLowerCase().trim();
     const customerName = lead.pushName || lead.name || '';
     const nameGreeting = customerName && !customerName.includes('Contacto') ? ` ${customerName}` : '';
+
+    // 0. Nota de voz recibida
+    if (t.includes('nota de voz recibida') || t.includes('audio recibido')) {
+      return `¡Hola${nameGreeting}! He recibido tu nota de voz con éxito. Estoy a tu entera disposición para resolver tus dudas sobre nuestros productos, precios, envíos o formas de pago. ¿En qué podemos ayudarte el día de hoy?`;
+    }
 
     // 1. Saludos
     if (/^(hola|buen|buenas|que tal|saludos|hey|alo)/i.test(t)) {

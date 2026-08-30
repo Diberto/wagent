@@ -5,7 +5,7 @@
     "openaiApiKey": "diberto77",
     "aiModel": "gemini-2.0-flash",
     "aiVoiceModel": "es-AR-TomasNeural",
-    "ttsProvider": "edge",
+    "ttsProvider": "elevenlabs",
     "agentName": "Carlos - Carnicero Virtual",
     "businessName": "República de la Carne",
     "autoReplyEnabled": true,
@@ -94,21 +94,21 @@
   "leads": [
     {
       "id": "lead-1788107987079-jk80w",
-      "stage": "new_lead",
+      "stage": "proposal",
       "value": 0,
       "tags": [
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 2,
+      "unreadCount": 1,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T18:06:47.000Z",
+      "updatedAt": "2026-08-30T18:09:12.000Z",
       "jid": "153051277086768@lid",
       "name": "Don Juan",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
-      "lastMessage": "¡Hola Don Juan! 👋 Un gusto saludarte. Soy la asesora virtual de República de la Carne. ¿En qué producto o servicio te podemos ayudar hoy?",
-      "lastMessageAt": "2026-08-30T18:06:47.000Z"
+      "lastMessage": "🎤 [Nota de voz]",
+      "lastMessageAt": "2026-08-30T18:09:12.000Z"
     },
     {
       "id": "lead-1788111841514-dvhgd",
@@ -795,6 +795,134 @@
       "content": "¡Hola Don Juan! 👋 Un gusto saludarte. Soy la asesora virtual de República de la Carne. ¿En qué producto o servicio te podemos ayudar hoy?",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB0B21E54FB50D83B7E15",
+      "timestamp": "2026-08-30T18:06:54.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "que productos tienen",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788113218344-cgqq1f",
+      "timestamp": "2026-08-30T18:06:58.342Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "Vendemos carnes de vaca, cerdo y pollo de primera calidad, los mejores precios\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊"
+    },
+    {
+      "id": "3EB0E98B41827F8B8B553B",
+      "timestamp": "2026-08-30T18:06:58.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "Vendemos carnes de vaca, cerdo y pollo de primera calidad, los mejores precios\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "2A57F4633634C9B56A00",
+      "timestamp": "2026-08-30T18:07:10.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Si costillar quisiera",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788113232932-wou424",
+      "timestamp": "2026-08-30T18:07:12.931Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar."
+    },
+    {
+      "id": "3EB00F23238AEE8696F5A5",
+      "timestamp": "2026-08-30T18:07:12.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar.",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "2A3534CE446DF661DB7C",
+      "timestamp": "2026-08-30T18:07:52.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "audio",
+      "content": "[Error procesando nota de voz]",
+      "mediaUrl": "/media/audio_1788113273414_onwcus.mp3",
+      "audioDuration": 1
+    },
+    {
+      "id": "msg-1788113281915-0kcem4",
+      "timestamp": "2026-08-30T18:08:01.914Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "He registrado tu mensaje: \"[Error procesando nota de voz]\". ¿Deseas consultar sobre alguno de nuestros productos, formas de pago, envíos o prefieres que un asesor te asista personalmente? 😊",
+      "mediaUrl": "/media/tts_raw_1788113277006_4d4m0.mp3",
+      "audioDuration": 12
+    },
+    {
+      "id": "3EB00C32F5C07EC66751BC",
+      "timestamp": "2026-08-30T18:08:01.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Error procesando nota de voz]",
+      "mediaUrl": "/media/audio_1788113282749_v12nvy.mp3",
+      "audioDuration": 14
+    },
+    {
+      "id": "2A85636C0490FC10E68D",
+      "timestamp": "2026-08-30T18:09:05.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "audio",
+      "content": "[Error procesando nota de voz]",
+      "mediaUrl": "/media/audio_1788113346403_morlqg.mp3",
+      "audioDuration": 1
+    },
+    {
+      "id": "msg-1788113352711-za5u7w",
+      "timestamp": "2026-08-30T18:09:12.710Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "He registrado tu mensaje: \"[Error procesando nota de voz]\". ¿Deseas consultar sobre alguno de nuestros productos, formas de pago, envíos o prefieres que un asesor te asista personalmente? 😊",
+      "mediaUrl": "/media/tts_raw_1788113349519_owptz.mp3",
+      "audioDuration": 12
+    },
+    {
+      "id": "3EB0F6CED37AB149CB9007",
+      "timestamp": "2026-08-30T18:09:12.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Error procesando nota de voz]",
+      "mediaUrl": "/media/audio_1788113353686_twzlgg.mp3",
+      "audioDuration": 14
     }
   ],
   "calls": [

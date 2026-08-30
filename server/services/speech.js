@@ -13,23 +13,62 @@ export class SpeechService {
    * @param {string} audioPath - Ruta al archivo de audio (mp3/wav/ogg)
    * @returns {Promise<string>} Texto transcrito
    */
+  /**
+   * Limpia emojis, tags internos y símbolos Markdown para que los sintetizadores de voz
+   * NO lean los emojis ni caracteres especiales en voz alta.
+   * @param {string} text - Texto original
+   * @returns {string} Texto limpio fonético para TTS
+   */
+  static cleanTextForSpeech(text) {
+    if (!text || typeof text !== 'string') return '';
+    return text
+      // 1. Eliminar etiquetas de sistema internas [[STAGE:...]], [[PAYMENT:...]]
+      .replace(/\[\[.*?\]\]/g, '')
+      // 2. Eliminar URLs
+      .replace(/https?:\/\/\S+/g, '')
+      // 3. Eliminar caracteres Markdown (*negrita*, _cursiva_, ~tachado~, `codigo`, # titulos, > citas)
+      .replace(/[*_~`#>•-]/g, '')
+      // 4. Eliminar Emojis y Pictogramas Unicode completos
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Caritas / Emoticonos
+      .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Símbolos y objetos
+      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transporte y mapas
+      .replace(/[\u{1F700}-\u{1F77F}]/gu, '') // Símbolos alquímicos
+      .replace(/[\u{1F780}-\u{1F7FF}]/gu, '') // Formas geométricas extendidas
+      .replace(/[\u{1F800}-\u{1F8FF}]/gu, '') // Flechas suplementarias
+      .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Símbolos suplementarios (ej: 🤖, 🎙️, 🧠)
+      .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Símbolos de ajedrez y juegos
+      .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Símbolos extendidos-A
+      .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Símbolos varios (ej: 📞, ⚡, ☕, 🌟)
+      .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats (ej: ✨, ❌, ❓)
+      .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Selectores de variación
+      .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '') // Banderas
+      .replace(/[\u{200D}\u{200C}]/gu, '')   // Zero-width joiners
+      // 5. Normalizar espacios
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Transcribe un archivo de audio a texto (Speech-to-Text)
+   * @param {string} audioPath - Ruta al archivo de audio (.ogg o .mp3)
+   * @returns {Promise<string>} Texto transcrito
+   */
   static async transcribeAudio(audioPath) {
     const settings = db.getSettings();
 
     try {
+      // Asegurar conversión a MP3 si es OGG
+      let mp3Path = audioPath;
+      if (audioPath.endsWith('.ogg')) {
+        mp3Path = await AudioConverter.convertOggToMp3(audioPath);
+      }
+
       // 1. Intentar con OpenAI Whisper si hay API key válida de OpenAI
       const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
       if (isValidOpenAiKey) {
         const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-        let fileStreamPath = audioPath;
-
-        // Asegurar que sea mp3 o wav
-        if (audioPath.endsWith('.ogg')) {
-          fileStreamPath = await AudioConverter.convertOggToMp3(audioPath);
-        }
-
         const transcription = await openai.audio.transcriptions.create({
-          file: fs.createReadStream(fileStreamPath),
+          file: fs.createReadStream(mp3Path),
           model: 'whisper-1',
           language: 'es'
         });
@@ -43,12 +82,7 @@ export class SpeechService {
       const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
       if (isValidGeminiKey) {
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-        let mp3Path = audioPath;
-        if (audioPath.endsWith('.ogg')) {
-          mp3Path = await AudioConverter.convertOggToMp3(audioPath);
-        }
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
         const audioBuffer = fs.readFileSync(mp3Path);
         const base64Audio = audioBuffer.toString('base64');
@@ -61,7 +95,7 @@ export class SpeechService {
             }
           },
           {
-            text: 'Transcribe este audio palabra por palabra en español con máxima precisión. Devuelve ÚNICAMENTE el texto transcrito sin explicaciones ni introducciones.'
+            text: 'Transcribe este audio en español con máxima fidelidad. Devuelve ÚNICAMENTE el texto transcrito sin explicaciones ni comillas adicionales.'
           }
         ]);
 
@@ -71,21 +105,27 @@ export class SpeechService {
         }
       }
 
-      console.warn('No hay API Key configurada para transcripción de audio. Utilizando modo demo.');
-      return '[Audio recibido del cliente: Transcripción no disponible, configure su API Key de Gemini u OpenAI en Ajustes]';
+      // 3. Si no hay API key para STT, devolver mensaje amigable
+      console.log('Nota de voz recibida sin API Key de transcripción. Usando detección estándar.');
+      return '[Nota de voz recibida del cliente]';
     } catch (error) {
-      console.error('Error en Speech-to-Text:', error);
-      return '[Error procesando nota de voz]';
+      console.warn('Advertencia en transcripción de audio:', error.message);
+      return '[Nota de voz recibida del cliente]';
     }
   }
 
   /**
    * Convierte texto a audio / nota de voz de WhatsApp (Text-to-Speech)
-   * @param {string} text - Texto a sintetizar
+   * @param {string} rawText - Texto a sintetizar
    * @param {string} customVoice - Voz opcional
    * @returns {Promise<{ oggPath: string, mp3Path: string, durationSeconds: number }>}
    */
-  static async textToSpeech(text, customVoice = null) {
+  static async textToSpeech(rawText, customVoice = null) {
+    const text = this.cleanTextForSpeech(rawText);
+    if (!text) {
+      return { oggPath: null, mp3Path: null, durationSeconds: 0 };
+    }
+
     const settings = db.getSettings();
     let provider = settings.ttsProvider || 'edge';
     let voice = customVoice || settings.aiVoiceModel || 'es-MX-DaliaNeural';

@@ -31,7 +31,7 @@ export const CONFIG = {
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM',
     elevenlabsModelId: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
-    aiModel: process.env.AI_MODEL || 'gemini-2.0-flash',
+    aiModel: process.env.AI_MODEL || 'gemini-1.5-flash',
     aiVoiceModel: process.env.AI_VOICE_MODEL || 'es-MX-DaliaNeural',
     ttsProvider: process.env.TTS_PROVIDER || 'edge', // 'edge' | 'openai' | 'elevenlabs'
     agentName: 'Sara - Asesora Virtual',
