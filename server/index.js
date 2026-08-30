@@ -10,6 +10,7 @@ import fs from 'fs';
 import { CONFIG } from './config/index.js';
 import { db } from './services/database.js';
 import { WhatsAppService } from './services/whatsapp.js';
+import { BackupService } from './services/backup.js';
 import { createApiRouter } from './routes/api.js';
 
 const app = express();
@@ -116,6 +117,9 @@ server.listen(PORT, async () => {
     console.log('Credenciales de sesión encontradas. Conectando a WhatsApp...');
     whatsapp.initialize();
   }
+
+  // Inicializar sistema de respaldos automáticos programados
+  BackupService.initAutoBackupScheduler();
 });
 
 // Manejo de excepciones no capturadas para alta disponibilidad

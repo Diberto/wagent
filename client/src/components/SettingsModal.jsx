@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Settings, 
   Bot, 
@@ -15,7 +15,16 @@ import {
   RefreshCw,
   GitBranch,
   ArrowUpCircle,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck,
+  HardDriveDownload,
+  UploadCloud,
+  DownloadCloud,
+  RotateCcw,
+  FileJson,
+  CheckCircle2,
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 
@@ -37,6 +46,14 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
   const [updateLogs, setUpdateLogs] = useState([]);
   const [updateSuccess, setUpdateSuccess] = useState(false);
+
+  // Backups & Snapshots System
+  const [backupsList, setBackupsList] = useState([]);
+  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [backupStatusMessage, setBackupStatusMessage] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -129,11 +146,135 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
+  // Backup Management Handlers
+  const fetchBackups = async () => {
+    setIsLoadingBackups(true);
+    try {
+      const res = await fetch('/api/backups');
+      const data = await res.json();
+      setBackupsList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error cargando lista de respaldos:', err);
+    } finally {
+      setIsLoadingBackups(false);
+    }
+  };
+
+  const handleCreateBackup = async (label = 'manual') => {
+    setIsCreatingBackup(true);
+    setBackupStatusMessage(null);
+    try {
+      const res = await fetch('/api/backups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBackupStatusMessage({ type: 'success', text: `¡Respaldo "${data.backup?.filename}" creado exitosamente!` });
+        fetchBackups();
+      } else {
+        setBackupStatusMessage({ type: 'error', text: data.error || 'No se pudo generar el respaldo.' });
+      }
+    } catch (err) {
+      setBackupStatusMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsCreatingBackup(false);
+      setTimeout(() => setBackupStatusMessage(null), 6000);
+    }
+  };
+
+  const handleRestoreBackup = async (filename) => {
+    if (!window.confirm(`¿Estás seguro de restaurar el respaldo "${filename}"? Se reemplazarán los datos actuales con este punto de restauración (se creará una copia de seguridad automática previa).`)) {
+      return;
+    }
+
+    setIsRestoring(true);
+    setBackupStatusMessage(null);
+    try {
+      const res = await fetch('/api/backups/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBackupStatusMessage({ 
+          type: 'success', 
+          text: `¡Restauración completada con éxito! (${data.stats?.leads || 0} leads, ${data.stats?.messages || 0} mensajes, ${data.stats?.products || 0} productos). Recargando datos...` 
+        });
+        setTimeout(() => window.location.reload(), 2500);
+      } else {
+        setBackupStatusMessage({ type: 'error', text: data.error || 'Error restaurando respaldo.' });
+      }
+    } catch (err) {
+      setBackupStatusMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const handleUploadRestoreFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm(`¿Deseas restaurar la base de datos a partir del archivo subido "${file.name}"?`)) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setIsRestoring(true);
+    setBackupStatusMessage(null);
+    const formData = new FormData();
+    formData.append('backupFile', file);
+
+    try {
+      const res = await fetch('/api/backups/upload-restore', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBackupStatusMessage({
+          type: 'success',
+          text: `¡Base de datos restaurada correctamente desde el archivo! Recargando aplicación...`
+        });
+        setTimeout(() => window.location.reload(), 2500);
+      } else {
+        setBackupStatusMessage({ type: 'error', text: data.error || 'Error procesando archivo de respaldo.' });
+      }
+    } catch (err) {
+      setBackupStatusMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsRestoring(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteBackup = async (filename) => {
+    if (!window.confirm(`¿Eliminar la copia de seguridad "${filename}"?`)) return;
+    try {
+      const res = await fetch(`/api/backups/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+      if (res.ok) {
+        setBackupsList(prev => prev.filter(b => b.filename !== filename));
+      }
+    } catch (err) {
+      console.error('Error eliminando respaldo:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'backups') {
+      fetchBackups();
+    }
+  }, [activeTab]);
+
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
     { id: 'voice', label: 'Voz & Síntesis (TTS)', icon: Volume2 },
     { id: 'automation', label: 'Llamadas & Auto-Respuestas', icon: PhoneCall },
     { id: 'prompt', label: 'Prompt del Agente', icon: Sliders },
+    { id: 'backups', label: 'Respaldos & Seguridad', icon: ShieldCheck },
     { id: 'updates', label: 'Actualizaciones GitHub', icon: RefreshCw },
   ];
 
@@ -757,6 +898,172 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* 6. PESTAÑA: RESPALDOS Y SEGURIDAD */}
+          {activeTab === 'backups' && (
+            <div className="space-y-4 animate-in fade-in">
+              {/* Header Card */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <ShieldCheck size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Sistema de Respaldos y Restauración</h3>
+                      <p className="text-xs text-slate-400">Protege clientes, historial de chats, audios, catálogo y configuración</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleCreateBackup('manual')}
+                    disabled={isCreatingBackup}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95"
+                  >
+                    <HardDriveDownload size={15} className={isCreatingBackup ? 'animate-bounce' : ''} />
+                    {isCreatingBackup ? 'Generando Respaldo...' : 'Crear Respaldo Ahora'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isRestoring}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-slate-200 hover:text-white font-bold text-xs transition-all"
+                  >
+                    <UploadCloud size={15} className="text-purple-400" />
+                    Restaurar desde Archivo (.json)
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={handleUploadRestoreFile}
+                  />
+                </div>
+              </div>
+
+              {/* Status Message */}
+              {backupStatusMessage && (
+                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 animate-in fade-in ${
+                  backupStatusMessage.type === 'success'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                }`}>
+                  {backupStatusMessage.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <span>{backupStatusMessage.text}</span>
+                </div>
+              )}
+
+              {/* Backups List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <FileJson size={14} className="text-emerald-400" />
+                    Puntos de Restauración Disponibles ({backupsList.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={fetchBackups}
+                    className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1"
+                  >
+                    <RefreshCw size={11} className={isLoadingBackups ? 'animate-spin' : ''} />
+                    Actualizar lista
+                  </button>
+                </div>
+
+                {isLoadingBackups ? (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-emerald-500" />
+                    Cargando respaldos...
+                  </div>
+                ) : backupsList.length === 0 ? (
+                  <div className="py-8 bg-[#182229] border border-slate-800 rounded-2xl text-center text-xs text-slate-500">
+                    No hay copias de seguridad generadas aún. Haz clic en "Crear Respaldo Ahora" para proteger tus datos.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {backupsList.map(bkp => (
+                      <div
+                        key={bkp.filename}
+                        className="bg-[#182229] hover:bg-[#202c33] border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 transition"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-bold text-white truncate">{bkp.filename}</span>
+                            <span className={`text-[10px] uppercase px-1.5 py-0.2 rounded font-bold ${
+                              bkp.label === 'auto-daily' || bkp.label === 'auto-startup'
+                                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                : bkp.label === 'pre-restore-safety'
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}>
+                              {bkp.label}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                            <span>📅 {new Date(bkp.createdAt).toLocaleString()}</span>
+                            <span>📦 {(bkp.sizeBytes / 1024).toFixed(1)} KB</span>
+                            {bkp.stats && (
+                              <span className="text-slate-500">
+                                ({bkp.stats.totalLeads ?? bkp.stats.leads ?? 0} leads • {bkp.stats.totalMessages ?? bkp.stats.messages ?? 0} msgs • {bkp.stats.totalProducts ?? bkp.stats.products ?? 0} prod)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {/* Descargar */}
+                          <a
+                            href={`/api/backups/download/${encodeURIComponent(bkp.filename)}`}
+                            download
+                            className="p-2 rounded-xl bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                            title="Descargar archivo de respaldo"
+                          >
+                            <DownloadCloud size={15} />
+                          </a>
+
+                          {/* Restaurar */}
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreBackup(bkp.filename)}
+                            disabled={isRestoring}
+                            className="p-2 rounded-xl bg-[#111b21] hover:bg-purple-950/40 text-slate-400 hover:text-purple-400 border border-slate-700/60 transition"
+                            title="Restaurar base de datos a este punto"
+                          >
+                            <RotateCcw size={15} />
+                          </button>
+
+                          {/* Eliminar */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBackup(bkp.filename)}
+                            className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
+                            title="Eliminar este respaldo"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Info box */}
+              <div className="p-3 bg-[#111b21] border border-slate-800/80 rounded-xl text-[11px] text-slate-400 flex items-start gap-2">
+                <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-slate-200">Protección Automática 24/7:</span> WAgent genera copias de seguridad automáticas diarias y antes de cada restauración. Puedes descargar los archivos `.json` en cualquier momento para mantener una copia física en tu computadora o migrar a otro servidor.
+                </div>
+              </div>
             </div>
           )}
 

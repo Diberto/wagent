@@ -10,6 +10,7 @@ const ROOT_DIR = path.resolve(__dirname, '../../');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const MEDIA_DIR = path.join(DATA_DIR, 'media');
 const AUTH_DIR = path.join(DATA_DIR, 'auth_info_baileys');
+const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 
 export const CONFIG = {
   PORT: process.env.PORT || 3001,
@@ -18,6 +19,7 @@ export const CONFIG = {
   DATA_DIR,
   MEDIA_DIR,
   AUTH_DIR,
+  BACKUPS_DIR,
   
   DEFAULT_SETTINGS: {
     aiProvider: process.env.AI_PROVIDER || 'gemini', // 'gemini' | 'openai' | 'nvidia' | 'custom'

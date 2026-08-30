@@ -7,6 +7,7 @@ import { SpeechService } from '../services/speech.js';
 import { AIService } from '../services/ai.js';
 import { AudioConverter } from '../services/audioConverter.js';
 import { UpdateService } from '../services/updater.js';
+import { BackupService } from '../services/backup.js';
 import { CONFIG } from '../config/index.js';
 
 export function createApiRouter(whatsappService, io) {
@@ -469,6 +470,97 @@ export function createApiRouter(whatsappService, io) {
     try {
       const result = await UpdateService.applyUpdate();
       res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- 9. Backup & Restore System ---
+  // Listar respaldos
+  router.get('/backups', (req, res) => {
+    try {
+      const backups = BackupService.listBackups();
+      res.json(backups);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Crear nuevo respaldo
+  router.post('/backups', (req, res) => {
+    try {
+      const { label = 'manual' } = req.body;
+      const backup = BackupService.createBackup(label);
+      res.json({ success: true, backup });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Descargar archivo de respaldo
+  router.get('/backups/download/:filename', (req, res) => {
+    try {
+      const filePath = BackupService.getBackupFilePath(req.params.filename);
+      res.download(filePath, req.params.filename);
+    } catch (err) {
+      res.status(404).json({ error: err.message });
+    }
+  });
+
+  // Restaurar respaldo desde JSON
+  router.post('/backups/restore', (req, res) => {
+    try {
+      const { backupData, filename } = req.body;
+      let payload = backupData;
+
+      if (!payload && filename) {
+        const filePath = BackupService.getBackupFilePath(filename);
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        payload = JSON.parse(fileContent);
+      }
+
+      if (!payload) {
+        return res.status(400).json({ error: 'No se enviaron datos de respaldo para restaurar.' });
+      }
+
+      const result = BackupService.restoreBackup(payload);
+      
+      // Notificar a clientes conectados para recargar datos
+      io.emit('system:restored', result);
+
+      res.json(result);
+    } catch (err) {
+      console.error('Error restaurando respaldo:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Subir y restaurar archivo de respaldo directamente
+  router.post('/backups/upload-restore', upload.single('backupFile'), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No se subió ningún archivo de respaldo.' });
+      }
+
+      const fileContent = fs.readFileSync(req.file.path, 'utf8');
+      const parsed = JSON.parse(fileContent);
+      const result = BackupService.restoreBackup(parsed);
+
+      // Limpiar archivo subido temporal
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+
+      io.emit('system:restored', result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Eliminar respaldo
+  router.delete('/backups/:filename', (req, res) => {
+    try {
+      BackupService.deleteBackup(req.params.filename);
+      res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
