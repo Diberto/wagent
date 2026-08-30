@@ -26,7 +26,24 @@
     "mercadopagoEnabled": true,
     "mercadopagoAutoSendLink": true
   },
-  "orders": [],
+  "orders": [
+    {
+      "id": "ORD-4951",
+      "jid": "5493519998877@s.whatsapp.net",
+      "phone": "+54 9 351 999-8877",
+      "customerName": "Marcos Rossi",
+      "address": "Av. Rafael Núñez 4250, Barrio Cerro de las Rosas",
+      "items": [
+        "• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo / Transferencia / Mercado Pago",
+      "status": "pending",
+      "notes": "",
+      "createdAt": "2026-08-30T22:29:50.345Z",
+      "updatedAt": "2026-08-30T22:29:50.346Z"
+    }
+  ],
   "knowledgeBase": [
     {
       "id": "kb-1",
@@ -169,32 +186,6 @@
   ],
   "leads": [
     {
-      "id": "lead-1788128250883-i1i4n",
-      "jid": "5493513472864@s.whatsapp.net",
-      "altJids": [],
-      "phone": "+54 9 351 347-2864",
-      "name": "+54 9 351 347-2864",
-      "pushName": "Contacto WhatsApp",
-      "stage": "new_lead",
-      "value": 0,
-      "tags": [
-        "WhatsApp"
-      ],
-      "aiEnabled": true,
-      "unreadCount": 0,
-      "preferences": {
-        "favoriteCuts": [],
-        "cookingPreference": "Parrilla",
-        "preferredPayment": "Efectivo / Transferencia",
-        "groupSize": "4 personas",
-        "notes": ""
-      },
-      "createdAt": "2026-08-30T22:17:30.883Z",
-      "updatedAt": "2026-08-30T22:17:26.000Z",
-      "lastMessage": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-5859*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* mi domicilio (📞 +153051277086768)\n📍 *Destino / Entrega:* Retiro en Sucursal Cerro de las Rosas\n\n📋 *CORTES SOLICITADOS:*\n• 1 combo Combo Asado Completo (4 Personas) ($39.999)\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo\n📝 *Notas:* [POS Mostrador]\nVenta ingresada desde terminal POS Mostrador\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
-      "lastMessageAt": "2026-08-30T22:17:26.000Z"
-    },
-    {
       "id": "lead-1788126860039-wle79",
       "jid": "51788782809330@lid",
       "altJids": [],
@@ -227,7 +218,7 @@
         "153051277086768@s.whatsapp.net"
       ],
       "phone": "+153051277086768",
-      "name": "mi domicilio",
+      "name": "DonJuan",
       "pushName": "Don Juan",
       "stage": "proposal",
       "value": 39999,
@@ -244,20 +235,22 @@
           "combo Combo Asado Completo"
         ],
         "cookingPreference": "Parrilla",
-        "preferredPayment": "Efectivo / Transferencia",
         "groupSize": "4 personas",
+        "preferredPayment": "Efectivo / Transferencia",
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T22:22:11.000Z",
-      "lastMessage": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
-      "lastMessageAt": "2026-08-30T22:22:11.000Z",
+      "updatedAt": "2026-08-30T22:31:30.031Z",
+      "lastMessage": "¡Hola  Don Juan! 🥩 No tengo un pedido previo registrado todavía con este número. ¡Contame qué cortes estás buscando hoy o para cuántos comensales calculamos y te armo el pedido al toque! 🙌",
+      "lastMessageAt": "2026-08-30T22:28:24.000Z",
       "address": "Retiro en Sucursal Cerro de las Rosas",
       "notes": "Dirección: ok quiero eso asi tal cual par | Pedido #ORD-3642",
       "totalOrders": 2,
       "totalSpent": 79998,
       "lastOrderAt": "2026-08-30T22:17:26.225Z",
-      "lastOrderId": "ORD-5859"
+      "lastOrderId": "ORD-5859",
+      "preferredBranchId": "br-1",
+      "preferredDriverId": "drv-1"
     },
     {
       "id": "lead-1788124325869-p41bh",
@@ -293,32 +286,6 @@
       "totalSpent": 39999,
       "lastOrderAt": "2026-08-30T21:13:56.225Z",
       "lastOrderId": "ORD-9109"
-    },
-    {
-      "id": "lead-1788121971349-hjggu",
-      "jid": "5493516262475@s.whatsapp.net",
-      "altJids": [],
-      "phone": "+54 9 351 626-2475",
-      "name": "+54 9 351 626-2475",
-      "pushName": "Contacto WhatsApp",
-      "stage": "new_lead",
-      "value": 0,
-      "tags": [
-        "WhatsApp"
-      ],
-      "aiEnabled": true,
-      "unreadCount": 0,
-      "preferences": {
-        "favoriteCuts": [],
-        "cookingPreference": "Parrilla",
-        "preferredPayment": "Efectivo / Transferencia",
-        "groupSize": "4 personas",
-        "notes": ""
-      },
-      "createdAt": "2026-08-30T20:32:51.349Z",
-      "updatedAt": "2026-08-30T22:23:35.732Z",
-      "lastMessage": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-8163*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* Juan Gonzalze (📞 +153051277086768)\n📍 *Destino / Entrega:* locelso 7100, Juan Gonzalze\n\n📋 *CORTES SOLICITADOS:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo / Transferencia\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
-      "lastMessageAt": "2026-08-30T20:32:50.000Z"
     },
     {
       "id": "lead-1788119701908-tuxrr",
@@ -438,17 +405,6 @@
       "sender": "agent",
       "type": "text",
       "content": "¡Con gusto VittVittz 🖖🏼! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
-      "mediaUrl": null,
-      "audioDuration": 0
-    },
-    {
-      "id": "3EB0A50476B6D3F58FF14D",
-      "timestamp": "2026-08-30T20:32:50.000Z",
-      "status": "sent",
-      "chatId": "5493516262475@s.whatsapp.net",
-      "sender": "agent",
-      "type": "text",
-      "content": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-8163*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* Juan Gonzalze (📞 +153051277086768)\n📍 *Destino / Entrega:* locelso 7100, Juan Gonzalze\n\n📋 *CORTES SOLICITADOS:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo / Transferencia\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
       "mediaUrl": null,
       "audioDuration": 0
     },
@@ -1281,17 +1237,6 @@
       "audioDuration": 9
     },
     {
-      "id": "3EB03DAD31295722F43DFD",
-      "timestamp": "2026-08-30T22:17:26.000Z",
-      "status": "sent",
-      "chatId": "5493513472864@s.whatsapp.net",
-      "sender": "agent",
-      "type": "text",
-      "content": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-5859*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* mi domicilio (📞 +153051277086768)\n📍 *Destino / Entrega:* Retiro en Sucursal Cerro de las Rosas\n\n📋 *CORTES SOLICITADOS:*\n• 1 combo Combo Asado Completo (4 Personas) ($39.999)\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo\n📝 *Notas:* [POS Mostrador]\nVenta ingresada desde terminal POS Mostrador\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
-      "mediaUrl": null,
-      "audioDuration": 0
-    },
-    {
       "id": "3EB0934523B0FACCADAEF2",
       "timestamp": "2026-08-30T22:17:26.000Z",
       "status": "sent",
@@ -1441,6 +1386,212 @@
       "sender": "agent",
       "type": "text",
       "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB04FECE21A2CB0091DCF",
+      "timestamp": "2026-08-30T22:26:50.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hoal",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128814548-qbi84j",
+      "timestamp": "2026-08-30T22:26:54.547Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥"
+    },
+    {
+      "id": "3EB09C8B5BFA97A5846A11",
+      "timestamp": "2026-08-30T22:26:54.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0BA9ED60908EACC98FA",
+      "timestamp": "2026-08-30T22:27:16.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "que ofertas tienen",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128840445-8tkbbe",
+      "timestamp": "2026-08-30T22:27:20.444Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Mirá  Don Juan! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n• **Tapa de Cuadril Seleccionada:** $12.800 / kg\n• **Vacío Especial / Tierno:** $11.500 / kg\n• **Costillar / Asado de Tira:** $9.800 / kg\n• **Bife de Chorizo Premium:** $14.500 / kg\n• **Entraña Fina:** $16.900 / kg\n• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n• **Morcilla Bombón Parrillera:** $5.200 / kg\n• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n• **Carbón Quebracho (bolsa grande):** $2.200\n\n👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚"
+    },
+    {
+      "id": "3EB05DB41CA7410935CD22",
+      "timestamp": "2026-08-30T22:27:20.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Mirá  Don Juan! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n• **Tapa de Cuadril Seleccionada:** $12.800 / kg\n• **Vacío Especial / Tierno:** $11.500 / kg\n• **Costillar / Asado de Tira:** $9.800 / kg\n• **Bife de Chorizo Premium:** $14.500 / kg\n• **Entraña Fina:** $16.900 / kg\n• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n• **Morcilla Bombón Parrillera:** $5.200 / kg\n• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n• **Carbón Quebracho (bolsa grande):** $2.200\n\n👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB01317773A4A0DD2C510",
+      "timestamp": "2026-08-30T22:27:28.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128851731-gc22zr",
+      "timestamp": "2026-08-30T22:27:31.730Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$39.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB003EAA177A6C7620C61",
+      "timestamp": "2026-08-30T22:27:31.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$39.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0967542534F158937D8",
+      "timestamp": "2026-08-30T22:27:44.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "no, solo eso",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128868168-wx3obt",
+      "timestamp": "2026-08-30T22:27:48.167Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥"
+    },
+    {
+      "id": "3EB04FDCF2E7345C94622D",
+      "timestamp": "2026-08-30T22:27:48.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128884960-9i9sh2",
+      "timestamp": "2026-08-30T22:28:04.958Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "no, solo eso"
+    },
+    {
+      "id": "3EB0A739361F6DA0FEC274",
+      "timestamp": "2026-08-30T22:28:04.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "no, solo eso",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB040399CFCA712E9F97D",
+      "timestamp": "2026-08-30T22:28:09.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "no soo eso",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128892845-771p0n",
+      "timestamp": "2026-08-30T22:28:12.844Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩"
+    },
+    {
+      "id": "3EB01BFDF6692DE5DCF056",
+      "timestamp": "2026-08-30T22:28:12.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB086F765664EED58CD73",
+      "timestamp": "2026-08-30T22:28:20.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "dame mi pedido",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128904110-3zg1ey",
+      "timestamp": "2026-08-30T22:28:24.109Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola  Don Juan! 🥩 No tengo un pedido previo registrado todavía con este número. ¡Contame qué cortes estás buscando hoy o para cuántos comensales calculamos y te armo el pedido al toque! 🙌"
+    },
+    {
+      "id": "3EB0EC7C763E74E9EA0FEB",
+      "timestamp": "2026-08-30T22:28:24.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola  Don Juan! 🥩 No tengo un pedido previo registrado todavía con este número. ¡Contame qué cortes estás buscando hoy o para cuántos comensales calculamos y te armo el pedido al toque! 🙌",
       "mediaUrl": null,
       "audioDuration": 0
     }

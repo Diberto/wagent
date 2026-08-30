@@ -280,12 +280,11 @@ export class AIService {
     // =========================================================================
     // 0.18 ELECCIÓN DE SUCURSAL PARA RETIRO
     // =========================================================================
-    const lastAgentMsg = (history || []).filter(m => m.sender === 'agent').slice(-1)[0]?.content || '';
-    const wasAskedBranch = /Nuestras 6 Sucursales|sucursal preferís retirar|retirar por sucursal|por cuál sucursal/i.test(lastAgentMsg);
-    const branchDirectMatch = t.match(/^(?:opci[oó]n\s*)?([1-6])\b/i) || 
+    const isSingleDigitBranch = /^[1-6]$/.test(t.trim()) || /^(?:opci[oó]n|sucursal|la|el)?\s*([1-6])$/i.test(t.trim());
+    const branchDirectMatch = t.match(/^(?:opci[oó]n|sucursal|la|el)?\s*([1-6])\b/i) || 
                               t.match(/(?:retiro|retirar|paso|buscar)?\s*(?:por|en)?\s*(?:la\s*)?(?:sucursal\s*)?(urca|roque funes|funes|pidal|tejeda|intercountry|corteza|alamos|álamos|duarte quiros|quiros|quirós|villa allende|figueroa alcorta|san isidro|luchesse)/i);
 
-    if ((wasAskedBranch || /retiro por sucursal|retirar en sucursal|paso a retirar|retiro en/i.test(t)) && branchDirectMatch) {
+    if (isSingleDigitBranch || (/retiro por sucursal|retirar en sucursal|paso a retirar|retiro en/i.test(t) && branchDirectMatch)) {
       const choice = branchDirectMatch[1].toLowerCase();
       let branchName = 'Urca Central (Av. José Roque Funes 1115)';
       if (choice === '1' || choice.includes('roque funes') || choice.includes('funes') || choice === 'urca') {
@@ -415,6 +414,25 @@ export class AIService {
     }
 
     // =========================================================================
+    // 2.05 RECHAZO DE COMPLEMENTOS / CIERRE DE ÍTEMS DEL PEDIDO ("no, solo eso", "nada más")
+    // =========================================================================
+    const isDeclineComplements = /^(?:no,? )?(?:solo eso|soo eso|nada m[aá]s|eso solo|eso nada m[aá]s|ninguno|as[ií] est[aá] bien|dejalo as[ií]|dame mi pedido|pasemos directo|directo al env[ií]o|sin complementos)$/i.test(t.trim()) ||
+                                /(?:no,? )?(?:solo eso|nada m[aá]s|eso solo|dame mi pedido)/i.test(t);
+
+    if (isDeclineComplements && !hasAddressOrOrderClose) {
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+      const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products);
+      const itemsList = historyItems.length > 0 ? historyItems.join('\n') : '• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999';
+      const formattedTotal = `$${(historyTotal || 39999).toLocaleString('es-AR')}`;
+
+      return `¡De diez ${clientName}! 🥩🚚 Cerramos con tu pedido confirmado:\n\n` +
+        `📋 **Detalle de tu pedido:**\n${itemsList}\n` +
+        `💰 **Total:** **${formattedTotal}**\n\n` +
+        `👉 ¿Preferís que te lo **enviemos a domicilio** o **retirás por alguna de nuestras 6 sucursales**?\n` +
+        `(Si es con envío, pasame tu **dirección y barrio**; si retirás, decime por cuál de nuestras sucursales pasás) 🙌 [[STAGE:proposal]]`;
+    }
+
+    // =========================================================================
     // 2.1 CONSULTA DE PRECIO DE UN CORTE ESPECÍFICO SIN CANTIDAD ("cuanto sale la entraña")
     // =========================================================================
     const matchedCatalogItem = MASTER_CATALOG.find(item => 
@@ -470,7 +488,7 @@ export class AIService {
     }
 
     // =========================================================================
-    // 3.2 CONFIRMACIÓN EXPLÍCITA DE DATOS DE ENVÍO ("sí", "correcto", "dale", "de diez")
+    // 3.2 CONFIRMACIÓN EXPLÍCITA DE DATOS DE ENVÍO Y AGENDADO ("sí", "correcto", "dale", "de diez")
     // =========================================================================
     const cleanConfirmText = t.replace(/[,\.]+/g, ' ').replace(/\s+/g, ' ').trim();
     const isConfirmationReply = /^(?:s[ií]|correcto|confirmar|confirmo|dale|est[aá] bien|perfecto|de diez|avanza|avanzar|ok dale|s[ií] dale|s[ií] correcto|exacto|as[ií] es|s[ií] est[aá] bien|s[ií] perfecto)$/i.test(cleanConfirmText);
@@ -479,7 +497,31 @@ export class AIService {
     if (isConfirmationReply && hasPendingAddressOnLead) {
       const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, rawText, products);
       const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (lead.pushName || 'Don Juan');
-      
+      const allHistoryText = (history || []).map(m => m.content).join(' ');
+
+      if (lead.jid || lead.id) {
+        db.updateLead(lead.jid || lead.id, { 
+          name: clientName,
+          pushName: clientName,
+          address: lead.address,
+          isRegistered: true,
+          isVerified: true,
+          registeredAt: new Date().toISOString(),
+          notes: `Cliente agendado y registrado. Dirección: ${lead.address}`
+        });
+      }
+
+      // Si no ha seleccionado cortes todavía, confirmamos agenda y ofrecemos el catálogo
+      const hasRealCuts = parsedItems.length > 0 && !parsedItems[0].includes('• 1 combo Combo “Asadazo”');
+      if (!hasRealCuts && !/combo|asadazo|vacio|costillar|tapa|matambre|milanesa|chori|morcilla/i.test(allHistoryText)) {
+        return `¡Excelente ${clientName}! 🎉 Ya quedaste agendado y registrado con éxito en nuestro sistema con entrega en **${lead.address}**.\n\n` +
+          `🥩 **¿Qué cortes o promo te gustaría preparar hoy?**\n` +
+          `• **Combo Asadazo (4 kg):** Cortes parrilleros + Vino de regalo ➔ **$39.999**\n` +
+          `• **Cortes Selección Novillito:** Tapa de cuadril ($12.800/kg), Vacío tierno ($11.500/kg), Costillar ($9.800/kg), Entraña ($16.900/kg)\n` +
+          `• **Comidas Diarias:** Milanesas de ternera (2kg x $24.990 promo), Picada especial (3kg x $27.000 promo)\n\n` +
+          `👉 Contame qué te preparamos o cuántos kilos te separamos 🙌 [[STAGE:proposal]]`;
+      }
+
       const newOrder = db.createOrder({
         jid: lead.jid || lead.id,
         phone: lead.phone || (lead.jid ? lead.jid.split('@')[0] : ''),
@@ -492,17 +534,7 @@ export class AIService {
       });
 
       const formattedTotal = `$${parsedTotal.toLocaleString('es-AR')}`;
-      if (lead.jid || lead.id) {
-        db.updateLead(lead.jid || lead.id, { 
-          name: clientName,
-          pushName: clientName,
-          value: parsedTotal,
-          stage: 'closed_won',
-          notes: `Dirección confirmada: ${lead.address} | Pedido #${newOrder.id}`
-        });
-      }
-
-      return `¡Excelente ${clientName}! 🎉 Datos confirmados con éxito. Ya generamos tu orden de compra:\n\n🆔 *N° de Pedido:* #${newOrder.id}\n📋 *RESUMEN DE TU PEDIDO:*\n${parsedItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${clientName}\n📍 *Destino de Entrega:* ${lead.address}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${parsedTotal}]]`;
+      return `¡Excelente ${clientName}! 🎉 Datos confirmados y agendados con éxito. Ya generamos tu orden de compra:\n\n🆔 *N° de Pedido:* #${newOrder.id}\n📋 *RESUMEN DE TU PEDIDO:*\n${parsedItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${clientName}\n📍 *Destino de Entrega:* ${lead.address}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${parsedTotal}]]`;
     }
 
     // =========================================================================
@@ -514,8 +546,26 @@ export class AIService {
       let extractedName = '';
       let cleanAddress = rawText;
 
+      // 1. Detección explícita de nombre combinado con dirección ("me llamo Marcos Rossi y vivo en...")
+      const comboMatch = rawText.match(/(?:mi nombre(?: es)?|me llamo|soy|nombre:?)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)(?:\s+(?:y\s+)?vivo en|\s+en\s+la\s+calle|\s+calle|,|$|\.|\bdireccion)/i);
+      if (comboMatch && comboMatch[1].trim().length >= 3) {
+        const cand = comboMatch[1].trim();
+        if (!isGarbageName(cand)) {
+          extractedName = cand;
+        }
+      }
+
+      const comboAddrMatch = rawText.match(/(?:vivo en|la direccion(?: es)?|direccion:?|mi direccion es)\s+(.+)$/i) ||
+                             rawText.match(/(?:calle|av\.|avenida|bv\.|bulevar|barrio)\s+.+$/i);
+      if (comboAddrMatch) {
+        const candAddr = (comboAddrMatch[1] || comboAddrMatch[0]).trim();
+        if (!isGarbageAddress(candAddr)) {
+          cleanAddress = candAddr;
+        }
+      }
+
       const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
-      if (lines.length >= 2) {
+      if (lines.length >= 2 && !extractedName) {
         const line1 = lines[0];
         const line2 = lines.slice(1).join(', ');
         if (!/[0-9]/.test(line1) && line1.length >= 3 && line1.length <= 35 && !isGarbageName(line1)) {
@@ -546,7 +596,7 @@ export class AIService {
       }
 
       cleanAddress = cleanAddress
-        .replace(/^(?:hola,?\s*)?(?:quiero|mandame|enviame|traeme|armame)?\s*(?:un\s*)?(?:combo\s*)?(?:asadazo\s*)?(?:para|a)?\s*/gi, '')
+        .replace(/^(?:hola,?\s*)?(?:quiero|mandame|enviame|traeme|armame)?\s*(?:un\s*)?(?:combo\s*)?(?:asadazo\s*)?(?:para|\ba\b)?\s*/gi, '')
         .replace(/a mi domicilio,?\s*/gi, '')
         .replace(/(?:a nombre de|nombre:?|para|soy)?\s*[A-Za-zÁÉÍÓÚáéíóúñÑ ]*(?:mi nombre(?: completo)?|mi onmbre)/gi, '')
         .replace(/,\s*a nombre de\s+[A-Za-zÁÉÍÓÚáéíóúñÑ ]+/gi, '')
@@ -570,16 +620,18 @@ export class AIService {
 
       const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, rawText, products);
       const formattedTotal = `$${parsedTotal.toLocaleString('es-AR')}`;
+      const allHistoryText = (history || []).map(m => m.content).join(' ');
+      const hasRealCuts = parsedItems.length > 0 && !parsedItems[0].includes('• 1 combo Combo “Asadazo”');
 
       if (finalClientName) {
-        return `📋 *VERIFICACIÓN DE DATOS DE ENVÍO:*\n\n` +
-          `👤 *Destinatario:* **${finalClientName}**\n` +
+        return `📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n` +
+          `👤 *Destinatario / Cliente:* **${finalClientName}**\n` +
           `📍 *Dirección de Entrega:* **${cleanAddress}**\n` +
-          `🥩 *Detalle del Pedido:*\n${parsedItems.join('\n')}\n` +
-          `💰 *Total a abonar:* **${formattedTotal}**\n\n` +
-          `👉 **¿Confirmamos estos datos para despachar o querés corregir la dirección o el nombre?** (Respondé *Sí / Correcto* para finalizar el pedido) 🥩🚚 [[STAGE:proposal]]`;
+          `📱 *Contacto:* ${lead.phone || 'WhatsApp'}\n` +
+          (hasRealCuts || /combo|asadazo/i.test(allHistoryText) ? `🥩 *Detalle del Pedido:*\n${parsedItems.join('\n')}\n💰 *Total a abonar:* **${formattedTotal}**\n\n` : '\n') +
+          `👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?** (Respondé *SÍ* para confirmar o corregime cualquier dato) 🥩🚚 [[STAGE:confirming_data]]`;
       } else {
-        return `¡Excelente! Ya registré tu dirección: **${cleanAddress}** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊 [[STAGE:proposal]]`;
+        return `¡Excelente! Ya registré tu dirección: **${cleanAddress}** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para agendarte en el sistema y colocar en la etiqueta del envío. ¿A nombre de quién te lo dejamos? 😊 [[STAGE:proposal]]`;
       }
     }
 
@@ -598,10 +650,15 @@ export class AIService {
     }
 
     // =========================================================================
-    // 5. ACLARACIONES, CORRECCIONES Y OBJECIONES GENERALES
+    // 5. SALUDO INICIAL / ASESORAMIENTO DE ENTRADA CON REGISTRO DE CLIENTE
     // =========================================================================
-    if (/no te pedí|no pedi|otra cosa|eso no|no es eso|para nada|no gracias|no quiero eso/i.test(t)) {
-      return `¡Tenés toda la razón${nameGreeting}, disculpame la confusión! 🥩 Contame exactamente qué corte o pedido tenías en mente, o qué te gustaría cambiar, y te lo armo a tu medida paso a paso. 🙌`;
+    const isUnregistered = !lead.isRegistered && (isGarbageName(lead.name) || (!nameGreeting && (!lead.name || lead.name.startsWith('+'))));
+    if (isUnregistered && /^(hola|buen|buenas|que tal|saludos|hey|alo|buenos dias|buenas tardes|buenas noches|quiero comprar|quiero hacer un pedido)/i.test(t)) {
+      return `¡Hola! 👋 Carlos por acá, maestro carnicero de **República de la Carne**.\n\n` +
+        `Para agendarte en nuestro sistema y coordinar tus envíos directos en el día, ¿me indicarías por favor:\n` +
+        `👤 **Tu Nombre y Apellido**\n` +
+        `📍 **Tu Dirección de Entrega y Barrio** (o si preferís retirar por sucursal)\n\n` +
+        `¡Y contame qué cortes o promo tenías ganas de preparar hoy para armarte la propuesta perfecta! 🥩🔥 [[STAGE:qualified]]`;
     }
 
     // =========================================================================

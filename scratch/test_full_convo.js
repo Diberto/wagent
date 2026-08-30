@@ -8,10 +8,10 @@ const convo = [
   'quiero un asado economico para 4 personar',
   'no, que ofertas tenes',
   'quiero un combo asazado nomas',
-  'corrije, quiero un solo combo asasazo',
-  'hola recuerdas mi pedido por favor',
-  'recuerdas mi pedido?',
-  'puedes recordar mi ultimo pedido?'
+  'no, solo eso',
+  'no, retiro por sucursal',
+  '1',
+  'por mercado pago'
 ];
 
 console.log('========================================================');
