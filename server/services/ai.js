@@ -278,6 +278,37 @@ export class AIService {
     }
 
     // =========================================================================
+    // 0.18 ELECCIÓN DE SUCURSAL PARA RETIRO
+    // =========================================================================
+    const lastAgentMsg = (history || []).filter(m => m.sender === 'agent').slice(-1)[0]?.content || '';
+    const wasAskedBranch = /Nuestras 6 Sucursales|sucursal preferís retirar|retirar por sucursal|por cuál sucursal/i.test(lastAgentMsg);
+    const branchDirectMatch = t.match(/^(?:opci[oó]n\s*)?([1-6])\b/i) || 
+                              t.match(/(?:retiro|retirar|paso|buscar)?\s*(?:por|en)?\s*(?:la\s*)?(?:sucursal\s*)?(urca|roque funes|funes|pidal|tejeda|intercountry|corteza|alamos|álamos|duarte quiros|quiros|quirós|villa allende|figueroa alcorta|san isidro|luchesse)/i);
+
+    if ((wasAskedBranch || /retiro por sucursal|retirar en sucursal|paso a retirar|retiro en/i.test(t)) && branchDirectMatch) {
+      const choice = branchDirectMatch[1].toLowerCase();
+      let branchName = 'Urca Central (Av. José Roque Funes 1115)';
+      if (choice === '1' || choice.includes('roque funes') || choice.includes('funes') || choice === 'urca') {
+        branchName = 'Urca Central (Av. José Roque Funes 1115)';
+      } else if (choice === '2' || choice.includes('pidal') || choice.includes('tejeda')) {
+        branchName = 'Urca 2 - Alto Tejeda (Av. Menéndez Pidal 3575)';
+      } else if (choice === '3' || choice.includes('intercountry') || choice.includes('corteza') || choice.includes('alamos')) {
+        branchName = 'Intercountry Corteza Mall (Av. Los Álamos 1015)';
+      } else if (choice === '4' || choice.includes('quiros') || choice.includes('quirós') || choice.includes('duarte')) {
+        branchName = 'Duarte Quirós (Av. Duarte Quirós 5130)';
+      } else if (choice === '5' || choice.includes('villa allende') || choice.includes('alcorta')) {
+        branchName = 'Villa Allende - Mercadito de la Villa (Av. Figueroa Alcorta 480)';
+      } else if (choice === '6' || choice.includes('san isidro') || choice.includes('luchesse')) {
+        branchName = 'Country San Isidro (Av. Padre Luchesse km 2)';
+      }
+
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+
+      return `¡De diez ${clientName}! 🥩🏪 Queda asentado el retiro por nuestra sucursal **${branchName}**.\n\n` +
+        `👉 **Último paso:** ¿Cómo preferís abonar? Podés pagar en **efectivo / débito al retirar** o te paso el link de **Mercado Pago** para dejarlo pago con tarjeta / dinero en cuenta. 🥩💳 [[STAGE:proposal]]`;
+    }
+
+    // =========================================================================
     // 0.2 CONSULTA DIRECTA DE OFERTAS, PRECIOS, PROMOCIONES Y CORTES DISPONIBLES
     // =========================================================================
     const isOffersQuery = /oferta|ofertas|ofeta|ofetas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|que corte|que cortes hay|cortes en oferta|cortes tenes|cortes tenés|carta|catalogo|catálogo|opciones/i.test(t);
