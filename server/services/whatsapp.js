@@ -243,17 +243,36 @@ export class WhatsAppService {
     if (!messageContent) return;
 
     const pushName = msg.pushName || 'Contacto WhatsApp';
-    const cleanNumber = jid.split('@')[0];
+    
+    // Detección precisa de número de teléfono real (incluso con identificadores @lid)
+    let realPhone = null;
+    if (msg.key.remoteJidAlt && msg.key.remoteJidAlt.includes('@s.whatsapp.net')) {
+      realPhone = msg.key.remoteJidAlt.split('@')[0];
+    } else if (msg.key.participant && msg.key.participant.includes('@s.whatsapp.net')) {
+      realPhone = msg.key.participant.split('@')[0];
+    } else if (jid.includes('@s.whatsapp.net')) {
+      realPhone = jid.split('@')[0];
+    }
+
+    const cleanNumber = realPhone || jid.split('@')[0];
+    const phoneDisplay = realPhone ? `+${realPhone}` : `+${cleanNumber}`;
 
     // Obtener o registrar Lead (con IA habilitada por defecto)
     let lead = db.getLead(jid);
     if (!lead) {
       lead = db.saveOrUpdateLead({
         jid,
-        name: pushName,
-        phone: `+${cleanNumber}`,
+        name: pushName !== 'Contacto WhatsApp' ? pushName : phoneDisplay,
+        phone: phoneDisplay,
         pushName,
         aiEnabled: true
+      });
+    } else if (pushName !== 'Contacto WhatsApp' && (lead.name === 'Contacto WhatsApp' || lead.name.startsWith('+'))) {
+      lead = db.saveOrUpdateLead({
+        ...lead,
+        name: pushName,
+        pushName,
+        phone: phoneDisplay
       });
     }
 
@@ -262,6 +281,8 @@ export class WhatsAppService {
     let mediaUrl = null;
     let audioDuration = 0;
     let isAudio = false;
+    let isImage = false;
+    let downloadedImagePath = null;
 
     // 1. Detección de texto
     const extractedText = extractTextMessage(messageContent);
@@ -293,17 +314,32 @@ export class WhatsAppService {
         console.error('Error procesando audio entrante:', err);
         textContent = '[Nota de voz recibida]';
       }
-    } else if (messageContent.imageMessage) {
+    } else if (messageContent.imageMessage || (messageContent.documentMessage && messageContent.documentMessage.mimetype?.startsWith('image/'))) {
+      // 3. Detección de Imágenes (Productos, Comprobantes de Pago, Tickets)
+      isImage = true;
       messageType = 'image';
-      textContent = messageContent.imageMessage.caption || '[Foto recibida]';
+
+      try {
+        console.log(`📥 Descargando imagen de ${jid}...`);
+        const buffer = await downloadMediaMessage(msg, 'buffer', {});
+        const imgPath = path.join(CONFIG.MEDIA_DIR, `img_${Date.now()}_${msg.key.id}.jpg`);
+        fs.writeFileSync(imgPath, buffer);
+        downloadedImagePath = imgPath;
+        mediaUrl = `/media/${path.basename(imgPath)}`;
+        textContent = messageContent.imageMessage?.caption || messageContent.documentMessage?.caption || '[Imagen / Comprobante recibido]';
+        console.log(`📸 Imagen guardada en: ${mediaUrl}`);
+      } catch (err) {
+        console.error('Error descargando imagen entrante:', err);
+        textContent = messageContent.imageMessage?.caption || '[Foto recibida]';
+      }
     }
 
     // Si no pudimos extraer nada con sentido, salir
-    if (!textContent && !isAudio && messageType === 'text') {
+    if (!textContent && !isAudio && !isImage) {
       return;
     }
 
-    console.log(`📩 [WhatsApp ${isFromMe ? 'Saliente' : 'Entrante'}] De ${pushName} (${jid}): "${textContent}" (Tipo: ${messageType})`);
+    console.log(`📩 [WhatsApp ${isFromMe ? 'Saliente' : 'Entrante'}] De ${pushName} (${phoneDisplay}): "${textContent}" (Tipo: ${messageType})`);
 
     // Guardar mensaje en base de datos
     const savedMessage = db.saveMessage({
@@ -348,27 +384,48 @@ export class WhatsAppService {
             } catch (presenceErr) {}
           }
 
-          // Generar respuesta inteligente con IA
-          const aiResponse = await AIService.generateReply({
-            jid,
-            incomingText: textContent || 'Hola',
-            isAudioInput: isAudio
-          });
+          let responseText = '';
+          let shouldSendAudio = false;
+          let audioPath = null;
+          let audioMp3Path = null;
+          let audioDuration = 0;
 
-          console.log(`📤 Enviando respuesta a ${jid}: "${aiResponse.text}" (Voz: ${aiResponse.shouldSendAudio})`);
+          if (isImage && downloadedImagePath) {
+            // Análisis visual con IA para comprobantes o productos
+            const visionResult = await AIService.analyzeImageAndReply({
+              jid,
+              imagePath: downloadedImagePath,
+              caption: textContent
+            });
+            responseText = visionResult.text;
+          } else {
+            // Generar respuesta inteligente con LLM / RAG
+            const aiResponse = await AIService.generateReply({
+              jid,
+              incomingText: textContent || 'Hola',
+              isAudioInput: isAudio
+            });
+            responseText = aiResponse.text;
+            shouldSendAudio = aiResponse.shouldSendAudio;
+            audioPath = aiResponse.audioOggPath;
+            audioMp3Path = aiResponse.audioMp3Path;
+            audioDuration = aiResponse.audioDuration;
+          }
+
+          console.log(`📤 Enviando respuesta a ${jid}: "${responseText}" (Voz: ${shouldSendAudio})`);
 
           // Enviar respuesta por WhatsApp
-          if (aiResponse.shouldSendAudio && aiResponse.audioPath && fs.existsSync(aiResponse.audioPath)) {
+          if (shouldSendAudio && audioPath && fs.existsSync(audioPath)) {
             // Enviar Nota de Voz Oficial PTT
-            await this.sendVoiceNote(jid, aiResponse.audioPath);
+            await this.sendVoiceNote(jid, audioPath);
 
             const savedAiMsg = db.saveMessage({
               chatId: jid,
               sender: 'agent',
               type: 'audio',
-              content: aiResponse.text,
-              mediaUrl: aiResponse.audioMp3Path ? `/media/${path.basename(aiResponse.audioMp3Path)}` : null,
-              audioDuration: aiResponse.audioDuration || 4,
+              content: responseText,
+              mediaUrl: audioMp3Path ? `/media/${path.basename(audioMp3Path)}` : null,
+              audioDuration: audioDuration || 4,
               timestamp: new Date().toISOString(),
               status: 'sent'
             });
@@ -378,13 +435,13 @@ export class WhatsAppService {
             }
           } else {
             // Enviar Mensaje de Texto
-            await this.sendTextMessage(jid, aiResponse.text);
+            await this.sendMessage(jid, responseText);
 
             const savedAiMsg = db.saveMessage({
               chatId: jid,
               sender: 'agent',
               type: 'text',
-              content: aiResponse.text,
+              content: responseText,
               timestamp: new Date().toISOString(),
               status: 'sent'
             });
@@ -400,10 +457,10 @@ export class WhatsAppService {
               await this.sock.sendPresenceUpdate('paused', jid);
             } catch (e) {}
           }
-        } catch (aiErr) {
-          console.error('🔥 Error crítico al responder automáticamente con IA:', aiErr);
+        } catch (err) {
+          console.error('Error enviando respuesta automática de IA:', err);
         }
-      }, 1200);
+      }, 1500);
     }
   }
 

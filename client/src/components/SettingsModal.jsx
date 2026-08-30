@@ -190,92 +190,200 @@ export default function SettingsModal({ isOpen, onClose }) {
           {activeTab === 'ai' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Proveedor Principal de IA</label>
-                <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Proveedor de Inteligencia Artificial (LLM)</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <button
                     type="button"
                     onClick={() => setSettings({ ...settings, aiProvider: 'gemini' })}
-                    className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                    className={`p-3 rounded-2xl border text-left transition-all ${
                       settings.aiProvider === 'gemini'
                         ? 'border-emerald-500 bg-emerald-500/10 text-white'
                         : 'border-slate-800 bg-[#182229] text-slate-400'
                     }`}
                   >
-                    <Sparkles size={20} className="text-emerald-400" />
-                    <div>
-                      <div className="text-xs font-bold">Google Gemini</div>
-                      <div className="text-[10px] text-slate-400">Gemini 2.0 Flash (Recomendado)</div>
-                    </div>
+                    <div className="text-xs font-bold text-emerald-400">Google Gemini</div>
+                    <div className="text-[10px] text-slate-400">2.0 Flash (Recomendado)</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, aiProvider: 'nvidia' })}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      settings.aiProvider === 'nvidia'
+                        ? 'border-emerald-500 bg-emerald-500/10 text-white'
+                        : 'border-slate-800 bg-[#182229] text-slate-400'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-green-400">NVIDIA NIM</div>
+                    <div className="text-[10px] text-slate-400">Llama 3.3 / DeepSeek</div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setSettings({ ...settings, aiProvider: 'openai' })}
-                    className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all ${
+                    className={`p-3 rounded-2xl border text-left transition-all ${
                       settings.aiProvider === 'openai'
                         ? 'border-emerald-500 bg-emerald-500/10 text-white'
                         : 'border-slate-800 bg-[#182229] text-slate-400'
                     }`}
                   >
-                    <Bot size={20} className="text-sky-400" />
-                    <div>
-                      <div className="text-xs font-bold">OpenAI</div>
-                      <div className="text-[10px] text-slate-400">GPT-4o / GPT-4o-mini</div>
-                    </div>
+                    <div className="text-xs font-bold text-sky-400">OpenAI</div>
+                    <div className="text-[10px] text-slate-400">GPT-4o / GPT-4o-mini</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, aiProvider: 'custom' })}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      settings.aiProvider === 'custom'
+                        ? 'border-emerald-500 bg-emerald-500/10 text-white'
+                        : 'border-slate-800 bg-[#182229] text-slate-400'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-amber-400">Custom / Ollama</div>
+                    <div className="text-[10px] text-slate-400">Local / LM Studio / Groq</div>
                   </button>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Google Gemini API Key</label>
-                <input
-                  type="password"
-                  placeholder="AIzaSy..."
-                  value={settings.geminiApiKey || ''}
-                  onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Permite transcripción de audio multimodal y respuestas ultra-rápidas con Gemini 2.0 Flash.
-                </span>
-              </div>
+              {/* 1. Campos de Google Gemini */}
+              {settings.aiProvider === 'gemini' && (
+                <div className="space-y-3 p-4 rounded-2xl bg-[#182229] border border-slate-700/60 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Google Gemini API Key</label>
+                    <input
+                      type="password"
+                      placeholder="AIzaSy..."
+                      value={settings.geminiApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Permite visión de imágenes, transcripción de voz y respuestas rápidas. Obtén tu clave en <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-emerald-400 underline">aistudio.google.com</a>
+                    </span>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">OpenAI API Key</label>
-                <input
-                  type="password"
-                  placeholder="sk-proj-..."
-                  value={settings.openaiApiKey || ''}
-                  onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  Utilizada para modelos GPT-4o, Whisper STT y OpenAI TTS.
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Modelo de Lenguaje (LLM)</label>
-                <select
-                  value={settings.aiModel || 'gemini-2.0-flash'}
-                  onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {settings.aiProvider === 'gemini' ? (
-                    <>
-                      <option value="gemini-2.0-flash">gemini-2.0-flash (Más rápido y potente)</option>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Modelo de Gemini</label>
+                    <select
+                      value={settings.aiModel || 'gemini-2.0-flash'}
+                      onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="gemini-2.0-flash">gemini-2.0-flash (Ultra Rápido + Visión de Fotos)</option>
                       <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-                      <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="gpt-4o-mini">gpt-4o-mini (Recomendado para ventas rápidas)</option>
-                      <option value="gpt-4o">gpt-4o (Máxima inteligencia)</option>
+                      <option value="gemini-1.5-pro">gemini-1.5-pro (Máximo razonamiento)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Campos de NVIDIA NIM */}
+              {settings.aiProvider === 'nvidia' && (
+                <div className="space-y-3 p-4 rounded-2xl bg-green-950/20 border border-green-500/30 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-semibold text-green-300 mb-1">NVIDIA API Key</label>
+                    <input
+                      type="password"
+                      placeholder="nvapi-..."
+                      value={settings.nvidiaApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, nvidiaApiKey: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-green-500"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Obtén tu API Key gratuita en <a href="https://build.nvidia.com" target="_blank" rel="noreferrer" className="text-green-400 underline">build.nvidia.com</a>
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-green-300 mb-1">Modelo de NVIDIA NIM</label>
+                    <select
+                      value={settings.nvidiaModel || 'meta/llama-3.3-70b-instruct'}
+                      onChange={(e) => setSettings({ ...settings, nvidiaModel: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-green-500"
+                    >
+                      <option value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (Última generación recomendada)</option>
+                      <option value="meta/llama-3.1-70b-instruct">meta/llama-3.1-70b-instruct</option>
+                      <option value="deepseek-ai/deepseek-r1">deepseek-ai/deepseek-r1 (Razonamiento avanzado)</option>
+                      <option value="mistralai/mistral-large-2-instruct">mistralai/mistral-large-2-instruct</option>
+                      <option value="nvidia/llama-3.2-11b-vision-instruct">nvidia/llama-3.2-11b-vision-instruct (Visión)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Campos de OpenAI */}
+              {settings.aiProvider === 'openai' && (
+                <div className="space-y-3 p-4 rounded-2xl bg-sky-950/20 border border-sky-500/30 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-semibold text-sky-300 mb-1">OpenAI API Key</label>
+                    <input
+                      type="password"
+                      placeholder="sk-proj-..."
+                      value={settings.openaiApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-sky-300 mb-1">Modelo de OpenAI</label>
+                    <select
+                      value={settings.aiModel || 'gpt-4o-mini'}
+                      onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500"
+                    >
+                      <option value="gpt-4o-mini">gpt-4o-mini (Rápido y económico para ventas)</option>
+                      <option value="gpt-4o">gpt-4o (Máxima inteligencia + Visión)</option>
                       <option value="gpt-4-turbo">gpt-4-turbo</option>
-                    </>
-                  )}
-                </select>
-              </div>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Campos de Custom Endpoint (Ollama, LM Studio, Groq, DeepSeek, LocalAI) */}
+              {settings.aiProvider === 'custom' && (
+                <div className="space-y-3 p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-semibold text-amber-300 mb-1">Base URL del Endpoint OpenAI-compatible</label>
+                    <input
+                      type="text"
+                      placeholder="http://localhost:11434/v1 o https://api.groq.com/openai/v1"
+                      value={settings.customBaseUrl || ''}
+                      onChange={(e) => setSettings({ ...settings, customBaseUrl: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Compatible con Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`), Groq, DeepSeek, vLLM, etc.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-amber-300 mb-1">Nombre del Modelo</label>
+                      <input
+                        type="text"
+                        placeholder="llama3 / mistral / deepseek-chat"
+                        value={settings.customModel || ''}
+                        onChange={(e) => setSettings({ ...settings, customModel: e.target.value })}
+                        className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-amber-300 mb-1">API Key (Si aplica)</label>
+                      <input
+                        type="password"
+                        placeholder="Opcional para Ollama/Local"
+                        value={settings.customApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, customApiKey: e.target.value })}
+                        className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
 

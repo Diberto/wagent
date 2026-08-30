@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import fs from 'fs';
+import path from 'path';
 import { db } from './database.js';
 import { SpeechService } from './speech.js';
 
@@ -15,10 +17,10 @@ export class AIService {
   static async generateReply({ jid, incomingText, isAudioInput = false }) {
     const settings = db.getSettings();
     const lead = db.getLead(jid) || { name: 'Cliente', stage: 'new_lead', tags: [] };
-    const history = db.getMessages(jid, 10);
+    const history = db.getMessages(jid, 12);
     const knowledgeBase = db.getKnowledgeBase();
 
-    // 1. Construir contexto de base de conocimiento (RAG ligero)
+    // 1. Contexto de base de conocimiento (RAG)
     const kbContext = knowledgeBase.map((item, index) => {
       let entry = `[KB-${index + 1}] ${item.title} (${item.category}):\n${item.content}`;
       if (item.productPrice) {
@@ -27,7 +29,7 @@ export class AIService {
       return entry;
     }).join('\n\n');
 
-    // 2. Construir historial de mensajes
+    // 2. Historial formateado
     const formattedHistory = history.map(msg => {
       const role = msg.sender === 'user' ? 'Cliente' : 'Asesor (Tú)';
       const typeNote = msg.type === 'audio' ? ' [Nota de voz]' : '';
@@ -47,20 +49,74 @@ BASE DE CONOCIMIENTOS DE LA EMPRESA:
 ${kbContext || 'No hay artículos específicos cargados en la base de conocimientos.'}
 
 INSTRUCCIONES CLAVE DE FORMATO Y ESTILO:
-- Responde de forma cordial, conversacional y directa.
-- Máximo 1 o 2 párrafos cortos (ideal para lectura rápida en WhatsApp).
-- Utiliza la información de la base de conocimientos para responder con exactitud sobre precios, horarios, envíos y políticas.
-- Si el cliente pregunta algo fuera de catálogo o complejo, sé honesto y ofrece conectarlo con un asesor humano.
-- Al final de tu respuesta, si detectas que la etapa del cliente cambió claramente (ej. pidió cotización -> 'proposal', confirmó compra -> 'closed_won', desinterés total -> 'closed_lost'), incluye al final de tu mensaje en una línea separada: [[STAGE:nuevo_estado]] (opciones válidas: new_lead, qualified, negotiating, proposal, closed_won, closed_lost).`;
+- Responde de forma cordial, humana, conversacional y persuasiva.
+- Máximo 1 o 2 párrafos cortos (ideal para WhatsApp).
+- Utiliza la información de la base de conocimientos para responder con exactitud sobre productos, precios, envíos, métodos de pago y políticas.
+- Si el cliente pregunta algo fuera de catálogo, sé honesto y ofrece derivarlo amablemente.
+- Si detectas que la etapa del cliente cambió claramente (ej. pidió cotización -> 'proposal', confirmó compra/pago -> 'closed_won', desinterés -> 'closed_lost'), incluye al final de tu mensaje: [[STAGE:nuevo_estado]] (opciones: new_lead, qualified, negotiating, proposal, closed_won, closed_lost).`;
 
     let replyText = '';
 
     try {
       const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
       const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
+      const isValidNvidiaKey = settings.nvidiaApiKey && settings.nvidiaApiKey.startsWith('nvapi-');
+      const isValidCustom = settings.customBaseUrl && settings.customBaseUrl.startsWith('http');
 
-      if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
-        // --- GOOGLE GEMINI ---
+      if (settings.aiProvider === 'nvidia' && isValidNvidiaKey) {
+        // --- 1. NVIDIA NIM API ---
+        const nvidia = new OpenAI({
+          apiKey: settings.nvidiaApiKey,
+          baseURL: 'https://integrate.api.nvidia.com/v1'
+        });
+
+        const messages = [{ role: 'system', content: systemInstruction }];
+        history.forEach(m => {
+          messages.push({
+            role: m.sender === 'user' ? 'user' : 'assistant',
+            content: m.content
+          });
+        });
+        if (messages[messages.length - 1]?.content !== incomingText) {
+          messages.push({ role: 'user', content: incomingText });
+        }
+
+        const completion = await nvidia.chat.completions.create({
+          model: settings.nvidiaModel || 'meta/llama-3.3-70b-instruct',
+          messages,
+          temperature: 0.6,
+          max_tokens: 350
+        });
+
+        replyText = completion.choices[0]?.message?.content || '';
+      } else if (settings.aiProvider === 'custom' && isValidCustom) {
+        // --- 2. CUSTOM OPENAI-COMPATIBLE ENDPOINT (Ollama, LM Studio, Groq, DeepSeek) ---
+        const customClient = new OpenAI({
+          apiKey: settings.customApiKey || 'dummy-key',
+          baseURL: settings.customBaseUrl
+        });
+
+        const messages = [{ role: 'system', content: systemInstruction }];
+        history.forEach(m => {
+          messages.push({
+            role: m.sender === 'user' ? 'user' : 'assistant',
+            content: m.content
+          });
+        });
+        if (messages[messages.length - 1]?.content !== incomingText) {
+          messages.push({ role: 'user', content: incomingText });
+        }
+
+        const completion = await customClient.chat.completions.create({
+          model: settings.customModel || 'llama3',
+          messages,
+          temperature: 0.6,
+          max_tokens: 350
+        });
+
+        replyText = completion.choices[0]?.message?.content || '';
+      } else if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
+        // --- 3. GOOGLE GEMINI ---
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
         const modelName = settings.aiModel || 'gemini-2.0-flash';
         const model = genAI.getGenerativeModel({
@@ -71,22 +127,16 @@ INSTRUCCIONES CLAVE DE FORMATO Y ESTILO:
         const prompt = `HISTORIAL DE LA CONVERSACIÓN:\n${formattedHistory}\n\nÚLTIMO MENSAJE DEL CLIENTE: "${incomingText}"\n\nTu respuesta como Asesor:`;
         const result = await model.generateContent(prompt);
         replyText = result.response.text();
-      } else if (settings.aiProvider === 'openai' && settings.openaiApiKey) {
-        // --- OPENAI ---
+      } else if (settings.aiProvider === 'openai' && isValidOpenAiKey) {
+        // --- 4. OPENAI ---
         const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-        const messages = [
-          { role: 'system', content: systemInstruction }
-        ];
-
-        // Añadir historial reciente
+        const messages = [{ role: 'system', content: systemInstruction }];
         history.forEach(m => {
           messages.push({
             role: m.sender === 'user' ? 'user' : 'assistant',
             content: m.content
           });
         });
-
-        // Asegurar que el mensaje entrante actual esté incluido
         if (messages[messages.length - 1]?.content !== incomingText) {
           messages.push({ role: 'user', content: incomingText });
         }
@@ -100,77 +150,206 @@ INSTRUCCIONES CLAVE DE FORMATO Y ESTILO:
 
         replyText = completion.choices[0]?.message?.content || '';
       } else {
-        // --- MODO DEMO ASISTENTE INTELIGENTE (Sin API Keys configuradas) ---
-        replyText = AIService.generateDemoReply(incomingText, lead, knowledgeBase);
+        // --- 5. RESPUESTA INTELIGENTE SIN API KEY (Contextual y Dinámica basada en KB) ---
+        replyText = this.generateDynamicReply(incomingText, lead, knowledgeBase, settings);
       }
     } catch (error) {
       console.error('Error generando respuesta con IA:', error);
-      replyText = AIService.generateDemoReply(incomingText, lead, knowledgeBase);
+      replyText = this.generateDynamicReply(incomingText, lead, knowledgeBase, settings);
     }
 
-    // 4. Extraer posibles cambios de etapa [[STAGE:x]]
+    // Extraer y procesar cambio de etapa sugerido
     let suggestedStage = null;
-    const stageMatch = replyText.match(/\[\[STAGE:([a-z_]+)\]\]/i);
+    const stageMatch = replyText.match(/\[\[STAGE:([a-zA-Z_]+)\]\]/);
     if (stageMatch) {
-      suggestedStage = stageMatch[1].toLowerCase();
-      replyText = replyText.replace(/\[\[STAGE:[a-z_]+\]\]/gi, '').trim();
-      
-      // Actualizar etapa en DB si es válida
-      const validStages = ['new_lead', 'qualified', 'negotiating', 'proposal', 'closed_won', 'closed_lost'];
-      if (validStages.includes(suggestedStage)) {
-        db.updateLeadStage(jid, suggestedStage);
-      }
+      suggestedStage = stageMatch[1];
+      replyText = replyText.replace(/\[\[STAGE:[a-zA-Z_]+\]\]/, '').trim();
+      db.updateLeadStage(jid, suggestedStage);
     }
 
-    // 5. Decidir si generar respuesta en Audio (Voz)
-    const shouldSendAudio = settings.alwaysVoiceReply || (settings.voiceRepliesEnabled && isAudioInput);
-    let audioResult = null;
+    // Determinar si debemos responder con Nota de Voz
+    const shouldSendAudio = Boolean(
+      settings.alwaysVoiceReply || (isAudioInput && settings.voiceRepliesEnabled)
+    );
 
-    if (shouldSendAudio) {
+    let audioOggPath = null;
+    let audioMp3Path = null;
+    let audioDuration = 0;
+
+    if (shouldSendAudio && replyText) {
       try {
-        audioResult = await SpeechService.textToSpeech(replyText);
+        const speech = await SpeechService.textToSpeech(replyText);
+        audioOggPath = speech.oggPath;
+        audioMp3Path = speech.mp3Path;
+        audioDuration = speech.durationSeconds;
       } catch (err) {
-        console.error('No se pudo sintetizar audio para la respuesta:', err);
+        console.error('Error sintetizando respuesta de voz:', err);
       }
     }
 
     return {
       text: replyText,
-      audioPath: audioResult?.oggPath || null,
-      audioMp3Path: audioResult?.mp3Path || null,
-      audioDuration: audioResult?.durationSeconds || 0,
+      audioOggPath,
+      audioMp3Path,
+      audioDuration,
       shouldSendAudio,
       suggestedStage
     };
   }
 
   /**
-   * Generador de respuestas heurísticas en modo demostración sin API Keys
+   * Analiza imágenes recibidas por WhatsApp (Productos, Tickets, Comprobantes de Pago)
    */
-  static generateDemoReply(text, lead, knowledgeBase) {
-    const lower = text.toLowerCase();
+  static async analyzeImageAndReply({ jid, imagePath, caption = '' }) {
+    const settings = db.getSettings();
+    const lead = db.getLead(jid) || { name: 'Cliente', stage: 'new_lead' };
+    const knowledgeBase = db.getKnowledgeBase();
 
-    if (lower.includes('hola') || lower.includes('buenos') || lower.includes('buenas') || lower.includes('saludos')) {
-      return `¡Hola ${lead.pushName || lead.name || ''}! 👋 Un placer saludarte. Soy la asesora virtual de ventas y atención al cliente. ¿En qué producto o servicio te puedo ayudar hoy?`;
-    }
-    if (lower.includes('precio') || lower.includes('costo') || lower.includes('cuanto') || lower.includes('plan') || lower.includes('tarifa')) {
-      const paymentKb = knowledgeBase.find(k => k.keywords?.some(kw => lower.includes(kw)));
-      if (paymentKb) {
-        return `Con mucho gusto te comento: ${paymentKb.content} 🚀\n¿Te gustaría que te preparemos una propuesta personalizada o tienes alguna duda adicional? [[STAGE:negotiating]]`;
+    const kbContext = knowledgeBase.map((k, i) => `[${i + 1}] ${k.title}: ${k.content}`).join('\n');
+
+    const visionPrompt = `Eres el asistente de ventas y facturación de "${settings.businessName || 'nuestra empresa'}".
+El cliente te acaba de enviar una imagen por WhatsApp con el comentario: "${caption || 'Sin comentario'}".
+
+BASE DE CONOCIMIENTOS:
+${kbContext}
+
+INSTRUCCIONES DE ANÁLISIS DE LA IMAGEN:
+1. SI ES UN COMPROBANTE DE PAGO, TICKET, TRANSFERENCIA O FACTURA:
+   - Identifica el monto abonado, banco/medio de pago y número de transacción/referencia.
+   - Responde confirmando que el comprobante fue recibido correctamente y agradece el pago.
+   - Agrega al final de tu respuesta: [[STAGE:closed_won]] y [[PAYMENT_AMOUNT:monto]] (ej: [[PAYMENT_AMOUNT:1500]]).
+2. SI ES LA FOTO DE UN PRODUCTO O ARTÍCULO:
+   - Identifica qué producto es y ofrece información comercial, precios, disponibilidad o detalles basados en la base de conocimientos.
+   - Sugiere el siguiente paso de compra.
+3. SI ES OTRA IMAGEN:
+   - Describe cordialmente lo que ves y pregunta en qué puedes ayudarle respecto a sus compras o consultas.
+
+Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
+
+    let replyText = '';
+
+    try {
+      const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
+      const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
+
+      if (isValidGeminiKey) {
+        // Gemini 2.0 Flash Vision
+        const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const imageBuffer = fs.readFileSync(imagePath);
+        const base64Data = imageBuffer.toString('base64');
+
+        const result = await model.generateContent([
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: base64Data
+            }
+          },
+          { text: visionPrompt }
+        ]);
+        replyText = result.response.text();
+      } else if (isValidOpenAiKey) {
+        // OpenAI GPT-4o Vision
+        const openai = new OpenAI({ apiKey: settings.openaiApiKey });
+        const imageBuffer = fs.readFileSync(imagePath);
+        const base64Image = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
+
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: visionPrompt },
+                { type: 'image_url', image_url: { url: base64Image } }
+              ]
+            }
+          ],
+          max_tokens: 400
+        });
+        replyText = completion.choices[0]?.message?.content || '';
+      } else {
+        // Fallback si no hay API key de visión
+        replyText = `¡Muchas gracias por enviarnos la imagen! 📸 He registrado tu foto en el sistema. ¿Deseas que verifiquemos este comprobante de pago o que te brindemos cotización sobre este producto?`;
       }
-      return `Tenemos excelentes planes y promociones vigentes adaptadas a lo que necesitas. 💼 ¿Te gustaría que te envíe los detalles de nuestros paquetes y facilidades de pago? [[STAGE:negotiating]]`;
-    }
-    if (lower.includes('horario') || lower.includes('hora') || lower.includes('abierto')) {
-      const schedule = knowledgeBase.find(k => k.id === 'kb-1');
-      return `${schedule ? schedule.content : 'Atendemos de Lunes a Viernes de 8:00 AM a 7:00 PM.'} Además, nuestro agente de WhatsApp está disponible 24/7 para asistirte. 😊`;
-    }
-    if (lower.includes('audio') || lower.includes('voz') || lower.includes('llamada') || lower.includes('hablar')) {
-      return `¡Por supuesto! Nuestro sistema cuenta con soporte completo para notas de voz y llamadas automatizadas con Inteligencia Artificial. Puedes enviarme mensajes de audio en cualquier momento y te responderé con la misma fluidez. 🎙️✨`;
-    }
-    if (lower.includes('comprar') || lower.includes('quiero') || lower.includes('adquirir') || lower.includes('contratar') || lower.includes('pago')) {
-      return `¡Excelente decisión! 🌟 Podemos procesar tu pedido inmediatamente con Transferencia, Tarjeta o PayPal. ¿A qué nombre preparamos tu orden para confirmarla? [[STAGE:proposal]]`;
+    } catch (err) {
+      console.error('Error analizando imagen con IA:', err);
+      replyText = `¡Imagen recibida con éxito! Nuestro equipo y sistema de ventas la han registrado. ¿En qué podemos asesorarte con respecto a esta imagen?`;
     }
 
-    return `Entendido. He registrado tu consulta y estoy aquí para resolver cualquier duda sobre nuestros productos, soporte técnico o ventas. ¿Deseas que profundicemos en algún detalle o prefieres que un asesor de nuestro equipo te llame? 😊`;
+    // Procesar pago detectado
+    const paymentMatch = replyText.match(/\[\[PAYMENT_AMOUNT:([0-9.,]+)\]\]/);
+    if (paymentMatch) {
+      const amount = parseFloat(paymentMatch[1].replace(',', '.'));
+      if (!isNaN(amount) && amount > 0) {
+        db.updateLead(jid, { value: amount, stage: 'closed_won' });
+      }
+      replyText = replyText.replace(/\[\[PAYMENT_AMOUNT:[0-9.,]+\]\]/, '').trim();
+    }
+
+    const stageMatch = replyText.match(/\[\[STAGE:([a-zA-Z_]+)\]\]/);
+    if (stageMatch) {
+      db.updateLeadStage(jid, stageMatch[1]);
+      replyText = replyText.replace(/\[\[STAGE:[a-zA-Z_]+\]\]/, '').trim();
+    }
+
+    return { text: replyText };
+  }
+
+  /**
+   * Generador de respuestas dinámicas e inteligentes cuando no hay API Key activa
+   */
+  static generateDynamicReply(text, lead, knowledgeBase, settings) {
+    const t = (text || '').toLowerCase().trim();
+    const customerName = lead.pushName || lead.name || '';
+    const nameGreeting = customerName && !customerName.includes('Contacto') ? ` ${customerName}` : '';
+
+    // 1. Saludos
+    if (/^(hola|buen|buenas|que tal|saludos|hey|alo)/i.test(t)) {
+      return `¡Hola${nameGreeting}! 👋 Un gusto saludarte. Soy la asesora virtual de ${settings.businessName || 'nuestra empresa'}. ¿En qué producto o servicio te podemos ayudar hoy?`;
+    }
+
+    // 2. Búsqueda directa en Base de Conocimientos (Productos, Catálogo, Precios, Horarios, Envíos)
+    for (const item of knowledgeBase) {
+      const match = (item.keywords || []).some(k => t.includes(k.toLowerCase())) ||
+                    t.includes(item.title.toLowerCase()) ||
+                    (item.content && item.content.toLowerCase().includes(t));
+      if (match) {
+        let reply = `${item.content}`;
+        if (item.productPrice) {
+          reply += `\n💰 *Precio:* $${item.productPrice}`;
+        }
+        reply += `\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊`;
+        return reply;
+      }
+    }
+
+    // 3. Consultas de catálogo general ("qué productos tienen", "qué venden", "catálogo", "lista")
+    if (t.includes('producto') || t.includes('venden') || t.includes('catalogo') || t.includes('ofrecen') || t.includes('tienen') || t.includes('servicio') || t.includes('precio') || t.includes('cuanto')) {
+      const productItems = knowledgeBase.map(k => `• *${k.title}*: ${k.content.substring(0, 75)}...`).join('\n');
+      if (productItems) {
+        return `¡Con gusto! Contamos con las siguientes opciones disponibles:\n\n${productItems}\n\n¿Cuál de estos te gustaría cotizar o adquirir hoy?`;
+      }
+      return `Ofrecemos atención comercial integral y soluciones personalizadas. ¿Qué producto o requerimiento específico estás buscando?`;
+    }
+
+    // 4. Métodos de Pago
+    if (t.includes('pago') || t.includes('transferencia') || t.includes('tarjeta') || t.includes('efectivo') || t.includes('pagar') || t.includes('cbu') || t.includes('alias')) {
+      return `¡Excelente! Aceptamos Transferencias Bancarias, Tarjetas de Crédito/Débito y Efectivo. Si realizas una transferencia, puedes enviarnos el comprobante por aquí en foto y lo confirmaremos de inmediato. [[STAGE:negotiating]]`;
+    }
+
+    // 5. Solicitud de llamada o atención humana
+    if (t.includes('llamar') || t.includes('llames') || t.includes('llamada') || t.includes('humano') || t.includes('asesor') || t.includes('telefono')) {
+      return `¡Por supuesto! He registrado tu solicitud para que uno de nuestros asesores comerciales se comunique contigo a la brevedad. También puedes llamarnos directamente por este mismo WhatsApp cuando gustes. 📞 [[STAGE:qualified]]`;
+    }
+
+    // 6. Afirmaciones ("si", "dale", "de acuerdo", "quiero")
+    if (/^(si|dale|de una|perfecto|ok|bueno|quiero|me interesa)/i.test(t)) {
+      return `¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar. [[STAGE:proposal]]`;
+    }
+
+    // 7. Respuesta por defecto enriquecida
+    return `He registrado tu mensaje: "${text}". ¿Deseas consultar sobre alguno de nuestros productos, formas de pago, envíos o prefieres que un asesor te asista personalmente? 😊`;
   }
 }

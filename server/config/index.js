@@ -20,9 +20,14 @@ export const CONFIG = {
   AUTH_DIR,
   
   DEFAULT_SETTINGS: {
-    aiProvider: process.env.AI_PROVIDER || 'gemini', // 'gemini' | 'openai'
+    aiProvider: process.env.AI_PROVIDER || 'gemini', // 'gemini' | 'openai' | 'nvidia' | 'custom'
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     openaiApiKey: process.env.OPENAI_API_KEY || '',
+    nvidiaApiKey: process.env.NVIDIA_API_KEY || '',
+    nvidiaModel: process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct',
+    customBaseUrl: process.env.CUSTOM_BASE_URL || '',
+    customApiKey: process.env.CUSTOM_API_KEY || '',
+    customModel: process.env.CUSTOM_MODEL || 'llama3',
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM',
     elevenlabsModelId: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
