@@ -19,6 +19,24 @@
     "elevenlabsVoiceId": "pNInz6obpgDQGcFmaJgB",
     "nvidiaApiKey": "diberto77"
   },
+  "orders": [
+    {
+      "id": "ORD-1042",
+      "jid": "153051277086768@lid",
+      "phone": "+153051277086768",
+      "customerName": "Juan Gonzalez",
+      "address": "Locelso 7089",
+      "items": [
+        "1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo al repartidor",
+      "status": "pending",
+      "notes": "Cliente confirmó abono en efectivo al recibir",
+      "createdAt": "2026-08-30T19:22:00.000Z",
+      "updatedAt": "2026-08-30T19:22:00.000Z"
+    }
+  ],
   "knowledgeBase": [
     {
       "id": "kb-1",
@@ -166,13 +184,13 @@
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 2,
+      "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
       "updatedAt": "2026-08-30T19:23:28.000Z",
       "jid": "153051277086768@lid",
-      "name": "recuerda mi pedido?",
+      "name": "Juan Gonzalez",
       "phone": "+153051277086768",
-      "pushName": "recuerda mi pedido?",
+      "pushName": "Juan Gonzalez",
       "lastMessage": "¡Excelente recuerda mi pedido?! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* recuerda mi pedido?\n📍 *Destino de Entrega:* retiro en sucursal roque funes\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]",
       "lastMessageAt": "2026-08-30T19:23:28.000Z",
       "notes": "Dirección de entrega: retiro en sucursal roque funes"
@@ -187,7 +205,7 @@
       "aiEnabled": true,
       "unreadCount": 0,
       "createdAt": "2026-08-30T17:44:01.514Z",
-      "updatedAt": "2026-08-30T17:44:03.000Z",
+      "updatedAt": "2026-08-30T19:24:09.627Z",
       "jid": "153051277086768@s.whatsapp.net",
       "name": "Don Juan",
       "phone": "+153051277086768",
