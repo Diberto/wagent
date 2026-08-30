@@ -26,7 +26,8 @@ import {
   Save,
   CreditCard,
   Store,
-  Bike
+  Bike,
+  Users
 } from 'lucide-react';
 
 export default function OrdersView({ socket }) {

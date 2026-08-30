@@ -28,66 +28,6 @@
   },
   "orders": [
     {
-      "id": "ORD-4412",
-      "jid": "",
-      "phone": "",
-      "customerName": "Juan Gonzalez",
-      "address": "Roque Funes 1704, Barrio Urca",
-      "items": [
-        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
-      ],
-      "totalAmount": 39999,
-      "paymentMethod": "Efectivo / Transferencia / Mercado Pago",
-      "status": "pending",
-      "notes": "",
-      "createdAt": "2026-08-30T22:05:06.394Z",
-      "updatedAt": "2026-08-30T22:05:06.394Z"
-    },
-    {
-      "id": "ORD-3642",
-      "jid": "153051277086768@lid",
-      "phone": "+153051277086768",
-      "customerName": "mi domicilio",
-      "address": "ok quiero eso asi tal cual par",
-      "items": [
-        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
-      ],
-      "totalAmount": 39999,
-      "paymentMethod": "Efectivo / Transferencia / Mercado Pago",
-      "status": "pending",
-      "notes": "",
-      "createdAt": "2026-08-30T21:57:09.665Z",
-      "updatedAt": "2026-08-30T21:57:09.665Z"
-    },
-    {
-      "id": "ORD-8829",
-      "jid": "153051277086768@lid",
-      "phone": "+153051277086768",
-      "customerName": "mi domicilio",
-      "address": "confirmame el pedido par",
-      "items": [
-        "• 1x Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999",
-        "• 2x Carbón Quebracho Blanco — $4.400"
-      ],
-      "totalAmount": 44399,
-      "paymentMethod": "Mercado Pago (Sandbox Test)",
-      "status": "preparing",
-      "notes": "[Pago Simulado] Acreditado en Sandbox ($44399)\n[Pago Simulado] Acreditado en Sandbox ($44399)",
-      "createdAt": "2026-08-30T21:28:49.594Z",
-      "updatedAt": "2026-08-30T21:33:46.721Z",
-      "paymentPreferenceId": "2050924390-d4af05f4-d60e-4126-b9b6-8b544fe67a84",
-      "paymentLink": "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-d4af05f4-d60e-4126-b9b6-8b544fe67a84",
-      "paymentMode": "sandbox",
-      "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-d4af05f4-d60e-4126-b9b6-8b544fe67a84",
-      "paymentStatus": "paid",
-      "paidAt": "2026-08-30T21:33:46.719Z",
-      "branchId": "br-1",
-      "branchName": "Sucursal Cerro de las Rosas",
-      "branchPhone": "+54 9 351 347-2864",
-      "branchStatus": "derived",
-      "branchNotifiedAt": "2026-08-30T21:31:36.433Z"
-    },
-    {
       "id": "ORD-9109",
       "jid": "280044836511777@lid",
       "phone": "+280044836511777",
@@ -327,6 +267,32 @@
   ],
   "leads": [
     {
+      "id": "lead-1788128250883-i1i4n",
+      "jid": "5493513472864@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 347-2864",
+      "name": "+54 9 351 347-2864",
+      "pushName": "Contacto WhatsApp",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T22:17:30.883Z",
+      "updatedAt": "2026-08-30T22:17:26.000Z",
+      "lastMessage": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-5859*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* mi domicilio (📞 +153051277086768)\n📍 *Destino / Entrega:* Retiro en Sucursal Cerro de las Rosas\n\n📋 *CORTES SOLICITADOS:*\n• 1 combo Combo Asado Completo (4 Personas) ($39.999)\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo\n📝 *Notas:* [POS Mostrador]\nVenta ingresada desde terminal POS Mostrador\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
+      "lastMessageAt": "2026-08-30T22:17:26.000Z"
+    },
+    {
       "id": "lead-1788126860039-wle79",
       "jid": "51788782809330@lid",
       "altJids": [],
@@ -355,21 +321,25 @@
     {
       "id": "lead-1788126699370-eb54j",
       "jid": "153051277086768@lid",
-      "altJids": [],
+      "altJids": [
+        "153051277086768@s.whatsapp.net"
+      ],
       "phone": "+153051277086768",
       "name": "mi domicilio",
-      "pushName": "Don Juan",
+      "pushName": "mi domicilio",
       "stage": "proposal",
       "value": 39999,
       "tags": [
         "WhatsApp",
-        "Cliente Comprador"
+        "Cliente Comprador",
+        "Cliente VIP"
       ],
       "aiEnabled": true,
       "unreadCount": 0,
       "preferences": {
         "favoriteCuts": [
-          "Combo “Asadazo”"
+          "Combo “Asadazo”",
+          "combo Combo Asado Completo"
         ],
         "cookingPreference": "Parrilla",
         "preferredPayment": "Efectivo / Transferencia",
@@ -377,15 +347,15 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T22:11:16.000Z",
-      "lastMessage": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
-      "lastMessageAt": "2026-08-30T22:11:16.000Z",
-      "address": "ok quiero eso asi tal cual par",
+      "updatedAt": "2026-08-30T22:19:18.063Z",
+      "lastMessage": "¡Hola mi domicilio! 🥩 Te avisamos que tu pedido #ORD-5859 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor.",
+      "lastMessageAt": "2026-08-30T22:19:18.062Z",
+      "address": "Retiro en Sucursal Cerro de las Rosas",
       "notes": "Dirección: ok quiero eso asi tal cual par | Pedido #ORD-3642",
-      "totalOrders": 1,
-      "totalSpent": 39999,
-      "lastOrderAt": "2026-08-30T21:57:09.665Z",
-      "lastOrderId": "ORD-3642"
+      "totalOrders": 2,
+      "totalSpent": 79998,
+      "lastOrderAt": "2026-08-30T22:17:26.225Z",
+      "lastOrderId": "ORD-5859"
     },
     {
       "id": "lead-1788124325869-p41bh",
@@ -1385,9 +1355,83 @@
       "content": "¡Tomado nota Don Juan! Para dejarlo perfecto: ¿te gustaría que te reservemos algún corte en especial (como tapa de cuadril, vacío, costillar, picada o costeletas) o querés que te recomiende un combo para la cantidad de personas que van a comer? 🥩🔥",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128170548-rx6kr1",
+      "timestamp": "2026-08-30T22:16:10.548Z",
+      "status": "sent",
+      "chatId": "153051277086768@s.whatsapp.net",
+      "sender": "agent",
+      "type": "audio",
+      "content": "Hola mi domicilio, te llamamos de República de la Carne para darte seguimiento a tu consulta sobre nuestros servicios. ¿Cómo podemos ayudarte?",
+      "mediaUrl": "/media/tts_raw_1788128167283_wijnu.mp3",
+      "audioDuration": 9
+    },
+    {
+      "id": "3EB00A767CD7F55FA02612",
+      "timestamp": "2026-08-30T22:16:10.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@s.whatsapp.net",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788128248780_ppxany.mp3",
+      "audioDuration": 9
+    },
+    {
+      "id": "3EB03DAD31295722F43DFD",
+      "timestamp": "2026-08-30T22:17:26.000Z",
+      "status": "sent",
+      "chatId": "5493513472864@s.whatsapp.net",
+      "sender": "agent",
+      "type": "text",
+      "content": "🥩🔔 *¡NUEVO PEDIDO DERIVADO! #ORD-5859*\n\n🏪 *Sucursal Destino:* Sucursal Cerro de las Rosas\n👤 *Cliente:* mi domicilio (📞 +153051277086768)\n📍 *Destino / Entrega:* Retiro en Sucursal Cerro de las Rosas\n\n📋 *CORTES SOLICITADOS:*\n• 1 combo Combo Asado Completo (4 Personas) ($39.999)\n\n💰 *Total:* $39.999\n💳 *Medio de Pago:* Efectivo\n📝 *Notas:* [POS Mostrador]\nVenta ingresada desde terminal POS Mostrador\n\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0934523B0FACCADAEF2",
+      "timestamp": "2026-08-30T22:17:26.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@s.whatsapp.net",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola mi domicilio! 🥩 Tu pedido *#ORD-5859* ha sido asignado a nuestra *Sucursal Cerro de las Rosas* (Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba). El equipo de corte ya fue notificado y está preparando todo para vos. 🙌",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788128326067-2pt0ia",
+      "timestamp": "2026-08-30T22:18:46.066Z",
+      "status": "sent",
+      "chatId": "153051277086768@s.whatsapp.net",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola mi domicilio! 🚚 Tu pedido #ORD-5859 ya salió de sucursal y va en camino hacia Retiro en Sucursal Cerro de las Rosas. ¡Tené a mano el medio de pago acordado (Efectivo)! 🥩🔥"
+    },
+    {
+      "id": "msg-1788128358060-b0dbxf",
+      "timestamp": "2026-08-30T22:19:18.060Z",
+      "status": "sent",
+      "chatId": "153051277086768@s.whatsapp.net",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola mi domicilio! 🥩 Te avisamos que tu pedido #ORD-5859 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor."
     }
   ],
   "calls": [
+    {
+      "id": "call-1788128170546-3okg6",
+      "timestamp": "2026-08-30T22:16:10.545Z",
+      "direction": "outgoing",
+      "status": "completed",
+      "duration": 9,
+      "aiFollowUpSent": true,
+      "chatId": "153051277086768@s.whatsapp.net",
+      "callerNumber": "+153051277086768",
+      "callerName": "mi domicilio",
+      "notes": "Llamada / Audio de voz saliente enviado: \"Hola mi domicilio, te llamamos de República de la Carne para...\""
+    },
     {
       "id": "call-1788118412804-z246d",
       "timestamp": "2026-08-30T19:33:32.802Z",
