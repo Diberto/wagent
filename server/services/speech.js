@@ -38,10 +38,11 @@ export class SpeechService {
         }
       }
 
-      // 2. Intentar con Google Gemini Multimodal si hay API key de Gemini
-      if (settings.geminiApiKey) {
+      // 2. Intentar con Google Gemini Multimodal si hay API key válida de Gemini
+      const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
+      if (isValidGeminiKey) {
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
         let mp3Path = audioPath;
         if (audioPath.endsWith('.ogg')) {

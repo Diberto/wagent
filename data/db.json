@@ -1,6 +1,6 @@
 {
   "settings": {
-    "aiProvider": "gemini",
+    "aiProvider": "openai",
     "geminiApiKey": "diberto77",
     "openaiApiKey": "",
     "aiModel": "gemini-2.0-flash",
@@ -97,15 +97,15 @@
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 2,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T17:53:29.000Z",
+      "updatedAt": "2026-08-30T17:56:09.000Z",
       "jid": "153051277086768@lid",
       "name": "Don Juan",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
-      "lastMessage": "🎤 [Nota de voz]",
-      "lastMessageAt": "2026-08-30T17:53:29.000Z"
+      "lastMessage": "Entendido. He registrado tu consulta y estoy aquí para resolver cualquier duda sobre nuestros productos, soporte técnico o ventas. ¿Deseas que profundicemos en algún detalle o prefieres que un asesor de nuestro equipo te llame? 😊",
+      "lastMessageAt": "2026-08-30T17:56:09.000Z"
     },
     {
       "id": "lead-1788111841514-dvhgd",
@@ -657,6 +657,68 @@
       "content": "[Error procesando nota de voz]",
       "mediaUrl": "/media/audio_1788112411360_sx1ijl.mp3",
       "audioDuration": 15
+    },
+    {
+      "id": "3EB03D48CF0CEA5DC746C6",
+      "timestamp": "2026-08-30T17:55:59.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788112561086-v4vho9",
+      "timestamp": "2026-08-30T17:56:01.085Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Un placer saludarte. Soy la asesora virtual de ventas y atención al cliente. ¿En qué producto o servicio te puedo ayudar hoy?"
+    },
+    {
+      "id": "3EB0FDE3BB152BD5693475",
+      "timestamp": "2026-08-30T17:56:01.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Un placer saludarte. Soy la asesora virtual de ventas y atención al cliente. ¿En qué producto o servicio te puedo ayudar hoy?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB02E0F86D670B0DF06FF",
+      "timestamp": "2026-08-30T17:56:08.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "que productos tienen",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788112569853-mtgfku",
+      "timestamp": "2026-08-30T17:56:09.853Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "Entendido. He registrado tu consulta y estoy aquí para resolver cualquier duda sobre nuestros productos, soporte técnico o ventas. ¿Deseas que profundicemos en algún detalle o prefieres que un asesor de nuestro equipo te llame? 😊"
+    },
+    {
+      "id": "3EB0B0DE71391945AD0ABE",
+      "timestamp": "2026-08-30T17:56:09.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "Entendido. He registrado tu consulta y estoy aquí para resolver cualquier duda sobre nuestros productos, soporte técnico o ventas. ¿Deseas que profundicemos en algún detalle o prefieres que un asesor de nuestro equipo te llame? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [
