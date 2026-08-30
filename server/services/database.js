@@ -67,34 +67,43 @@ class DatabaseService {
   readDb() {
     try {
       const data = fs.readFileSync(this.dbFile, 'utf8');
-      return JSON.parse(data);
+      if (!data || !data.trim()) {
+        if (this._cache) return this._cache;
+      }
+      const parsed = JSON.parse(data);
+      this._cache = parsed;
+      return parsed;
     } catch (error) {
-      console.error('Error reading database file:', error);
+      if (this._cache) return this._cache;
+      console.error('Error reading database file:', error.message);
       return {
         settings: CONFIG.DEFAULT_SETTINGS,
         knowledgeBase: CONFIG.DEFAULT_KNOWLEDGE_BASE,
         leads: [],
         messages: [],
-        calls: []
+        calls: [],
+        orders: []
       };
     }
   }
 
   writeDb(data) {
+    if (!data) return false;
+    this._cache = data;
     const jsonStr = JSON.stringify(data, null, 2);
     try {
-      fs.writeFileSync(this.dbFile, jsonStr, 'utf8');
+      const tempPath = `${this.dbFile}.tmp.${process.pid}`;
+      fs.writeFileSync(tempPath, jsonStr, 'utf8');
+      try {
+        fs.renameSync(tempPath, this.dbFile);
+      } catch {
+        fs.copyFileSync(tempPath, this.dbFile);
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+      }
       return true;
     } catch (error) {
       try {
-        const tempPath = `${this.dbFile}.tmp`;
-        fs.writeFileSync(tempPath, jsonStr, 'utf8');
-        try {
-          fs.copyFileSync(tempPath, this.dbFile);
-          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-        } catch {
-          fs.renameSync(tempPath, this.dbFile);
-        }
+        fs.writeFileSync(this.dbFile, jsonStr, 'utf8');
         return true;
       } catch (retryErr) {
         console.error('Error writing to database:', retryErr.message);
@@ -610,6 +619,16 @@ class DatabaseService {
     return orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
   }
 
+  updateOrder(id, updateData) {
+    const db = this.readDb();
+    const order = (db.orders || []).find(o => o.id === id);
+    if (!order) return null;
+
+    Object.assign(order, updateData, { updatedAt: new Date().toISOString() });
+    this.writeDb(db);
+    return order;
+  }
+
   createOrder(orderData) {
     const db = this.readDb();
     if (!db.orders) db.orders = [];
@@ -620,13 +639,17 @@ class DatabaseService {
       phone: orderData.phone || (orderData.jid ? orderData.jid.split('@')[0] : ''),
       customerName: orderData.customerName || 'Cliente',
       address: orderData.address || '',
+      branch: orderData.branch || '',
+      deliveryType: orderData.deliveryType || 'delivery',
       items: orderData.items || [],
       totalAmount: Number(orderData.totalAmount) || 0,
       paymentMethod: orderData.paymentMethod || 'Efectivo / Transferencia',
+      paymentLink: orderData.paymentLink || null,
       status: orderData.status || 'pending', // 'pending' | 'preparing' | 'in_transit' | 'delivered' | 'cancelled'
       notes: orderData.notes || '',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      ...orderData
     };
 
     db.orders.unshift(newOrder);

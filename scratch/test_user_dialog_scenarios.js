@@ -44,7 +44,7 @@ async function runTests() {
   console.log('\n--- 4. Testing "abono al retirar" ---');
   const reply4 = AIService.generateDynamicReply('abono al retirar', lead, knowledgeBase, settings);
   console.log('Reply 4:\n', reply4);
-  assert(reply4.includes('Ya quedó asentado tu medio de pago'), 'Debe confirmar el medio de pago');
+  assert(reply4.includes('Efectivo / Débito al retirar'), 'Debe confirmar el medio de pago');
   assert(reply4.includes('retirar'), 'Debe indicar retiro en sucursal');
 
   // Test 5: Producto no disponible (fuera de catálogo: pescado/sushi)
@@ -110,7 +110,7 @@ async function runTests() {
   db.saveMessage({ chatId: lead7.jid, sender: 'user', content: 'abono al retirar' });
   const rep7e = AIService.generateDynamicReply('abono al retirar', lead7, knowledgeBase, settings);
   console.log('Turn 5 (Pago):\n', rep7e);
-  assert(rep7e.includes('Ya quedó asentado tu medio de pago: **Efectivo / Débito al retirar**'), 'Debe confirmar el pago');
+  assert(rep7e.includes('Efectivo / Débito al retirar') && rep7e.includes('Urca Central'), 'Debe confirmar el pago y la sucursal');
 
   console.log('\n✅ TODOS LOS ESCENARIOS DEL DIÁLOGO PASARON AL 100%!');
 }

@@ -1158,27 +1158,51 @@ export default function SettingsModal({ isOpen, onClose }) {
                 />
               </label>
 
-              <label className="flex items-center justify-between p-3 rounded-2xl bg-[#182229] border border-slate-700/60 cursor-pointer">
-                <div>
-                  <div className="text-xs font-bold text-white">Auto-Seguimiento con Nota de Voz por Llamadas</div>
-                  <div className="text-[11px] text-slate-400">Cuando entra una llamada de voz, enviar nota de voz inmediata explicativa.</div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={Boolean(settings.autoCallFollowUp)}
-                  onChange={(e) => setSettings({ ...settings, autoCallFollowUp: e.target.checked })}
-                  className="w-4 h-4 text-emerald-500 rounded bg-slate-800 border-slate-700 focus:ring-0"
-                />
-              </label>
+              {/* AUTO-ATENCIÓN DE LLAMADAS ENTRANTES */}
+              <div className="p-3.5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-2">
+                      <PhoneCall size={14} className="text-emerald-400" />
+                      Auto-Atender Llamadas Entrantes de WhatsApp
+                    </div>
+                    <div className="text-[11px] text-slate-400">Cuando ingresa una llamada de voz, el sistema la gestiona automáticamente con el método elegido.</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.autoAnswerCalls !== false && (settings.autoAnswerCalls || settings.autoCallFollowUp)}
+                    onChange={(e) => setSettings({ ...settings, autoAnswerCalls: e.target.checked, autoCallFollowUp: e.target.checked })}
+                    className="w-4 h-4 text-emerald-500 rounded bg-slate-800 border-slate-700 focus:ring-0"
+                  />
+                </label>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Mensaje de Voz para Llamadas Entrantes</label>
-                <textarea
-                  rows="3"
-                  value={settings.callFollowUpMessage || ''}
-                  onChange={(e) => setSettings({ ...settings, callFollowUpMessage: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 leading-relaxed"
-                />
+                {(settings.autoAnswerCalls !== false && (settings.autoAnswerCalls || settings.autoCallFollowUp)) && (
+                  <div className="pt-2 border-t border-slate-800 space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Método de Respuesta Automática por Defecto</label>
+                      <select
+                        value={settings.autoAnswerCallMethod || 'elevenlabs'}
+                        onChange={(e) => setSettings({ ...settings, autoAnswerCallMethod: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="elevenlabs">🎙️ Agente Conversacional de Voz ElevenLabs (Ultra-Realista)</option>
+                        <option value="ai_voice_note">🗣️ Nota de Voz Personalizada con IA (TTS Neural)</option>
+                        <option value="ai_text_note">💬 Mensaje de Texto Inmediato por WhatsApp</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Mensaje de Voz Personalizado (para Nota de Voz / ElevenLabs)</label>
+                      <textarea
+                        rows="2"
+                        value={settings.callFollowUpMessage || ''}
+                        onChange={(e) => setSettings({ ...settings, callFollowUpMessage: e.target.value })}
+                        placeholder="¡Hola! Gracias por comunicarte con República de la Carne..."
+                        className="w-full px-3 py-1.5 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 leading-relaxed"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

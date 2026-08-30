@@ -509,15 +509,29 @@ export class AIService {
         payMethod = 'Efectivo contraentrega';
       }
 
-      if (lastOrder) {
-        db.updateOrderStatus(lastOrder.id, 'preparing');
-      }
       const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+      const branchName = lastOrder?.branch || lead.preferredBranch || 'Urca Central (Av. José Roque Funes 1115)';
+
+      if (lastOrder) {
+        db.updateOrder(lastOrder.id, {
+          status: 'preparing',
+          paymentMethod: payMethod,
+          ...(lastOrder.deliveryType === 'pickup' || /retirar|sucursal/i.test(t) ? { branch: branchName, deliveryType: 'pickup' } : {})
+        });
+      }
+
+      if (lead.jid || lead.id) {
+        db.updateLead(lead.jid || lead.id, {
+          stage: 'closed_won',
+          ...(lastOrder?.deliveryType === 'pickup' || /retirar|sucursal/i.test(t) ? { preferredBranch: branchName, deliveryType: 'pickup' } : {})
+        });
+      }
+
       const destinationText = (lastOrder?.deliveryType === 'pickup' || /retirar|sucursal/i.test(t)) 
-        ? 'para que lo retires listo por nuestra sucursal' 
+        ? `para que lo retires listo por nuestra sucursal **${branchName}**` 
         : 'para despacharlo dentro de las 24 hs a tu domicilio';
 
-      return `¡De diez ${clientName}! 🥩🔥 Ya quedó asentado tu medio de pago: **${payMethod}**${lastOrder ? ` para tu pedido **#${lastOrder.id}**` : ''}.\n\nYa lo pasamos al sector de corte ${destinationText}. ¡Muchas gracias por tu compra en República de la Carne! 🙌`;
+      return `¡De diez ${clientName}! 🥩🔥 Ya quedó 100% asentado tu pedido${lastOrder ? ` **#${lastOrder.id}**` : ''} con medio de pago **${payMethod}**.\n\nYa lo pasamos al sector de corte ${destinationText}. ¡Muchas gracias por tu compra en República de la Carne! 🙌 [[STAGE:closed_won]]`;
     }
 
     // =========================================================================
@@ -552,33 +566,100 @@ export class AIService {
     }
 
     // =========================================================================
-    // 0.18 ELECCIÓN DE SUCURSAL PARA RETIRO
+    // 0.18 ELECCIÓN DE SUCURSAL PARA RETIRO Y CORROBORACIÓN
     // =========================================================================
     const isSingleDigitBranch = /^[1-6]$/.test(t.trim()) || /^(?:opci[oó]n|sucursal|la|el)?\s*([1-6])$/i.test(t.trim());
     const branchDirectMatch = t.match(/^(?:opci[oó]n|sucursal|la|el)?\s*([1-6])\b/i) || 
                               t.match(/(?:retiro|retirar|paso|buscar)?\s*(?:por|en)?\s*(?:la\s*)?(?:sucursal\s*)?(urca|roque funes|funes|pidal|tejeda|intercountry|corteza|alamos|álamos|duarte quiros|quiros|quirós|villa allende|figueroa alcorta|san isidro|luchesse)/i);
 
     if (isSingleDigitBranch || (/retiro por sucursal|retirar en sucursal|paso a retirar|retiro en/i.test(t) && branchDirectMatch)) {
-      const choice = branchDirectMatch[1].toLowerCase();
+      const choice = branchDirectMatch ? branchDirectMatch[1].toLowerCase() : '1';
       let branchName = 'Urca Central (Av. José Roque Funes 1115)';
+      let branchAddress = 'Av. José Roque Funes 1115, Barrio Urca, Córdoba';
+      let branchPhone = '+54 9 3513 906947';
+      let branchHours = 'Lunes a Sábado de 9:00 a 21:00 hs | Domingo de 9:00 a 13:30 hs';
+
       if (choice === '1' || choice.includes('roque funes') || choice.includes('funes') || choice === 'urca') {
         branchName = 'Urca Central (Av. José Roque Funes 1115)';
+        branchAddress = 'Av. José Roque Funes 1115, Barrio Urca, Córdoba';
+        branchPhone = '+54 9 3513 906947';
+        branchHours = 'Lun a Sáb 9:00 a 21:00 hs | Dom 9:00 a 13:30 hs';
       } else if (choice === '2' || choice.includes('pidal') || choice.includes('tejeda')) {
         branchName = 'Urca 2 - Alto Tejeda (Av. Menéndez Pidal 3575)';
+        branchAddress = 'Av. Menéndez Pidal 3575, Urca, Córdoba';
+        branchPhone = '+54 9 3518 623195';
+        branchHours = 'Lun a Sáb 9:00 a 21:00 hs';
       } else if (choice === '3' || choice.includes('intercountry') || choice.includes('corteza') || choice.includes('alamos')) {
         branchName = 'Intercountry Corteza Mall (Av. Los Álamos 1015)';
+        branchAddress = 'Av. Los Álamos 1015, Corteza Mall, Córdoba';
+        branchPhone = '+54 9 3518 623194';
+        branchHours = 'Todos los días 9:00 a 21:00 hs';
       } else if (choice === '4' || choice.includes('quiros') || choice.includes('quirós') || choice.includes('duarte')) {
         branchName = 'Duarte Quirós (Av. Duarte Quirós 5130)';
+        branchAddress = 'Av. Duarte Quirós 5130, Córdoba';
+        branchPhone = '+54 9 3518 156595';
+        branchHours = 'Lun a Sáb 9:00 a 13:30 y 17:00 a 21:00 hs';
       } else if (choice === '5' || choice.includes('villa allende') || choice.includes('alcorta')) {
         branchName = 'Villa Allende - Mercadito de la Villa (Av. Figueroa Alcorta 480)';
+        branchAddress = 'Av. Figueroa Alcorta 480, Villa Allende';
+        branchPhone = '+54 9 3513 540031';
+        branchHours = 'Lun a Sáb 9:00 a 21:00 hs';
       } else if (choice === '6' || choice.includes('san isidro') || choice.includes('luchesse')) {
         branchName = 'Country San Isidro (Av. Padre Luchesse km 2)';
+        branchAddress = 'Av. Padre Luchesse km 2, San Isidro';
+        branchPhone = '+54 9 3518 769099';
+        branchHours = 'Lun a Sáb 9:00 a 21:00 hs';
       }
 
       const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+      const { items: orderItems, total: orderTotal } = extractItemsFromHistoryAndText(history, '', products);
+      const itemsList = orderItems.length > 0 ? orderItems.join('\n') : '• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999';
+      const formattedTotal = `$${(orderTotal || 39999).toLocaleString('es-AR')}`;
 
-      return `¡De diez ${clientName}! 🥩🏪 Queda asentado el retiro por nuestra sucursal **${branchName}**.\n\n` +
-        `👉 **Último paso:** ¿Cómo preferís abonar? Podés pagar en **efectivo / débito al retirar** o te paso el link de **Mercado Pago** para dejarlo pago con tarjeta / dinero en cuenta. 🥩💳 [[STAGE:proposal]]`;
+      // 1. Asentar inmediatamente los datos en la base de datos del sistema y en el Lead
+      if (lead.jid || lead.id) {
+        db.updateLead(lead.jid || lead.id, {
+          preferredBranch: branchName,
+          deliveryType: 'pickup',
+          address: `Retiro en sucursal: ${branchName}`,
+          notes: `Sucursal seleccionada para retiro: ${branchName}`
+        });
+
+        const activeOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+        if (activeOrder) {
+          db.updateOrder(activeOrder.id, {
+            branch: branchName,
+            deliveryType: 'pickup',
+            address: `Retiro en sucursal: ${branchName}`,
+            items: orderItems.length > 0 ? orderItems : activeOrder.items,
+            totalAmount: orderTotal || activeOrder.totalAmount
+          });
+        } else {
+          db.createOrder({
+            jid: lead.jid || lead.id,
+            phone: lead.phone || (lead.jid ? lead.jid.split('@')[0] : ''),
+            customerName: clientName,
+            address: `Retiro en sucursal: ${branchName}`,
+            branch: branchName,
+            items: orderItems,
+            totalAmount: orderTotal || 39999,
+            deliveryType: 'pickup',
+            paymentMethod: 'Efectivo / Débito al retirar',
+            status: 'pending'
+          });
+        }
+      }
+
+      // 2. Presentar ficha de corroboración para que el cliente confirme la sucursal asignada
+      return `📋 *FICHA DE RETIRO Y ASIGNACIÓN DE SUCURSAL:*\n\n` +
+        `👤 *Cliente:* **${clientName}**\n` +
+        `🏪 *Sucursal Asignada:* **${branchName}**\n` +
+        `📍 *Dirección:* ${branchAddress}\n` +
+        `⏰ *Horario de Atención:* ${branchHours}\n` +
+        `📞 *Teléfono:* ${branchPhone}\n\n` +
+        `🥩 *Detalle de tu Pedido:*\n${itemsList}\n` +
+        `💰 *Total a abonar:* **${formattedTotal}**\n\n` +
+        `👉 **¿Confirmamos el retiro por esta sucursal?** (Respondé *SÍ* para confirmar y decime si abonás en **efectivo / débito al retirar** o te paso el link de **Mercado Pago**) 🥩🏪 [[STAGE:confirming_data]]`;
     }
 
     // =========================================================================

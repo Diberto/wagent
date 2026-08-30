@@ -178,6 +178,9 @@ export class WhatsAppService {
       pushName: `+${cleanNumber}`
     });
 
+    const isAutoAnswerEnabled = settings.autoAnswerCalls !== false && (settings.autoAnswerCalls || settings.autoCallFollowUp);
+    const answerMethod = settings.autoAnswerCallMethod || 'elevenlabs'; // 'elevenlabs' | 'ai_voice_note' | 'ai_text_note'
+
     const callRecord = db.saveCall({
       chatId: callerJid,
       callerNumber: lead.phone || `+${cleanNumber}`,
@@ -186,7 +189,7 @@ export class WhatsAppService {
       status: call.status === 'offer' ? 'ringing' : (call.status === 'timeout' || call.status === 'reject' ? 'missed' : 'completed'),
       duration: 0,
       timestamp: new Date().toISOString(),
-      notes: `Llamada de voz de WhatsApp (${call.status})`,
+      notes: `Llamada de voz de WhatsApp (${call.status}) - AutoAtención: ${isAutoAnswerEnabled ? answerMethod : 'Desactivada'}`,
       aiFollowUpSent: false
     });
 
@@ -194,35 +197,66 @@ export class WhatsAppService {
       this.io.emit('whatsapp:call', { call: callRecord, lead });
     }
 
-    if (settings.autoCallFollowUp && (call.status === 'offer' || call.status === 'timeout' || call.status === 'reject')) {
+    // Auto-atención inteligente al recibir la llamada
+    if (isAutoAnswerEnabled && call.status === 'offer') {
       setTimeout(async () => {
         try {
-          console.log(`🎙️ Enviando nota de voz de seguimiento automático por llamada a ${callerJid}`);
-          const followUpText = settings.callFollowUpMessage;
-          const speech = await SpeechService.textToSpeech(followUpText);
+          // 1. Descolgar / cerrar el timbrado VoIP elegantemente
+          try {
+            if (this.sock?.rejectCall) {
+              await this.sock.rejectCall(call.id, call.from);
+            }
+          } catch (e) {
+            // Ignorar si ya colgó
+          }
 
-          if (fs.existsSync(speech.oggPath)) {
-            await this.sendVoiceNote(callerJid, speech.oggPath);
-            db.updateCall(callRecord.id, { aiFollowUpSent: true });
+          const clientName = lead.name && !lead.name.startsWith('+') ? lead.name : 'Don Juan';
 
-            const savedMsg = db.saveMessage({
-              chatId: callerJid,
-              sender: 'agent',
-              type: 'audio',
-              content: followUpText,
-              mediaUrl: `/media/${path.basename(speech.mp3Path)}`,
-              audioDuration: speech.durationSeconds,
-              timestamp: new Date().toISOString()
-            });
+          if (answerMethod === 'ai_text_note') {
+            // Método 1: Mensaje de Texto Inmediato
+            console.log(`💬 Auto-atendiendo llamada con Mensaje de Texto a ${callerJid}`);
+            const textReply = `¡Hola ${clientName}! 🥩👋 Recibí tu llamada. En este momento estoy atendiendo pedidos por WhatsApp. Contame qué cortes, combos o promos estás buscando y te tomo el pedido al instante. 🙌`;
+            await this.sendMessage(callerJid, textReply);
 
-            if (this.io) {
-              this.io.emit('chat:message', { message: savedMsg, lead });
+            db.updateCall(callRecord.id, { aiFollowUpSent: true, status: 'completed', aiMethod: 'ai_text_note' });
+          } else {
+            // Método 2 y 3: ElevenLabs Conversational Voice Note o Custom Voice Note
+            console.log(`🎙️ Auto-atendiendo llamada con ${answerMethod === 'elevenlabs' ? 'Agente de Voz ElevenLabs' : 'Nota de Voz IA'} a ${callerJid}`);
+            
+            const followUpText = answerMethod === 'elevenlabs'
+              ? `¡Hola ${clientName}! 🥩 Gracias por comunicarte con República de la Carne. Recibí tu llamada, contame qué cortes o combos estás buscando hoy o para cuántos comensales calculamos, y te paso precios y disponibilidad al instante. 🙌`
+              : (settings.callFollowUpMessage || '¡Hola! Recibí tu llamada. ¿En qué cortes puedo ayudarte hoy?');
+
+            const speech = await SpeechService.textToSpeech(followUpText);
+
+            if (speech.oggPath && fs.existsSync(speech.oggPath)) {
+              await this.sendVoiceNote(callerJid, speech.oggPath);
+              db.updateCall(callRecord.id, { 
+                aiFollowUpSent: true, 
+                status: 'completed', 
+                aiMethod: answerMethod,
+                duration: speech.durationSeconds || 15 
+              });
+
+              const savedMsg = db.saveMessage({
+                chatId: callerJid,
+                sender: 'agent',
+                type: 'audio',
+                content: followUpText,
+                mediaUrl: `/media/${path.basename(speech.mp3Path)}`,
+                audioDuration: speech.durationSeconds,
+                timestamp: new Date().toISOString()
+              });
+
+              if (this.io) {
+                this.io.emit('chat:message', { message: savedMsg, lead });
+              }
             }
           }
         } catch (err) {
-          console.error('Error enviando seguimiento de llamada por IA:', err);
+          console.error('Error en auto-atención de llamada:', err);
         }
-      }, 2500);
+      }, 1500);
     }
   }
 
