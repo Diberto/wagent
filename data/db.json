@@ -5,7 +5,7 @@
     "openaiApiKey": "diberto77",
     "aiModel": "gemini-flash-latest",
     "aiVoiceModel": "es-AR-TomasNeural",
-    "ttsProvider": "edge",
+    "ttsProvider": "elevenlabs",
     "agentName": "Carlos - Carnicero Virtual",
     "businessName": "República de la Carne",
     "autoReplyEnabled": true,
@@ -203,7 +203,7 @@
     {
       "title": "Ofertas y promociones",
       "category": "Productos & Precios",
-      "content": "OFERTAS DE FIN DE MES:\n\n🥩 COSTELETA DE CERDO\n2 kg x $15.000\nPromoción hasta agotar stock.\n\n🥩 COSTELETA DE TERNERA\n2 kg x $35.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA\n3 kg x $27.000\nPromoción hasta agotar stock.\n\n🥩 MILANESAS DE TERNERA\n2 kg x $24.990\nPromoción hasta agotar stock.\n\n🍗 PATA MUSLO\n3 kg x $13.990\nPromoción hasta agotar stock.\n\n🔥 BLEND PARRILLERO\nPagás 4 y llevás 6.\nPrecio informado: $7.900.\nPromoción hasta agotar stock.\n\n🔥 COMBO “ASADAZO”\n4 kg x $39.999\nIncluye:\n\nBocado\nChorizo\nAguja\nMorcilla\nFalda\nVino Howlmande de regalo\n\nPromoción hasta agotar stock.\n\n🌭 CHORI CRIOLLO\n2 kg x $10.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA — PROMOCIÓN ALTERNATIVA\n2 kg x $19.999\nPromoción hasta agotar stock.",
+      "content": "OFERTAS DE FIN DE MES:\n\n🥩 COSTELETA DE CERDO\n2 kg x $15.000\nPromoción hasta agotar stock.\n\n🥩 COSTELETA DE TERNERA\n2 kg x $35.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA\n3 kg x $27.000\nPromoción hasta agotar stock.\n\n🥩 MILANESAS DE TERNERA\n2 kg x $24.990\nPromoción hasta agotar stock.\n\n🍗 PATA MUSLO\n3 kg x $13.990\nPromoción hasta agotar stock.\n\n🔥 HAMBURGUESAS BLEND PARRILLERO\nPagás 4 y llevás 6.\nPrecio informado: $7.900.\nPromoción hasta agotar stock.\n\n🔥 COMBO “ASADAZO”\n4 kg x $39.999\nIncluye:\n\nBocado\nChorizo\nAguja\nMorcilla\nFalda\nVino Howlmande de regalo\n\nPromoción hasta agotar stock.\n\n🌭 CHORI CRIOLLO\n2 kg x $10.000\nPromoción hasta agotar stock.\n\n🥩 MOLIDA INTERMEDIA — PROMOCIÓN ALTERNATIVA\n2 kg x $19.999\nPromoción hasta agotar stock.",
       "productPrice": null,
       "keywords": [
         "ofertas",
@@ -217,7 +217,8 @@
         "precios"
       ],
       "id": "kb-1788115501989-vm6y1",
-      "createdAt": "2026-08-30T18:45:01.989Z"
+      "createdAt": "2026-08-30T18:45:01.989Z",
+      "updatedAt": "2026-08-30T22:58:25.578Z"
     },
     {
       "title": "Promociones, descuentos y beneficios",
@@ -234,6 +235,110 @@
     }
   ],
   "leads": [
+    {
+      "id": "lead-test-7",
+      "jid": "5493510007777@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 000-7777",
+      "name": "Don Juan",
+      "pushName": "Contacto WhatsApp",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 5,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T23:09:05.093Z",
+      "updatedAt": "2026-08-30T23:09:23.052Z",
+      "lastMessage": "abono al retirar",
+      "lastMessageAt": "2026-08-30T23:09:23.052Z"
+    },
+    {
+      "id": "lead-test-6",
+      "jid": "5493510006666@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 000-6666",
+      "name": "Don Juan",
+      "pushName": "Contacto WhatsApp",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T23:09:05.082Z",
+      "updatedAt": "2026-08-30T23:09:23.013Z",
+      "lastMessage": "¡Sí, Don Juan! Tenemos Chorizo Criollo Puro Cerdo fresca a $5.000 por kg. ¿Cuántos kg te gustaría que te separemos?",
+      "lastMessageAt": "2026-08-30T23:09:23.013Z"
+    },
+    {
+      "id": "lead-test-dialog-full",
+      "jid": "5493516262475@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 626-2475",
+      "name": "Don Juan",
+      "pushName": "Don Juan",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T23:08:31.946Z",
+      "updatedAt": "2026-08-30T23:09:22.970Z",
+      "lastMessage": "",
+      "lastMessageAt": "2026-08-30T23:08:50.693Z"
+    },
+    {
+      "id": "lead-1788131131398-whqme",
+      "jid": "153051277086768:69@lid",
+      "altJids": [],
+      "phone": "+15305127708676869",
+      "name": "+153051277086768:69",
+      "pushName": "+153051277086768:69",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T23:05:31.398Z",
+      "updatedAt": "2026-08-30T23:06:51.196Z",
+      "lastMessage": "🎤 [Nota de voz]",
+      "lastMessageAt": "2026-08-30T23:06:51.196Z"
+    },
     {
       "id": "lead-1788126860039-wle79",
       "jid": "51788782809330@lid",
@@ -277,7 +382,7 @@
         "Cliente VIP"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 8,
       "preferences": {
         "favoriteCuts": [
           "Combo “Asadazo”",
@@ -289,9 +394,9 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T22:55:42.000Z",
-      "lastMessage": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩",
-      "lastMessageAt": "2026-08-30T22:55:42.000Z",
+      "updatedAt": "2026-08-30T23:06:50.000Z",
+      "lastMessage": "🎤 [Nota de voz]",
+      "lastMessageAt": "2026-08-30T23:06:50.000Z",
       "address": "domicilio, locelso 7100",
       "notes": "Dirección registrada: domicilio, locelso 7100 | Nombre: Don Juan",
       "totalOrders": 2,
@@ -2139,9 +2244,535 @@
       "content": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB0D375856AE8430DFEB4",
+      "timestamp": "2026-08-30T22:58:37.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "que beneficios tienen?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0D8B477CDCCF2F13D08",
+      "timestamp": "2026-08-30T23:01:16.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788130880861-4914bm",
+      "timestamp": "2026-08-30T23:01:20.860Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩"
+    },
+    {
+      "id": "msg-1788130880879-dn58f6",
+      "timestamp": "2026-08-30T23:01:20.878Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩"
+    },
+    {
+      "id": "3EB0F6C6107E0CCBD384BC",
+      "timestamp": "2026-08-30T23:01:20.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB06E1C51C54E8BEBA20C",
+      "timestamp": "2026-08-30T23:01:20.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0BBA63EC2C6413997EB",
+      "timestamp": "2026-08-30T23:01:25.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "que beneficios tienen?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788130888648-f5x2fw",
+      "timestamp": "2026-08-30T23:01:28.647Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩"
+    },
+    {
+      "id": "3EB04CCDB21820940E1155",
+      "timestamp": "2026-08-30T23:01:28.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Don Juan! Te leí atentamente. En República de la Carne tenemos novillito seleccionado, cortes para parrilla, horno y embutidos propios.\n\nDecime qué cortes o kilos tenías pensado llevar y te paso el presupuesto exacto con envío a domicilio en el día. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB071673ABB83D6B73D0A",
+      "timestamp": "2026-08-30T23:02:16.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero 2 kilos de carne molida especial",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788130939047-4trcng",
+      "timestamp": "2026-08-30T23:02:19.045Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB08E1A7D25BCE60FB1E5",
+      "timestamp": "2026-08-30T23:02:19.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0B85F7AE23661EF76E2",
+      "timestamp": "2026-08-30T23:02:45.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "pero qiero molida especial",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788130968746-ejus3h",
+      "timestamp": "2026-08-30T23:02:48.745Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB0E6FD2352D79652F20D",
+      "timestamp": "2026-08-30T23:02:48.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB01C180C8A9A764B5B8A",
+      "timestamp": "2026-08-30T23:03:05.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "no, quiero carne molida especial",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788130989082-dzhfhd",
+      "timestamp": "2026-08-30T23:03:09.080Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB05BA2ACDEB9D6205A05",
+      "timestamp": "2026-08-30T23:03:09.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "2A42051B0DAC22A00D15",
+      "timestamp": "2026-08-30T23:04:08.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Q",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788131051717-v2cdae",
+      "timestamp": "2026-08-30T23:04:11.716Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB0C3C4C1F7AEE0F21F97",
+      "timestamp": "2026-08-30T23:04:11.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 2 kg Carne Molida Intermedia (3kg x $27.000 promo) — $18.000\n💰 **Subtotal acumulado:** **$18.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "2AE193C25B24EE6BDDE0",
+      "timestamp": "2026-08-30T23:04:16.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131058080_fhsfc5.mp3",
+      "audioDuration": 1
+    },
+    {
+      "id": "msg-1788131065884-1tdkwa",
+      "timestamp": "2026-08-30T23:04:25.883Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 kg Carne Molida Intermedia (3kg x $27.000 promo) — $9.000\n💰 **Subtotal acumulado:** **$9.000**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": "/media/tts_raw_1788131061600_bi1x2.mp3",
+      "audioDuration": 29
+    },
+    {
+      "id": "3EB0666B43D484FDB09813",
+      "timestamp": "2026-08-30T23:04:25.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131067417_8j2osx.mp3",
+      "audioDuration": 48
+    },
+    {
+      "id": "msg-1788131137367-m0youq",
+      "timestamp": "2026-08-30T23:05:37.366Z",
+      "status": "sent",
+      "chatId": "153051277086768:69@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Hola! 👋 Vimos que intentaste comunicarte con nosotros. En este momento nuestras líneas están ocupadas atendiendo clientes, pero no queremos dejarte esperando 😊\n\nSoy Carlos, el asistente virtual de República de la Carne. Puedo ayudarte con cortes, precios, promociones, sucursales, horarios o incluso recomendarte qué carne llevar según lo que quieras preparar. 🥩\n\nContame, ¿qué necesitás?",
+      "mediaUrl": "/media/tts_raw_1788131133915_4wm24.mp3",
+      "audioDuration": 21
+    },
+    {
+      "id": "3EB0897A69F37FD055618D",
+      "timestamp": "2026-08-30T23:05:37.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131138516_fy7xk7.mp3",
+      "audioDuration": 29
+    },
+    {
+      "id": "msg-1788131211196-y73s7s",
+      "timestamp": "2026-08-30T23:06:51.196Z",
+      "status": "sent",
+      "chatId": "153051277086768:69@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Hola! 👋 Vimos que intentaste comunicarte con nosotros. En este momento nuestras líneas están ocupadas atendiendo clientes, pero no queremos dejarte esperando 😊\n\nSoy Carlos, el asistente virtual de República de la Carne. Puedo ayudarte con cortes, precios, promociones, sucursales, horarios o incluso recomendarte qué carne llevar según lo que quieras preparar. 🥩\n\nContame, ¿qué necesitás?",
+      "mediaUrl": "/media/tts_raw_1788131208191_dsnlj.mp3",
+      "audioDuration": 21
+    },
+    {
+      "id": "3EB019315674CCAD6CBA13",
+      "timestamp": "2026-08-30T23:06:50.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788131212194_wmnrbm.mp3",
+      "audioDuration": 28
+    },
+    {
+      "id": "msg-1788131246816-1",
+      "timestamp": "2026-08-30T23:07:26.817Z",
+      "status": "sent",
+      "jid": "5493516262475@s.whatsapp.net",
+      "sender": "assistant",
+      "content": "¡Sí, Don Juan! Tenemos Chorizo Criollo Puro Cerdo fresca a $5.000 por kg. ¿Cuántos kg te gustaría que te separemos?"
+    },
+    {
+      "id": "msg-1788131363012-1",
+      "chatId": "5493510006666@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.013Z",
+      "status": "sent",
+      "sender": "assistant",
+      "content": "¡Sí, Don Juan! Tenemos Chorizo Criollo Puro Cerdo fresca a $5.000 por kg. ¿Cuántos kg te gustaría que te separemos?"
+    },
+    {
+      "id": "msg-1788131363023-aepyov",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.023Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "quiero un combo asadazo"
+    },
+    {
+      "id": "msg-1788131363027-gtzf3w",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.027Z",
+      "status": "sent",
+      "sender": "assistant",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$39.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚 [[STAGE:proposal]]"
+    },
+    {
+      "id": "msg-1788131363029-veuiga",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.029Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "mas los dos kilos de chorizo de cerdo"
+    },
+    {
+      "id": "msg-1788131363037-2apoo6",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.037Z",
+      "status": "sent",
+      "sender": "assistant",
+      "content": "¡De diez Don Juan! 🥩 Sumamos **2 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)** a tu pedido:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 2 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $10.000\n💰 **Subtotal acumulado:** **$49.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚 [[STAGE:proposal]]"
+    },
+    {
+      "id": "msg-1788131363038-3c7clj",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.038Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "ok, solo eso, confirmame el pedido"
+    },
+    {
+      "id": "msg-1788131363043-9boj1h",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.043Z",
+      "status": "sent",
+      "sender": "assistant",
+      "content": "¡De diez Don Juan! 🥩🚚 Cerramos con tu pedido confirmado:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 2 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $10.000\n💰 **Total:** **$49.999**\n\n👉 ¿Preferís que te lo **enviemos a domicilio** o **retirás por alguna de nuestras 6 sucursales**?\n(Si es con envío, pasame tu **dirección y barrio**; si retirás, decime por cuál de nuestras sucursales pasás) 🙌 [[STAGE:proposal]]"
+    },
+    {
+      "id": "msg-1788131363045-3zrsrh",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.045Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "ok, eso lo retiro por sucursal roque funes"
+    },
+    {
+      "id": "msg-1788131363048-htcl7f",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.048Z",
+      "status": "sent",
+      "sender": "assistant",
+      "content": "¡De diez Don Juan! 🥩🏪 Queda asentado el retiro por nuestra sucursal **Urca Central (Av. José Roque Funes 1115)**.\n\n👉 **Último paso:** ¿Cómo preferís abonar? Podés pagar en **efectivo / débito al retirar** o te paso el link de **Mercado Pago** para dejarlo pago con tarjeta / dinero en cuenta. 🥩💳 [[STAGE:proposal]]"
+    },
+    {
+      "id": "msg-1788131363052-pv6ho1",
+      "chatId": "5493510007777@s.whatsapp.net",
+      "timestamp": "2026-08-30T23:09:23.052Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "abono al retirar"
     }
   ],
   "calls": [
+    {
+      "id": "call-1788131208265-0v3r1",
+      "timestamp": "2026-08-30T23:06:48.263Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (accept)"
+    },
+    {
+      "id": "call-1788131208099-8s3xq",
+      "timestamp": "2026-08-30T23:06:48.098Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (terminate)"
+    },
+    {
+      "id": "call-1788131206086-zxd7b",
+      "timestamp": "2026-08-30T23:06:46.085Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131206080-ds20z",
+      "timestamp": "2026-08-30T23:06:46.079Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131206073-7hc5c",
+      "timestamp": "2026-08-30T23:06:46.072Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131205671-c3si1",
+      "timestamp": "2026-08-30T23:06:45.669Z",
+      "direction": "incoming",
+      "status": "ringing",
+      "duration": 0,
+      "aiFollowUpSent": true,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (offer)"
+    },
+    {
+      "id": "call-1788131150102-xkutm",
+      "timestamp": "2026-08-30T23:05:50.101Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (accept)"
+    },
+    {
+      "id": "call-1788131149660-anc91",
+      "timestamp": "2026-08-30T23:05:49.659Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (terminate)"
+    },
+    {
+      "id": "call-1788131131792-4xvkt",
+      "timestamp": "2026-08-30T23:05:31.791Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131131784-wbft4",
+      "timestamp": "2026-08-30T23:05:31.783Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131131773-k92re",
+      "timestamp": "2026-08-30T23:05:31.772Z",
+      "direction": "incoming",
+      "status": "completed",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (ringing)"
+    },
+    {
+      "id": "call-1788131131400-2pmdm",
+      "timestamp": "2026-08-30T23:05:31.399Z",
+      "direction": "incoming",
+      "status": "ringing",
+      "duration": 0,
+      "aiFollowUpSent": true,
+      "chatId": "153051277086768:69@lid",
+      "callerNumber": "+15305127708676869",
+      "callerName": "+153051277086768:69",
+      "notes": "Llamada de voz de WhatsApp (offer)"
+    },
     {
       "id": "call-1788128170546-3okg6",
       "timestamp": "2026-08-30T22:16:10.545Z",
@@ -2262,13 +2893,16 @@
     },
     {
       "id": "prod-9",
-      "name": "Carne Picada Especial",
+      "name": "Carne Molida Especial",
       "category": "Comidas Diarias",
       "price": 5800,
       "unit": "kg",
       "description": "100% pulpa magra seleccionada para empanadas, hamburguesas o pasteles.",
       "stock": 45,
-      "isAvailable": true
+      "isAvailable": true,
+      "sku": "",
+      "barcode": "",
+      "updatedAt": "2026-08-30T23:02:40.808Z"
     },
     {
       "id": "prod-10",

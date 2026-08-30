@@ -421,10 +421,12 @@ class DatabaseService {
 
     const newMsg = {
       id: msgData.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      chatId: msgData.chatId || msgData.jid || '',
       timestamp: msgData.timestamp || new Date().toISOString(),
       status: msgData.status || 'sent',
       ...msgData
     };
+    newMsg.chatId = newMsg.chatId || msgData.jid || '';
 
     db.messages.push(newMsg);
 

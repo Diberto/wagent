@@ -116,7 +116,14 @@ const MASTER_CATALOG = [
     category: 'Achuras' 
   },
   { 
-    keywords: ['molida intermedia', 'picada especial', 'molida', 'picada', 'carne picada'], 
+    keywords: ['carne molida especial', 'molida especial', 'picada especial', 'carne picada especial', 'molida de primera', 'molida magra', 'picada de primera', 'picada magra'], 
+    name: 'Carne Molida Especial Seleccionada (Magra)', 
+    price: 11800, 
+    unit: 'kg', 
+    category: 'Diario y Preparados' 
+  },
+  { 
+    keywords: ['carne molida intermedia', 'molida intermedia', 'carne molida comun', 'molida comun', 'carne molida común', 'molida común', 'carne molida', 'carne picada', 'molida', 'picada'], 
     name: 'Carne Molida Intermedia (3kg x $27.000 promo)', 
     price: 9000, 
     unit: 'kg', 
@@ -177,6 +184,25 @@ function matchBestProduct(chunk) {
 }
 
 /**
+ * Encuentra el último producto del catálogo mencionado en el historial de mensajes
+ */
+function findLastMentionedProduct(history) {
+  if (!history || !Array.isArray(history) || history.length === 0) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    const content = msg.content || '';
+    const chunks = content.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+    for (const chunk of chunks) {
+      const prod = matchBestProduct(chunk);
+      if (prod) {
+        return prod;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Parsea cantidades tanto en dígitos ("2", "1.5") como en texto en español ("un solo", "dos", "medio")
  */
 function parseQuantity(str) {
@@ -222,7 +248,7 @@ function isGarbageAddress(addr) {
  */
 function extractItemsFromHistoryAndText(history, text, products, lead = null) {
   const isCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste/i.test(text || '');
-  const isAddition = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también/i.test(text || '');
+  const isAddition = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también|mas los|más los/i.test(text || '');
 
   // 1. Extraer los ítems del mensaje actual
   const currentChunks = (text || '').split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
@@ -240,70 +266,76 @@ function extractItemsFromHistoryAndText(history, text, products, lead = null) {
     }
   }
 
-  // 2. Si es una adición ("agregar 1 kg de chorizo"), traemos los ítems previos de la orden activa o historial
+  // Si el mensaje actual solo contiene cantidad (ej: "2 kilos") sin nombre de corte explícito,
+  // buscar en el mensaje anterior del historial qué corte se estaba conversando
+  if (currentItemsMap.size === 0 && /(?:kilo|kg|quilo|[0-9]+)/i.test(text || '')) {
+    const lastProd = findLastMentionedProduct(history);
+    if (lastProd) {
+      const qty = parseQuantity(text);
+      currentItemsMap.set(lastProd.name, { prod: lastProd, quantity: qty });
+    }
+  }
+
+  // 2. Si es una adición o corrección parcial, traemos los ítems previos de la orden activa o historial
   const finalItemsMap = new Map();
 
-  if (isAddition) {
-    let previousItemsFound = false;
-    if (lead && (lead.jid || lead.id)) {
-      const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
-      if (lastOrder && Array.isArray(lastOrder.items) && lastOrder.items.length > 0) {
-        for (const itemStr of lastOrder.items) {
-          const prod = matchBestProduct(itemStr);
-          if (prod) {
-            const qty = parseQuantity(itemStr);
-            finalItemsMap.set(prod.name, { prod, quantity: qty });
-            previousItemsFound = true;
-          }
-        }
-      }
-    }
-
-    if (!previousItemsFound) {
-      const prevTexts = (history || [])
-        .filter(m => m.sender === 'user')
-        .map(m => m.content)
-        .join('\n');
-
-      const prevChunks = prevTexts.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
-      for (const chunk of prevChunks) {
-        const prod = matchBestProduct(chunk);
-        if (prod && !finalItemsMap.has(prod.name)) {
-          const qty = parseQuantity(chunk);
+  // Recuperar ítems previos
+  let previousItemsFound = false;
+  if (lead && (lead.jid || lead.id)) {
+    const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+    if (lastOrder && Array.isArray(lastOrder.items) && lastOrder.items.length > 0) {
+      for (const itemStr of lastOrder.items) {
+        const prod = matchBestProduct(itemStr);
+        if (prod) {
+          const qty = parseQuantity(itemStr);
           finalItemsMap.set(prod.name, { prod, quantity: qty });
+          previousItemsFound = true;
         }
       }
     }
+  }
 
-    if (finalItemsMap.size === 0) {
-      const defaultCombo = MASTER_CATALOG[0];
-      finalItemsMap.set(defaultCombo.name, { prod: defaultCombo, quantity: 1 });
+  if (!previousItemsFound) {
+    const prevTexts = (history || [])
+      .filter(m => m.sender === 'user' && m.content.trim() !== (text || '').trim())
+      .map(m => m.content)
+      .join('\n');
+
+    const prevChunks = prevTexts.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+    for (const chunk of prevChunks) {
+      const prod = matchBestProduct(chunk);
+      if (prod && !finalItemsMap.has(prod.name)) {
+        const qty = parseQuantity(chunk);
+        finalItemsMap.set(prod.name, { prod, quantity: qty });
+      }
     }
+  }
 
-    // Sumar los nuevos ítems del mensaje actual
+  if (isAddition || currentItemsMap.size > 0 && finalItemsMap.size > 0 && !isCorrection) {
+    // Sumar o actualizar los ítems del mensaje actual
     for (const [name, itemObj] of currentItemsMap.entries()) {
-      if (finalItemsMap.has(name)) {
+      if (finalItemsMap.has(name) && isAddition) {
         finalItemsMap.get(name).quantity += itemObj.quantity;
       } else {
         finalItemsMap.set(name, itemObj);
       }
     }
   } else if (isCorrection) {
-    for (const [name, itemObj] of currentItemsMap.entries()) {
-      finalItemsMap.set(name, itemObj);
+    // Si es corrección específica (ej: "un solo combo asadazo"), actualizar el combo y mantener los otros ítems
+    if (currentItemsMap.size > 0) {
+      for (const [name, itemObj] of currentItemsMap.entries()) {
+        finalItemsMap.set(name, itemObj);
+      }
+    } else {
+      for (const [name, itemObj] of currentItemsMap.entries()) {
+        finalItemsMap.set(name, itemObj);
+      }
     }
   } else {
-    const allText = [
-      ...(history || []).filter(m => m.sender === 'user').map(m => m.content),
-      (text || '')
-    ].join('\n');
-
-    const chunks = allText.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
-    for (const chunk of chunks) {
-      const prod = matchBestProduct(chunk);
-      if (prod && !finalItemsMap.has(prod.name)) {
-        const qty = parseQuantity(chunk);
-        finalItemsMap.set(prod.name, { prod, quantity: qty });
+    // Flujo normal: usar los ítems detectados en la conversación
+    if (currentItemsMap.size > 0) {
+      for (const [name, itemObj] of currentItemsMap.entries()) {
+        finalItemsMap.set(name, itemObj);
       }
     }
   }
@@ -333,7 +365,7 @@ function extractItemsFromHistoryAndText(history, text, products, lead = null) {
   // Sincronizar en base de datos si hay una orden activa
   if (lead && (lead.jid || lead.id)) {
     const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
-    if (lastOrder && (isAddition || isCorrection)) {
+    if (lastOrder && (isAddition || isCorrection || currentItemsMap.size > 0)) {
       db.updateOrder(lastOrder.id, {
         items,
         totalAmount: total
@@ -462,16 +494,30 @@ export class AIService {
     // =========================================================================
     // 0.1 CONFIRMACIÓN DE MÉTODO DE PAGO
     // =========================================================================
-    const isPaymentChoice = /^(efectivo|transferencia|transferir|al repartidor|contra entrega|contraentrega|por mp|mercado pago|pago al recibir|abono al repartidor|abono en efectivo)$/i.test(t.trim()) ||
-                           /^(efectivo al repartidor|por transferencia|abono en efectivo|al recibir)$/i.test(t.trim());
+    const isPaymentChoice = /^(efectivo|transferencia|transferir|al repartidor|contra entrega|contraentrega|por mp|mercado pago|pago al recibir|abono al repartidor|abono en efectivo|al retirar|abono al retirar|pago al retirar|en sucursal|en la sucursal|abono en sucursal|pago en sucursal|con debito|con débito|tarjeta al retirar|debito|débito|al buscarlo)$/i.test(t.trim()) ||
+                           /(?:efectivo al repartidor|por transferencia|abono en efectivo|al recibir|abono al retirar|pago al retirar|al retirar|en sucursal|pago en sucursal)/i.test(t.trim());
     if (isPaymentChoice) {
       const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
-      const payMethod = /transferencia|transferir|mp|mercado/i.test(t) ? 'Transferencia Bancaria' : 'Efectivo contraentrega';
+      let payMethod = 'Efectivo';
+      if (/transferencia|transferir|mp|mercado/i.test(t)) {
+        payMethod = 'Transferencia Bancaria';
+      } else if (/debito|débito|tarjeta/i.test(t)) {
+        payMethod = 'Débito / Tarjeta al retirar';
+      } else if (/retirar|sucursal/i.test(t)) {
+        payMethod = 'Efectivo / Débito al retirar';
+      } else {
+        payMethod = 'Efectivo contraentrega';
+      }
+
       if (lastOrder) {
         db.updateOrderStatus(lastOrder.id, 'preparing');
       }
       const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
-      return `¡De diez ${clientName}! 🥩🔥 Ya quedó asentado tu medio de pago: **${payMethod}**${lastOrder ? ` para tu pedido **#${lastOrder.id}**` : ''}.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌`;
+      const destinationText = (lastOrder?.deliveryType === 'pickup' || /retirar|sucursal/i.test(t)) 
+        ? 'para que lo retires listo por nuestra sucursal' 
+        : 'para despacharlo dentro de las 24 hs a tu domicilio';
+
+      return `¡De diez ${clientName}! 🥩🔥 Ya quedó asentado tu medio de pago: **${payMethod}**${lastOrder ? ` para tu pedido **#${lastOrder.id}**` : ''}.\n\nYa lo pasamos al sector de corte ${destinationText}. ¡Muchas gracias por tu compra en República de la Carne! 🙌`;
     }
 
     // =========================================================================
@@ -536,6 +582,31 @@ export class AIService {
     }
 
     // =========================================================================
+    // 0.25 CONSULTA DE BENEFICIOS / DIFERENCIALES / VENTAJAS DE LA EMPRESA
+    // =========================================================================
+    const isBenefitsQuery = /beneficio|beneficios|ventaja|ventajas|por que comprar|por qué comprar|que diferencia|diferencial|por que ustedes|que gano/i.test(t);
+    if (isBenefitsQuery) {
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+      return `¡Mirá ${clientName}! 🥩✨ En **República de la Carne** te ofrecemos beneficios únicos:\n\n` +
+        `🥩 **1. Calidad & Terneza Premium:** Trabajamos novillito seleccionado y cerdo fresco con corte artesanal del día. ¡La calidad nos hace diferentes!\n\n` +
+        `🎁 **2. Regalos & Promociones Reales:** En combos como el *Asadazo (4 kg)* te llevás **1 Vino Howlmande Malbec Reserva de regalo** ($5.500 bonificado).\n\n` +
+        `💰 **3. Ahorro por Cantidad:** Promos exclusivas en 2 y 3 kg (Chorizo puro cerdo 2kg x $10.000, Costeletas 2kg x $15.000, Molida 3kg x $27.000).\n\n` +
+        `🚚 **4. Envío en el Día a tu Puerta:** Despacho rápido en Córdoba dentro de las 24 hs.\n\n` +
+        `🏪 **5. 6 Sucursales para Retiro Directo:** En Urca, Alto Tejeda, Intercountry Mall, Duarte Quirós, Villa Allende y San Isidro.\n\n` +
+        `💳 **6. Todos los Medios de Pago:** Mercado Pago (Checkout Pro / Transferencia al instante), débito o efectivo.\n\n` +
+        `👉 ¿Te gustaría que te preparemos algún corte o combo hoy? 🙌 [[STAGE:proposal]]`;
+    }
+
+    // =========================================================================
+    // 0.26 PRODUCTO NO DISPONIBLE O FUERA DE CATÁLOGO
+    // =========================================================================
+    const isUnavailableProduct = /pescado|pescados|salmon|salmón|merluza|mariscos|marisco|sushi|cerdo vivo|helado|helados|cerveza artesanal|whisky|vino tinto suelto/i.test(t);
+    if (isUnavailableProduct) {
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+      return `¡Hola ${clientName}! 🥩 En **República de la Carne** nos especializamos exclusivamente en **cortes vacunos de novillito seleccionado, cerdo fresco, pollo y embutidos parrilleros propios** (además de carbón quebracho y vino Howlmande).\n\nNo contamos con ese producto en particular, pero decime qué tenés pensado cocinar o para cuántos comensales calculamos y te recomiendo la mejor alternativa parrillera o de cocina diaria. 🙌 [[STAGE:proposal]]`;
+    }
+
+    // =========================================================================
     // 0.2 CONSULTA DIRECTA DE OFERTAS, PRECIOS, PROMOCIONES Y CORTES DISPONIBLES
     // =========================================================================
     const isOffersQuery = /oferta|ofertas|ofeta|ofetas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|que corte|que cortes hay|cortes en oferta|cortes tenes|cortes tenés|carta|catalogo|catálogo|opciones/i.test(t);
@@ -553,10 +624,11 @@ export class AIService {
         `• **Costillar / Asado de Tira:** $9.800 / kg\n` +
         `• **Bife de Chorizo Premium:** $14.500 / kg\n` +
         `• **Entraña Fina:** $16.900 / kg\n` +
+        `• **Carne Molida Especial (Magra):** $11.800 / kg\n` +
+        `• **Carne Molida Intermedia (3kg x $27.000 promo):** $9.000 / kg\n` +
         `• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n` +
         `• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n` +
         `• **Morcilla Bombón Parrillera:** $5.200 / kg\n` +
-        `• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n` +
         `• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n` +
         `• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n` +
         `• **Carbón Quebracho (bolsa grande):** $2.200\n\n` +
@@ -622,11 +694,15 @@ export class AIService {
     // 2. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y CORRECCIONES / ADICIONES
     // (Ej: "quisiera agregar 1 kilo de chorizo de cerdo", "corrije, quiero un solo combo", "dame 1kg de vacio")
     // =========================================================================
-    const isAdditionOrder = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también/i.test(t);
+    const isAdditionOrder = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también|mas los|más los|mas el|más el|mas 1|más 1|mas 2|más 2|mas un|más un|mas una|más una|y los|y las|y 1|y 2|sumando/i.test(t);
     const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste/i.test(t);
     
     const { items: detectedItems, total: detectedTotal, addedItems } = extractItemsFromHistoryAndText(history, rawText, products, lead);
-    const hasRealItems = (detectedItems.length > 0 && !detectedItems[0].includes('• 1 combo Combo “Asadazo”')) || (detectedItems.length > 0 && /asadazo|combo|asasazo|azadazo/i.test(rawText)) || isAdditionOrder || isCorrectionOrder;
+    const hasRealItems = (detectedItems.length > 0 && !detectedItems[0].includes('• 1 combo Combo “Asadazo”')) || 
+                         (detectedItems.length > 0 && /asadazo|combo|asasazo|azadazo/i.test(rawText)) || 
+                         (detectedItems.length > 0 && /kilo|kg|quilo|[0-9]+/i.test(rawText)) ||
+                         isAdditionOrder || 
+                         isCorrectionOrder;
 
     if (hasRealItems && !hasAddressOrOrderClose) {
       const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
