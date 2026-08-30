@@ -753,6 +753,208 @@ class DatabaseService {
     this.writeDb(db);
     return true;
   }
+
+  // =========================================================================
+  // GESTIÓN DE SUCURSALES (BRANCHES)
+  // =========================================================================
+  getBranches() {
+    const db = this.readDb();
+    if (!db.branches || db.branches.length === 0) {
+      db.branches = [
+        {
+          id: "br-1",
+          name: "Sucursal Cerro de las Rosas",
+          address: "Av. Rafael Núñez 4250, Cerro de las Rosas, Córdoba",
+          phone: "+54 9 351 626-2475",
+          phoneNormalized: "+5493516262475",
+          managerName: "Roberto Gomez",
+          email: "cerro@republicadelacarne.com",
+          hours: "Lun a Sáb 8:00 a 20:30 | Dom 9:00 a 14:00",
+          coverageZones: ["Cerro de las Rosas", "Urca", "Villa Belgrano", "Argüello"],
+          isActive: true,
+          createdAt: "2026-08-30T17:00:00.000Z"
+        },
+        {
+          id: "br-2",
+          name: "Sucursal Urca",
+          address: "Av. Menéndez Pidal 3600, Urca, Córdoba",
+          phone: "+54 9 351 555-0102",
+          phoneNormalized: "+5493515550102",
+          managerName: "Marcos Díaz",
+          email: "urca@republicadelacarne.com",
+          hours: "Lun a Sáb 8:30 a 20:30 | Dom 9:00 a 13:30",
+          coverageZones: ["Urca", "Parque Tablada", "Chateau Carreras"],
+          isActive: true,
+          createdAt: "2026-08-30T17:00:00.000Z"
+        },
+        {
+          id: "br-3",
+          name: "Sucursal General Paz",
+          address: "Av. 24 de Septiembre 1150, B° General Paz, Córdoba",
+          phone: "+54 9 351 555-0103",
+          phoneNormalized: "+5493515550103",
+          managerName: "Romina Paz",
+          email: "gralpaz@republicadelacarne.com",
+          hours: "Lun a Sáb 8:00 a 21:00 | Dom 9:30 a 14:00",
+          coverageZones: ["General Paz", "Centro", "Alta Córdoba", "Juniors"],
+          isActive: true,
+          createdAt: "2026-08-30T17:00:00.000Z"
+        },
+        {
+          id: "br-4",
+          name: "Sucursal Villa Belgrano",
+          address: "Av. Recta Martinolli 5800, Villa Belgrano, Córdoba",
+          phone: "+54 9 351 555-0104",
+          phoneNormalized: "+5493515550104",
+          managerName: "Carlos Vaca",
+          email: "villabelgrano@republicadelacarne.com",
+          hours: "Lun a Sáb 8:30 a 20:30 | Dom 9:00 a 14:00",
+          coverageZones: ["Villa Belgrano", "Villa Warcalde", "Granja de Funes"],
+          isActive: true,
+          createdAt: "2026-08-30T17:00:00.000Z"
+        }
+      ];
+      this.writeDb(db);
+    }
+    return db.branches;
+  }
+
+  getBranch(id) {
+    const branches = this.getBranches();
+    return branches.find(b => b.id === id) || null;
+  }
+
+  getBranchByPhone(rawPhoneOrJid) {
+    if (!rawPhoneOrJid) return null;
+    const branches = this.getBranches();
+    const core = extractCoreDigits(rawPhoneOrJid);
+    if (!core) return null;
+
+    return branches.find(b => {
+      if (!b.isActive) return false;
+      const bCore = extractCoreDigits(b.phone || b.phoneNormalized);
+      return bCore && (bCore === core || bCore.endsWith(core) || core.endsWith(bCore));
+    }) || null;
+  }
+
+  createBranch(data) {
+    const db = this.readDb();
+    if (!db.branches) db.branches = [];
+
+    const newBranch = {
+      id: `br-${Date.now()}`,
+      name: data.name || 'Nueva Sucursal',
+      address: data.address || '',
+      phone: normalizePhoneNumber(data.phone || ''),
+      phoneNormalized: (data.phone || '').replace(/\D/g, ''),
+      managerName: data.managerName || '',
+      email: data.email || '',
+      hours: data.hours || 'Lun a Sáb 8:30 a 20:30',
+      coverageZones: Array.isArray(data.coverageZones) ? data.coverageZones : (data.coverageZones ? data.coverageZones.split(',').map(z => z.trim()) : []),
+      isActive: data.isActive !== false,
+      notes: data.notes || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    db.branches.unshift(newBranch);
+    this.writeDb(db);
+    return newBranch;
+  }
+
+  updateBranch(id, updates) {
+    const db = this.readDb();
+    if (!db.branches) db.branches = [];
+    const idx = db.branches.findIndex(b => b.id === id);
+    if (idx === -1) return null;
+
+    const current = db.branches[idx];
+    const updated = {
+      ...current,
+      ...updates,
+      phone: updates.phone ? normalizePhoneNumber(updates.phone) : current.phone,
+      phoneNormalized: updates.phone ? updates.phone.replace(/\D/g, '') : current.phoneNormalized,
+      coverageZones: updates.coverageZones 
+        ? (Array.isArray(updates.coverageZones) ? updates.coverageZones : updates.coverageZones.split(',').map(z => z.trim())) 
+        : current.coverageZones,
+      updatedAt: new Date().toISOString()
+    };
+
+    db.branches[idx] = updated;
+    this.writeDb(db);
+    return updated;
+  }
+
+  duplicateBranch(id) {
+    const db = this.readDb();
+    const source = (db.branches || []).find(b => b.id === id);
+    if (!source) return null;
+
+    const cloned = {
+      ...source,
+      id: `br-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: `${source.name} (Copia)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!db.branches) db.branches = [];
+    db.branches.push(cloned);
+    this.writeDb(db);
+    return cloned;
+  }
+
+  deleteBranch(id) {
+    const db = this.readDb();
+    db.branches = (db.branches || []).filter(b => b.id !== id);
+    this.writeDb(db);
+    return true;
+  }
+
+  getBranchProfile(id) {
+    const branch = this.getBranch(id);
+    if (!branch) return null;
+
+    const orders = this.getOrders().filter(o => o.branchId === id);
+    const leads = this.getLeads().filter(l => l.preferredBranchId === id);
+    const totalSales = orders
+      .filter(o => o.status !== 'cancelled')
+      .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+
+    return {
+      ...branch,
+      orders,
+      assignedCustomers: leads,
+      metrics: {
+        totalOrders: orders.length,
+        pendingOrders: orders.filter(o => o.status === 'pending' || o.status === 'preparing').length,
+        inTransitOrders: orders.filter(o => o.status === 'in_transit').length,
+        deliveredOrders: orders.filter(o => o.status === 'delivered').length,
+        cancelledOrders: orders.filter(o => o.status === 'cancelled').length,
+        totalSales
+      }
+    };
+  }
+
+  deriveOrderToBranch(orderId, branchId, notes = '') {
+    const db = this.readDb();
+    const order = (db.orders || []).find(o => o.id === orderId);
+    const branch = (db.branches || []).find(b => b.id === branchId);
+    if (!order || !branch) return null;
+
+    order.branchId = branch.id;
+    order.branchName = branch.name;
+    order.branchPhone = branch.phone;
+    order.branchStatus = 'derived';
+    order.branchNotifiedAt = new Date().toISOString();
+    if (notes) {
+      order.notes = order.notes ? `${order.notes}\n${notes}` : notes;
+    }
+    order.updatedAt = new Date().toISOString();
+
+    this.writeDb(db);
+    return { order, branch };
+  }
 }
 
 export const db = new DatabaseService();

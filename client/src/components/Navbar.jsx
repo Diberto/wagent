@@ -14,7 +14,8 @@ import {
   UserCheck,
   ShoppingBag,
   PackageCheck,
-  Users
+  Users,
+  Store
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -30,6 +31,7 @@ export default function Navbar({
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
     { id: 'orders', label: 'Pedidos', icon: PackageCheck },
     { id: 'customers', label: 'Clientes', icon: Users },
+    { id: 'branches', label: 'Sucursales', icon: Store },
     { id: 'catalog', label: 'Catálogo', icon: ShoppingBag },
     { id: 'kanban', label: 'Embudo', icon: Kanban },
     { id: 'callcenter', label: 'Llamadas', icon: PhoneCall },

@@ -348,6 +348,14 @@ export class WhatsAppService {
       this.io.emit('chat:message', { message: savedMessage, lead });
     }
 
+    // 4. Si el mensaje proviene de una SUCURSAL registrada (Encargado/Operador de Sucursal)
+    const branch = !isFromMe ? (db.getBranchByPhone(jid) || (lead?.phone ? db.getBranchByPhone(lead.phone) : null)) : null;
+    if (branch && !isFromMe) {
+      console.log(`🏪 Mensaje interactivo recibido de la Sucursal: "${branch.name}" (${jid}): "${textContent}"`);
+      await this.handleBranchOperatorMessage(branch, jid, textContent);
+      return;
+    }
+
     // Si el mensaje viene de un cliente y la IA está activa
     const settings = db.getSettings();
     if (!isFromMe && lead.aiEnabled && settings.autoReplyEnabled) {
@@ -507,6 +515,142 @@ export class WhatsAppService {
     }
 
     this.emitStatus();
+  }
+
+  /**
+   * Notifica a la sucursal por WhatsApp sobre un nuevo pedido derivado
+   */
+  async sendBranchDerivationNotification(order, branch, notifyClient = true) {
+    if (!branch || !branch.phone) return false;
+    const branchJid = `${branch.phone.replace(/\D/g, '')}@s.whatsapp.net`;
+
+    const itemsStr = Array.isArray(order.items) ? order.items.join('\n') : (order.items || 'Cortes de carne');
+    const branchNotice = `🥩🔔 *¡NUEVO PEDIDO DERIVADO! #${order.id}*\n\n🏪 *Sucursal Destino:* ${branch.name}\n👤 *Cliente:* ${order.customerName} (📞 ${order.phone || 'Sin tel'})\n📍 *Destino / Entrega:* ${order.address || 'Retiro en sucursal'}\n\n📋 *CORTES SOLICITADOS:*\n${itemsStr}\n\n💰 *Total:* $${Number(order.totalAmount).toLocaleString('es-AR')}\n💳 *Medio de Pago:* ${order.paymentMethod || 'Efectivo / MP'}\n${order.notes ? `📝 *Notas:* ${order.notes}\n` : ''}\n👉 *RESPONDÉ A ESTE MENSAJE PARA ACTUALIZAR ESTADO:*\n1️⃣ *1* o *ACEPTAR* ➔ Confirmar en preparación\n2️⃣ *2* o *LISTO* ➔ Listo para entrega / retiro\n3️⃣ *3* o *ENTREGADO* ➔ Confirmar entrega\n4️⃣ *4* o *RECHAZAR* ➔ Rechazar / sin stock`;
+
+    await this.sendMessage(branchJid, branchNotice);
+
+    // Notificar al cliente
+    if (notifyClient) {
+      const clientJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (clientJid) {
+        const clientMsg = `¡Hola ${order.customerName}! 🥩 Tu pedido *#${order.id}* ha sido asignado a nuestra *${branch.name}* (${branch.address}). El equipo de corte ya fue notificado y está preparando todo para vos. 🙌`;
+        await this.sendMessage(clientJid, clientMsg);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Procesa mensajes interactivos enviados por los encargados u operadores de las sucursales
+   */
+  async handleBranchOperatorMessage(branch, branchJid, textContent) {
+    const raw = (textContent || '').trim().toLowerCase();
+    const allOrders = db.getOrders();
+
+    // 1. Detectar si menciona un número de pedido específico (ej: #ORD-6636 o ORD-6636 o 6636)
+    const idMatch = textContent.match(/ORD-([0-9a-zA-Z]+)/i) || textContent.match(/#([0-9a-zA-Z]+)/);
+    let targetOrder = null;
+    if (idMatch) {
+      const searchId = idMatch[0].replace('#', '').toUpperCase();
+      targetOrder = allOrders.find(o => o.id === searchId || o.id === `ORD-${searchId}`);
+    }
+
+    // Si no especificó ID, tomar el pedido más reciente asignado o pendiente en esta sucursal
+    if (!targetOrder) {
+      const branchOrders = allOrders
+        .filter(o => o.branchId === branch.id && (o.branchStatus === 'derived' || o.status === 'pending' || o.status === 'preparing'))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      targetOrder = branchOrders[0];
+    }
+
+    // 2. Procesar Comandos
+    const isAccept = /^(1|aceptar|acepto|preparar|preparacion|en preparacion|confirmar|confirmo|ok|dale|tomar)/i.test(raw);
+    const isReady = /^(2|listo|despachado|en camino|empaquetado|despachar|terminado)/i.test(raw);
+    const isDelivered = /^(3|entregado|completado|cerrado|finalizado|cobrado)/i.test(raw);
+    const isReject = /^(4|rechazar|rechazo|sin stock|no tenemos|cancelar|cancelado)/i.test(raw);
+
+    if (isAccept && targetOrder) {
+      const updated = db.updateOrderStatus(targetOrder.id, 'preparing');
+      db.updateOrder(targetOrder.id, {
+        branchStatus: 'accepted',
+        branchConfirmedAt: new Date().toISOString()
+      });
+      if (this.io) this.io.emit('order:update', updated);
+
+      const opReply = `✅ ¡Confirmado! El pedido *#${targetOrder.id}* (${targetOrder.customerName} - $${Number(targetOrder.totalAmount).toLocaleString('es-AR')}) quedó marcado como 🥩 *EN PREPARACIÓN*.\n\nNotificamos automáticamente al cliente por WhatsApp.`;
+      await this.sendMessage(branchJid, opReply);
+
+      // Notificar al cliente
+      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (clientJid) {
+        const clientNotice = `¡Excelentes noticias ${targetOrder.customerName}! 🎉 Nuestra *${branch.name}* acaba de confirmar tu pedido *#${targetOrder.id}* y ya comenzó su preparación en carnicería 🥩🔥\n\nTe avisaremos apenas salga hacia tu domicilio.`;
+        await this.sendMessage(clientJid, clientNotice);
+      }
+      return;
+    }
+
+    if (isReady && targetOrder) {
+      const updated = db.updateOrderStatus(targetOrder.id, 'in_transit');
+      db.updateOrder(targetOrder.id, { branchStatus: 'ready' });
+      if (this.io) this.io.emit('order:update', updated);
+
+      const opReply = `🚚 ¡Excelente! El pedido *#${targetOrder.id}* fue marcado como 🚚 *EN CAMINO / LISTO PARA RETIRO*.\n\nEl cliente ya recibió el aviso de despacho.`;
+      await this.sendMessage(branchJid, opReply);
+
+      // Notificar al cliente
+      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (clientJid) {
+        const clientNotice = `¡Tu pedido *#${targetOrder.id}* ya está listo y en camino hacia tu domicilio desde nuestra *${branch.name}*! 🚚🥩 Pronto llegará a destino.`;
+        await this.sendMessage(clientJid, clientNotice);
+      }
+      return;
+    }
+
+    if (isDelivered && targetOrder) {
+      const updated = db.updateOrderStatus(targetOrder.id, 'delivered');
+      db.updateOrder(targetOrder.id, { branchStatus: 'delivered' });
+      if (this.io) this.io.emit('order:update', updated);
+
+      const opReply = `🎉 ¡Gran trabajo! El pedido *#${targetOrder.id}* de ${targetOrder.customerName} ha sido marcado como ✅ *ENTREGADO Y COMPLETADO*.`;
+      await this.sendMessage(branchJid, opReply);
+
+      // Notificar al cliente
+      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (clientJid) {
+        const clientNotice = `¡Muchas gracias por tu compra en República de la Carne ${targetOrder.customerName}! 🙌 Esperamos que disfrutes tu asado. ¡Hasta la próxima! 🥩🔥`;
+        await this.sendMessage(clientJid, clientNotice);
+      }
+      return;
+    }
+
+    if (isReject && targetOrder) {
+      const updated = db.updateOrderStatus(targetOrder.id, 'cancelled');
+      db.updateOrder(targetOrder.id, { branchStatus: 'rejected' });
+      if (this.io) this.io.emit('order:update', updated);
+
+      const opReply = `⚠️ Pedido *#${targetOrder.id}* marcado como ❌ *RECHAZADO*. Se ha dado aviso al panel central de República de la Carne.`;
+      await this.sendMessage(branchJid, opReply);
+      return;
+    }
+
+    // Consulta de pedidos o menú de ayuda
+    const pendingList = allOrders
+      .filter(o => o.branchId === branch.id && o.status !== 'delivered' && o.status !== 'cancelled')
+      .slice(0, 5);
+
+    let helpMsg = `🏪 *Hola ${branch.managerName || 'Encargado'} - ${branch.name}* 🥩\n\n`;
+    if (pendingList.length > 0) {
+      helpMsg += `📋 *PEDIDOS ACTIVOS EN TU SUCURSAL (${pendingList.length}):*\n`;
+      pendingList.forEach(o => {
+        helpMsg += `• *#${o.id}* | ${o.customerName} | $${Number(o.totalAmount).toLocaleString('es-AR')} | Estado: ${o.status}\n`;
+      });
+      helpMsg += `\n👉 Para interactuar, respondé:\n1️⃣ *1* o *ACEPTAR* (Pone el último pedido en preparación)\n2️⃣ *2* o *LISTO* (Marca en camino / despacho)\n3️⃣ *3* o *ENTREGADO* (Marca entregado)\n4️⃣ *4* o *RECHAZAR* (Cancela o rechaza)\n\n*(O indicá el número de pedido: ej: "1 #ORD-1042")*`;
+    } else {
+      helpMsg += `No tenés pedidos pendientes en este momento. En cuanto el CRM derive una nueva venta para ${branch.name}, recibirás la notificación inmediata acá. 🥩🙌`;
+    }
+
+    await this.sendMessage(branchJid, helpMsg);
   }
 
   getStatus() {

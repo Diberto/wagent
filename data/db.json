@@ -28,6 +28,22 @@
   },
   "orders": [
     {
+      "id": "ORD-3024",
+      "jid": "153051277086768@lid",
+      "phone": "+153051277086768",
+      "customerName": "hola",
+      "address": "domicilio abono en efectivo al recibirlo",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo al repartidor",
+      "status": "pending",
+      "notes": "",
+      "createdAt": "2026-08-30T20:21:41.298Z",
+      "updatedAt": "2026-08-30T20:21:41.298Z"
+    },
+    {
       "id": "ORD-6636",
       "jid": "153051277086768@lid",
       "phone": "+153051277086768",
@@ -230,26 +246,27 @@
     },
     {
       "id": "lead-1788107987079-jk80w",
-      "stage": "closed_won",
+      "stage": "negotiating",
       "value": 39999,
       "tags": [
         "WhatsApp",
         "Cliente Comprador",
         "Parrillero",
-        "Cliente VIP"
+        "Cliente VIP",
+        "Frecuente"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 4,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T20:09:34.000Z",
+      "updatedAt": "2026-08-30T20:23:10.000Z",
       "jid": "153051277086768@lid",
-      "name": "Juan Gonzalez",
+      "name": "hola",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
       "address": "domicilio abono en efectivo al recibirlo",
-      "totalOrders": 2,
-      "totalSpent": 79998,
-      "lastOrderAt": "2026-08-30T20:09:18.064Z",
+      "totalOrders": 3,
+      "totalSpent": 119997,
+      "lastOrderAt": "2026-08-30T20:21:41.298Z",
       "preferences": {
         "favoriteCuts": [
           "Combo Asadazo",
@@ -264,13 +281,13 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡De diez Juan Gonzalez! 🥩🔥 Ya quedó asentado tu medio de pago: **Efectivo contraentrega** para tu pedido **#ORD-6636**.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌",
-      "lastMessageAt": "2026-08-30T20:09:34.000Z",
-      "notes": "Dirección: domicilio abono en efectivo al recibirlo | Pedido #ORD-6636",
+      "lastMessage": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante.",
+      "lastMessageAt": "2026-08-30T20:23:10.000Z",
+      "notes": "Dirección: domicilio abono en efectivo al recibirlo | Pedido #ORD-3024",
       "altJids": [
         "153051277086768@s.whatsapp.net"
       ],
-      "lastOrderId": "ORD-6636"
+      "lastOrderId": "ORD-3024"
     },
     {
       "id": "lead-1788118409496-l0ibc",
@@ -2786,6 +2803,130 @@
       "sender": "agent",
       "type": "text",
       "content": "¡De diez Juan Gonzalez! 🥩🔥 Ya quedó asentado tu medio de pago: **Efectivo contraentrega** para tu pedido **#ORD-6636**.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB064B0999744ED8CAA98",
+      "timestamp": "2026-08-30T20:21:37.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola, quiero pagar con mercadopago",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121301717-r7hd1d",
+      "timestamp": "2026-08-30T20:21:41.716Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Perfecto hola! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-3024\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* hola\n📍 *Destino de Entrega:* domicilio abono en efectivo al recibirlo\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]"
+    },
+    {
+      "id": "3EB0E9E89C8C5E235B1113",
+      "timestamp": "2026-08-30T20:21:41.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Perfecto hola! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-3024\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* hola\n📍 *Destino de Entrega:* domicilio abono en efectivo al recibirlo\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB00500781868E400CEE6",
+      "timestamp": "2026-08-30T20:21:49.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "mercadopago",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121312714-szxmzo",
+      "timestamp": "2026-08-30T20:21:52.713Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante."
+    },
+    {
+      "id": "3EB071440E2DE8C697D264",
+      "timestamp": "2026-08-30T20:21:52.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante.",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0B3A87BE0224BCB5C5F",
+      "timestamp": "2026-08-30T20:21:59.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "me das un link de pago?}",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121322396-z1fpqq",
+      "timestamp": "2026-08-30T20:22:02.395Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante."
+    },
+    {
+      "id": "3EB0C817FFB0F84F5F6602",
+      "timestamp": "2026-08-30T20:22:02.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante.",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB060D6450A0D9E47EBA6",
+      "timestamp": "2026-08-30T20:23:07.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero abonar con link de pago por favor, para abonar con mi cuenta de marcado pago",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788121390657-kl20pb",
+      "timestamp": "2026-08-30T20:23:10.656Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante."
+    },
+    {
+      "id": "3EB0C5CCF3433FE2CA94CF",
+      "timestamp": "2026-08-30T20:23:10.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* `republica.carne.mp`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante.",
       "mediaUrl": null,
       "audioDuration": 0
     }

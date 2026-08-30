@@ -24,11 +24,13 @@ import {
   Edit3,
   Plus,
   Save,
-  CreditCard
+  CreditCard,
+  Store
 } from 'lucide-react';
 
 export default function OrdersView({ socket }) {
   const [orders, setOrders] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +44,19 @@ export default function OrdersView({ socket }) {
 
   // Mercado Pago Payment Link Modal
   const [paymentModal, setPaymentModal] = useState(null); // null | { order, linkData, isGenerating, isSending, sendSuccess }
+
+  // Branch Derivation Modal State
+  const [deriveModal, setDeriveModal] = useState(null); // null | { order, branchId, notes, notifyClient, isDeriving, deriveSuccess }
+
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch('/api/branches');
+      const data = await res.json();
+      setBranches(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error cargando sucursales:', err);
+    }
+  };
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -58,6 +73,7 @@ export default function OrdersView({ socket }) {
 
   useEffect(() => {
     fetchOrders();
+    fetchBranches();
 
     if (socket) {
       socket.on('order:new', (newOrder) => {
@@ -292,6 +308,47 @@ export default function OrdersView({ socket }) {
     }
   };
 
+  const handleOpenDeriveModal = (order) => {
+    setDeriveModal({
+      order,
+      branchId: order.branchId || (branches.length > 0 ? branches[0].id : ''),
+      notes: '',
+      notifyClient: true,
+      isDeriving: false,
+      deriveSuccess: false
+    });
+  };
+
+  const handleExecuteDerive = async (e) => {
+    e.preventDefault();
+    if (!deriveModal || !deriveModal.branchId) return;
+
+    setDeriveModal(prev => ({ ...prev, isDeriving: true }));
+    try {
+      const res = await fetch(`/api/orders/${deriveModal.order.id}/derive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchId: deriveModal.branchId,
+          notes: deriveModal.notes,
+          notifyClient: deriveModal.notifyClient
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        setDeriveModal(prev => ({ ...prev, isDeriving: false, deriveSuccess: true }));
+        setTimeout(() => setDeriveModal(null), 2500);
+      } else {
+        alert(data.error || 'Error derivando pedido a la sucursal');
+        setDeriveModal(prev => ({ ...prev, isDeriving: false }));
+      }
+    } catch (err) {
+      console.error('Error derivando pedido:', err);
+      setDeriveModal(prev => ({ ...prev, isDeriving: false }));
+    }
+  };
+
   // Metrics
   const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
   const pendingCount = orders.filter(o => o.status === 'pending' || o.status === 'preparing').length;
@@ -508,6 +565,29 @@ export default function OrdersView({ socket }) {
                 </div>
               </div>
 
+              {/* Branch Assignment Badge */}
+              <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Store size={13} className="text-emerald-400 shrink-0" />
+                  <span className="text-slate-300 font-semibold truncate">
+                    {order.branchName || 'Sin Sucursal Asignada'}
+                  </span>
+                </div>
+                {order.branchStatus && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
+                    order.branchStatus === 'accepted'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : order.branchStatus === 'ready'
+                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                      : order.branchStatus === 'derived'
+                      ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                      : 'bg-slate-500/10 text-slate-400 border-slate-700'
+                  }`}>
+                    {order.branchStatus === 'accepted' ? '🥩 Aceptado' : order.branchStatus === 'ready' ? '🚚 Listo' : order.branchStatus === 'derived' ? '⏳ Derivado' : order.branchStatus}
+                  </span>
+                )}
+              </div>
+
               {/* Status Selector & Actions */}
               <div className="pt-2 border-t border-slate-800/80 space-y-2">
                 <div className="flex items-center gap-2">
@@ -522,6 +602,14 @@ export default function OrdersView({ socket }) {
                     <option value="delivered">✅ Entregado</option>
                     <option value="cancelled">❌ Cancelado</option>
                   </select>
+
+                  <button
+                    onClick={() => handleOpenDeriveModal(order)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                    title="Derivar a Sucursal con WhatsApp"
+                  >
+                    <Store size={14} />
+                  </button>
 
                   <button
                     onClick={() => handleOpenPaymentLink(order)}
@@ -761,6 +849,30 @@ export default function OrdersView({ socket }) {
                     <option value="Mercado Pago">Mercado Pago</option>
                   </select>
                 </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Sucursal Asignada:</label>
+                  <select
+                    value={orderModal.data.branchId || ''}
+                    onChange={(e) => {
+                      const selected = branches.find(b => b.id === e.target.value);
+                      setOrderModal({
+                        ...orderModal,
+                        data: {
+                          ...orderModal.data,
+                          branchId: e.target.value,
+                          branchName: selected ? selected.name : ''
+                        }
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  >
+                    <option value="">Sin Sucursal (Central)</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
@@ -868,6 +980,105 @@ export default function OrdersView({ socket }) {
 
               </div>
             ) : null}
+
+          </div>
+        </div>
+      )}
+
+      {/* Branch Derivation Modal */}
+      {deriveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                  <Store size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Derivar Pedido a Sucursal</h3>
+                  <p className="text-xs text-slate-400">Pedido #{deriveModal.order.id} — {deriveModal.order.customerName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDeriveModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {deriveModal.deriveSuccess ? (
+              <div className="py-6 text-center space-y-2">
+                <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
+                <div className="text-sm font-bold text-white">¡Pedido Derivado Exitosamente!</div>
+                <p className="text-xs text-slate-400">
+                  Se ha enviado el aviso por WhatsApp al encargado de la sucursal. En cuanto el encargado responda, el pedido se actualizará automáticamente.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleExecuteDerive} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Seleccionar Sucursal Destino:</label>
+                  <select
+                    required
+                    value={deriveModal.branchId}
+                    onChange={(e) => setDeriveModal({ ...deriveModal, branchId: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">Selecciona una sucursal...</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} — ({b.phone || 'Sin tel'}) {b.address ? `• ${b.address}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Instrucciones / Notas para el Encargado (Opcional):</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ej: Cliente pasa a retirar 19:30 hs / Prioridad corte magro"
+                    value={deriveModal.notes}
+                    onChange={(e) => setDeriveModal({ ...deriveModal, notes: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 resize-none"
+                  />
+                </div>
+
+                <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white">Avisar al Cliente por WhatsApp</div>
+                    <div className="text-[11px] text-slate-400">Notificarle que su pedido está en esta sucursal</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={deriveModal.notifyClient}
+                    onChange={(e) => setDeriveModal({ ...deriveModal, notifyClient: e.target.checked })}
+                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setDeriveModal(null)}
+                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={deriveModal.isDeriving || !deriveModal.branchId}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50"
+                  >
+                    <Send size={13} className={deriveModal.isDeriving ? 'animate-spin' : ''} />
+                    {deriveModal.isDeriving ? 'Derivando...' : '🏪 Derivar y Notificar por WhatsApp'}
+                  </button>
+                </div>
+              </form>
+            )}
 
           </div>
         </div>

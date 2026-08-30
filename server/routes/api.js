@@ -539,6 +539,81 @@ export function createApiRouter(whatsappService, io) {
     res.json({ success: true });
   });
 
+  // --- 5.2.1 Branches (Sucursales) Management ---
+  router.get('/branches', (req, res) => {
+    const branches = db.getBranches();
+    const profiles = branches.map(b => db.getBranchProfile(b.id));
+    res.json(profiles);
+  });
+
+  router.post('/branches', (req, res) => {
+    const created = db.createBranch(req.body);
+    io.emit('branch:new', created);
+    res.json(created);
+  });
+
+  router.get('/branches/:id', (req, res) => {
+    const branch = db.getBranchProfile(req.params.id);
+    if (!branch) return res.status(404).json({ error: 'Sucursal no encontrada' });
+    res.json(branch);
+  });
+
+  router.put('/branches/:id', (req, res) => {
+    const updated = db.updateBranch(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Sucursal no encontrada' });
+    io.emit('branch:update', updated);
+    res.json(updated);
+  });
+
+  router.post('/branches/:id/duplicate', (req, res) => {
+    const cloned = db.duplicateBranch(req.params.id);
+    if (!cloned) return res.status(404).json({ error: 'Sucursal no encontrada' });
+    io.emit('branch:new', cloned);
+    res.json(cloned);
+  });
+
+  router.delete('/branches/:id', (req, res) => {
+    db.deleteBranch(req.params.id);
+    io.emit('branch:delete', { id: req.params.id });
+    res.json({ success: true });
+  });
+
+  router.post('/branches/:id/test-whatsapp', async (req, res) => {
+    const branch = db.getBranch(req.params.id);
+    if (!branch || !branch.phone) {
+      return res.status(400).json({ error: 'La sucursal no tiene un teléfono válido' });
+    }
+
+    try {
+      const targetJid = `${branch.phone.replace(/\D/g, '')}@s.whatsapp.net`;
+      const testMsg = `🏪 *Prueba de Conexión WAgent - República de la Carne* 🥩\n\n¡Hola ${branch.managerName || 'Encargado'}! Este número está registrado como canal oficial para recepción y confirmación de pedidos de *${branch.name}*.\n\nCuando derivemos un pedido, recibirás el detalle aquí y podrás responder *1 (Aceptar)*, *2 (Listo)*, *3 (Entregado)* o *4 (Rechazar)* directamente por este chat. 🙌`;
+      
+      await whatsappService.sendMessage(targetJid, testMsg);
+      res.json({ success: true, message: 'Mensaje de prueba enviado a la sucursal' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Derivar pedido a sucursal y notificar por WhatsApp
+  router.post('/orders/:id/derive', async (req, res) => {
+    const { branchId, notes, notifyClient = true } = req.body;
+    const result = db.deriveOrderToBranch(req.params.id, branchId, notes);
+    if (!result) return res.status(404).json({ error: 'Pedido o sucursal no encontrados' });
+
+    const { order, branch } = result;
+
+    try {
+      // Enviar notificación a la sucursal y al cliente
+      await whatsappService.sendBranchDerivationNotification(order, branch, notifyClient);
+    } catch (err) {
+      console.error('Error enviando notificación WhatsApp de derivación:', err);
+    }
+
+    io.emit('order:update', order);
+    res.json({ success: true, order, branch });
+  });
+
   // --- 5.3 Mercado Pago Integration ---
   router.get('/mercadopago/status', async (req, res) => {
     const creds = mercadoPagoService.getCredentials();

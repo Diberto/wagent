@@ -23,11 +23,13 @@ import {
   Plus,
   Copy,
   Trash2,
-  X
+  X,
+  Store
 } from 'lucide-react';
 
 export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [customers, setCustomers] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
@@ -56,15 +58,30 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
     }
   };
 
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch('/api/branches');
+      const data = await res.json();
+      setBranches(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error cargando sucursales:', err);
+    }
+  };
+
   useEffect(() => {
     fetchCustomers();
+    fetchBranches();
 
     if (socket) {
       socket.on('lead:update', () => fetchCustomers());
       socket.on('order:new', () => fetchCustomers());
+      socket.on('branch:new', () => fetchBranches());
+      socket.on('branch:update', () => fetchBranches());
       return () => {
         socket.off('lead:update');
         socket.off('order:new');
+        socket.off('branch:new');
+        socket.off('branch:update');
       };
     }
   }, [socket]);
@@ -75,6 +92,7 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
         name: selectedCustomer.name || '',
         phone: selectedCustomer.phone || '',
         address: selectedCustomer.address || '',
+        preferredBranchId: selectedCustomer.preferredBranchId || '',
         preferences: {
           favoriteCuts: selectedCustomer.preferences?.favoriteCuts || [],
           cookingPreference: selectedCustomer.preferences?.cookingPreference || 'Parrilla',
@@ -664,7 +682,7 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                   <span className="text-[11px] text-slate-400">La IA usa estos datos para personalizar sus recomendaciones</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1">
                     <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
                       <Flame size={12} className="text-amber-500" /> Cocción Habitual
@@ -726,6 +744,31 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                       </select>
                     ) : (
                       <div className="text-xs font-bold text-white">{selectedCustomer.preferences?.preferredPayment || 'Efectivo / Transferencia'}</div>
+                    )}
+                  </div>
+
+                  <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1">
+                    <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                      <Store size={12} className="text-sky-400" /> Sucursal Preferida
+                    </span>
+                    {isEditing ? (
+                      <select
+                        value={editForm.preferredBranchId || ''}
+                        onChange={(e) => setEditForm({
+                          ...editForm,
+                          preferredBranchId: e.target.value
+                        })}
+                        className="w-full bg-[#182229] border border-slate-700 text-xs text-white rounded-lg p-1.5"
+                      >
+                        <option value="">Sin sucursal fija</option>
+                        {branches.map(b => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="text-xs font-bold text-sky-400 truncate">
+                        {branches.find(b => b.id === selectedCustomer.preferredBranchId)?.name || 'Sin sucursal asignada'}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1165,6 +1208,30 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                     <option value="in_transit">🚚 En Camino</option>
                     <option value="delivered">✅ Entregado</option>
                     <option value="cancelled">❌ Cancelado</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Sucursal Asignada:</label>
+                  <select
+                    value={orderModal.data.branchId || ''}
+                    onChange={(e) => {
+                      const selected = branches.find(b => b.id === e.target.value);
+                      setOrderModal({
+                        ...orderModal,
+                        data: {
+                          ...orderModal.data,
+                          branchId: e.target.value,
+                          branchName: selected ? selected.name : ''
+                        }
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  >
+                    <option value="">Sin Sucursal (Central)</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>

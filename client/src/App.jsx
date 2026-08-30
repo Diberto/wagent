@@ -9,6 +9,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import ProductCatalog from './components/ProductCatalog';
 import OrdersView from './components/OrdersView';
 import CustomersView from './components/CustomersView';
+import BranchesView from './components/BranchesView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
@@ -308,6 +309,10 @@ export default function App() {
               setCurrentTab('inbox');
             }} 
           />
+        )}
+
+        {currentTab === 'branches' && (
+          <BranchesView socket={socket} />
         )}
 
         {currentTab === 'catalog' && (
