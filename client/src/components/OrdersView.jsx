@@ -29,18 +29,66 @@ import {
   Bike,
   Users,
   LayoutGrid,
-  List
+  List,
+  Calculator,
+  Minus,
+  Navigation,
+  Compass,
+  Flame,
+  ShoppingCart
 } from 'lucide-react';
+import ClientLocationMap from './ClientLocationMap.jsx';
+
+const POS_CATEGORIES = [
+  { id: 'all', label: '🔥 Todos' },
+  { id: 'combos', label: '⭐ Combos' },
+  { id: 'novillito', label: '🥩 Novillito' },
+  { id: 'cerdo', label: '🐖 Cerdo' },
+  { id: 'achuras', label: '🌭 Achuras' },
+  { id: 'elaborados', label: '🍽️ Elaborados' },
+  { id: 'almacen', label: '🍷 Carbón / Bebidas' }
+];
+
+const DEFAULT_POS_ITEMS = [
+  { id: 'prod-combo-asadazo', name: 'Combo Asadazo (4 kg) + Vino', category: 'combos', price: 39999, unit: 'combo', icon: '⭐' },
+  { id: 'prod-vacio', name: 'Vacío Especial Novillito', category: 'novillito', price: 11500, unit: 'kg', icon: '🥩' },
+  { id: 'prod-costillar', name: 'Costillar / Asado de Tira', category: 'novillito', price: 9800, unit: 'kg', icon: '🥩' },
+  { id: 'prod-tapa-cuadril', name: 'Tapa de Cuadril Seleccionada', category: 'novillito', price: 12800, unit: 'kg', icon: '🥩' },
+  { id: 'prod-entrana', name: 'Entraña Fina de Novillito', category: 'novillito', price: 16900, unit: 'kg', icon: '🥩' },
+  { id: 'prod-bife-chorizo', name: 'Bife de Chorizo Premium', category: 'novillito', price: 14500, unit: 'kg', icon: '🥩' },
+  { id: 'prod-costeletas-cerdo', name: 'Costeletas de Cerdo (Promo 2kg)', category: 'cerdo', price: 7500, unit: 'kg', icon: '🐖' },
+  { id: 'prod-matambre-cerdo', name: 'Matambre de Cerdo Tierno', category: 'cerdo', price: 8500, unit: 'kg', icon: '🐖' },
+  { id: 'prod-pechito-cerdo', name: 'Pechito de Cerdo', category: 'cerdo', price: 7900, unit: 'kg', icon: '🐖' },
+  { id: 'prod-chorizo-criollo', name: 'Chorizo Criollo Puro Cerdo', category: 'achuras', price: 5000, unit: 'kg', icon: '🌭' },
+  { id: 'prod-morcilla-bombon', name: 'Morcilla Bombón Parrillera', category: 'achuras', price: 5200, unit: 'kg', icon: '🌭' },
+  { id: 'prod-chinchulin', name: 'Chinchulines Seleccionados', category: 'achuras', price: 4200, unit: 'kg', icon: '🌭' },
+  { id: 'prod-mollejas', name: 'Mollejas de Corazón', category: 'achuras', price: 18900, unit: 'kg', icon: '🌭' },
+  { id: 'prod-milanesas-ternera', name: 'Milanesas de Ternera (Promo 2kg)', category: 'elaborados', price: 12495, unit: 'kg', icon: '🍽️' },
+  { id: 'prod-milanesas-pollo', name: 'Milanesas de Pollo', category: 'elaborados', price: 8900, unit: 'kg', icon: '🍽️' },
+  { id: 'prod-picada-especial', name: 'Picada Especial (Promo 3kg)', category: 'elaborados', price: 9000, unit: 'kg', icon: '🍽️' },
+  { id: 'prod-carbon-quebracho', name: 'Carbón Quebracho Blanco', category: 'almacen', price: 2200, unit: 'bolsa', icon: '🔥' },
+  { id: 'prod-vino-howlmande', name: 'Vino Howlmande Malbec', category: 'almacen', price: 5500, unit: 'botella', icon: '🍷' }
+];
 
 export default function OrdersView({ socket }) {
   const [orders, setOrders] = useState([]);
   const [branches, setBranches] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [catalogProducts, setCatalogProducts] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('orders_view_mode') || 'table');
   const [isLoading, setIsLoading] = useState(true);
+
+  // POS Selector State inside Order Modal
+  const [posMode, setPosMode] = useState('pos'); // 'pos' | 'manual'
+  const [posCategory, setPosCategory] = useState('all');
+  const [posSearch, setPosSearch] = useState('');
+  const [posCart, setPosCart] = useState([]); // [{ id, name, price, quantity, unit }]
+
+  // Real Map Modal State
+  const [mapModal, setMapModal] = useState(null); // null | { address, customerName, onConfirm }
 
   // Status Change Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState(null); // { order, targetStatus, message, isSubmitting }
@@ -88,6 +136,16 @@ export default function OrdersView({ socket }) {
     }
   };
 
+  const fetchCatalogProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      setCatalogProducts(Array.isArray(data) && data.length > 0 ? data : DEFAULT_POS_ITEMS);
+    } catch (err) {
+      setCatalogProducts(DEFAULT_POS_ITEMS);
+    }
+  };
+
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
@@ -106,8 +164,7 @@ export default function OrdersView({ socket }) {
     fetchBranches();
     fetchDrivers();
     fetchCustomers();
-    fetchBranches();
-    fetchDrivers();
+    fetchCatalogProducts();
 
     if (socket) {
       socket.on('order:new', (newOrder) => {
@@ -166,6 +223,75 @@ export default function OrdersView({ socket }) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const syncPosCartToOrder = (cartList) => {
+    const formattedLines = cartList.map(item => `${item.quantity}x ${item.name} ($${(item.price * item.quantity).toLocaleString('es-AR')})`);
+    const total = cartList.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    setItemsInputText(formattedLines.join('\n'));
+    setOrderModal(prev => prev ? {
+      ...prev,
+      data: {
+        ...prev.data,
+        items: formattedLines,
+        totalAmount: total
+      }
+    } : null);
+  };
+
+  const handleAddPosProduct = (prod) => {
+    setPosCart(prev => {
+      const existing = prev.find(item => item.name.toLowerCase() === prod.name.toLowerCase() || item.id === prod.id);
+      let updated;
+      if (existing) {
+        updated = prev.map(item => item.id === existing.id ? { ...item, quantity: item.quantity + 1 } : item);
+      } else {
+        updated = [...prev, { id: prod.id, name: prod.name, price: Number(prod.price) || 0, quantity: 1, unit: prod.unit || 'kg', icon: prod.icon || '🥩' }];
+      }
+      syncPosCartToOrder(updated);
+      return updated;
+    });
+  };
+
+  const handleRemovePosProduct = (prodId) => {
+    setPosCart(prev => {
+      const existing = prev.find(item => item.id === prodId);
+      if (!existing) return prev;
+      let updated;
+      if (existing.quantity > 1) {
+        updated = prev.map(item => item.id === prodId ? { ...item, quantity: item.quantity - 1 } : item);
+      } else {
+        updated = prev.filter(item => item.id !== prodId);
+      }
+      syncPosCartToOrder(updated);
+      return updated;
+    });
+  };
+
+  const handleClearPosCart = () => {
+    setPosCart([]);
+    syncPosCartToOrder([]);
+  };
+
+  const handleOpenMap = (address, customerName) => {
+    setMapModal({
+      address: address || 'Córdoba, Argentina',
+      customerName: customerName || 'Cliente',
+      onConfirm: (locData) => {
+        if (orderModal) {
+          setOrderModal(prev => prev ? {
+            ...prev,
+            data: {
+              ...prev.data,
+              address: locData.address,
+              branchId: locData.closestBranch ? locData.closestBranch.id : prev.data.branchId,
+              branchName: locData.closestBranch ? locData.closestBranch.name : prev.data.branchName
+            }
+          } : null);
+        }
+        setMapModal(null);
+      }
+    });
+  };
 
   const generateStatusNotification = (order, targetStatus) => {
     const name = order.customerName || 'Cliente';
@@ -250,23 +376,36 @@ export default function OrdersView({ socket }) {
   };
 
   const handleOpenCreateOrder = () => {
+    const initialCart = [{ id: 'prod-combo-asadazo', name: 'Combo Asadazo (4 kg) + Vino', price: 39999, quantity: 1, unit: 'combo', icon: '⭐' }];
+    setPosCart(initialCart);
+    setPosMode('pos');
     setOrderModal({
       mode: 'create',
       data: {
         customerName: '',
         phone: '',
         address: '',
-        items: ['1x Combo Asadazo ($39.999)'],
+        items: ['1x Combo Asadazo (4 kg) + Vino ($39.999)'],
         totalAmount: 39999,
         paymentMethod: 'Efectivo al repartidor',
         status: 'pending',
         notes: ''
       }
     });
-    setItemsInputText('1x Combo Asadazo ($39.999)');
+    setItemsInputText('1x Combo Asadazo (4 kg) + Vino ($39.999)');
   };
 
   const handleOpenEditOrder = (order) => {
+    const parsedCart = (Array.isArray(order.items) ? order.items : []).map((str, idx) => {
+      const match = str.match(/(?:([0-9.]+)\s*(?:x|kg|combo|bolsa|botella)?\s*)?(.+?)(?:\s*—|\s*\(\$?([0-9.]+)\))?$/i);
+      const qty = match && match[1] ? parseFloat(match[1]) : 1;
+      const name = match && match[2] ? match[2].trim() : str;
+      const price = match && match[3] ? parseFloat(match[3].replace(/\./g, '')) : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.items?.length || 1));
+      return { id: `item-${idx}`, name, price, quantity: qty, unit: 'un', icon: '🥩' };
+    });
+
+    setPosCart(parsedCart.length > 0 ? parsedCart : [{ id: 'item-0', name: 'Combo Asadazo', price: Number(order.totalAmount) || 0, quantity: 1, unit: 'un', icon: '⭐' }]);
+    setPosMode('pos');
     setOrderModal({
       mode: 'edit',
       data: { ...order }
@@ -770,6 +909,13 @@ export default function OrdersView({ socket }) {
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
+                          onClick={() => handleOpenMap(order.address, order.customerName)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                          title="Ver Ubicación en Mapa de Córdoba"
+                        >
+                          <MapPin size={13} />
+                        </button>
+                        <button
                           onClick={() => handleOpenAssignDriverModal(order)}
                           className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
                           title="Asignar Repartidor por WhatsApp"
@@ -793,7 +939,7 @@ export default function OrdersView({ socket }) {
                         <button
                           onClick={() => handleOpenEditOrder(order)}
                           className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                          title="Editar pedido"
+                          title="Editar pedido con POS"
                         >
                           <Edit3 size={13} />
                         </button>
@@ -933,6 +1079,14 @@ export default function OrdersView({ socket }) {
                   </select>
 
                   <button
+                    onClick={() => handleOpenMap(order.address, order.customerName)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                    title="Ver Ubicación en Mapa de Córdoba"
+                  >
+                    <MapPin size={14} />
+                  </button>
+
+                  <button
                     onClick={() => handleOpenAssignDriverModal(order)}
                     className="p-2 rounded-xl bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
                     title="Asignar Repartidor y Despachar por WhatsApp"
@@ -959,7 +1113,7 @@ export default function OrdersView({ socket }) {
                   <button
                     onClick={() => handleOpenEditOrder(order)}
                     className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                    title="Editar pedido"
+                    title="Editar pedido con POS"
                   >
                     <Edit3 size={14} />
                   </button>
@@ -1074,21 +1228,25 @@ export default function OrdersView({ socket }) {
         </div>
       )}
 
-      {/* Create / Edit Order Modal */}
+      {/* Create / Edit Order Modal with POS Product Selector & Location Map */}
       {orderModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-5 sm:p-6 w-full max-w-4xl shadow-2xl space-y-5 my-auto max-h-[95vh] flex flex-col">
             
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                  <ShoppingBag size={20} />
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
+                  <Calculator size={20} />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">
-                    {orderModal.mode === 'create' ? 'Nuevo Pedido Manual' : `Editar Pedido #${orderModal.data.id}`}
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    {orderModal.mode === 'create' ? 'Nuevo Pedido (Carga Rápida POS)' : `Editar Pedido #${orderModal.data.id}`}
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                      POS Mostrador
+                    </span>
                   </h3>
-                  <p className="text-xs text-slate-400">Detalles del cliente, cortes y monto total</p>
+                  <p className="text-xs text-slate-400">Selecciona cortes, calcula subtotales al instante y verifica la ubicación del cliente</p>
                 </div>
               </div>
               <button
@@ -1099,60 +1257,62 @@ export default function OrdersView({ socket }) {
               </button>
             </div>
 
-            <form onSubmit={handleSaveOrderForm} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveOrderForm} className="space-y-4 text-xs overflow-y-auto flex-1 pr-1">
               
-              {/* Quick Customer Picker */}
-              <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1.5">
-                <label className="text-slate-300 font-semibold flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-                    <Users size={14} /> Seleccionar Cliente de la Base de Datos:
-                  </span>
-                  <span className="text-[10px] text-slate-500">Autocompleta nombre, tel y dirección</span>
-                </label>
-                <select
-                  onChange={(e) => {
-                    const c = customers.find(x => x.id === e.target.value);
-                    if (c) {
-                      setOrderModal({
-                        ...orderModal,
-                        data: {
-                          ...orderModal.data,
-                          customerName: c.name || c.pushName || orderModal.data.customerName,
-                          phone: c.phone || c.jid?.split('@')[0] || orderModal.data.phone,
-                          address: c.address || orderModal.data.address,
-                          branchId: c.preferredBranchId || orderModal.data.branchId,
-                          branchName: branches.find(b => b.id === (c.preferredBranchId || orderModal.data.branchId))?.name || orderModal.data.branchName
-                        }
-                      });
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white font-medium focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="">👤 Elegir cliente existente para autocompletar...</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name || c.pushName || 'Cliente'} — 📞 {c.phone || c.jid?.split('@')[0]} {c.address ? `(${c.address})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Quick Customer Picker & Location Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#111b21] p-3 rounded-2xl border border-slate-800">
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-semibold">Nombre del Cliente:</label>
+                  <label className="text-slate-300 font-semibold flex items-center justify-between text-[11px]">
+                    <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                      <Users size={13} /> Autocompletar con Cliente:
+                    </span>
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const c = customers.find(x => x.id === e.target.value);
+                      if (c) {
+                        setOrderModal({
+                          ...orderModal,
+                          data: {
+                            ...orderModal.data,
+                            customerName: c.name || c.pushName || orderModal.data.customerName,
+                            phone: c.phone || c.jid?.split('@')[0] || orderModal.data.phone,
+                            address: c.address || orderModal.data.address,
+                            branchId: c.preferredBranchId || orderModal.data.branchId,
+                            branchName: branches.find(b => b.id === (c.preferredBranchId || orderModal.data.branchId))?.name || orderModal.data.branchName
+                          }
+                        });
+                      }
+                    }}
+                    className="w-full px-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700 text-white font-medium focus:outline-none focus:border-emerald-500 text-xs"
+                  >
+                    <option value="">👤 Elegir cliente existente...</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || c.pushName || 'Cliente'} — 📞 {c.phone || c.jid?.split('@')[0]} {c.address ? `(${c.address})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold text-[11px]">Nombre del Cliente:</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej: Juan Gonzalez"
+                    placeholder="Ej: Don Juan / Matías Rossi"
                     value={orderModal.data.customerName}
                     onChange={(e) => setOrderModal({
                       ...orderModal,
                       data: { ...orderModal.data, customerName: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 text-xs"
                   />
                 </div>
+              </div>
 
+              {/* Phone & Address with Map Location Trigger */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-slate-300 font-semibold">Teléfono / WhatsApp:</label>
                   <input
@@ -1163,39 +1323,259 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, phone: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-300 font-semibold">Dirección de Entrega:</label>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenMap(orderModal.data.address, orderModal.data.customerName)}
+                      className="text-emerald-400 hover:text-emerald-300 text-[11px] font-bold flex items-center gap-1 transition"
+                      title="Abrir mapa interactivo de Córdoba"
+                    >
+                      <MapPin size={12} /> Ubicar en Mapa
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ej: Av. José Roque Funes 1115, Barrio Urca"
+                      value={orderModal.data.address}
+                      onChange={(e) => setOrderModal({
+                        ...orderModal,
+                        data: { ...orderModal.data, address: e.target.value }
+                      })}
+                      className="flex-1 px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleOpenMap(orderModal.data.address, orderModal.data.customerName)}
+                      className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold shrink-0 transition"
+                      title="Ver en Mapa"
+                    >
+                      🗺️ Mapa
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-slate-300 font-semibold">Dirección de Entrega:</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Roque Funes 1704, Barrio Urca"
-                  value={orderModal.data.address}
-                  onChange={(e) => setOrderModal({
-                    ...orderModal,
-                    data: { ...orderModal.data, address: e.target.value }
-                  })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
-                />
+              {/* ========================================================================= */}
+              {/* POS PRODUCT SELECTOR & CART AREA */}
+              {/* ========================================================================= */}
+              <div className="bg-[#111b21] p-3.5 sm:p-4 rounded-3xl border border-slate-800 space-y-3">
+                
+                {/* POS / Manual Toggle Header */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart size={16} className="text-emerald-400" />
+                    <span className="font-bold text-white text-xs">Cortes & Productos del Pedido</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+                      {posCart.length} {posCart.length === 1 ? 'ítem' : 'ítems'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-[#182229] p-1 rounded-xl border border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setPosMode('pos')}
+                      className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition ${
+                        posMode === 'pos' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Calculator size={13} />
+                      <span>Selector POS</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPosMode('manual')}
+                      className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold transition ${
+                        posMode === 'manual' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Edit3 size={13} />
+                      <span>Texto Libre</span>
+                    </button>
+                  </div>
+                </div>
+
+                {posMode === 'pos' ? (
+                  <div className="space-y-3">
+                    
+                    {/* Category Filter Pills & Search */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 text-xs">
+                        {POS_CATEGORIES.map(cat => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setPosCategory(cat.id)}
+                            className={`px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition ${
+                              posCategory === cat.id
+                                ? 'bg-emerald-500 text-slate-950 shadow'
+                                : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="relative w-full sm:w-48">
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Buscar corte..."
+                          value={posSearch}
+                          onChange={(e) => setPosSearch(e.target.value)}
+                          className="w-full pl-8 pr-2.5 py-1 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* POS Product Grid Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {(catalogProducts.length > 0 ? catalogProducts : DEFAULT_POS_ITEMS)
+                        .filter(p => {
+                          const matchesCat = posCategory === 'all' || p.category === posCategory;
+                          const matchesSearch = !posSearch || p.name.toLowerCase().includes(posSearch.toLowerCase());
+                          return matchesCat && matchesSearch;
+                        })
+                        .map(prod => {
+                          const inCart = posCart.find(item => item.id === prod.id || item.name.toLowerCase() === prod.name.toLowerCase());
+                          return (
+                            <button
+                              key={prod.id}
+                              type="button"
+                              onClick={() => handleAddPosProduct(prod)}
+                              className={`p-2 rounded-2xl border text-left flex flex-col justify-between transition group relative ${
+                                inCart 
+                                  ? 'bg-emerald-950/30 border-emerald-500/60 shadow-md' 
+                                  : 'bg-[#182229] hover:bg-[#202c33] border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-base">{prod.icon || '🥩'}</span>
+                                  {inCart && (
+                                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 font-black text-[10px]">
+                                      {inCart.quantity} {inCart.unit || 'kg'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="font-bold text-white text-[11px] leading-tight mt-1 line-clamp-2">
+                                  {prod.name}
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center justify-between pt-1.5 mt-1 border-t border-slate-800/80">
+                                <span className="font-mono font-extrabold text-emerald-400 text-xs">
+                                  ${Number(prod.price).toLocaleString('es-AR')}
+                                </span>
+                                <span className="p-1 rounded-lg bg-emerald-500/20 text-emerald-300 group-hover:bg-emerald-500 group-hover:text-slate-950 transition">
+                                  <Plus size={12} />
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+
+                    {/* Live Cart Items Summary with Stepper */}
+                    <div className="bg-[#182229] p-3 rounded-2xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-slate-800 pb-1.5">
+                        <span>Detalle de Cortes Seleccionados</span>
+                        {posCart.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleClearPosCart}
+                            className="text-[10px] text-rose-400 hover:underline flex items-center gap-1"
+                          >
+                            <Trash2 size={11} /> Vaciar Carrito
+                          </button>
+                        )}
+                      </div>
+
+                      {posCart.length === 0 ? (
+                        <div className="text-center py-4 text-slate-500 text-xs">
+                          Haz clic en los cortes o combos arriba para añadirlos al pedido.
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                          {posCart.map(item => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between p-2 rounded-xl bg-[#111b21] border border-slate-800/80 text-xs"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="font-bold text-white truncate">{item.name}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  ${item.price.toLocaleString('es-AR')} / {item.unit || 'kg'}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center bg-[#182229] border border-slate-700 rounded-lg p-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePosProduct(item.id)}
+                                    className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
+                                  >
+                                    <Minus size={11} />
+                                  </button>
+                                  <span className="px-2 font-mono font-bold text-white text-xs">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddPosProduct(item)}
+                                    className="p-1 text-emerald-400 hover:text-white rounded hover:bg-slate-800 transition"
+                                  >
+                                    <Plus size={11} />
+                                  </button>
+                                </div>
+
+                                <div className="font-mono font-extrabold text-white text-xs w-20 text-right">
+                                  ${(item.price * item.quantity).toLocaleString('es-AR')}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Live Total Bar */}
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-300">Total Calculado del Pedido:</span>
+                        <span className="text-base font-black font-mono text-emerald-400">
+                          ${posCart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                    </div>
+
+                  </div>
+                ) : (
+                  /* Manual Textarea Mode */
+                  <div className="space-y-2">
+                    <label className="text-slate-300 font-semibold block">Cortes / Combos (un ítem por línea):</label>
+                    <textarea
+                      rows={4}
+                      placeholder="1x Combo Asadazo ($39.999)&#10;2 kg Costeleta de Cerdo ($15.000)&#10;1 bolsa Carbón Quebracho ($2.200)"
+                      value={itemsInputText}
+                      onChange={(e) => setItemsInputText(e.target.value)}
+                      className="w-full p-3 rounded-2xl bg-[#182229] border border-slate-700 text-white font-mono focus:outline-none focus:border-emerald-500 text-xs"
+                    />
+                  </div>
+                )}
+
               </div>
 
-              <div className="space-y-1">
-                <label className="text-slate-300 font-semibold">Cortes / Combos (un ítem por línea):</label>
-                <textarea
-                  rows={3}
-                  placeholder="1x Combo Asadazo ($39.999)&#10;2 kg Costeleta de Cerdo ($15.000)"
-                  value={itemsInputText}
-                  onChange={(e) => setItemsInputText(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
+              {/* Total Amount & Status Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-semibold">Monto Total ($):</label>
+                  <label className="text-slate-300 font-semibold">Monto Total del Pedido ($):</label>
                   <input
                     type="number"
                     required
@@ -1204,7 +1584,7 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, totalAmount: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-bold focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-emerald-400 font-extrabold text-base focus:outline-none focus:border-emerald-500"
                   />
                 </div>
 
@@ -1216,7 +1596,7 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, status: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500 text-xs"
                   >
                     <option value="pending">⏳ Pendiente</option>
                     <option value="preparing">🥩 En Preparación (Carnicería)</option>
@@ -1227,6 +1607,7 @@ export default function OrdersView({ socket }) {
                 </div>
               </div>
 
+              {/* Payment Method, Branch and Driver Row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <label className="text-slate-300 font-semibold">Medio de Pago:</label>
@@ -1236,7 +1617,7 @@ export default function OrdersView({ socket }) {
                       ...orderModal,
                       data: { ...orderModal.data, paymentMethod: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500 text-xs"
                   >
                     <option value="Efectivo al repartidor">💵 Efectivo al repartidor</option>
                     <option value="Mercado Pago">💳 Mercado Pago</option>
@@ -1261,7 +1642,7 @@ export default function OrdersView({ socket }) {
                         }
                       });
                     }}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 text-xs"
                   >
                     <option value="">🏢 Central / General</option>
                     {branches.map(b => (
@@ -1285,7 +1666,7 @@ export default function OrdersView({ socket }) {
                         }
                       });
                     }}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 text-xs"
                   >
                     <option value="">🛵 Sin Repartidor Asignado</option>
                     {drivers.map(d => (
@@ -1297,19 +1678,20 @@ export default function OrdersView({ socket }) {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+              {/* Modal Footer Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
                 <button
                   type="button"
                   onClick={() => setOrderModal(null)}
-                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800 transition"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold transition"
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold transition shadow-lg"
                 >
-                  <Save size={14} />
+                  <Save size={15} />
                   Guardar Pedido
                 </button>
               </div>
@@ -1676,6 +2058,16 @@ export default function OrdersView({ socket }) {
 
           </div>
         </div>
+      )}
+
+      {/* Real Interactive Map for Customer Delivery Location */}
+      {mapModal && (
+        <ClientLocationMap
+          address={mapModal.address}
+          customerName={mapModal.customerName}
+          onConfirmLocation={mapModal.onConfirm}
+          onClose={() => setMapModal(null)}
+        />
       )}
 
     </div>

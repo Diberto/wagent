@@ -149,6 +149,34 @@ class DatabaseService {
     return true;
   }
 
+  // --- Automations & Workflow Engine ---
+  getAutomations() {
+    const db = this.readDb();
+    if (!db.automations || db.automations.length === 0) {
+      return [];
+    }
+    return db.automations;
+  }
+
+  updateAutomation(id, updates) {
+    const db = this.readDb();
+    if (!db.automations) db.automations = [];
+    const index = db.automations.findIndex(a => a.id === id);
+    if (index !== -1) {
+      db.automations[index] = { ...db.automations[index], ...updates, updatedAt: new Date().toISOString() };
+      this.writeDb(db);
+      return db.automations[index];
+    }
+    return null;
+  }
+
+  setAutomations(automationsList) {
+    const db = this.readDb();
+    db.automations = automationsList;
+    this.writeDb(db);
+    return db.automations;
+  }
+
   // --- Leads / Contacts Matching & Reconciliation Engine ---
   getLeads() {
     const db = this.readDb();

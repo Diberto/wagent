@@ -10,6 +10,7 @@ import { UpdateService } from '../services/updater.js';
 import { BackupService } from '../services/backup.js';
 import { mercadoPagoService } from '../services/mercadopago.js';
 import { wooCommerceService } from '../services/woocommerce.js';
+import { DEFAULT_AUTOMATIONS } from '../services/automation.js';
 import { CONFIG } from '../config/index.js';
 
 export function createApiRouter(whatsappService, io) {
@@ -1217,14 +1218,106 @@ export function createApiRouter(whatsappService, io) {
     res.json(db.getWooCommerceLogs(limit));
   });
 
-  // Webhook receiver para eventos provenientes de WordPress / WooCommerce
-  router.post('/webhooks/woocommerce', async (req, res) => {
-    const topic = req.headers['x-wc-webhook-topic'] || 'unknown';
+  // =========================================================================
+  // --- AUTOMATIONS & WORKFLOW ENGINE ENDPOINTS ---
+  // =========================================================================
+  router.get('/automations', (req, res) => {
+    let rules = db.getAutomations();
+    if (!rules || rules.length === 0) {
+      rules = db.setAutomations(DEFAULT_AUTOMATIONS);
+    }
+    res.json(rules);
+  });
+
+  router.put('/automations/:id', (req, res) => {
+    const updated = db.updateAutomation(req.params.id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: 'Regla de automatización no encontrada' });
+    }
+    io.emit('automation:update', updated);
+    res.json({ success: true, automation: updated });
+  });
+
+  router.post('/automations/reset', (req, res) => {
+    const resetRules = db.setAutomations(DEFAULT_AUTOMATIONS);
+    io.emit('automations:reset', resetRules);
+    res.json({ success: true, automations: resetRules });
+  });
+
+  // =========================================================================
+  // --- GEOCODING & MAP DISTANCE ENGINE (CÓRDOBA) ---
+  // =========================================================================
+  const BRANCH_COORDINATES = [
+    { id: 'br-1', name: 'Urca Central', address: 'Av. José Roque Funes 1115', lat: -31.3828, lng: -64.2372 },
+    { id: 'br-2', name: 'Urca 2 (Alto Tejeda)', address: 'Av. Menéndez Pidal 3575', lat: -31.3785, lng: -64.2320 },
+    { id: 'br-3', name: 'Intercountry (Corteza Mall)', address: 'Av. Los Álamos 1015', lat: -31.3650, lng: -64.2690 },
+    { id: 'br-4', name: 'Duarte Quirós', address: 'Av. Duarte Quirós 5130', lat: -31.4085, lng: -64.2490 },
+    { id: 'br-5', name: 'Villa Allende', address: 'Av. Figueroa Alcorta 480', lat: -31.2965, lng: -64.2950 },
+    { id: 'br-6', name: 'Country San Isidro', address: 'Av. Padre Luchesse km 2', lat: -31.3120, lng: -64.2750 }
+  ];
+
+  function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return parseFloat((R * c).toFixed(2));
+  }
+
+  router.post('/geocode', async (req, res) => {
+    const { address, lat, lng } = req.body;
+    let finalLat = lat ? parseFloat(lat) : null;
+    let finalLng = lng ? parseFloat(lng) : null;
+
     try {
-      await wooCommerceService.handleWebhook(topic, req.body);
-      res.status(200).send('OK');
+      if ((!finalLat || !finalLng) && address) {
+        // Consultar Nominatim OpenStreetMap
+        const query = encodeURIComponent(`${address}, Córdoba, Argentina`);
+        const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
+        
+        try {
+          const response = await fetch(nominatimUrl, {
+            headers: { 'User-Agent': 'WAgent-CRM-Cordoba/1.0' }
+          });
+          const results = await response.json();
+          if (Array.isArray(results) && results.length > 0) {
+            finalLat = parseFloat(results[0].lat);
+            finalLng = parseFloat(results[0].lon);
+          }
+        } catch (e) {
+          console.warn('Fallo geocodificación externa OSM, usando aproximación local:', e.message);
+        }
+      }
+
+      // Si no se encuentra, usar fallback centro de Córdoba
+      if (!finalLat || !finalLng) {
+        finalLat = -31.3828;
+        finalLng = -64.2372;
+      }
+
+      // Calcular distancia a todas las sucursales
+      const branchesWithDistances = BRANCH_COORDINATES.map(b => {
+        const distanceKm = calculateDistanceKm(finalLat, finalLng, b.lat, b.lng);
+        return {
+          ...b,
+          distanceKm
+        };
+      }).sort((a, b) => a.distanceKm - b.distanceKm);
+
+      const closestBranch = branchesWithDistances[0];
+
+      res.json({
+        success: true,
+        coordinates: { lat: finalLat, lng: finalLng },
+        address: address || 'Córdoba, Argentina',
+        closestBranch,
+        allBranches: branchesWithDistances
+      });
     } catch (err) {
-      console.error('Error procesando webhook de WooCommerce:', err);
       res.status(500).json({ error: err.message });
     }
   });

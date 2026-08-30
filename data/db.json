@@ -24,9 +24,32 @@
     "mercadopagoUserId": "2050924390",
     "mercadopagoTestUser": "TESTUSER1028937958",
     "mercadopagoEnabled": true,
-    "mercadopagoAutoSendLink": true
+    "mercadopagoAutoSendLink": true,
+    "mercadopagoMode": "sandbox"
   },
   "orders": [
+    {
+      "id": "ORD-4133",
+      "jid": "",
+      "phone": "+54 9 351 999-8888",
+      "customerName": "Cliente POS Test",
+      "address": "Av. Menéndez Pidal 3575, Córdoba",
+      "items": [
+        "1x Combo Asadazo (4 kg) + Vino ($39.999)",
+        "2x Vacío Especial Novillito ($23.000)",
+        "1x Carbón Quebracho Blanco ($2.200)"
+      ],
+      "totalAmount": 65199,
+      "paymentMethod": "Mercado Pago (Sandbox)",
+      "status": "pending",
+      "notes": "",
+      "createdAt": "2026-08-30T22:44:08.919Z",
+      "updatedAt": "2026-08-30T22:44:09.705Z",
+      "paymentPreferenceId": "2050924390-d929c044-01dc-4deb-bfe4-da8d7cb01211",
+      "paymentLink": "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-d929c044-01dc-4deb-bfe4-da8d7cb01211",
+      "paymentMode": "sandbox",
+      "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-d929c044-01dc-4deb-bfe4-da8d7cb01211"
+    },
     {
       "id": "ORD-4951",
       "jid": "5493519998877@s.whatsapp.net",
@@ -218,7 +241,7 @@
         "153051277086768@s.whatsapp.net"
       ],
       "phone": "+153051277086768",
-      "name": "DonJuan",
+      "name": "Don Juan",
       "pushName": "Don Juan",
       "stage": "proposal",
       "value": 39999,
@@ -228,7 +251,7 @@
         "Cliente VIP"
       ],
       "aiEnabled": true,
-      "unreadCount": 0,
+      "unreadCount": 8,
       "preferences": {
         "favoriteCuts": [
           "Combo “Asadazo”",
@@ -240,11 +263,11 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T22:31:30.031Z",
-      "lastMessage": "¡Hola  Don Juan! 🥩 No tengo un pedido previo registrado todavía con este número. ¡Contame qué cortes estás buscando hoy o para cuántos comensales calculamos y te armo el pedido al toque! 🙌",
-      "lastMessageAt": "2026-08-30T22:28:24.000Z",
-      "address": "Retiro en Sucursal Cerro de las Rosas",
-      "notes": "Dirección: ok quiero eso asi tal cual par | Pedido #ORD-3642",
+      "updatedAt": "2026-08-30T22:37:50.000Z",
+      "lastMessage": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 kg Costeletas de Cerdo (2kg x $15.000 promo) — $7.500\n💰 **Subtotal acumulado:** **$7.500**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "lastMessageAt": "2026-08-30T22:37:50.000Z",
+      "address": "domicilio, locelso 7100",
+      "notes": "Dirección registrada: domicilio, locelso 7100 | Nombre: Don Juan",
       "totalOrders": 2,
       "totalSpent": 79998,
       "lastOrderAt": "2026-08-30T22:17:26.225Z",
@@ -1594,6 +1617,254 @@
       "content": "¡Hola  Don Juan! 🥩 No tengo un pedido previo registrado todavía con este número. ¡Contame qué cortes estás buscando hoy o para cuántos comensales calculamos y te armo el pedido al toque! 🙌",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB0AA05C53F03F6F1E1B3",
+      "timestamp": "2026-08-30T22:33:11.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129196262-r4qozv",
+      "timestamp": "2026-08-30T22:33:16.261Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame qué cortes estás buscando o para cuántas personas calculamos y te armo la propuesta perfecta. 🥩🔥"
+    },
+    {
+      "id": "3EB05687DD80198EE0CC98",
+      "timestamp": "2026-08-30T22:33:15.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Don Juan! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés abastecer el freezer de la semana? Contame qué cortes estás buscando o para cuántas personas calculamos y te armo la propuesta perfecta. 🥩🔥",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB07F9C853D177EFDC8F1",
+      "timestamp": "2026-08-30T22:33:24.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "que hay de oferta par ala parrilla hoy",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129207803-l3exby",
+      "timestamp": "2026-08-30T22:33:27.802Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Mirá DonJuan! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n• **Tapa de Cuadril Seleccionada:** $12.800 / kg\n• **Vacío Especial / Tierno:** $11.500 / kg\n• **Costillar / Asado de Tira:** $9.800 / kg\n• **Bife de Chorizo Premium:** $14.500 / kg\n• **Entraña Fina:** $16.900 / kg\n• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n• **Morcilla Bombón Parrillera:** $5.200 / kg\n• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n• **Carbón Quebracho (bolsa grande):** $2.200\n\n👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚"
+    },
+    {
+      "id": "3EB0197118FA63ED6FD7F2",
+      "timestamp": "2026-08-30T22:33:27.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Mirá DonJuan! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n• **Tapa de Cuadril Seleccionada:** $12.800 / kg\n• **Vacío Especial / Tierno:** $11.500 / kg\n• **Costillar / Asado de Tira:** $9.800 / kg\n• **Bife de Chorizo Premium:** $14.500 / kg\n• **Entraña Fina:** $16.900 / kg\n• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n• **Morcilla Bombón Parrillera:** $5.200 / kg\n• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n• **Carbón Quebracho (bolsa grande):** $2.200\n\n👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB07762F62F3C7EADEA5E",
+      "timestamp": "2026-08-30T22:33:33.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129216390-9kpske",
+      "timestamp": "2026-08-30T22:33:36.389Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez DonJuan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$39.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB00AEA89ABB3A784DF55",
+      "timestamp": "2026-08-30T22:33:36.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez DonJuan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$39.999**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB088B33D4494D1AB7F5E",
+      "timestamp": "2026-08-30T22:33:39.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "no, solo eso",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129223127-aeo4fr",
+      "timestamp": "2026-08-30T22:33:43.126Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez DonJuan! 🥩🚚 Cerramos con tu pedido confirmado:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Total:** **$39.999**\n\n👉 ¿Preferís que te lo **enviemos a domicilio** o **retirás por alguna de nuestras 6 sucursales**?\n(Si es con envío, pasame tu **dirección y barrio**; si retirás, decime por cuál de nuestras sucursales pasás) 🙌"
+    },
+    {
+      "id": "3EB05D033AA1C7C19C00A4",
+      "timestamp": "2026-08-30T22:33:43.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez DonJuan! 🥩🚚 Cerramos con tu pedido confirmado:\n\n📋 **Detalle de tu pedido:**\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Total:** **$39.999**\n\n👉 ¿Preferís que te lo **enviemos a domicilio** o **retirás por alguna de nuestras 6 sucursales**?\n(Si es con envío, pasame tu **dirección y barrio**; si retirás, decime por cuál de nuestras sucursales pasás) 🙌",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB07469232C2E8C98A36A",
+      "timestamp": "2026-08-30T22:33:55.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "domicilio, locelso 7100",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129237913-6nsbz2",
+      "timestamp": "2026-08-30T22:33:57.913Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n👤 *Destinatario / Cliente:* **Don Juan**\n📍 *Dirección de Entrega:* **domicilio, locelso 7100**\n📱 *Contacto:* +153051277086768\n🥩 *Detalle del Pedido:*\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 *Total a abonar:* **$39.999**\n\n👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?** (Respondé *SÍ* para confirmar o corregime cualquier dato) 🥩🚚"
+    },
+    {
+      "id": "3EB0F30E66B10CC20650B0",
+      "timestamp": "2026-08-30T22:33:57.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n👤 *Destinatario / Cliente:* **Don Juan**\n📍 *Dirección de Entrega:* **domicilio, locelso 7100**\n📱 *Contacto:* +153051277086768\n🥩 *Detalle del Pedido:*\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 *Total a abonar:* **$39.999**\n\n👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?** (Respondé *SÍ* para confirmar o corregime cualquier dato) 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB01167B586BE9DFCDC25",
+      "timestamp": "2026-08-30T22:34:09.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Si, pago con mercadopago",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129253007-8gks2f",
+      "timestamp": "2026-08-30T22:34:13.006Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "💳 *[MERCADO PAGO CHECKOUT PRO]*\n¡De diez Don Juan! 🥩💳 Para abonar tu pedido **#ORD-2990** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌"
+    },
+    {
+      "id": "3EB0EA27CC9C5A5EA31486",
+      "timestamp": "2026-08-30T22:34:12.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "💳 *[MERCADO PAGO CHECKOUT PRO]*\n¡De diez Don Juan! 🥩💳 Para abonar tu pedido **#ORD-2990** por **$39.999** con Mercado Pago, podés hacerlo fácilmente:\n\n1️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* `republica.carne.mp`\n\n2️⃣ **Link de Pago Directo (Checkout Pro):**\n🔗 https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611\n\nEn cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0624DF9EBDA30C25B64",
+      "timestamp": "2026-08-30T22:37:26.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quisiera agregar 1 kilo de chorizo de cerdo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129449536-24vekk",
+      "timestamp": "2026-08-30T22:37:29.535Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 kg Costeletas de Cerdo (2kg x $15.000 promo) — $7.500\n💰 **Subtotal acumulado:** **$7.500**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB0044D9AD084BD4886D7",
+      "timestamp": "2026-08-30T22:37:29.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 kg Costeletas de Cerdo (2kg x $15.000 promo) — $7.500\n💰 **Subtotal acumulado:** **$7.500**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0EE0EF454D7E9F74139",
+      "timestamp": "2026-08-30T22:37:46.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Chorizo cerdo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788129470285-tf8k5b",
+      "timestamp": "2026-08-30T22:37:50.284Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 kg Costeletas de Cerdo (2kg x $15.000 promo) — $7.500\n💰 **Subtotal acumulado:** **$7.500**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB0FC2964C45AF7699CE4",
+      "timestamp": "2026-08-30T22:37:50.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1 kg Costeletas de Cerdo (2kg x $15.000 promo) — $7.500\n💰 **Subtotal acumulado:** **$7.500**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [
@@ -2157,6 +2428,118 @@
         "canManageProducts": false,
         "canViewFinancials": false,
         "canToggleAi": false
+      }
+    }
+  ],
+  "automations": [
+    {
+      "id": "auto-onboarding-new-clients",
+      "name": "Onboarding & Agendado de Clientes Nuevos",
+      "category": "onboarding",
+      "enabled": true,
+      "description": "Solicita automáticamente Nombre, Apellido y Dirección de entrega cuando un contacto no registrado escribe por primera vez.",
+      "trigger": "NEW_UNRECOGNIZED_LEAD",
+      "config": {
+        "askName": true,
+        "askAddress": true,
+        "askBranchPreference": true,
+        "requireConfirmation": true,
+        "welcomeTemplate": "¡Hola! 👋 Carlos por acá, maestro carnicero de **República de la Carne**.\n\nPara agendarte en nuestro sistema y coordinar tus envíos directos en el día, ¿me indicarías por favor:\n👤 **Tu Nombre y Apellido**\n📍 **Tu Dirección de Entrega y Barrio** (o si preferís retirar por sucursal)\n\n¡Y contame qué cortes o promo tenías ganas de preparar hoy para armarte la propuesta perfecta! 🥩🔥"
+      },
+      "updatedAt": "2026-08-30T22:44:08.910Z"
+    },
+    {
+      "id": "auto-bbq-calculator",
+      "name": "Asesor de Asado & Cálculo por Comensales",
+      "category": "assistant",
+      "enabled": true,
+      "description": "Calcula los kilos ideales de carne por persona y sugiere cortes o combos según el número de comensales.",
+      "trigger": "PEOPLE_COUNT_DETECTED",
+      "config": {
+        "gramsPerPersonStandard": 500,
+        "gramsPerPersonEconomic": 450,
+        "defaultStarCombo": "Combo Asadazo (4 kg)",
+        "starComboPrice": 39999,
+        "includeWineGift": true,
+        "suggestComplements": true
+      }
+    },
+    {
+      "id": "auto-branch-derivation",
+      "name": "Derivación Inteligente a Sucursal más Cercana",
+      "category": "logistics",
+      "enabled": true,
+      "description": "Asigna automáticamente la sucursal óptima según el barrio o coordenadas del cliente en Córdoba.",
+      "trigger": "ORDER_ADDRESS_ASSIGNED",
+      "config": {
+        "autoNotifyManager": true,
+        "maxDeliveryRadiusKm": 15,
+        "zones": [
+          {
+            "zone": "Urca / Cerro / Villa Belgrano",
+            "branchId": "br-1",
+            "branchName": "Urca Central (Av. José Roque Funes 1115)"
+          },
+          {
+            "zone": "Alto Tejeda / Villa Cabrera",
+            "branchId": "br-2",
+            "branchName": "Urca 2 - Alto Tejeda (Av. Menéndez Pidal 3575)"
+          },
+          {
+            "zone": "Intercountry / Tablada / La Calera",
+            "branchId": "br-3",
+            "branchName": "Intercountry Corteza Mall (Av. Los Álamos 1015)"
+          },
+          {
+            "zone": "Duarte Quirós / Alberdi / Los Plátanos",
+            "branchId": "br-4",
+            "branchName": "Duarte Quirós (Av. Duarte Quirós 5130)"
+          },
+          {
+            "zone": "Villa Allende / Mendiolaza / Unquillo",
+            "branchId": "br-5",
+            "branchName": "Villa Allende (Av. Figueroa Alcorta 480)"
+          },
+          {
+            "zone": "San Isidro / Villa Rivera Indarte / Luchesse",
+            "branchId": "br-6",
+            "branchName": "Country San Isidro (Av. Padre Luchesse km 2)"
+          }
+        ]
+      }
+    },
+    {
+      "id": "auto-order-status-whatsapp",
+      "name": "Notificaciones Automáticas de Pedido por WhatsApp",
+      "category": "notifications",
+      "enabled": true,
+      "description": "Envía un mensaje por WhatsApp al cliente cuando el estado de su pedido cambia.",
+      "trigger": "ORDER_STATUS_CHANGED",
+      "config": {
+        "notifyOnPreparing": true,
+        "notifyOnInTransit": true,
+        "notifyOnDelivered": true,
+        "templates": {
+          "preparing": "🥩 *¡Tu pedido #{orderId} ya está en preparación!* Nuestros carniceros están seleccionando los cortes frescos en la carnicería.",
+          "in_transit": "🛵 *¡Tu pedido #{orderId} va en camino a tu domicilio!* El repartidor {driverName} ({driverVehicle}) está en viaje a {address}.",
+          "delivered": "✅ *¡Pedido #{orderId} entregado con éxito!* Esperamos que disfrutes la carne de primera calidad. ¡Muchas gracias por elegir República de la Carne! 🙌"
+        }
+      }
+    },
+    {
+      "id": "auto-payment-mercadopago",
+      "name": "Cobro Automatizado con Mercado Pago & Checkout Pro",
+      "category": "payments",
+      "enabled": true,
+      "description": "Genera links de Checkout Pro o proporciona el Alias para pagos digitales.",
+      "trigger": "PAYMENT_LINK_REQUESTED",
+      "config": {
+        "mpMode": "sandbox",
+        "aliasMP": "republica.carne.mp",
+        "autoSimulateSandbox": true,
+        "allowCreditCard": true,
+        "allowDebitCard": true,
+        "allowAccountMoney": true
       }
     }
   ]

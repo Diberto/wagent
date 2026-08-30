@@ -25,7 +25,8 @@ import {
   LogIn,
   ShieldCheck,
   Globe,
-  User
+  User,
+  Zap
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -50,6 +51,7 @@ export default function Navbar({
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
     { id: 'pos', label: 'POS Mostrador', icon: Calculator },
     { id: 'orders', label: 'Pedidos', icon: PackageCheck },
+    { id: 'automations', label: 'Automatizaciones', icon: Zap },
     { id: 'woo', label: 'WooCommerce', icon: Globe },
     { id: 'drivers', label: 'Repartidores', icon: Bike },
     { id: 'customers', label: 'Clientes', icon: Users },
