@@ -10,9 +10,10 @@ import { mercadoPagoService } from './mercadopago.js';
  * Catálogo Maestro de Cortes y Precios de República de la Carne
  */
 const MASTER_CATALOG = [
+  { keywords: ['combo asadazo', 'combo “asadazo”', 'combo asado', 'asadazo', 'azadazo', 'asasazo', 'asadaso', 'azadaso', 'combo parrillero', 'combo 4kg', 'combo 4 kg', 'combo'], name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, unit: 'combo', category: 'Combos en Oferta' },
   { keywords: ['tapa de cuadril', 'tapa cuadril', 'cuadril', 'colita de cuadril'], name: 'Tapa de Cuadril Seleccionada', price: 12800, unit: 'kg', category: 'Parrilla y Horno' },
   { keywords: ['vacio', 'vacío', 'vacio tierno'], name: 'Vacío Especial Seleccionado', price: 11500, unit: 'kg', category: 'Parrilla' },
-  { keywords: ['costilla', 'costillar', 'asado de tira', 'tira de asado', 'asado'], name: 'Costillar / Asado de Tira Novillito', price: 9800, unit: 'kg', category: 'Parrilla' },
+  { keywords: ['costillar', 'asado de tira', 'tira de asado', 'costilla'], name: 'Costillar / Asado de Tira Novillito', price: 9800, unit: 'kg', category: 'Parrilla' },
   { keywords: ['bife de chorizo', 'bife chorizo', 'ojo de bife', 'bife de lomo'], name: 'Bife de Chorizo Premium', price: 14500, unit: 'kg', category: 'Cortes Premium' },
   { keywords: ['entraña', 'entrana', 'entrecot', 'enrecor'], name: 'Entraña Fina Seleccionada', price: 16900, unit: 'kg', category: 'Cortes Premium' },
   { keywords: ['matambre de cerdo', 'matambrito de cerdo', 'matambre cerdo'], name: 'Matambrito de Cerdo Tiernizado', price: 8500, unit: 'kg', category: 'Cerdo y Parrilla' },
@@ -28,46 +29,72 @@ const MASTER_CATALOG = [
   { keywords: ['milanesas de ternera', 'milanesa de ternera', 'milanesas', 'milanesa'], name: 'Milanesas de Ternera preparadas (2kg x $24.990)', price: 12495, unit: 'kg', category: 'Diario y Preparados' },
   { keywords: ['pata muslo', 'pollo', 'suprema de pollo', 'pechuga'], name: 'Pata Muslo Fresca (3kg x $13.990 promo)', price: 4660, unit: 'kg', category: 'Pollo' },
   { keywords: ['carbon', 'carbón', 'bolsa de carbon'], name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, unit: 'bolsa', category: 'Almacén Parrillero' },
-  { keywords: ['vino', 'vino howlmande', 'howlmande', 'malbec'], name: 'Vino Howlmande Malbec Reserva', price: 5500, unit: 'botella', category: 'Bebidas' },
-  { keywords: ['combo asadazo', 'asadazo', 'combo asado', 'combo 4kg'], name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, unit: 'combo', category: 'Combos en Oferta' }
+  { keywords: ['vino', 'vino howlmande', 'howlmande', 'malbec'], name: 'Vino Howlmande Malbec Reserva', price: 5500, unit: 'botella', category: 'Bebidas' }
 ];
 
 /**
- * Extrae con precisión los cortes y cantidades pedidos a lo largo de la conversación
+ * Parsea cantidades tanto en dígitos ("2", "1.5") como en texto en español ("un solo", "dos", "medio")
+ */
+function parseQuantity(str) {
+  const s = (str || '').toLowerCase();
+  if (/(?:un\s+solo|una\s+sola|1\s+solo|uno\s+solo|solo\s+un|solo\s+1|\bun\b|\buno\b|\buna\b)/i.test(s)) return 1;
+  if (/(?:dos\s+solos|2\s+solos|\bdos\b)/i.test(s)) return 2;
+  if (/(?:tres\b)/i.test(s)) return 3;
+  if (/(?:cuatro\b)/i.test(s)) return 4;
+  if (/(?:cinco\b)/i.test(s)) return 5;
+  if (/(?:medio\s+kilo|1\/2\s*kg|medio\b)/i.test(s)) return 0.5;
+  const numMatch = s.match(/([0-9]+(?:[\.,][0-9]+)?)/);
+  if (numMatch) return parseFloat(numMatch[1].replace(',', '.'));
+  return 1;
+}
+
+/**
+ * Validador de nombres reales vs palabras basura
+ */
+function isGarbageName(name) {
+  if (!name || typeof name !== 'string') return true;
+  const n = name.toLowerCase().trim();
+  if (n.length < 3 || n.length > 40) return true;
+  if (/[0-9]/.test(n)) return true;
+  const blacklist = /domicilio|casa|repartidor|efectivo|transferencia|combo|asadazo|envio|pedido|asado|hola|gracias|confirmar|ok|quiero|tal cual|eso asi|contacto|desconocido|cliente|recuerda|funes|locelso|duarte|quiros|urca/i;
+  return blacklist.test(n);
+}
+
+/**
+ * Validador de direcciones reales vs intenciones genéricas
+ */
+function isGarbageAddress(addr) {
+  if (!addr || typeof addr !== 'string') return true;
+  const a = addr.toLowerCase().trim();
+  if (a.length < 5) return true;
+  if (!/[0-9]/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon/i.test(a)) return true;
+  if (/^(?:mi domicilio|mi casa|a mi domicilio|domicilio|ok quiero)/i.test(a)) return true;
+  return false;
+}
+
+/**
+ * Extrae con precisión los cortes y cantidades pedidos a lo largo de la conversación, sin duplicar
  */
 function extractItemsFromHistoryAndText(history, text, products) {
-  const allUserTexts = [
-    ...history.filter(m => m.sender === 'user').map(m => m.content),
-    text
+  const isCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste/i.test(text || '');
+
+  const textToParse = isCorrection ? (text || '') : [
+    ...(history || []).filter(m => m.sender === 'user').map(m => m.content),
+    (text || '')
   ].join('\n');
 
   const items = [];
   let total = 0;
   const processedCuts = new Set();
 
-  // 1. Combo Asadazo
-  if (/asadazo|combo asado|combo “asadazo”/i.test(allUserTexts)) {
-    const qtyMatch = allUserTexts.match(/([0-9]+)\s*(?:x|combo|combos)?\s*asadazo/i);
-    const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
-    const price = 39999 * qty;
-    items.push(`• ${qty}x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $${price.toLocaleString('es-AR')}`);
-    total += price;
-    processedCuts.add('asadazo');
-  }
-
-  // 2. Búsqueda y cotejo frase por frase (separando por saltos, comas, puntos y conectores "y", "con", "más")
-  const chunks = allUserTexts.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+  const chunks = textToParse.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
   for (const chunk of chunks) {
     const c = chunk.toLowerCase().trim();
     if (!c) continue;
 
-    // Buscar cantidad (ej: 2 kilos, 2kg, 2.5 kg, 3 bolsas)
-    const qtyMatch = c.match(/([0-9]+(?:[\.,][0-9]+)?)\s*(?:kilo|kg|quilo|kilos|kgs|bolsa|bolsas|botella|botellas|x)?/i);
-    const quantity = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
-
     for (const prod of MASTER_CATALOG) {
       if (prod.keywords.some(kw => c.includes(kw)) && !processedCuts.has(prod.name)) {
-        // Encontrar precio actualizado de DB si existe
+        const quantity = parseQuantity(c);
         const dbProd = (products || []).find(p => (p.name || '').toLowerCase() === prod.name.toLowerCase());
         const unitPrice = dbProd ? Number(dbProd.price) : prod.price;
         const sub = Math.round(unitPrice * quantity);
@@ -80,9 +107,9 @@ function extractItemsFromHistoryAndText(history, text, products) {
     }
   }
 
-  // Fallback a Combo Asadazo si no se detectó ningún corte en específico
+  // Fallback a Combo Asadazo solo si no se detectó ningún corte en específico
   if (items.length === 0) {
-    items.push('• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999');
+    items.push('• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999');
     total = 39999;
   }
 
@@ -100,42 +127,11 @@ export class AIService {
     const knowledgeBase = db.getKnowledgeBase();
     const products = db.getProducts();
 
-    const queryTokens = (incomingText || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
-    let relevantProducts = products.filter(p => {
-      const pText = `${p.name} ${p.category || ''} ${p.description || ''}`.toLowerCase();
-      return queryTokens.some(tok => pText.includes(tok));
-    });
-
-    if (relevantProducts.length === 0) {
-      relevantProducts = products.slice(0, 8);
-    } else if (relevantProducts.length > 10) {
-      relevantProducts = relevantProducts.slice(0, 10);
-    }
-
-    const productCatalogContext = relevantProducts.map((p) => {
-      return `• ${p.name} ($${p.price.toLocaleString('es-AR')}/${p.unit || 'kg'}) | ${p.description || 'Disponible'}`;
-    }).join('\n');
-
-    let relevantKB = knowledgeBase.filter(item => {
-      const kbText = `${item.title} ${item.category || ''} ${item.content || ''} ${(item.keywords || []).join(' ')}`.toLowerCase();
-      return queryTokens.some(tok => kbText.includes(tok));
-    });
-
-    if (relevantKB.length === 0) {
-      relevantKB = knowledgeBase.slice(0, 4);
-    } else if (relevantKB.length > 5) {
-      relevantKB = relevantKB.slice(0, 5);
-    }
-
-    const kbContext = relevantKB.map(item => `[${item.title}]: ${item.content}`).join('\n');
-
     let replyText = '';
 
     try {
       const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
       const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
-      const isValidNvidiaKey = settings.nvidiaApiKey && settings.nvidiaApiKey.startsWith('nvapi-');
-      const isValidCustom = settings.customBaseUrl && settings.customBaseUrl.startsWith('http');
 
       if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
@@ -217,7 +213,6 @@ export class AIService {
     const nameGreeting = customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') ? ` ${customerName}` : '';
     const products = db.getProducts();
     const history = db.getMessages(lead.jid || lead.id, 10);
-    const historyText = history.map(m => m.content).join('\n').toLowerCase();
 
     // =========================================================================
     // 0. SOLICITUD DE LINK DE PAGO / MERCADO PAGO
@@ -227,9 +222,9 @@ export class AIService {
       const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
       const amount = lastOrder ? lastOrder.totalAmount : 39999;
       const orderId = lastOrder ? lastOrder.id : `ORD-${Date.now().toString().slice(-4)}`;
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
       
-      const isSandbox = (settings.mercadopagoMode || 'sandbox') === 'sandbox';
+      const isSandbox = (settings?.mercadopagoMode || 'sandbox') === 'sandbox';
       const sandboxTag = isSandbox ? '💳 *[MERCADO PAGO CHECKOUT PRO]*\n' : '';
       const linkUrl = 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-6312e69b-5204-487b-a44b-c792df651611';
       
@@ -247,7 +242,7 @@ export class AIService {
       if (lastOrder) {
         db.updateOrderStatus(lastOrder.id, 'preparing');
       }
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
       return `¡De diez ${clientName}! 🥩🔥 Ya quedó asentado tu medio de pago: **${payMethod}**${lastOrder ? ` para tu pedido **#${lastOrder.id}**` : ''}.\n\nYa lo pasamos al sector de corte para despacharlo dentro de las 24 hs a tu domicilio. ¡Muchas gracias por tu compra en República de la Carne! 🙌`;
     }
 
@@ -257,8 +252,8 @@ export class AIService {
     const isOffersQuery = /oferta|ofertas|ofeta|ofetas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|que corte|que cortes hay|cortes en oferta|cortes tenes|cortes tenés|carta|catalogo|catálogo|opciones/i.test(t);
     const hasAddressOrOrderClose = /calle|av\.|avenida|barrio|funes|locelso|tupac|yupanqui|altura|dpto|domicilio/i.test(t);
 
-    if (isOffersQuery && !hasAddressOrOrderClose) {
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
+    if (isOffersQuery && !hasAddressOrOrderClose && !/un solo|una sola|corregi|corrije/i.test(t)) {
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
 
       return `¡Mirá ${clientName}! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n` +
         `🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n` +
@@ -322,17 +317,19 @@ export class AIService {
     }
 
     // =========================================================================
-    // 2. DETECCIÓN EXACTA DE ÍTEMS Y CANTIDADES (INDIVIDUALES O MÚLTIPLES)
-    // (Ej: "Estoy buscando tapa de cuadril 2 kilos", "dame 1kg de vacio y 2 bolsas de carbon")
+    // 2. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y CORRECCIONES
+    // (Ej: "corrije, quiero un solo combo asasazo", "dame 1kg de vacio y 2 bolsas de carbon")
     // =========================================================================
     const { items: detectedItems, total: detectedTotal } = extractItemsFromHistoryAndText([], rawText, products);
-    const hasRealItems = (detectedItems.length > 0 && !detectedItems[0].includes('• 1x Combo “Asadazo”')) || (detectedItems.length > 0 && /asadazo/i.test(rawText));
+    const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste/i.test(t);
+    const hasRealItems = (detectedItems.length > 0 && !detectedItems[0].includes('• 1 combo Combo “Asadazo”')) || (detectedItems.length > 0 && /asadazo|combo|asasazo|azadazo/i.test(rawText));
 
     if (hasRealItems && !hasAddressOrOrderClose) {
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
       const formattedTotal = `$${detectedTotal.toLocaleString('es-AR')}`;
+      const prefixGreeting = isCorrectionOrder ? `¡Corregido ${clientName}! 👍 Dejamos asentado tu pedido actualizado:` : `¡De diez ${clientName}! 🥩 Te separo los cortes solicitados:`;
 
-      return `¡De diez ${clientName}! 🥩 Te separo los cortes solicitados:\n\n` +
+      return `${prefixGreeting}\n\n` +
         `📋 **Detalle de tu pedido:**\n` +
         `${detectedItems.join('\n')}\n` +
         `💰 **Subtotal acumulado:** **${formattedTotal}**\n\n` +
@@ -350,28 +347,10 @@ export class AIService {
     );
 
     if (matchedCatalogItem && !hasAddressOrOrderClose) {
-      const clientName = (lead.name && !lead.name.includes('recuerda') && !lead.name.includes('efectivo') && !lead.name.includes('funes') && !lead.name.includes('domicilio')) ? lead.name : (nameGreeting || 'Don Juan');
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
       const formattedUnit = `$${matchedCatalogItem.price.toLocaleString('es-AR')}`;
       return `¡Sí, ${clientName}! 🥩 Tenemos **${matchedCatalogItem.name}** fresca y de excelente terneza a **${formattedUnit} por ${matchedCatalogItem.unit}**.\n\n¿Cuántos ${matchedCatalogItem.unit} te gustaría que te separemos para tu pedido? 🙌 [[STAGE:proposal]]`;
     }
-
-function isGarbageName(name) {
-  if (!name || typeof name !== 'string') return true;
-  const n = name.toLowerCase().trim();
-  if (n.length < 3 || n.length > 40) return true;
-  if (/[0-9]/.test(n)) return true;
-  const blacklist = /domicilio|casa|repartidor|efectivo|transferencia|combo|asadazo|envio|pedido|asado|hola|gracias|confirmar|ok|quiero|tal cual|eso asi|contacto|desconocido|cliente|recuerda|funes|locelso|duarte|quiros|urca/i;
-  return blacklist.test(n);
-}
-
-function isGarbageAddress(addr) {
-  if (!addr || typeof addr !== 'string') return true;
-  const a = addr.toLowerCase().trim();
-  if (a.length < 5) return true;
-  if (!/[0-9]/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon/i.test(a)) return true;
-  if (/^(?:mi domicilio|mi casa|a mi domicilio|domicilio|ok quiero)/i.test(a)) return true;
-  return false;
-}
 
     // =========================================================================
     // 3. INTENCIÓN DE ENVÍO SIN DIRECCIÓN ESPECÍFICA (ej: "quiero eso para mi domicilio")
@@ -388,7 +367,7 @@ function isGarbageAddress(addr) {
     // =========================================================================
     // 3.1 CORRECCIÓN DE DATOS ("no, la dirección es...", "mi nombre es...")
     // =========================================================================
-    const isCorrection = /no,? (?:mi nombre|la direccion|la calle|es|me llamo|vivo en)|(?:corregi|cambia|modifica|te equivocaste)/i.test(t);
+    const isCorrection = /no,? (?:mi nombre|la direccion|la calle|es|me llamo|vivo en)|(?:corregi|corrije|cambia|modifica|te equivocaste)/i.test(t);
     if (isCorrection) {
       let currentAddress = lead.address || 'Pendiente';
       let currentName = (!isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
@@ -544,9 +523,9 @@ function isGarbageAddress(addr) {
     }
 
     // =========================================================================
-    // 5. ACLARACIONES, CORRECCIONES Y OBJECIONES
+    // 5. ACLARACIONES, CORRECCIONES Y OBJECIONES GENERALES
     // =========================================================================
-    if (/no te pedí|no pedi|otra cosa|eso no|no es eso|te equivocaste|para nada|te dije|no gracias|no quiero eso/i.test(t)) {
+    if (/no te pedí|no pedi|otra cosa|eso no|no es eso|para nada|no gracias|no quiero eso/i.test(t)) {
       return `¡Tenés toda la razón${nameGreeting}, disculpame la confusión! 🥩 Contame exactamente qué corte o pedido tenías en mente, o qué te gustaría cambiar, y te lo armo a tu medida paso a paso. 🙌`;
     }
 

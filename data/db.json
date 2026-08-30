@@ -358,8 +358,8 @@
       "altJids": [],
       "phone": "+153051277086768",
       "name": "mi domicilio",
-      "pushName": "mi domicilio",
-      "stage": "closed_won",
+      "pushName": "Don Juan",
+      "stage": "proposal",
       "value": 39999,
       "tags": [
         "WhatsApp",
@@ -377,9 +377,9 @@
         "notes": ""
       },
       "createdAt": "2026-08-30T21:51:39.370Z",
-      "updatedAt": "2026-08-30T21:57:09.000Z",
-      "lastMessage": "¡Excelente mi domicilio! 🎉 Ya dejamos asentado y confirmado tu pedido paso a paso:\n\n🆔 *N° de Pedido:* #ORD-3642\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* mi domicilio\n📍 *Destino de Entrega:* ok quiero eso asi tal cual par\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: `republica.carne.mp`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas)\n\nDecime cuál te queda más cómodo y te lo dejamos listo 🥩  [[PAYMENT_AMOUNT:39999]]",
-      "lastMessageAt": "2026-08-30T21:57:09.000Z",
+      "updatedAt": "2026-08-30T22:07:46.000Z",
+      "lastMessage": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
+      "lastMessageAt": "2026-08-30T22:07:46.000Z",
       "address": "ok quiero eso asi tal cual par",
       "notes": "Dirección: ok quiero eso asi tal cual par | Pedido #ORD-3642",
       "totalOrders": 1,
@@ -1073,6 +1073,192 @@
       "sender": "agent",
       "type": "text",
       "content": "¡Anotado Juan! 🥩 Te separo los cortes solicitados:\n\n• 1 kg Bife de Chorizo / Ojo de Bife — $9.500\n💰 *Subtotal acumulado:* **$9.500**\n\n👉 **Siguiente paso:** ¿Te gustaría sumar 1 bolsa de carbón quebracho ($2.200) o vino Howlmande ($5.500), o pasamos a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal**? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB000D0C508843AE0F067",
+      "timestamp": "2026-08-30T22:05:49.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127561357-ophlri",
+      "timestamp": "2026-08-30T22:06:01.357Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩"
+    },
+    {
+      "id": "3EB02F4E1F6EF651C9DB53",
+      "timestamp": "2026-08-30T22:05:53.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Buenas Don Juan! ¿Cómo estás? Te atiende la carnicería República de la Carne. Contame qué cortes estás buscando hoy o para qué ocasión, y te paso precios y disponibilidad al toque. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0F393F429FEC3578170",
+      "timestamp": "2026-08-30T22:06:14.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un asado economico para 4 personar",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127578372-84ohae",
+      "timestamp": "2026-08-30T22:06:18.372Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 4 kg Costillar / Asado de Tira Novillito — $39.200\n💰 **Subtotal acumulado:** **$39.200**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB0D096F50856D2E7AECB",
+      "timestamp": "2026-08-30T22:06:18.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 4 kg Costillar / Asado de Tira Novillito — $39.200\n💰 **Subtotal acumulado:** **$39.200**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0283F6F858424F98C58",
+      "timestamp": "2026-08-30T22:07:08.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "no, que ofertas tenes",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127631065-7ilmhk",
+      "timestamp": "2026-08-30T22:07:11.064Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Mirá  Don Juan! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n• **Tapa de Cuadril Seleccionada:** $12.800 / kg\n• **Vacío Especial / Tierno:** $11.500 / kg\n• **Costillar / Asado de Tira:** $9.800 / kg\n• **Bife de Chorizo Premium:** $14.500 / kg\n• **Entraña Fina:** $16.900 / kg\n• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n• **Morcilla Bombón Parrillera:** $5.200 / kg\n• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n• **Carbón Quebracho (bolsa grande):** $2.200\n\n👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚"
+    },
+    {
+      "id": "3EB06224F846ADAB69F5D2",
+      "timestamp": "2026-08-30T22:07:11.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Mirá  Don Juan! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n• **Tapa de Cuadril Seleccionada:** $12.800 / kg\n• **Vacío Especial / Tierno:** $11.500 / kg\n• **Costillar / Asado de Tira:** $9.800 / kg\n• **Bife de Chorizo Premium:** $14.500 / kg\n• **Entraña Fina:** $16.900 / kg\n• **Costeletas de Cerdo (2kg x $15.000 promo):** $7.500 / kg\n• **Chorizo Criollo Puro Cerdo (2kg x $10.000 promo):** $5.000 / kg\n• **Morcilla Bombón Parrillera:** $5.200 / kg\n• **Picada / Molida (3kg x $27.000 promo):** $9.000 / kg\n• **Milanesas de Ternera (2kg x $24.990 promo):** $12.495 / kg\n• **Pata Muslo de Pollo (3kg x $13.990 promo):** $4.660 / kg\n• **Carbón Quebracho (bolsa grande):** $2.200\n\n👉 ¿Cuál de estos cortes te gustaría que te preparemos o cuántos kilos te separamos? 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB096041D12AFB9E017A5",
+      "timestamp": "2026-08-30T22:07:18.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asazado nomas",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127641573-4sb76a",
+      "timestamp": "2026-08-30T22:07:21.572Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩"
+    },
+    {
+      "id": "3EB030CB2DE43CF05E8276",
+      "timestamp": "2026-08-30T22:07:21.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB051D09B157C607F7E2D",
+      "timestamp": "2026-08-30T22:07:29.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "quiero un combo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127652728-r43jus",
+      "timestamp": "2026-08-30T22:07:32.727Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$79.998**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚"
+    },
+    {
+      "id": "3EB03572993E7BF3F8F337",
+      "timestamp": "2026-08-30T22:07:32.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez  Don Juan! 🥩 Te separo los cortes solicitados:\n\n📋 **Detalle de tu pedido:**\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n💰 **Subtotal acumulado:** **$79.998**\n\n👉 **¿Te gustaría sumar algún complemento?**\n• 1 kg Chorizo Criollo puro cerdo ($5.000 / 2kg x $10.000 promo) o Morcillas ($5.200/kg)\n• 1 bolsa de Carbón Quebracho ($2.200) o Vino Howlmande ($5.500)\n• O pasamos directo a coordinar si te lo **enviamos a domicilio** o **retirás por sucursal** 🥩🚚",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0A9E3E8A91BBE449ACB",
+      "timestamp": "2026-08-30T22:07:42.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "corrije, quiero un solo combo asasazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788127666334-y3f65v",
+      "timestamp": "2026-08-30T22:07:46.333Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩"
+    },
+    {
+      "id": "3EB08A78C8B203BE4B7A0C",
+      "timestamp": "2026-08-30T22:07:46.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Don Juan! Contame qué cortes estás buscando o si preferís que te pase nuestra lista de ofertas del día para aprovechar. Hacemos envíos directos a tu puerta. 🛵🥩",
       "mediaUrl": null,
       "audioDuration": 0
     }
