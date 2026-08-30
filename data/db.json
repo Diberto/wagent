@@ -21,52 +21,20 @@
   },
   "orders": [
     {
-      "id": "ORD-6098",
-      "jid": "153051277086768@lid",
-      "phone": "+153051277086768",
-      "customerName": "efectivo",
-      "address": "Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983",
-      "items": [
-        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
-      ],
-      "totalAmount": 39999,
-      "paymentMethod": "Efectivo / Transferencia",
-      "status": "pending",
-      "notes": "",
-      "createdAt": "2026-08-30T19:32:30.558Z",
-      "updatedAt": "2026-08-30T19:32:30.558Z"
-    },
-    {
-      "id": "ORD-1983",
-      "jid": "153051277086768@lid",
-      "phone": "+153051277086768",
-      "customerName": "roque funes",
-      "address": "quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor",
-      "items": [
-        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
-      ],
-      "totalAmount": 39999,
-      "paymentMethod": "Efectivo / Transferencia",
-      "status": "pending",
-      "notes": "",
-      "createdAt": "2026-08-30T19:32:20.034Z",
-      "updatedAt": "2026-08-30T19:32:20.034Z"
-    },
-    {
       "id": "ORD-1042",
       "jid": "153051277086768@lid",
-      "phone": "+153051277086768",
+      "phone": "+54 9 351 626-2475",
       "customerName": "Juan Gonzalez",
-      "address": "Locelso 7089",
+      "address": "Roque Funes 1704, Barrio Urca",
       "items": [
-        "1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
       ],
       "totalAmount": 39999,
       "paymentMethod": "Efectivo al repartidor",
-      "status": "pending",
-      "notes": "Cliente confirmó abono en efectivo al recibir",
-      "createdAt": "2026-08-30T19:22:00.000Z",
-      "updatedAt": "2026-08-30T19:22:00.000Z"
+      "status": "preparing",
+      "notes": "Cliente confirmó pago en efectivo contraentrega.",
+      "createdAt": "2026-08-30T19:32:20.000Z",
+      "updatedAt": "2026-08-30T19:38:54.000Z"
     }
   ],
   "knowledgeBase": [
@@ -218,9 +186,9 @@
         "Parrillero"
       ],
       "aiEnabled": true,
-      "unreadCount": 1,
+      "unreadCount": 3,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T19:37:20.000Z",
+      "updatedAt": "2026-08-30T19:39:45.000Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalez",
       "phone": "+153051277086768",
@@ -242,8 +210,8 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "hola",
-      "lastMessageAt": "2026-08-30T19:37:20.000Z",
+      "lastMessage": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
+      "lastMessageAt": "2026-08-30T19:39:45.000Z",
       "notes": "Dirección: Roque Funes 1704 | Pedido #ORD-1042"
     },
     {
@@ -2268,6 +2236,119 @@
       "sender": "user",
       "type": "text",
       "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788118644118-42mndt",
+      "timestamp": "2026-08-30T19:37:24.116Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB0EFD45844FB5EBC4839",
+      "timestamp": "2026-08-30T19:37:23.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB02A98F1B14029F98D2F",
+      "timestamp": "2026-08-30T19:37:30.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "recuerdas mi pedido?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0B43BEA18C5105509F2",
+      "timestamp": "2026-08-30T19:39:37.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788118780805-sh4lr7",
+      "timestamp": "2026-08-30T19:39:40.804Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB07C76CB3A6795996A61",
+      "timestamp": "2026-08-30T19:39:40.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788118782333-mt82vw",
+      "timestamp": "2026-08-30T19:39:42.332Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩"
+    },
+    {
+      "id": "3EB00375CC7A770A19BBE9",
+      "timestamp": "2026-08-30T19:39:42.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB003ABCA8A256A590B2C",
+      "timestamp": "2026-08-30T19:39:42.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "recuedas mi pedido?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788118785573-g43tmn",
+      "timestamp": "2026-08-30T19:39:45.572Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩"
+    },
+    {
+      "id": "3EB060A2B88CB83B7CA8B5",
+      "timestamp": "2026-08-30T19:39:45.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
       "mediaUrl": null,
       "audioDuration": 0
     }

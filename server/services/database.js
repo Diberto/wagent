@@ -24,9 +24,12 @@ class DatabaseService {
         knowledgeBase: CONFIG.DEFAULT_KNOWLEDGE_BASE,
         leads: [],
         messages: [],
-        calls: []
+        calls: [],
+        orders: []
       };
       this.writeDb(initialData);
+    } else {
+      this.deduplicateDatabase();
     }
   }
 
@@ -104,47 +107,191 @@ class DatabaseService {
     return true;
   }
 
-  // --- Leads / Contacts ---
+export function normalizePhoneNumber(raw) {
+  if (!raw) return '';
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Formato estándar celular de Argentina (+54 9 XXX XXX-XXXX)
+  if (digits.startsWith('549') && digits.length >= 12) {
+    const area = digits.slice(3, 6);
+    const firstPart = digits.slice(6, 9);
+    const lastPart = digits.slice(9);
+    return `+54 9 ${area} ${firstPart}-${lastPart}`;
+  } else if (digits.startsWith('54') && digits.length >= 11) {
+    const area = digits.slice(2, 5);
+    const firstPart = digits.slice(5, 8);
+    const lastPart = digits.slice(8);
+    return `+54 9 ${area} ${firstPart}-${lastPart}`;
+  } else if (digits.length === 10) {
+    const area = digits.slice(0, 3);
+    const firstPart = digits.slice(3, 6);
+    const lastPart = digits.slice(6);
+    return `+54 9 ${area} ${firstPart}-${lastPart}`;
+  }
+  return `+${digits}`;
+}
+
+export function extractCoreDigits(raw) {
+  if (!raw) return '';
+  const digits = String(raw).replace(/\D/g, '');
+  return digits.length >= 8 ? digits.slice(-8) : digits;
+}
+
+  // --- Leads / Contacts Matching & Reconciliation Engine ---
   getLeads() {
     const db = this.readDb();
     return (db.leads || []).sort((a, b) => new Date(b.lastMessageAt || b.updatedAt) - new Date(a.lastMessageAt || a.updatedAt));
   }
 
   getLead(jidOrId) {
+    if (!jidOrId) return null;
     const db = this.readDb();
-    return (db.leads || []).find(l => l.id === jidOrId || l.jid === jidOrId);
+    const cleanJid = String(jidOrId).trim();
+    const core = extractCoreDigits(cleanJid);
+
+    return (db.leads || []).find(l => 
+      l.id === cleanJid || 
+      l.jid === cleanJid || 
+      (l.altJids && l.altJids.includes(cleanJid)) ||
+      (core && core.length >= 7 && (extractCoreDigits(l.phone) === core || extractCoreDigits(l.jid) === core))
+    );
   }
 
-  saveOrUpdateLead(leadData) {
+  findOrCreateLead(leadData) {
     const db = this.readDb();
     if (!db.leads) db.leads = [];
 
-    const existingIndex = db.leads.findIndex(l => l.jid === leadData.jid || (leadData.id && l.id === leadData.id));
+    const jid = leadData.jid || '';
+    const altJid = leadData.altJid || '';
+    const rawPhone = leadData.phone || jid || altJid;
+    const formattedPhone = normalizePhoneNumber(rawPhone);
+    const core = extractCoreDigits(rawPhone);
 
-    if (existingIndex !== -1) {
-      db.leads[existingIndex] = {
-        ...db.leads[existingIndex],
-        ...leadData,
-        updatedAt: new Date().toISOString()
-      };
+    // Buscar si ya existe por JID, altJids o últimos 8 dígitos del teléfono
+    let existing = (db.leads || []).find(l => 
+      (jid && (l.jid === jid || (l.altJids && l.altJids.includes(jid)))) ||
+      (altJid && (l.jid === altJid || (l.altJids && l.altJids.includes(altJid)))) ||
+      (core && core.length >= 7 && (extractCoreDigits(l.phone) === core || extractCoreDigits(l.jid) === core))
+    );
+
+    if (existing) {
+      // Unificar JIDs alternativos (@lid y @s.whatsapp.net)
+      if (!existing.altJids) existing.altJids = [];
+      if (jid && existing.jid !== jid && !existing.altJids.includes(jid)) {
+        existing.altJids.push(jid);
+      }
+      if (altJid && existing.jid !== altJid && !existing.altJids.includes(altJid)) {
+        existing.altJids.push(altJid);
+      }
+
+      // Normalizar teléfono si estaba sin formato o era un ID @lid
+      if (formattedPhone && (!existing.phone || existing.phone.includes('@lid') || !existing.phone.startsWith('+54'))) {
+        existing.phone = formattedPhone;
+      }
+
+      // Prioridad inteligente de nombres:
+      // 1. Si viene un nombre real (ej: "Juan Gonzalez" verificado en pedido/chat), fijarlo
+      if (leadData.realName && leadData.realName.length >= 3 && !/funes|roque|efectivo|contacto/i.test(leadData.realName)) {
+        existing.name = leadData.realName;
+        existing.pushName = leadData.realName;
+      } else if (!existing.name || existing.name.startsWith('+') || existing.name === 'Contacto WhatsApp' || existing.name === 'Usuario') {
+        // 2. Si el actual es genérico, usar pushName
+        const candidate = leadData.name || leadData.pushName;
+        if (candidate && candidate !== 'Contacto WhatsApp' && !candidate.startsWith('+')) {
+          existing.name = candidate;
+        }
+      }
+
+      if (leadData.pushName && leadData.pushName !== 'Contacto WhatsApp') {
+        existing.pushName = leadData.pushName;
+      }
+
+      if (leadData.lastMessage) existing.lastMessage = leadData.lastMessage;
+      if (leadData.lastMessageAt) existing.lastMessageAt = leadData.lastMessageAt;
+      if (leadData.unreadCount !== undefined) existing.unreadCount = leadData.unreadCount;
+
+      existing.updatedAt = new Date().toISOString();
       this.writeDb(db);
-      return db.leads[existingIndex];
+      return existing;
     } else {
+      // Crear nuevo Lead unificado
       const newLead = {
         id: leadData.id || `lead-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        stage: 'new_lead',
-        value: 0,
-        tags: ['WhatsApp'],
-        aiEnabled: true,
-        unreadCount: 0,
+        jid: jid || (formattedPhone ? `${formattedPhone.replace(/\D/g, '')}@s.whatsapp.net` : ''),
+        altJids: altJid ? [altJid] : [],
+        phone: formattedPhone || (jid ? `+${jid.split('@')[0]}` : ''),
+        name: leadData.realName || (leadData.name && leadData.name !== 'Contacto WhatsApp' ? leadData.name : (leadData.pushName && leadData.pushName !== 'Contacto WhatsApp' ? leadData.pushName : formattedPhone || 'Nuevo Contacto')),
+        pushName: leadData.pushName || 'Contacto WhatsApp',
+        stage: leadData.stage || 'new_lead',
+        value: leadData.value || 0,
+        tags: leadData.tags || ['WhatsApp'],
+        aiEnabled: leadData.aiEnabled !== undefined ? leadData.aiEnabled : true,
+        unreadCount: leadData.unreadCount || 0,
+        preferences: leadData.preferences || {
+          favoriteCuts: [],
+          cookingPreference: 'Parrilla',
+          preferredPayment: 'Efectivo / Transferencia',
+          groupSize: '4 personas',
+          notes: ''
+        },
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        ...leadData
+        updatedAt: new Date().toISOString()
       };
-      db.leads.push(newLead);
+
+      db.leads.unshift(newLead);
       this.writeDb(db);
       return newLead;
     }
+  }
+
+  saveOrUpdateLead(leadData) {
+    return this.findOrCreateLead(leadData);
+  }
+
+  deduplicateDatabase() {
+    const db = this.readDb();
+    if (!db.leads || db.leads.length <= 1) return;
+
+    const uniqueLeads = [];
+    const leadMap = new Map();
+
+    for (const lead of db.leads) {
+      const core = extractCoreDigits(lead.phone || lead.jid);
+      const key = (core && core.length >= 7) ? core : lead.jid;
+
+      if (!leadMap.has(key)) {
+        leadMap.set(key, lead);
+        if (!lead.altJids) lead.altJids = [];
+        if (lead.phone) lead.phone = normalizePhoneNumber(lead.phone);
+        uniqueLeads.push(lead);
+      } else {
+        const master = leadMap.get(key);
+        if (lead.jid && master.jid !== lead.jid && !master.altJids.includes(lead.jid)) {
+          master.altJids.push(lead.jid);
+        }
+        if (lead.altJids) {
+          lead.altJids.forEach(j => {
+            if (j && master.jid !== j && !master.altJids.includes(j)) master.altJids.push(j);
+          });
+        }
+        // Conservar mejor nombre
+        if (lead.name && !lead.name.startsWith('+') && lead.name !== 'Contacto WhatsApp' && lead.name !== 'efectivo' && (master.name.startsWith('+') || master.name === 'Contacto WhatsApp' || master.name === 'Don Juan' || master.name === 'efectivo')) {
+          master.name = lead.name;
+        }
+        if (lead.value > master.value) master.value = lead.value;
+        if (lead.stage === 'closed_won') master.stage = 'closed_won';
+        if (lead.notes && !master.notes) master.notes = lead.notes;
+        if (lead.address && !master.address) master.address = lead.address;
+        if (lead.preferences) {
+          master.preferences = { ...(master.preferences || {}), ...lead.preferences };
+        }
+        master.updatedAt = new Date().toISOString();
+      }
+    }
+
+    db.leads = uniqueLeads;
+    this.writeDb(db);
   }
 
   updateLead(jidOrId, updates) {

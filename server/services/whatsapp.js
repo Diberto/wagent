@@ -170,15 +170,11 @@ export class WhatsAppService {
     const cleanNumber = callerJid.split('@')[0];
     const settings = db.getSettings();
 
-    let lead = db.getLead(callerJid);
-    if (!lead) {
-      lead = db.saveOrUpdateLead({
-        jid: callerJid,
-        name: `Usuario +${cleanNumber}`,
-        phone: `+${cleanNumber}`,
-        pushName: `+${cleanNumber}`
-      });
-    }
+    let lead = db.findOrCreateLead({
+      jid: callerJid,
+      phone: cleanNumber,
+      pushName: `+${cleanNumber}`
+    });
 
     const callRecord = db.saveCall({
       chatId: callerJid,
@@ -245,36 +241,26 @@ export class WhatsAppService {
     const pushName = msg.pushName || 'Contacto WhatsApp';
     
     // Detección precisa de número de teléfono real (incluso con identificadores @lid)
+    let altJid = null;
     let realPhone = null;
     if (msg.key.remoteJidAlt && msg.key.remoteJidAlt.includes('@s.whatsapp.net')) {
-      realPhone = msg.key.remoteJidAlt.split('@')[0];
+      altJid = msg.key.remoteJidAlt;
+      realPhone = altJid.split('@')[0];
     } else if (msg.key.participant && msg.key.participant.includes('@s.whatsapp.net')) {
-      realPhone = msg.key.participant.split('@')[0];
+      altJid = msg.key.participant;
+      realPhone = altJid.split('@')[0];
     } else if (jid.includes('@s.whatsapp.net')) {
       realPhone = jid.split('@')[0];
     }
 
-    const cleanNumber = realPhone || jid.split('@')[0];
-    const phoneDisplay = realPhone ? `+${realPhone}` : `+${cleanNumber}`;
-
-    // Obtener o registrar Lead (con IA habilitada por defecto)
-    let lead = db.getLead(jid);
-    if (!lead) {
-      lead = db.saveOrUpdateLead({
-        jid,
-        name: pushName !== 'Contacto WhatsApp' ? pushName : phoneDisplay,
-        phone: phoneDisplay,
-        pushName,
-        aiEnabled: true
-      });
-    } else if (pushName !== 'Contacto WhatsApp' && (lead.name === 'Contacto WhatsApp' || lead.name.startsWith('+'))) {
-      lead = db.saveOrUpdateLead({
-        ...lead,
-        name: pushName,
-        pushName,
-        phone: phoneDisplay
-      });
-    }
+    // Obtener o reconciliar Lead único sin duplicados
+    let lead = db.findOrCreateLead({
+      jid,
+      altJid,
+      phone: realPhone,
+      pushName,
+      aiEnabled: true
+    });
 
     let textContent = '';
     let messageType = 'text';
