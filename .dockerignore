@@ -1,0 +1,10 @@
+node_modules
+client/node_modules
+client/dist
+data/auth_info_baileys
+data/media
+logs
+.git
+.env
+.env.local
+.DS_Store

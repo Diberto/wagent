@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0b141a] text-slate-100 font-sans;
+  }
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(17, 27, 33, 0.4);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(134, 150, 160, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(134, 150, 160, 0.45);
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  background: rgba(17, 27, 33, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: rgba(32, 44, 51, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-card-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37, 211, 102, 0.3);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 0 15px -3px rgba(37, 211, 102, 0.15);
+}
+
+/* Glowing text and borders */
+.glow-wa {
+  box-shadow: 0 0 20px rgba(37, 211, 102, 0.35);
+}
+
+.text-glow {
+  text-shadow: 0 0 12px rgba(37, 211, 102, 0.5);
+}
+
+/* Voice note audio wave animation */
+.audio-bar {
+  transition: height 0.15s ease;
+}
+
+.audio-bar.playing {
+  animation: audioPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes audioPulse {
+  0% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1.1); }
+  100% { transform: scaleY(0.6); }
+}
+
+/* Chat bubble background gradient */
+.chat-bg-pattern {
+  background-color: #0b141a;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
