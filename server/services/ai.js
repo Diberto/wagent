@@ -306,18 +306,31 @@ export class AIService {
     }
 
     // =========================================================================
-    // 1. CÁLCULO DE COMENSALES (SOLO SI DICE EXPLÍCITAMENTE "PERSONAS", "COMENSALES", "INVITADOS")
+    // 1. CÁLCULO DE COMENSALES Y ASADOS A MEDIDA (CON TOLERANCIA A TIPOS Y ECONÓMICOS)
     // =========================================================================
-    const explicitPeopleMatch = t.match(/(?:somos|para|comemos|seremos|calcular\s+para)\s*([0-9]+)\s*(?:personas|comensales|amigos|invitados|bocas)/i) ||
-                                t.match(/([0-9]+)\s+(?:personas|comensales|amigos|invitados|bocas)/i);
+    const peopleWordToNum = { uno: 1, un: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+    const explicitPeopleMatch = t.match(/(?:somos|para|comemos|seremos|calcular\s+para)\s*([0-9]+|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:personas?|personar|persoans?|comensales?|amigos?|invitados?|bocas?)/i) ||
+                                t.match(/(?:asado|carne|comida|asadaso|asadazo|fuego|parrilla)?\s*(?:para|somos)\s*([0-9]+|un[oa]?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s*(?:personas?|personar|persoans?|comensales?|amigos?|invitados?|bocas?|en\s+la\s+mesa)?/i) ||
+                                t.match(/([0-9]+)\s+(?:personas?|personar|persoans?|comensales?|amigos?|invitados?|bocas?)/i);
 
     if (explicitPeopleMatch) {
-      const count = parseInt(explicitPeopleMatch[1], 10);
+      const rawCount = explicitPeopleMatch[1].toLowerCase();
+      const count = parseInt(rawCount, 10) || peopleWordToNum[rawCount] || 4;
+      const isEconomico = /economico|económico|barato|barata|precio bajo|rendidor|que rinda|rinde mas|rinde más|ahorrar|ahorro/i.test(t);
+
       if (count >= 2 && count <= 50) {
         const totalKg = (count * 0.5).toFixed(1).replace('.0', '');
         
         let recommendation = '';
-        if (count <= 4) {
+        if (isEconomico) {
+          recommendation = `🔥 Para **${count} personas opción económica**, calculamos **${totalKg} kg de carne en total** (500g por comensal). Te armo una propuesta rendidora y súper accesible:\n\n` +
+            `• 1.0 kg Costeletas de Cerdo ($7.500)\n` +
+            `• 1.0 kg Falda Especial novillito ($9.800)\n` +
+            `• 0.5 kg Chorizo Criollo puro cerdo ($2.500)\n` +
+            `💰 *Total súper económico (${totalKg} kg):* **$19.800** (¡Solo $${Math.round(19800 / count).toLocaleString('es-AR')} por persona!)\n\n` +
+            `o si preferís la promo estrella completa:\n` +
+            `🔥 **Combo Asadazo (4 kg):** Incluye Bocado, Aguja, Falda, Chori criollo, Morcilla + 🎁 **Vino Howlmande de regalo** ➔ **$39.999**`;
+        } else if (count <= 4) {
           recommendation = `🔥 Para **${count} personas**, calculamos unos **2 a 2.5 kg de carne** en total. Te recomiendo:\n\n` +
             `• **1x Combo Asadazo (4 kg):** Incluye Bocado, Aguja, Falda, Chori criollo, Morcilla + Vino de regalo ➔ **$39.999** (¡Te queda abundante y con vino incluido!).\n` +
             `o si preferís cortes a elección:\n` +
@@ -343,7 +356,7 @@ export class AIService {
             `💰 *Total estimado (${totalKg} kg):* **$104.250**`;
         }
 
-        return `¡De diez${nameGreeting}! 🥩 ${recommendation}\n\n👉 **Paso 1:** ¿Te gusta esta combinación de cortes o preferís cambiar o sumar algún corte específico (tapa de cuadril, entraña, achuras)? [[STAGE:qualified]]`;
+        return `¡De diez${nameGreeting}! 🥩 ${recommendation}\n\n👉 **Paso 1:** ¿Te reservo esta propuesta o preferís cambiar o sumar algún corte en particular? [[STAGE:qualified]]`;
       }
     }
 

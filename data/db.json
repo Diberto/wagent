@@ -5,7 +5,7 @@
     "openaiApiKey": "diberto77",
     "aiModel": "gemini-flash-latest",
     "aiVoiceModel": "es-AR-TomasNeural",
-    "ttsProvider": "elevenlabs",
+    "ttsProvider": "edge",
     "agentName": "Carlos - Carnicero Virtual",
     "businessName": "República de la Carne",
     "autoReplyEnabled": true,
