@@ -266,13 +266,14 @@ export default function SettingsModal({ isOpen, onClose }) {
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">Modelo de Gemini</label>
                     <select
-                      value={settings.aiModel || 'gemini-1.5-flash'}
+                      value={settings.aiModel || 'gemini-flash-latest'}
                       onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
                       className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                     >
-                      <option value="gemini-1.5-flash">gemini-1.5-flash (Recomendado: Multimodal + Visión + Voz)</option>
-                      <option value="gemini-1.5-pro">gemini-1.5-pro (Máximo razonamiento)</option>
-                      <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp (Experimental)</option>
+                      <option value="gemini-flash-latest">gemini-flash-latest (Ultra Rápido + Multimodal + Visión + Audios)</option>
+                      <option value="gemini-pro-latest">gemini-pro-latest (Máximo Razonamiento y Ventas)</option>
+                      <option value="gemini-3.7-flash">gemini-3.7-flash (Última Generación Google)</option>
+                      <option value="gemini-3.5-flash">gemini-3.5-flash (Alta Velocidad)</option>
                     </select>
                   </div>
                 </div>

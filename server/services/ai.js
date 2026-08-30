@@ -126,15 +126,26 @@ INSTRUCCIONES CLAVE DE FORMATO Y ESTILO:
       } else if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
         // --- 3. GOOGLE GEMINI ---
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const modelName = (settings.aiModel && !settings.aiModel.includes('2.0-flash')) ? settings.aiModel : 'gemini-1.5-flash';
-        const model = genAI.getGenerativeModel({
+        const configuredModel = settings.aiModel;
+        const modelName = (configuredModel && (configuredModel.includes('latest') || configuredModel.includes('3.'))) 
+          ? configuredModel 
+          : 'gemini-flash-latest';
+        
+        let model = genAI.getGenerativeModel({
           model: modelName,
           systemInstruction
         });
 
         const prompt = `HISTORIAL DE LA CONVERSACIÓN:\n${formattedHistory}\n\nÚLTIMO MENSAJE DEL CLIENTE: "${incomingText}"\n\nTu respuesta como Asesor:`;
-        const result = await model.generateContent(prompt);
-        replyText = result.response.text();
+        try {
+          const result = await model.generateContent(prompt);
+          replyText = result.response.text();
+        } catch (mErr) {
+          console.warn(`⚠️ Error con modelo ${modelName}, reintentando con gemini-flash-latest:`, mErr.message);
+          const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-flash-latest', systemInstruction });
+          const result = await fallbackModel.generateContent(prompt);
+          replyText = result.response.text();
+        }
       } else if (settings.aiProvider === 'openai' && isValidOpenAiKey) {
         // --- 4. OPENAI ---
         const openai = new OpenAI({ apiKey: settings.openaiApiKey });
@@ -241,9 +252,9 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
       const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
 
       if (isValidGeminiKey) {
-        // Gemini 1.5 Flash Vision
+        // Gemini Flash Latest Vision
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
         const imageBuffer = fs.readFileSync(imagePath);
         const base64Data = imageBuffer.toString('base64');
 

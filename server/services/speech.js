@@ -82,7 +82,7 @@ export class SpeechService {
       const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
       if (isValidGeminiKey) {
         const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
 
         const audioBuffer = fs.readFileSync(mp3Path);
         const base64Audio = audioBuffer.toString('base64');

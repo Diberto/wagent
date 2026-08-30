@@ -3,7 +3,7 @@
     "aiProvider": "gemini",
     "geminiApiKey": "AIzaSyAfWlsLZdxNv0kv-eD_57UhUQHbPVFKOrY",
     "openaiApiKey": "diberto77",
-    "aiModel": "gemini-1.5-flash",
+    "aiModel": "gemini-flash-latest",
     "aiVoiceModel": "es-AR-TomasNeural",
     "ttsProvider": "elevenlabs",
     "agentName": "Carlos - Carnicero Virtual",
