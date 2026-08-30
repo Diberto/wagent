@@ -142,6 +142,126 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
     notes: ''
   });
 
+  // Order modal state inside Customer dossier
+  const [orderModal, setOrderModal] = useState(null); // { mode: 'create' | 'edit', data: { ... } }
+  const [itemsInputText, setItemsInputText] = useState('');
+
+  const handleOpenCreateOrderForCustomer = () => {
+    if (!selectedCustomer) return;
+    setOrderModal({
+      mode: 'create',
+      data: {
+        customerName: selectedCustomer.name || selectedCustomer.pushName || 'Cliente',
+        phone: selectedCustomer.phone || selectedCustomer.jid?.split('@')[0] || '',
+        jid: selectedCustomer.jid || '',
+        address: selectedCustomer.address || '',
+        items: ['1x Combo Asadazo ($39.999)'],
+        totalAmount: 39999,
+        paymentMethod: selectedCustomer.preferences?.preferredPayment || 'Efectivo al repartidor',
+        status: 'pending',
+        notes: ''
+      }
+    });
+    setItemsInputText('1x Combo Asadazo ($39.999)');
+  };
+
+  const handleOpenEditOrderFromCustomer = (order) => {
+    setOrderModal({
+      mode: 'edit',
+      data: { ...order }
+    });
+    setItemsInputText(Array.isArray(order.items) ? order.items.join('\n') : (order.items || ''));
+  };
+
+  const handleDuplicateOrderFromCustomer = async (orderId) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        if (selectedCustomer) {
+          const profileRes = await fetch(`/api/customers/${selectedCustomer.id}`);
+          if (profileRes.ok) {
+            const updatedProfile = await profileRes.json();
+            setSelectedCustomer(updatedProfile);
+            setCustomers(prev => prev.map(c => c.id === updatedProfile.id ? updatedProfile : c));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error duplicando pedido desde cliente:', err);
+    }
+  };
+
+  const handleDeleteOrderFromCustomer = async (orderId) => {
+    if (!window.confirm(`¿Eliminar el pedido #${orderId} de este cliente?`)) return;
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (selectedCustomer) {
+          const profileRes = await fetch(`/api/customers/${selectedCustomer.id}`);
+          if (profileRes.ok) {
+            const updatedProfile = await profileRes.json();
+            setSelectedCustomer(updatedProfile);
+            setCustomers(prev => prev.map(c => c.id === updatedProfile.id ? updatedProfile : c));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error eliminando pedido desde cliente:', err);
+    }
+  };
+
+  const handleSaveOrderFromCustomer = async (e) => {
+    e.preventDefault();
+    if (!orderModal || !selectedCustomer) return;
+
+    const items = itemsInputText
+      .split('\n')
+      .map(i => i.trim())
+      .filter(Boolean);
+
+    const payload = {
+      ...orderModal.data,
+      items,
+      totalAmount: Number(orderModal.data.totalAmount) || 0
+    };
+
+    try {
+      if (orderModal.mode === 'create') {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          setOrderModal(null);
+          const profileRes = await fetch(`/api/customers/${selectedCustomer.id}`);
+          if (profileRes.ok) {
+            const updatedProfile = await profileRes.json();
+            setSelectedCustomer(updatedProfile);
+            setCustomers(prev => prev.map(c => c.id === updatedProfile.id ? updatedProfile : c));
+          }
+        }
+      } else {
+        const res = await fetch(`/api/orders/${orderModal.data.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          setOrderModal(null);
+          const profileRes = await fetch(`/api/customers/${selectedCustomer.id}`);
+          if (profileRes.ok) {
+            const updatedProfile = await profileRes.json();
+            setSelectedCustomer(updatedProfile);
+            setCustomers(prev => prev.map(c => c.id === updatedProfile.id ? updatedProfile : c));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error guardando pedido del cliente:', err);
+    }
+  };
+
   const handleCreateCustomerSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -685,37 +805,103 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                     <ShoppingBag size={16} className="text-emerald-400" />
                     Historial de Pedidos Realizados ({selectedCustomer.orders?.length || 0})
                   </h3>
+
+                  <button
+                    onClick={handleOpenCreateOrderForCustomer}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition shadow-sm"
+                  >
+                    <Plus size={13} />
+                    Cargar Pedido
+                  </button>
                 </div>
 
                 {selectedCustomer.orders && selectedCustomer.orders.length > 0 ? (
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                     {selectedCustomer.orders.map(order => (
                       <div
                         key={order.id}
-                        className="bg-[#111b21] border border-slate-800 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs"
+                        className="bg-[#111b21] hover:bg-[#152026] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3 text-xs transition"
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-emerald-400 font-mono">#{order.id}</span>
-                            <span className="text-[11px] text-slate-400">📅 {new Date(order.createdAt).toLocaleString()}</span>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-emerald-400 font-mono text-xs">#{order.id}</span>
+                              <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <Calendar size={11} /> {new Date(order.createdAt).toLocaleString()}
+                              </span>
+                            </div>
+
+                            {order.address && (
+                              <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                                <MapPin size={11} className="text-rose-400 shrink-0" />
+                                <span className="truncate">{order.address}</span>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-slate-300 font-mono text-[11px]">
-                            {Array.isArray(order.items) ? order.items.join(' • ') : '1x Combo Asado'}
+
+                          <div className="text-right shrink-0">
+                            <div className="font-bold text-emerald-400 text-sm">${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}</div>
+                            <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 inline-block mt-0.5">
+                              {order.status === 'pending' ? '⏳ Pendiente' :
+                               order.status === 'preparing' ? '🥩 En Preparación' :
+                               order.status === 'in_transit' ? '🚚 En Camino' :
+                               order.status === 'delivered' ? '✅ Entregado' :
+                               order.status === 'cancelled' ? '❌ Cancelado' : order.status}
+                            </span>
                           </div>
                         </div>
 
-                        <div className="text-right shrink-0">
-                          <div className="font-bold text-white">${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}</div>
-                          <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20">
-                            {order.status}
+                        {/* Items list */}
+                        <div className="bg-[#182229] rounded-xl p-2.5 border border-slate-800 text-[11px] text-slate-300 font-mono space-y-0.5">
+                          {Array.isArray(order.items) && order.items.length > 0 ? (
+                            order.items.map((item, idx) => (
+                              <div key={idx} className="truncate">{item}</div>
+                            ))
+                          ) : (
+                            <div className="text-slate-400">{order.items || '1x Combo Asadazo ($39.999)'}</div>
+                          )}
+                        </div>
+
+                        {/* Action buttons inside customer order card */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
+                          <span className="text-slate-400 italic truncate max-w-[200px]">
+                            {order.paymentMethod || 'Efectivo al repartidor'}
                           </span>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditOrderFromCustomer(order)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-slate-300 hover:text-emerald-400 border border-slate-700 transition"
+                              title="Editar este pedido"
+                            >
+                              <Edit3 size={12} />
+                              <span>Editar</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDuplicateOrderFromCustomer(order.id)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-sky-950/40 text-slate-300 hover:text-sky-400 border border-slate-700 transition"
+                              title="Duplicar este pedido"
+                            >
+                              <Copy size={12} />
+                              <span>Duplicar</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteOrderFromCustomer(order.id)}
+                              className="p-1 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition"
+                              title="Eliminar este pedido"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="py-6 text-center text-xs text-slate-500 bg-[#111b21] rounded-2xl border border-slate-800">
-                    Este cliente aún no registra pedidos cerrados.
+                    Este cliente aún no registra pedidos cerrados. Haz clic en "Cargar Pedido" para crear uno.
                   </div>
                 )}
               </div>
@@ -843,6 +1029,160 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                 >
                   <Save size={14} />
                   Guardar Cliente
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* Create / Edit Order Modal for Customer */}
+      {orderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-5">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <ShoppingBag size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {orderModal.mode === 'create' ? `Cargar Pedido para ${selectedCustomer?.name || 'Cliente'}` : `Editar Pedido #${orderModal.data.id}`}
+                  </h3>
+                  <p className="text-xs text-slate-400">Detalles del pedido, cortes y monto acordado</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setOrderModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOrderFromCustomer} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Nombre del Cliente:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Juan Gonzalez"
+                    value={orderModal.data.customerName}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, customerName: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Teléfono / WhatsApp:</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: +54 9 351 626-2475"
+                    value={orderModal.data.phone}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, phone: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Dirección de Entrega:</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Roque Funes 1704, Barrio Urca"
+                  value={orderModal.data.address}
+                  onChange={(e) => setOrderModal({
+                    ...orderModal,
+                    data: { ...orderModal.data, address: e.target.value }
+                  })}
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Cortes / Combos (un ítem por línea):</label>
+                <textarea
+                  rows={3}
+                  placeholder="1x Combo Asadazo ($39.999)&#10;2 kg Costeleta de Cerdo ($15.000)"
+                  value={itemsInputText}
+                  onChange={(e) => setItemsInputText(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Monto Total ($):</label>
+                  <input
+                    type="number"
+                    required
+                    value={orderModal.data.totalAmount}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, totalAmount: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Medio de Pago:</label>
+                  <select
+                    value={orderModal.data.paymentMethod}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, paymentMethod: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  >
+                    <option value="Efectivo al repartidor">Efectivo al repartidor</option>
+                    <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                    <option value="Mercado Pago">Mercado Pago</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Estado del Pedido:</label>
+                  <select
+                    value={orderModal.data.status}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, status: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  >
+                    <option value="pending">⏳ Pendiente</option>
+                    <option value="preparing">🥩 En Preparación</option>
+                    <option value="in_transit">🚚 En Camino</option>
+                    <option value="delivered">✅ Entregado</option>
+                    <option value="cancelled">❌ Cancelado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setOrderModal(null)}
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold transition"
+                >
+                  <Save size={14} />
+                  Guardar Pedido
                 </button>
               </div>
             </form>
