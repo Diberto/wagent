@@ -93,21 +93,26 @@ export default function CallModal({
           setIsSpeaking(true);
 
           try {
-            // Consultar respuesta de IA
-            const res = await fetch('/api/ai/test-voice', {
+            // Consultar respuesta inteligente de IA en vivo
+            const res = await fetch('/api/ai/live-call-turn', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                text: `Respondiendo a tu consulta en llamada: ${text}. Nuestro asistente virtual está listo para ayudarte con pedidos, cotizaciones y soporte.`
+                userText: text,
+                jid: activeLead?.jid || 'call@live.user',
+                customerName: contactName || activeLead?.name || 'Cliente'
               })
             });
             const data = await res.json();
-            setLiveAiResponse(`🤖 Asistente: "Hemos registrado tu consulta. ¿Deseas confirmar el pedido o agendar una reunión?"`);
-            setLiveAiAudioUrl(data.audioUrl);
-
-            // Reproducir audio de voz del agente
-            const audio = new Audio(data.audioUrl);
-            audio.play().catch(e => console.log('Audio autoplay:', e));
+            const reply = data.replyText || '¡Hola! Te escucho con gusto.';
+            setLiveAiResponse(`🤖 Asesor Carnicero: "${reply}"`);
+            setLiveTranscript(prev => `${prev}\n🤖 Asesor Carnicero: "${reply}"`);
+            
+            if (data.audioUrl) {
+              setLiveAiAudioUrl(data.audioUrl);
+              const audio = new Audio(data.audioUrl);
+              audio.play().catch(e => console.log('Audio autoplay prevented:', e));
+            }
           } catch (err) {
             console.error('Error en llamada en vivo:', err);
           } finally {

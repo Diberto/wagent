@@ -42,22 +42,25 @@ export default function CallCenter({
 
       recognition.onresult = async (event) => {
         const transcript = event.results[0][0].transcript;
-        setLiveTranscript(transcript);
+        setLiveTranscript(`👤 Tú: "${transcript}"`);
         setIsLiveSpeaking(false);
         setIsProcessingVoice(true);
 
         try {
-          const res = await fetch('/api/ai/test-voice', {
+          const res = await fetch('/api/ai/live-call-turn', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: `Hola, respondiendo a tu consulta por voz: "${transcript}". Nuestro agente de ventas está listo para atenderte.` })
+            body: JSON.stringify({ userText: transcript, customerName: 'Cliente en Vivo' })
           });
           const data = await res.json();
-          setLiveAiReply(`Respuesta del Asistente de Voz: "Hola, un gusto saludarte. Hemos recibido tu consulta por voz y estamos listos para cotizar tu servicio."`);
-          setLiveAiAudioUrl(data.audioUrl);
-
-          const audio = new Audio(data.audioUrl);
-          audio.play().catch(e => console.log('Audio autoplay prevented:', e));
+          const reply = data.replyText || '¡Hola! Te escucho atentamente.';
+          setLiveAiReply(`🥩 Asesor Carnicero: "${reply}"`);
+          
+          if (data.audioUrl) {
+            setLiveAiAudioUrl(data.audioUrl);
+            const audio = new Audio(data.audioUrl);
+            audio.play().catch(e => console.log('Audio autoplay prevented:', e));
+          }
         } catch (err) {
           console.error('Error procesando voz en vivo:', err);
         } finally {

@@ -332,7 +332,32 @@ class DatabaseService {
 
   deleteLead(id) {
     const db = this.readDb();
-    db.leads = (db.leads || []).filter(l => l.id !== id && l.jid !== id);
+    const cleanId = String(id).trim();
+    const lead = (db.leads || []).find(l => l.id === cleanId || l.jid === cleanId);
+    const jids = [cleanId];
+    if (lead) {
+      if (lead.jid) jids.push(lead.jid);
+      if (lead.altJids) jids.push(...lead.altJids);
+    }
+    db.leads = (db.leads || []).filter(l => !jids.includes(l.id) && !jids.includes(l.jid));
+    db.messages = (db.messages || []).filter(m => !jids.includes(m.chatId));
+    this.writeDb(db);
+    return true;
+  }
+
+  clearMessagesForChat(chatId) {
+    const db = this.readDb();
+    const cleanId = String(chatId).trim();
+    const lead = (db.leads || []).find(l => l.id === cleanId || l.jid === cleanId);
+    const jids = [cleanId];
+    if (lead) {
+      if (lead.jid) jids.push(lead.jid);
+      if (lead.altJids) jids.push(...lead.altJids);
+      lead.lastMessage = '';
+      lead.unreadCount = 0;
+      lead.updatedAt = new Date().toISOString();
+    }
+    db.messages = (db.messages || []).filter(m => !jids.includes(m.chatId));
     this.writeDb(db);
     return true;
   }
@@ -340,7 +365,14 @@ class DatabaseService {
   // --- Messages ---
   getMessages(chatId, limit = 50) {
     const db = this.readDb();
-    const messages = (db.messages || []).filter(m => m.chatId === chatId);
+    const cleanId = String(chatId).trim();
+    const lead = (db.leads || []).find(l => l.id === cleanId || l.jid === cleanId);
+    const jids = [cleanId];
+    if (lead) {
+      if (lead.jid) jids.push(lead.jid);
+      if (lead.altJids) jids.push(...lead.altJids);
+    }
+    const messages = (db.messages || []).filter(m => jids.includes(m.chatId));
     return messages.slice(-limit);
   }
 

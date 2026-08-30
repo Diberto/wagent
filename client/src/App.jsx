@@ -389,6 +389,8 @@ export default function App() {
             onSendMessage={handleSendMessage}
             onSendAudio={handleSendAudio}
             onCallLead={(lead) => handleOpenCallModal(lead)}
+            onDeleteLead={handleDeleteLead}
+            onClearChat={() => loadLeads()}
           />
         )}
 

@@ -67,6 +67,13 @@ export function createApiRouter(whatsappService, io) {
     res.json(lead);
   });
 
+  router.put('/leads/:id', (req, res) => {
+    const updated = db.updateLead(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Lead no encontrado' });
+    io.emit('lead:update', updated);
+    res.json(updated);
+  });
+
   router.patch('/leads/:id/stage', (req, res) => {
     const { stage } = req.body;
     const lead = db.updateLeadStage(req.params.id, stage);
@@ -86,6 +93,7 @@ export function createApiRouter(whatsappService, io) {
   router.delete('/leads/:id', (req, res) => {
     db.deleteLead(req.params.id);
     io.emit('lead:delete', { id: req.params.id });
+    io.emit('messages:cleared', { jid: req.params.id });
     res.json({ success: true });
   });
 
@@ -94,6 +102,52 @@ export function createApiRouter(whatsappService, io) {
     const messages = db.getMessages(req.params.jid, 100);
     db.markChatRead(req.params.jid);
     res.json(messages);
+  });
+
+  router.delete('/messages/chat/:jid', (req, res) => {
+    const { jid } = req.params;
+    db.clearMessagesForChat(jid);
+    io.emit('messages:cleared', { jid });
+    const lead = db.getLead(jid);
+    if (lead) io.emit('lead:update', lead);
+    res.json({ success: true, message: 'Conversación vaciada con éxito' });
+  });
+
+  // --- Live Interactive Telephone Call Turn ---
+  router.post('/ai/live-call-turn', async (req, res) => {
+    const { userText, jid, customerName } = req.body;
+    if (!userText) return res.status(400).json({ error: 'Texto de entrada requerido' });
+
+    try {
+      const lead = (jid ? db.getLead(jid) : null) || {
+        name: customerName || 'Cliente en Llamada',
+        jid: jid || 'call@live.user',
+        stage: 'negotiating'
+      };
+
+      const aiReply = await AIService.generateReply({
+        jid: lead.jid || 'call@live.user',
+        incomingText: userText,
+        isAudioInput: true
+      });
+
+      let audioUrl = null;
+      if (aiReply.audioMp3Path) {
+        audioUrl = `/media/${path.basename(aiReply.audioMp3Path)}`;
+      } else if (aiReply.audioOggPath) {
+        audioUrl = `/media/${path.basename(aiReply.audioOggPath)}`;
+      }
+
+      res.json({
+        success: true,
+        replyText: aiReply.text,
+        audioUrl,
+        duration: aiReply.audioDuration || 3
+      });
+    } catch (err) {
+      console.error('Error en turno de llamada en vivo:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   router.post('/chats/:jid/messages', async (req, res) => {
