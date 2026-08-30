@@ -329,7 +329,7 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
-  // --- 5. Knowledge Base & Products ---
+  // --- 5. Knowledge Base & FAQs ---
   router.get('/knowledge', (req, res) => {
     res.json(db.getKnowledgeBase());
   });
@@ -342,6 +342,73 @@ export function createApiRouter(whatsappService, io) {
   router.delete('/knowledge/:id', (req, res) => {
     db.deleteKnowledgeItem(req.params.id);
     res.json({ success: true });
+  });
+
+  // --- 5.1 Product Catalog ---
+  router.get('/products', (req, res) => {
+    res.json(db.getProducts());
+  });
+
+  router.post('/products', (req, res) => {
+    const product = db.saveProduct(req.body);
+    res.json(product);
+  });
+
+  router.put('/products/:id', (req, res) => {
+    const product = db.updateProduct(req.params.id, req.body);
+    res.json(product);
+  });
+
+  router.delete('/products/:id', (req, res) => {
+    db.deleteProduct(req.params.id);
+    res.json({ success: true });
+  });
+
+  // Sincronizar catálogo con WhatsApp Business
+  router.post('/whatsapp/sync-catalog', async (req, res) => {
+    try {
+      if (whatsappService.status !== 'connected' || !whatsappService.sock) {
+        return res.status(400).json({ error: 'WhatsApp no está conectado' });
+      }
+
+      let catalogProducts = [];
+      try {
+        const myJid = whatsappService.sock.user?.id;
+        if (myJid && whatsappService.sock.getCatalog) {
+          const catalogResult = await whatsappService.sock.getCatalog({ jid: myJid, limit: 50 });
+          if (catalogResult && catalogResult.data) {
+            catalogProducts = catalogResult.data.map(item => ({
+              id: item.id || `wa-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              name: item.name || item.title,
+              description: item.description || '',
+              price: Number(item.price) / 1000 || 0,
+              currency: item.currency || 'ARS',
+              imageUrl: item.image_url || (item.media && item.media[0]?.url) || '',
+              isAvailable: !item.is_hidden
+            }));
+
+            // Guardar en la base de datos
+            catalogProducts.forEach(p => db.saveProduct(p));
+          }
+        }
+      } catch (catErr) {
+        console.warn('Nota: La cuenta vinculada no es WhatsApp Business o no tiene catálogo público activo:', catErr.message);
+      }
+
+      const allProducts = db.getProducts();
+      res.json({
+        success: true,
+        syncedCount: catalogProducts.length,
+        totalProducts: allProducts.length,
+        products: allProducts,
+        message: catalogProducts.length > 0
+          ? `¡Se importaron ${catalogProducts.length} productos desde WhatsApp Business con éxito!`
+          : 'Catálogo sincronizado. Puedes cargar o editar productos directamente desde el panel.'
+      });
+    } catch (err) {
+      console.error('Error sincronizando catálogo:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // --- 6. Settings & Voice Testing ---

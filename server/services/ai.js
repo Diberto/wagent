@@ -20,9 +20,14 @@ export class AIService {
     const history = db.getMessages(jid, 12);
     const knowledgeBase = db.getKnowledgeBase();
 
-    // 1. Contexto de base de conocimiento (RAG)
+    // 1. Contexto de base de conocimiento (RAG) y Catálogo de Productos
+    const products = db.getProducts();
+    const productCatalogContext = products.map((p, i) => {
+      return `• [PRODUCTO #${i + 1}] ${p.name} | Categoría: ${p.category || 'General'} | Precio: $${p.price} por ${p.unit || 'kg'} | Stock: ${p.isAvailable ? 'Disponible' : 'Agotado'} | Detalles: ${p.description || 'Calidad garantizada'}`;
+    }).join('\n');
+
     const kbContext = knowledgeBase.map((item, index) => {
-      let entry = `[KB-${index + 1}] ${item.title} (${item.category}):\n${item.content}`;
+      let entry = `[INFO #${index + 1}] ${item.title} (${item.category}):\n${item.content}`;
       if (item.productPrice) {
         entry += `\nPrecio: $${item.productPrice}`;
       }
@@ -39,20 +44,23 @@ export class AIService {
     // 3. Prompt de sistema enriquecido
     const systemInstruction = `${settings.systemPrompt}
 
-DATOS DEL CLIENTE:
+DATOS DEL CLIENTE EN ESTE CHAT:
 - Nombre / Perfil: ${lead.pushName || lead.name || 'Cliente'}
 - Número: ${lead.phone || jid.split('@')[0]}
 - Etapa en CRM: ${lead.stage || 'Nuevo Lead'}
 - Notas previas: ${lead.notes || 'Sin notas'}
 
-BASE DE CONOCIMIENTOS DE LA EMPRESA:
+CATÁLOGO OFICIAL DE PRODUCTOS Y PRECIOS DISPONIBLES:
+${productCatalogContext || 'Consultar con asesor humano.'}
+
+BASE DE CONOCIMIENTOS DE LA EMPRESA (HORARIOS, ENVÍOS, PAGOS, POLÍTICAS):
 ${kbContext || 'No hay artículos específicos cargados en la base de conocimientos.'}
 
 INSTRUCCIONES CLAVE DE FORMATO Y ESTILO:
-- Responde de forma cordial, humana, conversacional y persuasiva.
+- Responde de forma cálida, humana, conversacional y persuasiva (hablando en primera persona con la personalidad asignada).
 - Máximo 1 o 2 párrafos cortos (ideal para WhatsApp).
-- Utiliza la información de la base de conocimientos para responder con exactitud sobre productos, precios, envíos, métodos de pago y políticas.
-- Si el cliente pregunta algo fuera de catálogo, sé honesto y ofrece derivarlo amablemente.
+- Utiliza la información del Catálogo de Productos para dar precios exactos, recomendar cortes/artículos y armar pedidos según lo que el cliente busque.
+- Si el cliente pregunta qué cortes llevar para un asado o comida, asesóralo con cantidades por persona (aprox 500g de carne por persona para asado) y sugiere combos o cortes rendidores.
 - Si detectas que la etapa del cliente cambió claramente (ej. pidió cotización -> 'proposal', confirmó compra/pago -> 'closed_won', desinterés -> 'closed_lost'), incluye al final de tu mensaje: [[STAGE:nuevo_estado]] (opciones: new_lead, qualified, negotiating, proposal, closed_won, closed_lost).`;
 
     let replyText = '';
@@ -315,7 +323,20 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
       return `¡Hola${nameGreeting}! 👋 Un gusto saludarte. Soy la asesora virtual de ${settings.businessName || 'nuestra empresa'}. ¿En qué producto o servicio te podemos ayudar hoy?`;
     }
 
-    // 2. Búsqueda directa en Base de Conocimientos (Productos, Catálogo, Precios, Horarios, Envíos)
+    // 2. Búsqueda directa en Catálogo de Productos
+    const products = db.getProducts();
+    for (const prod of products) {
+      if (t.includes(prod.name.toLowerCase()) || (prod.category && t.includes(prod.category.toLowerCase()))) {
+        return `¡Excelente elección! Tenemos ${prod.name} (${prod.category}) a $${prod.price} por ${prod.unit || 'kg'}. ${prod.description || 'De primera calidad y súper tierno.'}\n\n¿Cuántos ${prod.unit || 'kilos'} te gustaría encargar o para cuántas personas vas a cocinar? 🥩`;
+      }
+    }
+
+    // 2.1 Asado específico
+    if (t.includes('asado') || t.includes('parrilla') || t.includes('brasa')) {
+      return `¡Un buen asado nunca falla! 🔥 Para calcular bien, recomendamos unos 500g de carne por persona. Contamos con Costilla ($7.800/kg), Vacío ($8.900/kg), Entraña ($9.900/kg) y Chorizo criollo ($4.500/kg).\n\n¿Para cuántas personas sería el asado y te armamos el pedido a medida? 🥩`;
+    }
+
+    // 2.2 Búsqueda en Base de Conocimientos (Horarios, Envíos, Pagos)
     for (const item of knowledgeBase) {
       const match = (item.keywords || []).some(k => t.includes(k.toLowerCase())) ||
                     t.includes(item.title.toLowerCase()) ||
@@ -331,12 +352,12 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
     }
 
     // 3. Consultas de catálogo general ("qué productos tienen", "qué venden", "catálogo", "lista")
-    if (t.includes('producto') || t.includes('venden') || t.includes('catalogo') || t.includes('ofrecen') || t.includes('tienen') || t.includes('servicio') || t.includes('precio') || t.includes('cuanto')) {
-      const productItems = knowledgeBase.map(k => `• *${k.title}*: ${k.content.substring(0, 75)}...`).join('\n');
-      if (productItems) {
-        return `¡Con gusto! Contamos con las siguientes opciones disponibles:\n\n${productItems}\n\n¿Cuál de estos te gustaría cotizar o adquirir hoy?`;
-      }
-      return `Ofrecemos atención comercial integral y soluciones personalizadas. ¿Qué producto o requerimiento específico estás buscando?`;
+    if (t.includes('producto') || t.includes('venden') || t.includes('catalogo') || t.includes('ofrecen') || t.includes('tienen') || t.includes('servicio') || t.includes('precio') || t.includes('cuanto') || t.includes('carne') || t.includes('corte')) {
+      const productItems = products.length > 0
+        ? products.slice(0, 6).map(p => `• *${p.name}*: $${p.price}/${p.unit || 'kg'}`).join('\n')
+        : knowledgeBase.map(k => `• *${k.title}*: ${k.content.substring(0, 75)}...`).join('\n');
+      
+      return `¡Con gusto! Contamos con los mejores cortes y productos frescos:\n\n${productItems}\n\n¿Cuál de estos te gustaría llevar hoy? Podés pedirnos por kilo o indicarnos para cuántas personas es la comida. 🥩`;
     }
 
     // 4. Métodos de Pago

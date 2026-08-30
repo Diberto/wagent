@@ -6,6 +6,7 @@ import KanbanPipeline from './components/KanbanPipeline';
 import CallCenter from './components/CallCenter';
 import KnowledgeBase from './components/KnowledgeBase';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import ProductCatalog from './components/ProductCatalog';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
@@ -292,6 +293,10 @@ export default function App() {
             onSendAudio={handleSendAudio}
             onCallLead={(lead) => handleOpenCallModal(lead)}
           />
+        )}
+
+        {currentTab === 'catalog' && (
+          <ProductCatalog />
         )}
 
         {currentTab === 'kanban' && (

@@ -262,6 +262,61 @@ class DatabaseService {
     return null;
   }
 
+  // --- Products Catalog ---
+  getProducts() {
+    const db = this.readDb();
+    return db.products || [];
+  }
+
+  saveProduct(prodData) {
+    const db = this.readDb();
+    if (!db.products) db.products = [];
+
+    const existingIndex = db.products.findIndex(p => p.id === prodData.id);
+    const newProduct = {
+      id: prodData.id || `prod-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: prodData.name || 'Nuevo Producto',
+      category: prodData.category || 'General',
+      price: Number(prodData.price) || 0,
+      unit: prodData.unit || 'kg',
+      description: prodData.description || '',
+      stock: Number(prodData.stock) || 100,
+      imageUrl: prodData.imageUrl || '',
+      isAvailable: prodData.isAvailable !== false,
+      sku: prodData.sku || '',
+      updatedAt: new Date().toISOString(),
+      ...prodData
+    };
+
+    if (existingIndex >= 0) {
+      db.products[existingIndex] = newProduct;
+    } else {
+      db.products.push(newProduct);
+    }
+
+    this.writeDb(db);
+    return newProduct;
+  }
+
+  updateProduct(id, updateData) {
+    const db = this.readDb();
+    const product = (db.products || []).find(p => p.id === id);
+    if (product) {
+      Object.assign(product, updateData, { updatedAt: new Date().toISOString() });
+      this.writeDb(db);
+      return product;
+    }
+    return null;
+  }
+
+  deleteProduct(id) {
+    const db = this.readDb();
+    if (!db.products) return true;
+    db.products = db.products.filter(p => p.id !== id);
+    this.writeDb(db);
+    return true;
+  }
+
   // --- Metrics / Analytics ---
   getMetrics() {
     const db = this.readDb();

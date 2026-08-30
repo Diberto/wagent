@@ -11,7 +11,8 @@ import {
   Sparkles,
   Smartphone,
   PhoneForwarded,
-  UserCheck
+  UserCheck,
+  ShoppingBag
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -25,6 +26,7 @@ export default function Navbar({
 }) {
   const tabs = [
     { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
+    { id: 'catalog', label: 'Catálogo de Productos', icon: ShoppingBag },
     { id: 'kanban', label: 'Embudo de Ventas', icon: Kanban },
     { id: 'callcenter', label: 'Centro de Llamadas', icon: PhoneCall },
     { id: 'knowledge', label: 'Base de Conocimiento', icon: BookOpen },
