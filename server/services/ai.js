@@ -339,109 +339,125 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
 
     // =========================================================================
     // 1. DETECTOR DE DATOS DE ENVÍO / DIRECCIÓN / CONFIRMACIÓN DE PEDIDO
-    // (Ej: "a mi domicilio, jose roque funes 1704, esquina", "calle angel locelso 7100")
+    // (Ej: "a mi domicilio, Locelso 7089, Juan Gonzalez mi nombre completo")
     // =========================================================================
-    const hasAddress = /calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|funes|locelso|[0-9]{3,5}/i.test(t) || 
+    const hasAddress = /calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|funes|locelso|domicilio|[0-9]{3,5}/i.test(t) || 
                        (rawText.includes(',') && /[0-9]/.test(rawText));
     
     // Obtener historial previo
     const history = db.getMessages(lead.jid || lead.id, 10);
     const historyText = history.map(m => m.content).join(' ').toLowerCase();
 
-    // 1.1 Si el usuario responde con su Nombre (o si viene con prefijo como 'mi nombre...', 'soy...')
-    const lastBotMessage = [...history].reverse().find(m => m.sender === 'assistant')?.content || '';
-    const hasNamePrefix = /^(soy|a nombre de|me llamo|mi nombre|mi onmbre|nombre:?|para)\s+/i.test(t) || t.includes('onmbre') || (t.includes('nombre') && !t.includes('?'));
-    const isReplyingName = lastBotMessage.toLowerCase().includes('a nombre de quién') || 
-                           lastBotMessage.toLowerCase().includes('nombre y apellido') ||
-                           lastBotMessage.toLowerCase().includes('nombre completo') ||
-                           hasNamePrefix;
-
-    if (isReplyingName && !hasAddress && t.length > 2 && t.length < 60) {
-      let extractedName = rawText.replace(/^(soy|a nombre de|me llamo|mi nombre es|mi nombre|mi onmbre es|mi onmbre|nombre:?)\s+/i, '').trim();
-      extractedName = extractedName.replace(/[.,]/g, '').trim();
-      if (extractedName.length < 2 && rawText.length > 2) {
-        extractedName = rawText.trim();
+    // 1.1 Intentar extraer Nombre de Persona de cualquier parte del mensaje
+    let extractedNameFromText = '';
+    
+    // a) "Juan Gonzalez mi nombre completo" o "Juan Gonzalez es mi nombre"
+    const reverseNameMatch = rawText.match(/([A-Za-zÁÉÍÓÚáéíóúñÑ ]+?)\s+(?:mi nombre(?: completo)?|es mi nombre|mi onmbre)/i);
+    if (reverseNameMatch && reverseNameMatch[1].trim().length >= 3) {
+      extractedNameFromText = reverseNameMatch[1].replace(/^(a|en|para|de)\s+/i, '').trim();
+    }
+    
+    // b) "mi nombre Juan Gonzalez" o "soy Juan Gonzalez" o "a nombre de Juan Gonzalez"
+    if (!extractedNameFromText) {
+      const forwardNameMatch = rawText.match(/(?:mi nombre(?: es| completo)?|mi onmbre|nombre:?|soy|a nombre de|para)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ ]+)/i);
+      if (forwardNameMatch && forwardNameMatch[1].trim().length >= 3) {
+        extractedNameFromText = forwardNameMatch[1].replace(/^(es|de)\s+/i, '').trim();
       }
+    }
+
+    // c) Si hay comas, revisar si algún fragmento es un nombre de persona (ej: "a mi domicilio, Locelso 7089, Juan Gonzalez")
+    if (!extractedNameFromText && rawText.includes(',')) {
+      const parts = rawText.split(',');
+      for (const part of parts) {
+        const clean = part.replace(/(?:mi nombre(?: completo)?|es mi nombre|mi onmbre)/gi, '').trim();
+        if (clean.length >= 3 && clean.length <= 35 && !/[0-9]/.test(clean) && !/calle|av|domicilio|entrega|envio|esquina|casa|depto|piso|barrio|zona/i.test(clean)) {
+          extractedNameFromText = clean;
+          break;
+        }
+      }
+    }
+
+    // 1.2 Limpiar la dirección quitando muletillas
+    let cleanAddress = rawText
+      .replace(/a mi domicilio,?\s*/gi, '')
+      .replace(/(?:mi nombre(?: es| completo)?|a nombre de|soy)?\s*[A-Za-zÁÉÍÓÚáéíóúñÑ ]*(?:mi nombre(?: completo)?|mi onmbre)/gi, '')
+      .replace(/,\s*,/g, ',')
+      .replace(/^,\s*/, '')
+      .replace(/,\s*$/, '')
+      .trim();
+    if (!cleanAddress || cleanAddress.length < 3) cleanAddress = rawText.trim();
+
+    // 1.3 Si el usuario envía SOLO su nombre (ej: "Juan Gonzalez" o "Soy Juan Gonzalez")
+    const isJustName = (extractedNameFromText || (t.split(/\s+/).length >= 1 && t.split(/\s+/).length <= 4 && !/[0-9]/.test(t) && !hasAddress && !/hola|buen|que|cuanto|precio|costo|combo|asado|carne|picada|oferta|gracias|ok|si|no/i.test(t)));
+
+    if (isJustName && !hasAddress && t.length >= 3 && t.length <= 45) {
+      const finalName = extractedNameFromText || rawText.replace(/^(soy|me llamo|mi nombre es|mi nombre|mi onmbre)\s+/i, '').trim();
       
-      if (extractedName.length > 1) {
-        db.updateLead(lead.jid || lead.id, { name: extractedName, pushName: extractedName });
-        
-        // Recuperar dirección previa guardada en notas o historial
+      if (finalName.length >= 2) {
+        db.updateLead(lead.jid || lead.id, { name: finalName, pushName: finalName });
+
+        // Recuperar dirección previa guardada
         let savedAddress = lead.notes?.replace('Dirección de entrega: ', '') || '';
         if (!savedAddress || savedAddress === 'A coordinar') {
-          const addressMsg = history.find(m => m.sender === 'user' && /funes|locelso|calle|av|[0-9]{3,5}/i.test(m.content));
-          if (addressMsg) savedAddress = addressMsg.content;
+          const addressMsg = history.find(m => m.sender === 'user' && /locelso|funes|calle|av|[0-9]{3,5}/i.test(m.content));
+          if (addressMsg) {
+            savedAddress = addressMsg.content.replace(/a mi domicilio,?\s*/gi, '').trim();
+          }
         }
-        if (!savedAddress) savedAddress = 'A convenir';
-        
+        if (!savedAddress) savedAddress = 'A coordinar con delivery';
+
         let orderItems = [];
         let totalAmount = 0;
-        if (historyText.includes('asadazo') || historyText.includes('combo')) {
+        if (historyText.includes('asadazo') || historyText.includes('combo') || t.includes('combo')) {
           orderItems.push('• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999');
           totalAmount += 39999;
         } else {
-          orderItems.push('• 1x Combo Asado Seleccionado — $24.000');
-          totalAmount += 24000;
+          orderItems.push('• 1x Combo Asadazo (4 kg cortes parrilleros + Vino de regalo) — $39.999');
+          totalAmount += 39999;
         }
 
         const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
         db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
 
-        return `¡Perfecto ${extractedName}! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${extractedName}\n📍 *Destino:* ${savedAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
+        return `¡Perfecto ${finalName}! 🎉 Ya quedó 100% asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalName}\n📍 *Destino de Entrega:* ${savedAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al repartidor o por Transferencia al Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
       }
     }
-    
-    // 1.2 Si el cliente envía la Dirección
+
+    // 1.4 Si el mensaje contiene Dirección
     if (hasAddress && t.length > 5) {
-      // Extraer posible nombre si viene antes de la coma (ej: "Juan Gonzales, calle...")
-      let clientName = '';
-      if (rawText.includes(',')) {
-        const parts = rawText.split(',');
-        if (parts[0].trim().length > 3 && !/calle|av|domicilio|entrega|envio/i.test(parts[0])) {
-          clientName = parts[0].trim();
-          db.updateLead(lead.jid || lead.id, { name: clientName, pushName: clientName });
-        }
-      }
-
       // Guardar dirección en notas del lead
-      db.updateLead(lead.jid || lead.id, { notes: `Dirección de entrega: ${rawText}` });
+      db.updateLead(lead.jid || lead.id, { notes: `Dirección de entrega: ${cleanAddress}` });
 
-      // Buscar qué combo o corte pidió
-      let comboName = 'Combo Asadazo ($39.999)';
-      let orderItems = [];
-      let totalAmount = 0;
-
-      if (historyText.includes('asadazo') || t.includes('asadazo')) {
-        orderItems.push('• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999');
-        totalAmount += 39999;
-      } else if (historyText.includes('combo') || t.includes('combo')) {
-        orderItems.push('• 1x Combo Asado Completo (4 Personas) — $24.000');
-        totalAmount += 24000;
+      // Si se extrajo un nombre válido en este mismo mensaje
+      let finalClientName = extractedNameFromText;
+      if (!finalClientName && customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') && customerName !== 'Don Juan') {
+        finalClientName = customerName;
       }
 
-      if (historyText.includes('molida') || historyText.includes('picada') || t.includes('molida') || t.includes('picada')) {
-        orderItems.push('• 1 kg Carne Picada Especial (100% pulpa magra) — $5.800');
-        totalAmount += 5800;
+      // Si tenemos el nombre del cliente (ya sea en este mensaje o guardado)
+      if (finalClientName) {
+        db.updateLead(lead.jid || lead.id, { name: finalClientName, pushName: finalClientName });
+
+        let orderItems = [];
+        let totalAmount = 0;
+
+        if (historyText.includes('asadazo') || t.includes('asadazo') || historyText.includes('combo')) {
+          orderItems.push('• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999');
+          totalAmount += 39999;
+        } else {
+          orderItems.push('• 1x Combo Asadazo (4 kg cortes parrilleros + Vino de regalo) — $39.999');
+          totalAmount += 39999;
+        }
+
+        const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
+        db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
+
+        return `¡Excelente ${finalClientName}! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalClientName}\n📍 *Destino de Entrega:* ${cleanAddress}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
       }
 
-      if (orderItems.length === 0) {
-        orderItems.push('• 1x Combo Asadazo (4 kg + Vino de regalo) — $39.999');
-        totalAmount = 39999;
-      }
-
-      // Si NO sabemos el nombre real del cliente, se lo pedimos cordialmente para etiquetar el paquete
-      const isGenericName = !clientName && (!customerName || customerName.includes('Contacto') || customerName.startsWith('+') || customerName === 'Don Juan');
-      if (isGenericName) {
-        db.updateLead(lead.jid || lead.id, { stage: 'proposal' });
-        return `¡Excelente! Ya registré tu dirección: **${rawText.trim()}** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊 [[STAGE:proposal]]`;
-      }
-
-      // Si ya tenemos el nombre, generamos el ticket completo de confirmación
-      const finalName = clientName || customerName;
-      const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
-      db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
-
-      return `¡Excelente ${finalName}! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n👤 *Cliente:* ${finalName}\n📍 *Destino de Entrega:* ${rawText.trim()}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
+      // Si NO hay nombre en absoluto
+      db.updateLead(lead.jid || lead.id, { stage: 'proposal' });
+      return `¡Excelente! Ya registré tu dirección: **${cleanAddress}** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊 [[STAGE:proposal]]`;
     }
 
     // =========================================================================

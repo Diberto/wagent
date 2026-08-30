@@ -166,15 +166,16 @@
         "WhatsApp"
       ],
       "aiEnabled": true,
-      "unreadCount": 2,
+      "unreadCount": 7,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T19:09:24.000Z",
+      "updatedAt": "2026-08-30T19:12:52.000Z",
       "jid": "153051277086768@lid",
       "name": "Don Juan",
       "phone": "+153051277086768",
       "pushName": "Don Juan",
-      "lastMessage": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
-      "lastMessageAt": "2026-08-30T19:09:24.000Z"
+      "lastMessage": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "lastMessageAt": "2026-08-30T19:12:52.000Z",
+      "notes": "Dirección de entrega: a mi domicilio, Locelso 7089, Juan Gonzalez mi nombre completo"
     },
     {
       "id": "lead-1788111841514-dvhgd",
@@ -1682,6 +1683,223 @@
       "sender": "agent",
       "type": "text",
       "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0C0EE5569B1EA56BED5",
+      "timestamp": "2026-08-30T19:09:40.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "mi domicilio locelso 7089, Juan gonzalez mi nombre",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB09B56F1B085A0852568",
+      "timestamp": "2026-08-30T19:11:34.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "mi domicilio locelso 7089, Juan gonzalez mi nombre",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788117097944-rs0hj5",
+      "timestamp": "2026-08-30T19:11:37.943Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **mi domicilio locelso 7089, Juan gonzalez mi nombre** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊"
+    },
+    {
+      "id": "msg-1788117098397-7rf6o1",
+      "timestamp": "2026-08-30T19:11:38.396Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **mi domicilio locelso 7089, Juan gonzalez mi nombre** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊"
+    },
+    {
+      "id": "3EB06A46BBCBAF29EF188E",
+      "timestamp": "2026-08-30T19:11:37.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **mi domicilio locelso 7089, Juan gonzalez mi nombre** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0D8E6F0EF3F6E18BE05",
+      "timestamp": "2026-08-30T19:11:38.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **mi domicilio locelso 7089, Juan gonzalez mi nombre** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB044D3CEE7A681990BD9",
+      "timestamp": "2026-08-30T19:11:47.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "mi domicilio locelso 7089, Juan gonzalez mi nombre completo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788117110384-hgbcmu",
+      "timestamp": "2026-08-30T19:11:50.383Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **mi domicilio locelso 7089, Juan gonzalez mi nombre completo** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊"
+    },
+    {
+      "id": "3EB0F80B88D9C4DA2D65B5",
+      "timestamp": "2026-08-30T19:11:50.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **mi domicilio locelso 7089, Juan gonzalez mi nombre completo** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB01916B6AFDE1AA8E683",
+      "timestamp": "2026-08-30T19:11:59.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Juan Gonzalez",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788117122992-ly4bvg",
+      "timestamp": "2026-08-30T19:12:02.991Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB0AD74415FC1B4363F54",
+      "timestamp": "2026-08-30T19:12:02.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB05D8BEE30F4AC34093E",
+      "timestamp": "2026-08-30T19:12:14.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "solo el ombo asadazo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788117137731-llfop4",
+      "timestamp": "2026-08-30T19:12:17.731Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩"
+    },
+    {
+      "id": "3EB0FDEBB4B56154971509",
+      "timestamp": "2026-08-30T19:12:17.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De una Don Juan! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB0055435D4248246354E",
+      "timestamp": "2026-08-30T19:12:34.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "a mi domicilio, Locelso 7089, Juan Gonzalez mi nombre completo",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788117157570-vq6g0q",
+      "timestamp": "2026-08-30T19:12:37.569Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **a mi domicilio, Locelso 7089, Juan Gonzalez mi nombre completo** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊"
+    },
+    {
+      "id": "3EB0E674BAB78231F63260",
+      "timestamp": "2026-08-30T19:12:37.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente! Ya registré tu dirección: **a mi domicilio, Locelso 7089, Juan Gonzalez mi nombre completo** para la entrega del pedido 🥩🔥\n\nSolo me faltaría tu **Nombre y Apellido** para colocar en la etiqueta del envío del delivery. ¿A nombre de quién te lo dejamos? 😊",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB01F0A0A9088AB2D8E8C",
+      "timestamp": "2026-08-30T19:12:49.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Juan Gonzalez",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788117172447-f7ry5i",
+      "timestamp": "2026-08-30T19:12:52.446Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB00841176BFEB3BC5B4A",
+      "timestamp": "2026-08-30T19:12:52.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
       "mediaUrl": null,
       "audioDuration": 0
     }
