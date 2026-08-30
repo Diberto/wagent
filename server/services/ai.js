@@ -56,12 +56,23 @@ ${productCatalogContext || 'Consultar con asesor humano.'}
 BASE DE CONOCIMIENTOS DE LA EMPRESA (HORARIOS, ENVÍOS, PAGOS, POLÍTICAS):
 ${kbContext || 'No hay artículos específicos cargados en la base de conocimientos.'}
 
-INSTRUCCIONES CLAVE DE FORMATO Y ESTILO:
-- Responde de forma cálida, humana, conversacional y persuasiva (hablando en primera persona con la personalidad asignada).
-- Máximo 1 o 2 párrafos cortos (ideal para WhatsApp).
-- Utiliza la información del Catálogo de Productos para dar precios exactos, recomendar cortes/artículos y armar pedidos según lo que el cliente busque.
-- Si el cliente pregunta qué cortes llevar para un asado o comida, asesóralo con cantidades por persona (aprox 500g de carne por persona para asado) y sugiere combos o cortes rendidores.
-- Si detectas que la etapa del cliente cambió claramente (ej. pidió cotización -> 'proposal', confirmó compra/pago -> 'closed_won', desinterés -> 'closed_lost'), incluye al final de tu mensaje: [[STAGE:nuevo_estado]] (opciones: new_lead, qualified, negotiating, proposal, closed_won, closed_lost).`;
+INSTRUCCIONES CLAVE DE CIERRE DE VENTAS Y TOMA DE PEDIDOS:
+1. SI EL CLIENTE CONSULTA POR UN PRODUCTO O CORTE: Bríndale el precio exacto del Catálogo de Productos, explícale para qué cocción es ideal y pregúntale: "¿Te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección y nombre así te preparo el pedido."
+2. SI EL CLIENTE PIDE O CONFIRMA UN PRODUCTO/COMBO (ej: "quiero un combo asadazo", "dame 1kg de picada"):
+   - Confirma de inmediato la reserva del producto y el precio total.
+   - Pídele sus datos de entrega: "Pasame tu dirección de entrega y nombre completo para coordinar el despacho ahora mismo."
+   - Incluye al final: [[STAGE:proposal]]
+3. SI EL CLIENTE PROPORCIONA SU DIRECCIÓN O DATOS DE ENVÍO (ej: "Juan Perez, calle..."):
+   - CIERRA Y CONFIRMA EL PEDIDO INMEDIATAMENTE con un Resumen Oficial estructurado:
+     📋 *RESUMEN DE TU PEDIDO:*
+     • [Productos pedidos, cantidades y precios]
+     💰 *Total a abonar:* $[Monto total]
+     📍 *Entrega:* [Dirección informada]
+     🚚 *Despacho:* Programado para el día (dentro de las 24 hs).
+     💳 *Medios de Pago:* Efectivo contraentrega o Transferencia al Alias: republica.carne.mp
+   - Pregúntale si prefiere abonar en efectivo al repartidor o por transferencia.
+   - Incluye al final: [[STAGE:closed_won]] [[PAYMENT_AMOUNT:monto_total]]
+4. Si el cliente pregunta sucursal cercana, horarios o envíos, responde con precisión de la base de datos.`;
 
     let replyText = '';
 
@@ -321,72 +332,149 @@ Responde en español de forma concisa (1 a 2 párrafos cortos para WhatsApp).`;
    */
   static generateDynamicReply(text, lead, knowledgeBase, settings) {
     const t = (text || '').toLowerCase().trim();
+    const rawText = text || '';
     const customerName = lead.pushName || lead.name || '';
-    const nameGreeting = customerName && !customerName.includes('Contacto') ? ` ${customerName}` : '';
-
-    // 0. Nota de voz recibida
-    if (t.includes('nota de voz recibida') || t.includes('audio recibido')) {
-      return `¡Hola${nameGreeting}! He recibido tu nota de voz con éxito. Estoy a tu entera disposición para resolver tus dudas sobre nuestros productos, precios, envíos o formas de pago. ¿En qué podemos ayudarte el día de hoy?`;
-    }
-
-    // 1. Saludos
-    if (/^(hola|buen|buenas|que tal|saludos|hey|alo)/i.test(t)) {
-      return `¡Hola${nameGreeting}! 👋 Un gusto saludarte. Soy la asesora virtual de ${settings.businessName || 'nuestra empresa'}. ¿En qué producto o servicio te podemos ayudar hoy?`;
-    }
-
-    // 2. Búsqueda directa en Catálogo de Productos
+    const nameGreeting = customerName && !customerName.includes('Contacto') && !customerName.startsWith('+') ? ` ${customerName}` : '';
     const products = db.getProducts();
-    for (const prod of products) {
-      if (t.includes(prod.name.toLowerCase()) || (prod.category && t.includes(prod.category.toLowerCase()))) {
-        return `¡Excelente elección! Tenemos ${prod.name} (${prod.category}) a $${prod.price} por ${prod.unit || 'kg'}. ${prod.description || 'De primera calidad y súper tierno.'}\n\n¿Cuántos ${prod.unit || 'kilos'} te gustaría encargar o para cuántas personas vas a cocinar? 🥩`;
-      }
-    }
 
-    // 2.1 Asado específico
-    if (t.includes('asado') || t.includes('parrilla') || t.includes('brasa')) {
-      return `¡Un buen asado nunca falla! 🔥 Para calcular bien, recomendamos unos 500g de carne por persona. Contamos con Costilla ($7.800/kg), Vacío ($8.900/kg), Entraña ($9.900/kg) y Chorizo criollo ($4.500/kg).\n\n¿Para cuántas personas sería el asado y te armamos el pedido a medida? 🥩`;
-    }
-
-    // 2.2 Búsqueda en Base de Conocimientos (Horarios, Envíos, Pagos)
-    for (const item of knowledgeBase) {
-      const match = (item.keywords || []).some(k => t.includes(k.toLowerCase())) ||
-                    t.includes(item.title.toLowerCase()) ||
-                    (item.content && item.content.toLowerCase().includes(t));
-      if (match) {
-        let reply = `${item.content}`;
-        if (item.productPrice) {
-          reply += `\n💰 *Precio:* $${item.productPrice}`;
+    // =========================================================================
+    // 1. DETECTOR DE DATOS DE ENVÍO / DIRECCIÓN / CONFIRMACIÓN DE PEDIDO
+    // (Ej: "Juan Gonzales, calle angel locelso 7100", "av siempre viva 123", "barrio...")
+    // =========================================================================
+    const hasAddress = /calle|av\.|avenida|barrio|altura|piso|dpto|entre\s|nro|n°|[0-9]{3,5}/i.test(t) || 
+                       (rawText.includes(',') && /[0-9]/.test(rawText));
+    
+    if (hasAddress && t.length > 5) {
+      // Extraer posible nombre si viene antes de la coma (ej: "Juan Gonzales, calle...")
+      let clientName = customerName;
+      if (rawText.includes(',')) {
+        const parts = rawText.split(',');
+        if (parts[0].trim().length > 3 && !/calle|av/i.test(parts[0])) {
+          clientName = parts[0].trim();
+          db.updateLead(lead.jid || lead.id, { name: clientName, pushName: clientName });
         }
-        reply += `\n\n¿Te gustaría realizar tu pedido o necesitas más detalles? 😊`;
-        return reply;
+      }
+
+      // Guardar dirección en notas del lead
+      db.updateLead(lead.jid || lead.id, { notes: `Dirección de entrega: ${rawText}` });
+
+      // Buscar en el historial qué productos o combos se hablaron
+      const history = db.getMessages(lead.jid || lead.id, 10);
+      const historyText = history.map(m => m.content).join(' ').toLowerCase();
+
+      let orderItems = [];
+      let totalAmount = 0;
+
+      if (historyText.includes('asadazo') || t.includes('asadazo')) {
+        orderItems.push('• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999');
+        totalAmount += 39999;
+      } else if (historyText.includes('combo') || t.includes('combo')) {
+        orderItems.push('• 1x Combo Asado Completo (4 Personas) — $24.000');
+        totalAmount += 24000;
+      }
+
+      if (historyText.includes('molida') || historyText.includes('picada') || t.includes('molida') || t.includes('picada')) {
+        orderItems.push('• 1 kg Carne Picada Especial (100% pulpa magra) — $5.800');
+        totalAmount += 5800;
+      }
+
+      if (historyText.includes('costeleta') || t.includes('costeleta')) {
+        orderItems.push('• 2 kg Costeleta de Cerdo en Promoción — $15.000');
+        totalAmount += 15000;
+      }
+
+      if (historyText.includes('milanesa') || t.includes('milanesa')) {
+        orderItems.push('• 2 kg Milanesas de Ternera Rebozadas — $24.990');
+        totalAmount += 24990;
+      }
+
+      // Si no detectó productos específicos del historial, asignar pedido estándar
+      if (orderItems.length === 0) {
+        orderItems.push('• 1x Combo Asado Seleccionado — $24.000');
+        totalAmount = 24000;
+      }
+
+      // Formatear Total
+      const formattedTotal = `$${totalAmount.toLocaleString('es-AR')}`;
+
+      // Actualizar CRM Lead a Ganado con el Monto del Trato
+      db.updateLead(lead.jid || lead.id, { value: totalAmount, stage: 'closed_won' });
+
+      return `¡Excelente${clientName ? ` ${clientName}` : ''}! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n📋 *RESUMEN DE TU PEDIDO:*\n${orderItems.join('\n')}\n💰 *Total a abonar:* ${formattedTotal}\n\n📍 *Destino de Entrega:* ${rawText.trim()}\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: \`republica.carne.mp\`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩 [[STAGE:closed_won]] [[PAYMENT_AMOUNT:${totalAmount}]]`;
+    }
+
+    // =========================================================================
+    // 2. DETECTOR DE COMBOS Y OFERTAS (Prioridad Alta)
+    // (Ej: "como viene el combo", "que trae el combo", "quiero el combo asadazo", "ofertas")
+    // =========================================================================
+    const isComboQuery = /combo|asadazo|azadado|asadado|azadazo/i.test(t);
+    const isComboDetailsQuery = isComboQuery && (/como viene|que trae|que incluye|que tiene|detalle|contenido/i.test(t) || t.includes('?'));
+
+    if (isComboDetailsQuery || (t.includes('como viene') && t.includes('combo'))) {
+      return `¡El **Combo “Asadazo”** viene completísimo para la parrilla! 🔥\n\nIncluye **4 kg** de cortes seleccionados:\n🥩 Bocado\n🥩 Aguja parrillera\n🥩 Falda tierna\n🌭 Chorizo puro cerdo\n🌭 Morcilla bombón\n🎁 **De regalo:** 1 Vino Howlmande\n\n💰 **Precio Promo:** **$39.999** (hasta agotar stock).\n\n¿Te gustaría que te lo enviemos a domicilio? Pasame tu dirección y te lo preparamos ahora mismo 🥩 [[STAGE:proposal]]`;
+    }
+
+    if (isComboQuery) {
+      return `¡De una${nameGreeting}! 🔥 Te anoto el *Combo Asadazo* (4 kg de Bocado, Chorizo, Aguja, Morcilla, Falda + Vino Howlmande de regalo) en promoción a solo **$39.999**.\n\nDecime, ¿te lo enviamos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección de entrega y nombre completo así te armo el pedido ahora mismo. 🥩 [[STAGE:proposal]]`;
+    }
+
+    if (t.includes('oferta') || t.includes('promocion') || t.includes('promo') || t.includes('descuento')) {
+      return `¡Tenemos promociones tremendas este mes! 🔥\n\n🥩 *Combo Asadazo (4kg + Vino de regalo):* $39.999\n🥩 *Costeleta de Cerdo (2kg):* $15.000\n🥩 *Molida Intermedia (3kg):* $27.000\n🥩 *Milanesas de Ternera (2kg):* $24.990\n🌭 *Chori Criollo (2kg):* $10.000\n\n¿Cuál de estas promos te gustaría que te preparemos para entrega? 🥩 [[STAGE:negotiating]]`;
+    }
+
+    // =========================================================================
+    // 3. DETECTOR DE CORTES POR KILO / PEDIDO DIRECTO
+    // (Ej: "quiero 1 kilo de carne molida", "dame 2 kilos de costilla")
+    // =========================================================================
+    const kiloMatch = t.match(/([0-9]+)\s*(?:kilo|kg|quilo|kilos|kgs)/i);
+    const kilos = kiloMatch ? parseInt(kiloMatch[1], 10) : 1;
+
+    for (const prod of products) {
+      const prodName = prod.name.toLowerCase();
+      if (t.includes(prodName) || (prodName.includes('picada') && (t.includes('molida') || t.includes('picada'))) || (prodName.includes('costilla') && t.includes('costilla')) || (prodName.includes('vacio') && t.includes('vacio')) || (prodName.includes('matambre') && t.includes('matambre')) || (prodName.includes('entraña') && t.includes('entraña')) || (prodName.includes('milanesa') && t.includes('milanesa'))) {
+        const itemTotal = prod.price * kilos;
+        return `¡Excelente elección${nameGreeting}! 🥩 Ya te separo los ${kilos} ${prod.unit || 'kg'} de **${prod.name}** a **$${itemTotal.toLocaleString('es-AR')}** ($${prod.price}/${prod.unit || 'kg'}).\n\nDecime, ¿preferís que te lo enviemos a domicilio o pasás a retirarlo por sucursal? Pasame tu dirección y nombre así coordinamos la entrega. [[STAGE:proposal]]`;
       }
     }
 
-    // 3. Consultas de catálogo general ("qué productos tienen", "qué venden", "catálogo", "lista")
-    if (t.includes('producto') || t.includes('venden') || t.includes('catalogo') || t.includes('ofrecen') || t.includes('tienen') || t.includes('servicio') || t.includes('precio') || t.includes('cuanto') || t.includes('carne') || t.includes('corte')) {
-      const productItems = products.length > 0
-        ? products.slice(0, 6).map(p => `• *${p.name}*: $${p.price}/${p.unit || 'kg'}`).join('\n')
-        : knowledgeBase.map(k => `• *${k.title}*: ${k.content.substring(0, 75)}...`).join('\n');
-      
-      return `¡Con gusto! Contamos con los mejores cortes y productos frescos:\n\n${productItems}\n\n¿Cuál de estos te gustaría llevar hoy? Podés pedirnos por kilo o indicarnos para cuántas personas es la comida. 🥩`;
+    // =========================================================================
+    // 4. CONSULTA DE ASADO / RECOMENDACIÓN
+    // =========================================================================
+    if (t.includes('asado') || t.includes('parrilla') || t.includes('brasa')) {
+      return `¡Un buen asado nunca falla${nameGreeting}! 🔥 Para calcular bien, recomendamos unos 500g de carne por persona. Contamos con:\n• *Combo Asadazo (4 personas + vino):* $39.999\n• *Costilla de Novillito:* $7.800/kg\n• *Vacío Especial:* $8.900/kg\n• *Entraña Fina:* $9.900/kg\n• *Chorizo Criollo:* $4.500/kg\n\n¿Para cuántas personas vas a prender el fuego y te armamos el pedido a medida? 🥩 [[STAGE:qualified]]`;
     }
 
-    // 4. Métodos de Pago
+    // =========================================================================
+    // 5. MÉTODOS DE PAGO / ALIAS CBU
+    // =========================================================================
     if (t.includes('pago') || t.includes('transferencia') || t.includes('tarjeta') || t.includes('efectivo') || t.includes('pagar') || t.includes('cbu') || t.includes('alias')) {
-      return `¡Excelente! Aceptamos Transferencias Bancarias, Tarjetas de Crédito/Débito y Efectivo. Si realizas una transferencia, puedes enviarnos el comprobante por aquí en foto y lo confirmaremos de inmediato. [[STAGE:negotiating]]`;
+      return `¡Excelente! Aceptamos Efectivo al recibir el pedido, Transferencias Bancarias, Mercado Pago y Tarjetas de Débito/Crédito.\n\n📱 *Alias de Transferencia:* \`republica.carne.mp\`\n\nSi realizás una transferencia, envianos el comprobante por acá en foto y lo acreditamos al instante. [[STAGE:negotiating]]`;
     }
 
-    // 5. Solicitud de llamada o atención humana
-    if (t.includes('llamar') || t.includes('llames') || t.includes('llamada') || t.includes('humano') || t.includes('asesor') || t.includes('telefono')) {
-      return `¡Por supuesto! He registrado tu solicitud para que uno de nuestros asesores comerciales se comunique contigo a la brevedad. También puedes llamarnos directamente por este mismo WhatsApp cuando gustes. 📞 [[STAGE:qualified]]`;
+    // =========================================================================
+    // 6. SUCURSALES / UBICACIONES / HORARIOS
+    // =========================================================================
+    if (t.includes('sucursal') || t.includes('donde') || t.includes('direccion') || t.includes('horario') || t.includes('urca') || t.includes('quiros') || t.includes('villa allende')) {
+      return `Contamos con 6 sucursales en Córdoba para atenderte:\n\n1. **Urca Central:** Av. José Roque Funes 1115 (9 a 21 hs)\n2. **Urca 2 - Alto Tejeda:** Av. Menéndez Pidal 3575\n3. **Corteza Mall:** Av. Los Álamos 1015 (9 a 21 hs)\n4. **Duarte Quirós:** Av. Duarte Quirós 5130\n5. **Villa Allende:** Av. Figueroa Alcorta 480\n6. **Country San Isidro:** Av. Padre Luchesse km 2\n\n¡Además hacemos envíos a domicilio en el día! ¿En qué barrio o zona estás así coordinamos tu entrega? 🚚`;
     }
 
-    // 6. Afirmaciones ("si", "dale", "de acuerdo", "quiero")
-    if (/^(si|dale|de una|perfecto|ok|bueno|quiero|me interesa)/i.test(t)) {
-      return `¡Excelente decisión! 🌟 Por favor indícanos tus datos de envío o nombre completo para preparar tu pedido y confirmarte el total a abonar. [[STAGE:proposal]]`;
+    // =========================================================================
+    // 7. CONFIRMACIONES / AFIRMACIONES ("si", "dale", "de una", "bueno")
+    // =========================================================================
+    if (/^(si|dale|de una|perfecto|ok|bueno|quiero|me interesa|anotame)/i.test(t)) {
+      return `¡De diez${nameGreeting}! 🌟 Pasame por favor tu nombre completo y la dirección de entrega (o sucursal de retiro) así te dejo el pedido confirmado y preparado. 🥩 [[STAGE:proposal]]`;
     }
 
-    // 7. Respuesta por defecto enriquecida
-    return `He registrado tu mensaje: "${text}". ¿Deseas consultar sobre alguno de nuestros productos, formas de pago, envíos o prefieres que un asesor te asista personalmente? 😊`;
+    // =========================================================================
+    // 8. SALUDOS
+    // =========================================================================
+    if (/^(hola|buen|buenas|que tal|saludos|hey|alo)/i.test(t)) {
+      return `¡Hola${nameGreeting}! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩`;
+    }
+
+    // =========================================================================
+    // 9. RESPUESTA ASISTIDA DE VENTA POR DEFECTO
+    // =========================================================================
+    return `¡Con gusto${nameGreeting}! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩`;
   }
 }
