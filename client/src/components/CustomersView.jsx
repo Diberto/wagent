@@ -20,7 +20,10 @@ import {
   RefreshCw,
   ChefHat,
   CreditCard,
-  Plus
+  Plus,
+  Copy,
+  Trash2,
+  X
 } from 'lucide-react';
 
 export default function CustomersView({ socket, onSelectLeadForChat }) {

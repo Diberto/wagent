@@ -34,7 +34,7 @@
       "status": "in_transit",
       "notes": "Cliente confirmó pago en efectivo contraentrega.",
       "createdAt": "2026-08-30T19:32:20.000Z",
-      "updatedAt": "2026-08-30T19:46:17.030Z"
+      "updatedAt": "2026-08-30T19:52:28.097Z"
     }
   ],
   "knowledgeBase": [
@@ -177,6 +177,32 @@
   ],
   "leads": [
     {
+      "id": "lead-1788119701908-tuxrr",
+      "jid": "80659922063454@lid",
+      "altJids": [],
+      "phone": "+80659922063454",
+      "name": "VittVittz 🖖🏼",
+      "pushName": "VittVittz 🖖🏼",
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T19:55:01.908Z",
+      "updatedAt": "2026-08-30T19:56:00.137Z",
+      "lastMessage": "¡Con gusto VittVittz 🖖🏼! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "lastMessageAt": "2026-08-30T19:55:59.000Z"
+    },
+    {
       "id": "lead-1788107987079-jk80w",
       "stage": "closed_won",
       "value": 39999,
@@ -188,7 +214,7 @@
       "aiEnabled": true,
       "unreadCount": 0,
       "createdAt": "2026-08-30T16:39:47.079Z",
-      "updatedAt": "2026-08-30T19:46:06.861Z",
+      "updatedAt": "2026-08-30T20:00:25.000Z",
       "jid": "153051277086768@lid",
       "name": "Juan Gonzalez",
       "phone": "+153051277086768",
@@ -210,8 +236,8 @@
         "preferredPayment": "Efectivo al repartidor",
         "notes": "Cliente de Barrio Urca. Prefiere cortes parrilleros jugosos y abono en efectivo contraentrega."
       },
-      "lastMessage": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
-      "lastMessageAt": "2026-08-30T19:39:45.000Z",
+      "lastMessage": "🎤 [Nota de voz]",
+      "lastMessageAt": "2026-08-30T20:00:25.000Z",
       "notes": "Dirección: Roque Funes 1704 | Pedido #ORD-1042",
       "altJids": [
         "153051277086768@s.whatsapp.net"
@@ -2337,6 +2363,247 @@
       "content": "¡Hola efectivo! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-6098\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Dirección: quiero un combo asadazo para roque funes 1704,  a nombre de Juan Gonzalez, abono al repartidor | Pedido #ORD-1983\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
       "mediaUrl": null,
       "audioDuration": 0
+    },
+    {
+      "id": "3EB081F7723B00D46E8B74",
+      "timestamp": "2026-08-30T19:51:58.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "recuerdas mi peidod",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788119521946-avm4zx",
+      "timestamp": "2026-08-30T19:52:01.945Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-1042\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Roque Funes 1704, Barrio Urca\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩"
+    },
+    {
+      "id": "3EB0967BA14A05B1837186",
+      "timestamp": "2026-08-30T19:52:01.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-1042\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Roque Funes 1704, Barrio Urca\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "3EB09E55A51BB896A54CC6",
+      "timestamp": "2026-08-30T19:52:14.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "en que estado esta?",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788119538077-sgzzkr",
+      "timestamp": "2026-08-30T19:52:18.076Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-1042\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Roque Funes 1704, Barrio Urca\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩"
+    },
+    {
+      "id": "3EB0ED2C2C2D20051861C9",
+      "timestamp": "2026-08-30T19:52:18.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 👋 Sí, acá tengo registrado tu pedido en el sistema:\n\n🆔 *N° de Pedido:* #ORD-1042\n📋 *Detalle:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total:* $39.999\n📍 *Entrega:* Roque Funes 1704, Barrio Urca\n🚚 *Estado:* Programado para despacho en el día (dentro de las 24 hs).\n\n¿Precisás sumar algún otro corte antes de que salga el repartidor? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788119548105-34i4m8",
+      "timestamp": "2026-08-30T19:52:28.104Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 🚚 Tu pedido #ORD-1042 ya salió de sucursal y va en camino hacia Roque Funes 1704, Barrio Urca. ¡Tené a mano el medio de pago acordado (Efectivo al repartidor)! 🥩🔥"
+    },
+    {
+      "id": "3EB05A8596FC4A7EC09A6F",
+      "timestamp": "2026-08-30T19:52:28.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Juan Gonzalez! 🚚 Tu pedido #ORD-1042 ya salió de sucursal y va en camino hacia Roque Funes 1704, Barrio Urca. ¡Tené a mano el medio de pago acordado (Efectivo al repartidor)! 🥩🔥",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "AC3E2ADA72067418E8C9E89A0E6AEEE6",
+      "timestamp": "2026-08-30T19:54:59.000Z",
+      "status": "received",
+      "chatId": "80659922063454@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788119705115-pi56t4",
+      "timestamp": "2026-08-30T19:55:05.114Z",
+      "status": "sent",
+      "chatId": "80659922063454@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola VittVittz 🖖🏼! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB0C969322B62C99DE6C9",
+      "timestamp": "2026-08-30T19:55:04.000Z",
+      "status": "sent",
+      "chatId": "80659922063454@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola VittVittz 🖖🏼! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "AC585D64790C7C83BEE0C7BC00F17B77",
+      "timestamp": "2026-08-30T19:55:20.000Z",
+      "status": "received",
+      "chatId": "80659922063454@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Me gustaría hacer una carne al horno bien jugosa",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788119730884-ai0zut",
+      "timestamp": "2026-08-30T19:55:30.883Z",
+      "status": "sent",
+      "chatId": "80659922063454@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto VittVittz 🖖🏼! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB04CBB73266407B0EB5C",
+      "timestamp": "2026-08-30T19:55:24.000Z",
+      "status": "sent",
+      "chatId": "80659922063454@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto VittVittz 🖖🏼! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "AC8872D2769CA49DAC6F6A7B3096EADE",
+      "timestamp": "2026-08-30T19:55:56.000Z",
+      "status": "received",
+      "chatId": "80659922063454@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Que otro corte tienen",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788119759608-9qihn5",
+      "timestamp": "2026-08-30T19:55:59.607Z",
+      "status": "sent",
+      "chatId": "80659922063454@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto VittVittz 🖖🏼! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩"
+    },
+    {
+      "id": "3EB07418990F6140F827F0",
+      "timestamp": "2026-08-30T19:55:59.000Z",
+      "status": "sent",
+      "chatId": "80659922063454@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Con gusto VittVittz 🖖🏼! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "2AB2A2D59F544848CFB7",
+      "timestamp": "2026-08-30T19:59:37.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788119978588_1l8c9s.mp3",
+      "audioDuration": 3
+    },
+    {
+      "id": "msg-1788119988699-idud84",
+      "timestamp": "2026-08-30T19:59:48.698Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": "/media/tts_raw_1788119983000_2ha8o.mp3",
+      "audioDuration": 14
+    },
+    {
+      "id": "3EB0D25D1FBC22C4E19251",
+      "timestamp": "2026-08-30T19:59:48.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788119989559_r37jc0.mp3",
+      "audioDuration": 18
+    },
+    {
+      "id": "2A8281B614AE3301C486",
+      "timestamp": "2026-08-30T20:00:16.000Z",
+      "status": "received",
+      "chatId": "153051277086768@lid",
+      "sender": "user",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788120017237_obg0z7.mp3",
+      "audioDuration": 6
+    },
+    {
+      "id": "msg-1788120025772-bdqt9x",
+      "timestamp": "2026-08-30T20:00:25.770Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Con gusto Don Juan! Tenemos cortes de novillito fresco, picada especial ($5.800/kg), costeletas y nuestro Combo Asadazo ($39.999). Decime qué corte o cuántos kilos te gustaría llevar y te lo preparamos con envío a domicilio. 🥩",
+      "mediaUrl": "/media/tts_raw_1788120021655_uydvh.mp3",
+      "audioDuration": 14
+    },
+    {
+      "id": "3EB09CEDD8143C001F02EF",
+      "timestamp": "2026-08-30T20:00:25.000Z",
+      "status": "sent",
+      "chatId": "153051277086768@lid",
+      "sender": "agent",
+      "type": "audio",
+      "content": "[Nota de voz recibida del cliente]",
+      "mediaUrl": "/media/audio_1788120027091_v6twgr.mp3",
+      "audioDuration": 19
     }
   ],
   "calls": [
