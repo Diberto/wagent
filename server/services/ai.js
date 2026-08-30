@@ -247,6 +247,37 @@ export class AIService {
     }
 
     // =========================================================================
+    // 0.15 RECORDAR ÚLTIMO PEDIDO / MEMORIA DE HISTORIAL DE COMPRA
+    // =========================================================================
+    const isOrderRecall = /recuerdas mi pedido|recordar mi pedido|mi ultimo pedido|mi último pedido|que te pedi|que te pedí|que compre|que compré|mi pedido anterior|mi pedido/i.test(t);
+    if (isOrderRecall) {
+      const lastOrder = db.getLatestOrderByJid(lead.jid || lead.id);
+      const clientName = (lead.name && !isGarbageName(lead.name)) ? lead.name : (nameGreeting || 'Don Juan');
+
+      if (lastOrder) {
+        const itemsList = (lastOrder.items || []).join('\n') || '• 1x Combo Asadazo (4 kg) — $39.999';
+        const formattedTotal = `$${(lastOrder.totalAmount || 39999).toLocaleString('es-AR')}`;
+        const statusMap = {
+          pending: 'Pendiente de despacho',
+          preparing: 'En preparación en carnicería',
+          in_transit: 'En camino con repartidor',
+          delivered: 'Entregado con éxito',
+          cancelled: 'Cancelado'
+        };
+        const statusText = statusMap[lastOrder.status] || 'Registrado';
+
+        return `¡Sí ${clientName}! 🥩🙌 Tengo registrado tu último pedido **#${lastOrder.id}**:\n\n` +
+          `📋 *Detalle del Pedido:*\n${itemsList}\n` +
+          `💰 *Total:* **${formattedTotal}**\n` +
+          `📍 *Destino de Entrega:* ${lastOrder.address || 'Domicilio'}\n` +
+          `📦 *Estado:* ${statusText}\n\n` +
+          `👉 ¿Querés que te repitamos exactamente este mismo pedido para despacharte hoy o preferís armar una combinación distinta? 🥩🔥 [[STAGE:proposal]]`;
+      } else {
+        return `¡Hola ${clientName}! 🥩 No tengo un pedido previo registrado todavía con este número. ¡Contame qué cortes estás buscando hoy o para cuántos comensales calculamos y te armo el pedido al toque! 🙌`;
+      }
+    }
+
+    // =========================================================================
     // 0.2 CONSULTA DIRECTA DE OFERTAS, PRECIOS, PROMOCIONES Y CORTES DISPONIBLES
     // =========================================================================
     const isOffersQuery = /oferta|ofertas|ofeta|ofetas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|que corte|que cortes hay|cortes en oferta|cortes tenes|cortes tenés|carta|catalogo|catálogo|opciones/i.test(t);
