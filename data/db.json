@@ -28,6 +28,22 @@
   },
   "orders": [
     {
+      "id": "ORD-9109",
+      "jid": "280044836511777@lid",
+      "phone": "+280044836511777",
+      "customerName": "Cheche",
+      "address": "Ezequiel feole \nTupac Yupanqui 8625",
+      "items": [
+        "• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999"
+      ],
+      "totalAmount": 39999,
+      "paymentMethod": "Efectivo / Transferencia",
+      "status": "preparing",
+      "notes": "",
+      "createdAt": "2026-08-30T21:13:56.225Z",
+      "updatedAt": "2026-08-30T21:23:57.273Z"
+    },
+    {
       "id": "ORD-2865",
       "jid": "153051277086768@lid",
       "phone": "+153051277086768",
@@ -248,6 +264,41 @@
     }
   ],
   "leads": [
+    {
+      "id": "lead-1788124325869-p41bh",
+      "jid": "280044836511777@lid",
+      "altJids": [],
+      "phone": "+280044836511777",
+      "name": "Cheche",
+      "pushName": "Cheche",
+      "stage": "closed_won",
+      "value": 39999,
+      "tags": [
+        "WhatsApp",
+        "Cliente Comprador"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "preferences": {
+        "favoriteCuts": [
+          "Combo “Asadazo”"
+        ],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-08-30T21:12:05.869Z",
+      "updatedAt": "2026-08-30T21:23:57.000Z",
+      "lastMessage": "¡Hola Cheche! 🥩 Te avisamos que tu pedido #ORD-9109 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor.",
+      "lastMessageAt": "2026-08-30T21:23:57.000Z",
+      "address": "Ezequiel feole \nTupac Yupanqui 8625",
+      "notes": "Dirección: Ezequiel feole \nTupac Yupanqui 8625 | Pedido #ORD-9109",
+      "totalOrders": 1,
+      "totalSpent": 39999,
+      "lastOrderAt": "2026-08-30T21:13:56.225Z",
+      "lastOrderId": "ORD-9109"
+    },
     {
       "id": "lead-1788121971349-hjggu",
       "jid": "5493516262475@s.whatsapp.net",
@@ -3516,6 +3567,150 @@
       "content": "[Nota de voz recibida del cliente]",
       "mediaUrl": "/media/audio_1788123933188_h3xx24.mp3",
       "audioDuration": 4
+    },
+    {
+      "id": "AC8E29F08168DE01DB41D15613F9AAE6",
+      "timestamp": "2026-08-30T21:12:04.000Z",
+      "status": "received",
+      "chatId": "280044836511777@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Hola",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788124329524-v867o7",
+      "timestamp": "2026-08-30T21:12:09.522Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Cheche! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩"
+    },
+    {
+      "id": "3EB040F41C624B725BF2DE",
+      "timestamp": "2026-08-30T21:12:08.000Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Cheche! 👋 Carlos por acá, carnicero de República de la Carne. Tenemos los mejores cortes parrilleros, combos de asado y ofertas del día. ¿En qué corte o comida te puedo dar una mano hoy? 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "AC1212C0DBF4B6BA691C03A50BBC5E1F",
+      "timestamp": "2026-08-30T21:12:30.000Z",
+      "status": "received",
+      "chatId": "280044836511777@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Quiero hacerte un pedido",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788124354175-ydjnn1",
+      "timestamp": "2026-08-30T21:12:34.173Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Cheche! 🌟 Pasame por favor tu nombre completo y la dirección de entrega (o sucursal de retiro) así te dejo el pedido confirmado y preparado. 🥩"
+    },
+    {
+      "id": "3EB037C79B9C23EA4A7116",
+      "timestamp": "2026-08-30T21:12:34.000Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Cheche! 🌟 Pasame por favor tu nombre completo y la dirección de entrega (o sucursal de retiro) así te dejo el pedido confirmado y preparado. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "AC50D920785635B8B2016D35F381C2ED",
+      "timestamp": "2026-08-30T21:13:29.000Z",
+      "status": "received",
+      "chatId": "280044836511777@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Quiero\n2kg de chorizos\n2kg de vacio",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788124412497-f1k5bs",
+      "timestamp": "2026-08-30T21:13:32.496Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Cheche! 🌟 Pasame por favor tu nombre completo y la dirección de entrega (o sucursal de retiro) así te dejo el pedido confirmado y preparado. 🥩"
+    },
+    {
+      "id": "3EB08D8E0CAB7534A9702C",
+      "timestamp": "2026-08-30T21:13:32.000Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡De diez Cheche! 🌟 Pasame por favor tu nombre completo y la dirección de entrega (o sucursal de retiro) así te dejo el pedido confirmado y preparado. 🥩",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "ACCFF2AEA2056ADA6FE4F7FE65E28DF1",
+      "timestamp": "2026-08-30T21:13:52.000Z",
+      "status": "received",
+      "chatId": "280044836511777@lid",
+      "sender": "user",
+      "type": "text",
+      "content": "Ezequiel feole \nTupac Yupanqui 8625",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788124436267-hokhpa",
+      "timestamp": "2026-08-30T21:13:56.267Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Cheche! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-9109\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* Cheche\n📍 *Destino de Entrega:* Ezequiel feole \nTupac Yupanqui 8625\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]"
+    },
+    {
+      "id": "3EB05813618DE41A12103A",
+      "timestamp": "2026-08-30T21:13:56.000Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Excelente Cheche! 🎉 Ya dejé asentado y confirmado tu pedido:\n\n🆔 *N° de Pedido:* #ORD-9109\n📋 *RESUMEN DE TU PEDIDO:*\n• 1x Combo “Asadazo” (4 kg cortes parrilleros + Vino de regalo) — $39.999\n💰 *Total a abonar:* $39.999\n\n👤 *Cliente:* Cheche\n📍 *Destino de Entrega:* Ezequiel feole \nTupac Yupanqui 8625\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n💳 *Medios de Pago:* Podés abonar en Efectivo al recibir o por Transferencia a nuestro Alias: `republica.carne.mp`\n\n¿Te gustaría abonar por transferencia ahora o preferís pagarle en efectivo al repartidor? 🥩  [[PAYMENT_AMOUNT:39999]]",
+      "mediaUrl": null,
+      "audioDuration": 0
+    },
+    {
+      "id": "msg-1788125044513-t1f7oh",
+      "timestamp": "2026-08-30T21:24:04.511Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Cheche! 🥩 Te avisamos que tu pedido #ORD-9109 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor."
+    },
+    {
+      "id": "3EB020B47A4CD21748BAEF",
+      "timestamp": "2026-08-30T21:23:57.000Z",
+      "status": "sent",
+      "chatId": "280044836511777@lid",
+      "sender": "agent",
+      "type": "text",
+      "content": "¡Hola Cheche! 🥩 Te avisamos que tu pedido #ORD-9109 ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor.",
+      "mediaUrl": null,
+      "audioDuration": 0
     }
   ],
   "calls": [
