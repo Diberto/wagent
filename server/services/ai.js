@@ -271,6 +271,10 @@ export function findAmbiguousProducts(chunk, dynamicCatalog = null) {
   const c = (chunk || '').toLowerCase().trim();
   if (!c) return null;
 
+  // Si el texto contiene múltiples productos o especificación clara de pedido con cantidades, no interrumpir con desambiguación genérica
+  const hasMultipleProductsOrQuantities = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?))/i.test(c) && /(?:y\b|con\b|adem[aá]s|m[aá]s|,)/i.test(c);
+  if (hasMultipleProductsOrQuantities) return null;
+
   const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : (db.getProducts() || MASTER_CATALOG);
 
   const eligibleCatalog = rawList.filter(p => {
@@ -303,7 +307,7 @@ export function findAmbiguousProducts(chunk, dynamicCatalog = null) {
     {
       term: 'CHORIZO',
       matchRegex: /\b(?:chorizo|chorizos|chori|choris)\b/i,
-      exactRegex: /\b(?:chorizo de cerdo|chorizo criollo|chorizo puro cerdo|chorizo con cheddar|chorizo gourmet|chorizo dubai|bife de chorizo)\b/i,
+      exactRegex: /\b(?:chorizo.*(?:cerdo|cero|criollo|puro|colorado|cheddar|gourmet|dubai)|bife de chorizo)\b/i,
       filter: p => {
         const n = (p.name || '').toLowerCase();
         if (n.includes('bife de chorizo')) return false;
@@ -407,10 +411,10 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     const isComboAsadazoQuery = /(?:combo\s+asadazo|asadazo)/i.test(c);
     const isCarbonQuery = /(?:carb[oó]n|bolsa\s+de\s+carb[oó]n|le[ñn]a)/i.test(c);
     const isChorizoQuery = /(?:chorizo|chorizos|chori|choris)/i.test(c);
-    const isCerdoQuery = /(?:cerdo|puro cerdo)/i.test(c);
+    const isCerdoQuery = /(?:cerdo|cero|puro cerdo)/i.test(c);
     const isMatambreQuery = /(?:matambre|matambrito)/i.test(c);
     const isVacioQuery = /(?:vacio|vacío)/i.test(c);
-    const isCostillaQuery = /(?:asado de tira|costillar|tira novillito|costilla|\btira\b|\basado\b)/i.test(c) && !isComboAsadazoQuery;
+    const isCostillaQuery = /(?:asado de tira|costillar|tira novillito|costilla|costillas|\btira\b|\basado\b)/i.test(c) && !isComboAsadazoQuery;
     const isBifeChorizoQuery = /(?:bife de chorizo|bife chorizo|bifes)/i.test(c);
     const isTapaCuadrilQuery = /(?:tapa de cuadril|tapa cuadril|picanha)/i.test(c);
     const isEntranaQuery = /(?:entraña|entrana)/i.test(c);
@@ -555,20 +559,52 @@ export function searchCatalogProducts(query, catalog = null, limit = 8) {
 }
 
 /**
+ * Limpia y divide un mensaje con múltiples productos de forma inteligente,
+ * corrigiendo errores tipográficos comunes y separando límites numéricos.
+ */
+export function cleanAndSplitMultiProductMessage(text) {
+  if (!text || typeof text !== 'string') return [];
+  let s = text.trim();
+  
+  // Normalizar errores tipográficos frecuentes
+  s = s.replace(/\bchorizos?\s+de\s+cero\b/gi, 'chorizos de cerdo')
+       .replace(/\bperonas\b/gi, 'personas')
+       .replace(/\b(costillas?|tira\s+de\s+asado)\b/gi, 'costillar')
+       .replace(/\bcarb[oó]n\b/gi, 'carbón');
+
+  // Insertar separador cuando un nuevo número/cantidad comienza después de palabras de producto
+  // Ej: "2 kilos de costillas 1 kilo de matambre" -> "2 kilos de costillas , 1 kilo de matambre"
+  s = s.replace(/([a-záéíóúñ]+)\s+(\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?))/gi, '$1 , $2');
+
+  // Separar cuando aparece un número solo seguido de nombre de corte común
+  s = s.replace(/([a-záéíóúñ]+)\s+(\d+)\s+(costillar|costillas?|vacio|vacío|matambre|matambrito|chorizo|chori|morcilla|milanesa|carbón|carbon|vino)/gi, '$1 , $2 $3');
+
+  // Separar por conectores ("y", ",", ".", "con", "más", "mas", "además", "ademas", saltos de línea)
+  const rawChunks = s.split(/\n+|(?:,\s*|\.\s+)(?![0-9])|\s+y\s+|\s+con\s+|\s+m[aá]s\s+|\s+mas\s+|\s+adem[aá]s\s+|\s+ademas\s+/i);
+
+  const finalChunks = [];
+  for (const chunk of rawChunks) {
+    const trimmed = chunk.trim();
+    if (!trimmed || trimmed.length < 2) continue;
+    finalChunks.push(trimmed);
+  }
+
+  return finalChunks;
+}
+
+/**
  * Encuentra todos los productos del catálogo mencionados en un texto
  */
 export function findAllMentionedProducts(text, catalog = null) {
   if (!text || typeof text !== 'string') return [];
   const list = (catalog && catalog.length > 0) ? catalog : (db.getProducts() || MASTER_CATALOG);
   const found = [];
-  const lower = text.toLowerCase();
 
-  // Dividir por conectores ("y", ",", "con", "más", "ademas", etc.)
-  const chunks = lower.split(/[\n,]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+|\s+adem[aá]s\s+/i);
+  const chunks = cleanAndSplitMultiProductMessage(text);
 
   for (const chunk of chunks) {
     const trimmed = chunk.trim();
-    if (trimmed.length < 3) continue;
+    if (trimmed.length < 2) continue;
     const match = matchBestProduct(trimmed, list);
     if (match && !found.some(f => f.id === match.id || f.name === match.name)) {
       found.push(match);
@@ -852,9 +888,9 @@ export function extractCleanAddress(rawText) {
  * Extrae con precisión los cortes y cantidades pedidos a lo largo de la conversación actual, sin duplicar
  */
 export function extractItemsFromHistoryAndText(history, text, products, lead = null) {
-  const isCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste|te dije|te ped[ií]|era solo|dije/i.test(text || '');
+  const isCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste|te dije|te ped[ií]|era solo|dije/i.test(text || '');
   const isAddition = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2/i.test(text || '');
-  const isHardReset = /est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|eso\s+no\s+es|nuevo ped|otro ped|empezar de cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrá todo|de cero|armar un nuevo|pedir otra cosa/i.test(text || '');
+  const isHardReset = /est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|eso\s+no\s+es|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrá todo|armar un nuevo|pedir otra cosa/i.test(text || '');
 
   const catalog = (products && products.length > 0) ? products : MASTER_CATALOG;
   const historyArr = history || [];
@@ -871,7 +907,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
         break;
       }
     } else if (m.sender === 'user') {
-      if (/est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|cancela.*ped|cancelar.*ped|nuevo ped|otro ped|empezar de cero|de cero|pedir otra cosa/i.test(m.content || '')) {
+      if (/est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|cancela.*ped|cancelar.*ped|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|pedir otra cosa/i.test(m.content || '')) {
         lastBoundaryIdx = i;
         boundaryIsUserStart = true;
         break;
@@ -924,7 +960,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     }
 
     // Si el mensaje es un reinicio o cancelación de pedido anterior
-    const isMsgReset = /est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|nuevo ped|otro ped|empezar de cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrá todo|de cero|armar un nuevo|cancelar el pedido|cancela el pedido|pedir otra cosa/i.test(msg);
+    const isMsgReset = /est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrá todo|armar un nuevo|cancelar el pedido|cancela el pedido|pedir otra cosa/i.test(msg);
     if (isMsgReset) {
       activeItemsMap.clear();
       continue;
@@ -1153,13 +1189,13 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    const isMsgAbsoluteOverride = /te dije|te ped[ií]|era solo|dije que|solo quiero|no entendes|no entendés|dije/i.test(msg);
+    const isMsgAbsoluteOverride = /te dije|te ped[ií]|era solo|dije que|solo quiero|quiero solo|no entendes|no entendés|dije/i.test(msg);
     if (isMsgAbsoluteOverride) {
       activeItemsMap.clear();
     }
 
-    const isMsgCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|un solo|una sola|no, solo|nada mas/i.test(msg);
-    const chunks = msg.split(/\n+|(?:,\s*|\.\s+)(?![0-9])|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
+    const isMsgCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas/i.test(msg);
+    const chunks = cleanAndSplitMultiProductMessage(msg);
 
     for (const chunk of chunks) {
       if (!chunk || !chunk.trim()) continue;
@@ -1433,6 +1469,8 @@ export class AIService {
       // Si es un comando o selección transaccional directa (números, confirmaciones, cancelaciones, cambios de pedido, cantidades)
       const isDirectTransaction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim()) ||
         /(?:cancelar.*ped|cancela.*ped|cambiame|sacale|en vez de|ya transfer[ií]|ya me lo entregaron|recib[ií] el ped)/i.test(incomingText) ||
+        /(?:quiero|mandame|mandámelo|mandamelo|enviame|envíame|traeme|traéme|armame|armáme|anotame|anótame|separame|sepárame|preparame|prepárame)\s+(?:solo\s+)?\d+/i.test(incomingText) ||
+        /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada).*(?:para|somos)?\s*\d+|para\s+\d+\s*(?:personas|comensales|amigos|invitados|peronas)/i.test(incomingText) ||
         /^(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?)|medio\s+kilo|1\/2\s*kg|dos|tres|cuatro|cinco|seis|ocho|diez|\d+)$/i.test(incomingText.trim());
 
       if (isDirectTransaction) {
@@ -1626,6 +1664,24 @@ export class AIService {
           `   *Lunes a Miércoles:* 07:00 a 00:00 hs | *Jueves a Sábado:* 07:00 a 01:00 hs\n\n` +
           `🛵 *También hacemos envíos directos a domicilio en el día a todo Córdoba.* ¿Querés que te preparemos un pedido? 🙌 [[STAGE:proposal]]`;
       }
+    }
+
+    // 0.00015 ASESORAMIENTO CULINARIO Y CÁLCULO DE ASADO POR COMENSALES
+    const peopleMatchEarly = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asadito\s+para|asado\s+para|un\s+asado\s+para|un\s+asadito\s+para)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
+      t.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos|peronas)/i);
+    const isAsadoIntentEarly = /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|parrillita|fuego|brasas)/i.test(t);
+    const isCulinaryQueryEarly = /(?:recomendas|recomendás|para guiso|para estofado|para milanesas|para horno)/i.test(t);
+
+    const isAsadoCalcRequestEarly = (peopleMatchEarly && isAsadoIntentEarly) || 
+      (peopleMatchEarly && /(?:cuanto|cuánto|calculo|calcular|para comer|para hacer|somos|es para)/i.test(t)) ||
+      /^(?:un\s+)?asadito\s+para\s+\d+/i.test(t) ||
+      isCulinaryQueryEarly;
+
+    const hasSpecificCutsWithQtyEarly = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?))\s+(?:de\s+)?(?:costillar|costilla|vacio|vacío|matambre|chorizo|chori|morcilla|milanesa)/i.test(t);
+
+    if (isAsadoCalcRequestEarly && !hasSpecificCutsWithQtyEarly) {
+      const advice = ChatStrategyGraphService.handleCulinaryAndAsado(rawText, clientName, products);
+      if (advice) return advice;
     }
 
     // 0.0002 RESPUESTAS A PROPUESTAS DE ASADO / MENÚS RECOMENDADOS (Opción 1, 2 o 3)
@@ -2769,7 +2825,7 @@ export class AIService {
     // 4. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y ADICIONES / CORRECCIONES
     // =========================================================================
     const isAdditionOrder = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2/i.test(t);
-    const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|un solo|una sola|no, solo|nada mas|en vez de/i.test(t);
+    const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de/i.test(t);
     const hasOrderVerb = /(?:quiero|mandame|mandámelo|mandamelo|enviame|envíame|traeme|traéme|armame|armáme|anotame|anótame|dame|separame|sepárame|preparame|prepárame|haceme|llevame|llevale|tenes|tenés|vendes|vendés)/i.test(t);
     const hasQuantityExplicit = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|combo|bolsa|botella|bifes?|tiras?|piezas?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b\d+\s+(?:de\s+)?(?:kilos?|kg|unidades?))/i.test(t);
     const isQuestionOrInquiry = /^(?:qu[eé]|cu[aá]l|cu[aá]les|mostrame|pasame|decime)\s+(?:opciones|cortes|tipos|variedades|precios|promo|ofertas?|de\s+)/i.test(t) || 

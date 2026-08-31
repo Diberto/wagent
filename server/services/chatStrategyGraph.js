@@ -115,8 +115,8 @@ export class ChatStrategyGraphService {
     const carbon = findProd(/carbón|carbon/i, 'Bolsa de Carbón Quebracho', 3500);
 
     // 1. Detección de Asados por número de personas / comensales
-    const peopleMatch = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas)?/i) ||
-      t.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos)/i);
+    const peopleMatch = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asadito\s+para|asado\s+para|un\s+asado\s+para|un\s+asadito\s+para)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
+      t.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos|peronas)/i);
 
     const isAsadoIntent = /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|parrillita|fuego|brasas)/i.test(t);
 
