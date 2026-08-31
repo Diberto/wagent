@@ -3,6 +3,10 @@
     "codebase-memory": {
       "command": "cmd.exe",
       "args": ["/c", "npx", "-y", "codebase-memory-mcp"]
+    },
+    "figma-design": {
+      "command": "cmd.exe",
+      "args": ["/c", "npx", "-y", "@figma/mcp-server"]
     }
   }
 }
