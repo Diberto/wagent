@@ -717,11 +717,17 @@ export function parseQuantityAndMode(str, prod = null) {
     /pollo|pata/i.test(prod?.name || s) ? 3 : 1
   );
 
+  // Verificar si el número en el texto es en realidad una referencia a opción de menú (ej: "el combo 2", "combo 2", "opcion 3", "el corte 4", "el 8", "la 1")
+  const isMenuOptionRef = /(?:el\s+combo|la\s+opci[oó]n|el\s+corte|la\s+promo|combo|opci[oó]n|corte|promo|el|la)\s+([1-9]|1[0-9]|20)\b/i.test(s) &&
+    !/(?:\b(?:[2-9]|1[0-9])\s+(?:kg|kilos?|combos?|unidades?|piezas?|bolsas?|botellas?|de\s+los\s+combos?))/i.test(s);
+
   let num = 1;
   const numMatch = s.match(/([0-9]+(?:[\.,][0-9]+)?)/);
 
   if (/(?:medio\s+kilo|1\/2\s*kg|medio\b)/i.test(s)) {
     return { quantity: 0.5, isUnitMode: false, unitCount: 0, label: '0.5 kg' };
+  } else if (isMenuOptionRef) {
+    num = 1;
   } else if (numMatch) {
     const val = parseFloat(numMatch[1].replace(',', '.'));
     if (val <= 30 || /(?:kg|kilo|kilos|unidades|chorizo|morcilla|bife|costeleta)/i.test(s)) {
@@ -751,12 +757,21 @@ export function parseQuantityAndMode(str, prod = null) {
     };
   }
 
+  const isCombo = (prod?.unit || '').toLowerCase() === 'combo' || /combo/i.test(prod?.name || '');
+  const isBolsa = (prod?.unit || '').toLowerCase() === 'bolsa' || /bolsa|carb[oó]n/i.test(prod?.name || '');
+  const isBotella = (prod?.unit || '').toLowerCase() === 'botella' || /botella|vino/i.test(prod?.name || '');
+
+  let label = `${num} ${prod?.unit || 'kg'}`;
+  if (isCombo) label = `${num} combo${num > 1 ? 's' : ''}`;
+  else if (isBolsa) label = `${num} bolsa${num > 1 ? 's' : ''}`;
+  else if (isBotella) label = `${num} botella${num > 1 ? 's' : ''}`;
+
   return {
     quantity: num,
-    isUnitMode: false,
-    unitCount: 0,
-    unitsPerKg: 1,
-    label: `${num} ${prod?.unit || 'kg'}`
+    isUnitMode: isCombo || isBolsa || isBotella,
+    unitCount: isCombo || isBolsa || isBotella ? num : 0,
+    unitsPerKg,
+    label
   };
 }
 
@@ -1162,6 +1177,29 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
           }
         }
       }
+      if (!prod && prevAgentMsg) {
+        const optionNumMatch = chunk.match(/(?:el\s+combo|la\s+opci[oó]n|el\s+corte|la\s+promo|combo|opci[oó]n|corte|promo|el|la)\s+([1-9]|1[0-9]|20)\b/i) ||
+          chunk.trim().match(/^([1-9]|1[0-9]|20)$/);
+        if (optionNumMatch) {
+          const optIdx = parseInt(optionNumMatch[1], 10) - 1;
+          let displayedList = [];
+          const pLines = prevAgentMsg.split('\n');
+          for (const pLine of pLines) {
+            if (/[1-9]️⃣|\[\d+\]/.test(pLine)) {
+              const matchedProd = matchBestProduct(pLine, catalog);
+              if (matchedProd && !displayedList.some(p => p.id === matchedProd.id || p.name === matchedProd.name)) {
+                displayedList.push(matchedProd);
+              }
+            }
+          }
+          if (displayedList.length === 0) {
+            displayedList = getFeaturedWhatsAppOffers(catalog);
+          }
+          if (optIdx >= 0 && optIdx < displayedList.length) {
+            prod = displayedList[optIdx];
+          }
+        }
+      }
       if (!prod) {
         prod = matchBestProduct(chunk, catalog);
       }
@@ -1279,7 +1317,10 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     if (prod.unit === 'kg' && isUnitMode && unitCount > 0) {
       items.push(`• ${unitCount} Unidades de ${prod.name} — $${sub.toLocaleString('es-AR')}`);
     } else if (prod.unit !== 'kg') {
-      items.push(`• ${quantity} ${prod.unit} ${prod.name} — $${sub.toLocaleString('es-AR')}`);
+      const cleanProdName = prod.name.toLowerCase().startsWith(prod.unit.toLowerCase()) 
+        ? prod.name 
+        : `${prod.unit} ${prod.name}`;
+      items.push(`• ${quantity} ${cleanProdName} — $${sub.toLocaleString('es-AR')}`);
     } else {
       items.push(`• ${quantity} kg ${prod.name} — $${sub.toLocaleString('es-AR')}`);
     }
