@@ -228,6 +228,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   const [channelFilter, setChannelFilter] = useState('all'); // 'all' | 'WHATSAPP' | 'TIENDA' | 'POS'
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('orders_view_mode') || 'table');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
 
   // POS Selector State inside Order Modal
   const [posMode, setPosMode] = useState('pos'); // 'pos' | 'manual'
@@ -993,6 +994,54 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     return matchesSearch && matchesStatus && matchesChannel;
   });
 
+  // Multi-selección y acciones masivas
+  const handleToggleSelectAllOrders = () => {
+    if (selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0) {
+      setSelectedOrderIds([]);
+    } else {
+      setSelectedOrderIds(filteredOrders.map(o => o.id));
+    }
+  };
+
+  const handleToggleSelectOrder = (id) => {
+    setSelectedOrderIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkUpdateStatus = async (targetStatus) => {
+    try {
+      const res = await fetch('/api/orders/bulk-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: selectedOrderIds, status: targetStatus })
+      });
+      if (res.ok) {
+        await fetchOrders();
+        setSelectedOrderIds([]);
+      }
+    } catch (e) {
+      console.error('Error actualizando estados en lote:', e);
+    }
+  };
+
+  const handleBulkDeleteOrders = async () => {
+    if (!window.confirm(`¿Estás seguro de eliminar los ${selectedOrderIds.length} pedidos seleccionados?`)) return;
+    try {
+      const res = await fetch('/api/orders/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: selectedOrderIds })
+      });
+      if (res.ok) {
+        await fetchOrders();
+        setSelectedOrderIds([]);
+      }
+    } catch (e) {
+      console.error('Error eliminando pedidos en lote:', e);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'pending':
@@ -1233,6 +1282,14 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
                 <tr>
+                  <th className="py-3 px-3 w-8 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0}
+                      onChange={handleToggleSelectAllOrders}
+                      className="rounded text-emerald-500 bg-[#182229] border-slate-700 focus:ring-0 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4">Pedido ID</th>
                   <th className="py-3 px-4">Origen / Canal</th>
                   <th className="py-3 px-4">Fecha / Hora</th>
@@ -1247,8 +1304,18 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredOrders.map(order => (
-                  <tr key={order.id} className="hover:bg-[#202c33]/50 transition-colors">
+                {filteredOrders.map(order => {
+                  const isSelected = selectedOrderIds.includes(order.id);
+                  return (
+                  <tr key={order.id} className={`transition-colors ${isSelected ? 'bg-emerald-500/10' : 'hover:bg-[#202c33]/50'}`}>
+                    <td className="py-3.5 px-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleSelectOrder(order.id)}
+                        className="rounded text-emerald-500 bg-[#182229] border-slate-700 focus:ring-0 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
                       #{order.id}
                     </td>
@@ -1445,7 +1512,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                       </div>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -3127,6 +3194,76 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
           order={ticketPrintModal}
           onClose={() => setTicketPrintModal(null)}
         />
+      )}
+
+      {/* Barra Flotante de Acciones Masivas para Pedidos */}
+      {selectedOrderIds.length > 0 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-[#182229]/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom">
+          <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
+            <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">
+              {selectedOrderIds.length}
+            </span>
+            <span className="text-xs font-bold text-white hidden sm:inline">Pedidos Seleccionados</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleBulkUpdateStatus('preparing')}
+              className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/30 transition"
+              title="Mover a preparación"
+            >
+              🥩 Preparación
+            </button>
+
+            <button
+              onClick={() => handleBulkUpdateStatus('ready')}
+              className="px-2.5 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 text-xs font-bold border border-teal-500/30 transition"
+              title="Marcar como listo"
+            >
+              ✨ Listo
+            </button>
+
+            <button
+              onClick={() => handleBulkUpdateStatus('in_transit')}
+              className="px-2.5 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-xs font-bold border border-purple-500/30 transition"
+              title="Marcar en reparto"
+            >
+              🚚 En Camino
+            </button>
+
+            <button
+              onClick={() => handleBulkUpdateStatus('delivered')}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/30 transition"
+              title="Marcar como entregado"
+            >
+              ✅ Entregado
+            </button>
+
+            <button
+              onClick={() => handleBulkUpdateStatus('completed')}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold border border-slate-600 transition"
+              title="Archivar pedidos"
+            >
+              📦 Archivar
+            </button>
+
+            <button
+              onClick={handleBulkDeleteOrders}
+              className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 text-xs font-bold border border-rose-500/30 transition"
+              title="Eliminar pedidos seleccionados"
+            >
+              <Trash2 size={13} className="inline mr-1" /> Eliminar
+            </button>
+
+            <button
+              onClick={() => setSelectedOrderIds([])}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition ml-1"
+              title="Cancelar selección"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
       )}
 
     </div>

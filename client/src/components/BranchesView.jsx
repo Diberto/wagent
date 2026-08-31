@@ -29,6 +29,7 @@ import UserPicker from './ui/UserPicker.jsx';
 
 export default function BranchesView({ socket }) {
   const [branches, setBranches] = useState([]);
+  const [fiscalProfiles, setFiscalProfiles] = useState([]);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('branches_view_mode') || 'table');
   const [isLoading, setIsLoading] = useState(true);
@@ -43,11 +44,14 @@ export default function BranchesView({ socket }) {
   const fetchBranches = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/branches');
-      const data = await res.json();
-      setBranches(Array.isArray(data) ? data : []);
+      const [bRes, fpRes] = await Promise.all([
+        fetch('/api/branches').then(r => r.json()).catch(() => []),
+        fetch('/api/fiscal-profiles').then(r => r.json()).catch(() => [])
+      ]);
+      setBranches(Array.isArray(bRes) ? bRes : []);
+      setFiscalProfiles(Array.isArray(fpRes) ? fpRes : []);
     } catch (err) {
-      console.error('Error cargando sucursales:', err);
+      console.error('Error cargando sucursales o perfiles fiscales:', err);
     } finally {
       setIsLoading(false);
     }
@@ -725,6 +729,54 @@ export default function BranchesView({ socket }) {
                   onChange={(e) => setZonesInputText(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
                 />
+              </div>
+
+              {/* Razón Social & Punto de Venta ARCA */}
+              <div className="p-3.5 bg-[#111b21] border border-blue-500/30 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Receipt size={14} className="text-blue-400" />
+                    Razón Social & Facturación ARCA de esta Sucursal:
+                  </span>
+                  <span className="text-[10px] text-blue-400 font-bold uppercase">Fiscal</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">Perfil Fiscal / CUIT:</label>
+                    <select
+                      value={branchModal.data.fiscalProfileId || ''}
+                      onChange={(e) => setBranchModal({
+                        ...branchModal,
+                        data: { ...branchModal.data, fiscalProfileId: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white text-xs focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">Por defecto (Razón Social Principal)</option>
+                      {fiscalProfiles.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.razonSocial} (CUIT {p.cuit})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-300 font-semibold mb-1">Punto de Venta Local (Pto Vta):</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="9999"
+                      placeholder="1"
+                      value={branchModal.data.ptoVta || 1}
+                      onChange={(e) => setBranchModal({
+                        ...branchModal,
+                        data: { ...branchModal.data, ptoVta: parseInt(e.target.value, 10) || 1 }
+                      })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">

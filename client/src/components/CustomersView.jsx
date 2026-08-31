@@ -49,6 +49,7 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [newCustomVal, setNewCustomVal] = useState('');
   const [dossierTab, setDossierTab] = useState('orders'); // 'orders' | 'payments' | 'custom_fields'
   const [mapPicker, setMapPicker] = useState(null); // null | { address, customerName, target: 'edit' | 'create' }
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState([]);
 
   const fetchCustomers = async () => {
     setIsLoading(true);
@@ -116,6 +117,8 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
         phone: selectedCustomer.phone || '',
         email: selectedCustomer.email || '',
         address: selectedCustomer.address || '',
+        fiscalCondition: selectedCustomer.fiscalCondition || 'CF',
+        cuit: selectedCustomer.cuit || '',
         preferredBranch: selectedCustomer.preferredBranch || '',
         preferredBranchId: selectedCustomer.preferredBranchId || '',
         preferredDriverId: selectedCustomer.preferredDriverId || '',
@@ -411,6 +414,55 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
     return matchesSearch;
   });
 
+  // Multi-selección de clientes
+  const handleToggleSelectAllCustomers = () => {
+    if (selectedCustomerIds.length === filteredCustomers.length && filteredCustomers.length > 0) {
+      setSelectedCustomerIds([]);
+    } else {
+      setSelectedCustomerIds(filteredCustomers.map(c => c.id));
+    }
+  };
+
+  const handleToggleSelectCustomer = (e, id) => {
+    e.stopPropagation();
+    setSelectedCustomerIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkTagCustomers = async (tag) => {
+    try {
+      const res = await fetch('/api/leads/bulk-tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: selectedCustomerIds, tag })
+      });
+      if (res.ok) {
+        await fetchCustomers();
+        setSelectedCustomerIds([]);
+      }
+    } catch (e) {
+      console.error('Error etiquetando clientes:', e);
+    }
+  };
+
+  const handleBulkDeleteCustomers = async () => {
+    if (!window.confirm(`¿Estás seguro de eliminar los ${selectedCustomerIds.length} clientes seleccionados?`)) return;
+    try {
+      const res = await fetch('/api/leads/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: selectedCustomerIds })
+      });
+      if (res.ok) {
+        await fetchCustomers();
+        setSelectedCustomerIds([]);
+      }
+    } catch (e) {
+      console.error('Error eliminando clientes en lote:', e);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden">
       
@@ -469,33 +521,43 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
           </div>
 
           <div className="bg-[#182229] border border-slate-800 rounded-xl p-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
               <DollarSign size={16} />
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 uppercase font-semibold">Ventas Acumuladas</div>
-              <div className="text-sm font-bold text-purple-400">${totalRevenueAll.toLocaleString('es-AR')}</div>
+              <div className="text-[10px] text-slate-400 uppercase font-semibold">Facturación Clientes</div>
+              <div className="text-sm font-bold text-white">${totalRevenueAll.toLocaleString('es-AR')}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Body: Sidebar + Dossier */}
+      {/* Main Split Layout */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* Left: Customer List */}
-        <div className="w-full sm:w-80 lg:w-96 border-r border-slate-800 flex flex-col bg-[#111b21]">
-          {/* Search and Filters */}
+        {/* Left: Customers List Column */}
+        <div className="w-full sm:w-80 md:w-96 border-r border-slate-800 flex flex-col bg-[#111b21]">
+          
+          {/* Search & Filter Bar */}
           <div className="p-3 border-b border-slate-800 space-y-2">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <div className="flex items-center gap-2">
               <input
-                type="text"
-                placeholder="Buscar cliente, corte, teléfono..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700/60 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                type="checkbox"
+                checked={selectedCustomerIds.length === filteredCustomers.length && filteredCustomers.length > 0}
+                onChange={handleToggleSelectAllCustomers}
+                className="rounded text-emerald-500 bg-[#182229] border-slate-700 focus:ring-0 cursor-pointer ml-1"
+                title="Seleccionar todos los clientes"
               />
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente, teléfono o corte..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700/60 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-1 overflow-x-auto pb-1">
@@ -529,6 +591,7 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
             ) : (
               filteredCustomers.map(customer => {
                 const isSelected = selectedCustomer?.id === customer.id;
+                const isChecked = selectedCustomerIds.includes(customer.id);
                 const isVip = customer.totalSpent >= 50000 || (customer.tags || []).includes('Cliente VIP');
                 const isFrequent = customer.totalOrders >= 2;
 
@@ -536,13 +599,22 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                   <div
                     key={customer.id}
                     onClick={() => setSelectedCustomer(customer)}
-                    className={`p-3.5 cursor-pointer transition flex items-start gap-3 ${
+                    className={`p-3 cursor-pointer transition flex items-start gap-2.5 ${
                       isSelected
                         ? 'bg-emerald-500/10 border-l-4 border-emerald-500'
+                        : isChecked
+                        ? 'bg-emerald-500/5'
                         : 'hover:bg-[#182229]/60'
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-emerald-400 text-sm shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => handleToggleSelectCustomer(e, customer.id)}
+                      className="rounded text-emerald-500 bg-[#182229] border-slate-700 focus:ring-0 cursor-pointer mt-2.5 shrink-0"
+                    />
+
+                    <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-emerald-400 text-xs shrink-0">
                       {(customer.name || customer.pushName || 'C').charAt(0).toUpperCase()}
                     </div>
 
@@ -659,6 +731,42 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                           ) : (
                             <span className="text-slate-300">
                               {selectedCustomer.preferredBranch || 'URCA CENTRAL'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Condición Fiscal IVA & CUIT */}
+                        <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-slate-800/80">
+                          <span className="text-[11px] font-bold text-slate-400">Condición IVA:</span>
+                          {isEditing ? (
+                            <select
+                              value={editForm.fiscalCondition || 'CF'}
+                              onChange={(e) => setEditForm({ ...editForm, fiscalCondition: e.target.value })}
+                              className="px-2 py-0.5 rounded bg-[#111b21] border border-slate-700 text-xs text-white"
+                            >
+                              <option value="CF">👤 Consumidor Final</option>
+                              <option value="RI">🏢 IVA Resp. Inscripto (Factura A)</option>
+                              <option value="MONO">💼 Monotributo</option>
+                              <option value="EX">🏛️ IVA Exento</option>
+                            </select>
+                          ) : (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                              {selectedCustomer.fiscalCondition === 'RI' ? '🏢 Responsable Inscripto' : selectedCustomer.fiscalCondition === 'MONO' ? '💼 Monotributo' : selectedCustomer.fiscalCondition === 'EX' ? '🏛️ Exento' : '👤 Consumidor Final'}
+                            </span>
+                          )}
+
+                          <span className="text-[11px] font-bold text-slate-400 ml-2">CUIT/DNI:</span>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="20-xxxxxxxx-x o DNI"
+                              value={editForm.cuit || ''}
+                              onChange={(e) => setEditForm({ ...editForm, cuit: e.target.value })}
+                              className="px-2 py-0.5 rounded bg-[#111b21] border border-slate-700 text-xs text-white font-mono"
+                            />
+                          ) : (
+                            <span className="text-xs font-mono text-slate-300 font-bold">
+                              {selectedCustomer.cuit || 'Sin CUIT'}
                             </span>
                           )}
                         </div>
@@ -1647,6 +1755,52 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
             setMapPicker(null);
           }}
         />
+      )}
+
+      {/* Floating Bulk Bar for Customers */}
+      {selectedCustomerIds.length > 0 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-[#182229]/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom">
+          <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
+            <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">
+              {selectedCustomerIds.length}
+            </span>
+            <span className="text-xs font-bold text-white hidden sm:inline">Clientes Seleccionados</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleBulkTagCustomers('Cliente VIP')}
+              className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/30 transition"
+              title="Etiquetar como VIP"
+            >
+              ⭐ Marcar VIP
+            </button>
+
+            <button
+              onClick={() => handleBulkTagCustomers('Mayorista / B2B')}
+              className="px-2.5 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs font-bold border border-blue-500/30 transition"
+              title="Etiquetar como Mayorista"
+            >
+              🏢 Mayorista / B2B
+            </button>
+
+            <button
+              onClick={handleBulkDeleteCustomers}
+              className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 text-xs font-bold border border-rose-500/30 transition"
+              title="Eliminar clientes seleccionados"
+            >
+              <Trash2 size={13} className="inline mr-1" /> Eliminar
+            </button>
+
+            <button
+              onClick={() => setSelectedCustomerIds([])}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition ml-1"
+              title="Cancelar selección"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
       )}
 
     </div>

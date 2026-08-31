@@ -75,6 +75,27 @@ export class ArcaService {
   }
 
   /**
+   * Resuelve el perfil fiscal (Razón Social, CUIT, Pto Vta) aplicable para una orden o sucursal
+   */
+  resolveFiscalProfile(order = {}, options = {}) {
+    if (options.fiscalProfileId) {
+      const profile = db.getFiscalProfile(options.fiscalProfileId);
+      if (profile) return profile;
+    }
+
+    const branchId = options.branchId || order.branchId || order.branch;
+    if (branchId) {
+      const profile = db.getFiscalProfileForBranch(branchId);
+      if (profile) return profile;
+    }
+
+    const defaultProfile = db.getFiscalProfile(null);
+    if (defaultProfile) return defaultProfile;
+
+    return this.getSettings();
+  }
+
+  /**
    * Genera la URL oficial de código QR según la RG 4291 / 4892 de AFIP/ARCA
    */
   generateQrUrl(invoiceData) {
@@ -133,6 +154,92 @@ export class ArcaService {
   }
 
   /**
+   * Calcula el desglose impositivo por alícuota de IVA (10.5%, 21%, 0%, Exento)
+   */
+  calculateTaxBreakdown(order, totalAmount) {
+    const products = db.getProducts ? db.getProducts() : [];
+    const breakdown = {
+      '10.5': { rate: 10.5, decimalRate: 0.105, subtotalNeto: 0, subtotalIva: 0, subtotalBruto: 0 },
+      '21': { rate: 21.0, decimalRate: 0.21, subtotalNeto: 0, subtotalIva: 0, subtotalBruto: 0 },
+      '0': { rate: 0, decimalRate: 0, subtotalNeto: 0, subtotalIva: 0, subtotalBruto: 0 }
+    };
+
+    const items = Array.isArray(order.items) ? order.items : [];
+    let itemsTotalCalculated = 0;
+
+    for (const rawItem of items) {
+      let itemName = '';
+      let itemPrice = 0;
+      let itemQty = 1;
+
+      if (typeof rawItem === 'string') {
+        const parts = rawItem.split('—');
+        itemName = parts[0] ? parts[0].replace(/^[•\s\d]+(?:kg|unidades|un)?\s*(?:de\s+)?/i, '').trim() : '';
+        const priceMatch = rawItem.match(/\$\s*([\d.,]+)/);
+        if (priceMatch) {
+          itemPrice = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
+        }
+      } else if (typeof rawItem === 'object') {
+        itemName = rawItem.name || rawItem.title || '';
+        itemPrice = Number(rawItem.total || (Number(rawItem.price || 0) * Number(rawItem.quantity || 1))) || 0;
+      }
+
+      if (itemPrice > 0) {
+        itemsTotalCalculated += itemPrice;
+        // Buscar alícuota de IVA en catálogo de productos
+        const matchedProd = products.find(p => p.name && itemName && (p.name.toLowerCase().includes(itemName.toLowerCase()) || itemName.toLowerCase().includes(p.name.toLowerCase())));
+        let ivaRate = matchedProd ? Number(matchedProd.ivaRate || 10.5) : (/vacio|costill|cuadril|entra[nñ]a|matambre|bondiola|costeleta|ternera|molida|pollo|pata|muslo|achura|chinchulin|molleja/i.test(itemName) ? 10.5 : 21);
+
+        if (ivaRate === 10.5) {
+          const neto = Math.round((itemPrice / 1.105) * 100) / 100;
+          const iva = Math.round((itemPrice - neto) * 100) / 100;
+          breakdown['10.5'].subtotalBruto += itemPrice;
+          breakdown['10.5'].subtotalNeto += neto;
+          breakdown['10.5'].subtotalIva += iva;
+        } else if (ivaRate === 0) {
+          breakdown['0'].subtotalBruto += itemPrice;
+          breakdown['0'].subtotalNeto += itemPrice;
+        } else {
+          const neto = Math.round((itemPrice / 1.21) * 100) / 100;
+          const iva = Math.round((itemPrice - neto) * 100) / 100;
+          breakdown['21'].subtotalBruto += itemPrice;
+          breakdown['21'].subtotalNeto += neto;
+          breakdown['21'].subtotalIva += iva;
+        }
+      }
+    }
+
+    // Si no hubo ítems desglosables, prorratear sobre el total
+    if (itemsTotalCalculated === 0 && totalAmount > 0) {
+      // 80% carnes (10.5%), 20% derivados/elaborados (21%)
+      const carneAmount = Math.round(totalAmount * 0.8 * 100) / 100;
+      const otherAmount = Math.round((totalAmount - carneAmount) * 100) / 100;
+
+      const neto105 = Math.round((carneAmount / 1.105) * 100) / 100;
+      const iva105 = Math.round((carneAmount - neto105) * 100) / 100;
+      breakdown['10.5'].subtotalBruto = carneAmount;
+      breakdown['10.5'].subtotalNeto = neto105;
+      breakdown['10.5'].subtotalIva = iva105;
+
+      const neto21 = Math.round((otherAmount / 1.21) * 100) / 100;
+      const iva21 = Math.round((otherAmount - neto21) * 100) / 100;
+      breakdown['21'].subtotalBruto = otherAmount;
+      breakdown['21'].subtotalNeto = neto21;
+      breakdown['21'].subtotalIva = iva21;
+    }
+
+    const totalNeto = Math.round((breakdown['10.5'].subtotalNeto + breakdown['21'].subtotalNeto + breakdown['0'].subtotalNeto) * 100) / 100;
+    const totalIva = Math.round((breakdown['10.5'].subtotalIva + breakdown['21'].subtotalIva) * 100) / 100;
+
+    return {
+      breakdown,
+      totalNeto,
+      totalIva,
+      totalBruto: totalAmount
+    };
+  }
+
+  /**
    * Emite comprobante fiscal (Factura A, B, C) o Presupuesto no fiscal para una orden
    */
   async emitInvoiceForOrder(orderId, options = {}) {
@@ -141,14 +248,15 @@ export class ArcaService {
       throw new Error(`Pedido #${orderId} no encontrado.`);
     }
 
+    const fiscalProfile = this.resolveFiscalProfile(order, options);
     const settings = this.getSettings();
-    const docType = (options.documentType || settings.defaultDocumentType || 'factura_b').toLowerCase();
+    const docType = (options.documentType || order.requestedDocumentType || fiscalProfile.defaultDocumentType || 'factura_b').toLowerCase();
     const isPresupuesto = docType === 'presupuesto' || docType === 'x' || docType === 'none';
 
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const todayFormatted = now.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const ptoVta = parseInt(options.ptoVta || settings.ptoVta || 1, 10);
+    const ptoVta = parseInt(options.ptoVta || fiscalProfile.ptoVta || settings.ptoVta || 1, 10);
     const total = Number(order.totalAmount || options.total || 0);
 
     // Preparar datos del cliente
@@ -178,6 +286,7 @@ export class ArcaService {
         typeCode: 'X',
         tipoCbte: 0,
         letter: 'X',
+        fiscalProfileId: fiscalProfile.id,
         ptoVta,
         ptoVtaFormatted,
         nroCbte: nextPresupuesto,
@@ -185,13 +294,13 @@ export class ArcaService {
         fullDocNumber,
         fecha: todayStr,
         fechaFormatted: todayFormatted,
-        emisorCuit: settings.cuit,
-        emisorRazonSocial: settings.razonSocial,
-        emisorNombreFantasia: settings.nombreFantasia,
-        emisorDireccion: settings.domicilioComercial,
-        emisorIva: settings.condicionIva,
-        emisorIibb: settings.iibb,
-        emisorInicio: settings.inicioActividades,
+        emisorCuit: fiscalProfile.cuit || settings.cuit,
+        emisorRazonSocial: fiscalProfile.razonSocial || settings.razonSocial,
+        emisorNombreFantasia: fiscalProfile.nombreFantasia || settings.nombreFantasia,
+        emisorDireccion: fiscalProfile.domicilioComercial || settings.domicilioComercial,
+        emisorIva: fiscalProfile.condicionIva || settings.condicionIva,
+        emisorIibb: fiscalProfile.iibb || settings.iibb,
+        emisorInicio: fiscalProfile.inicioActividades || settings.inicioActividades,
         clienteNombre: customerName,
         clienteDoc: customerDoc,
         clienteDocTipo: customerDocType,
@@ -231,17 +340,17 @@ export class ArcaService {
       throw new Error('Para emitir Factura A es obligatorio ingresar el CUIT del cliente (11 dígitos).');
     }
 
-    // Cálculo de IVA y Netos
+    // Desglose de IVA por tasas
+    const taxData = this.calculateTaxBreakdown(order, total);
     let importeNeto = total;
     let importeIva = 0;
-    let ivaRate = 0.21; // 21% general carnes y derivados
 
     if (cbteConfig.discriminatesIva) {
-      importeNeto = Math.round((total / (1 + ivaRate)) * 100) / 100;
-      importeIva = Math.round((total - importeNeto) * 100) / 100;
+      importeNeto = taxData.totalNeto;
+      importeIva = taxData.totalIva;
     }
 
-    const isSandbox = settings.mode !== 'production';
+    const isSandbox = (fiscalProfile.mode || settings.mode) !== 'production';
 
     // Obtener siguiente número de comprobante
     let nextInvoiceNumber = 1;
@@ -257,13 +366,11 @@ export class ArcaService {
         this.saveSettings({ lastSandboxInvoiceB: nextInvoiceNumber });
       }
     } else {
-      // Producción: intentar obtener de AFIP o secuencia local
       nextInvoiceNumber = (settings.lastProdInvoice || 100) + 1;
       this.saveSettings({ lastProdInvoice: nextInvoiceNumber });
     }
 
     // Generar CAE (Código de Autorización Electrónico)
-    // En sandbox generamos CAE de 14 dígitos estándar AFIP
     const caeDate = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000); // 10 días de vencimiento
     const caeVtoStr = caeDate.toISOString().split('T')[0];
     const caeVtoFormatted = caeDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -283,6 +390,7 @@ export class ArcaService {
       typeCode: cbteConfig.letter,
       tipoCbte: cbteConfig.id,
       letter: cbteConfig.letter,
+      fiscalProfileId: fiscalProfile.id,
       ptoVta,
       ptoVtaFormatted,
       nroCbte: nextInvoiceNumber,
@@ -290,13 +398,13 @@ export class ArcaService {
       fullDocNumber,
       fecha: todayStr,
       fechaFormatted: todayFormatted,
-      emisorCuit: settings.cuit,
-      emisorRazonSocial: settings.razonSocial,
-      emisorNombreFantasia: settings.nombreFantasia,
-      emisorDireccion: settings.domicilioComercial,
-      emisorIva: settings.condicionIva,
-      emisorIibb: settings.iibb,
-      emisorInicio: settings.inicioActividades,
+      emisorCuit: fiscalProfile.cuit || settings.cuit,
+      emisorRazonSocial: fiscalProfile.razonSocial || settings.razonSocial,
+      emisorNombreFantasia: fiscalProfile.nombreFantasia || settings.nombreFantasia,
+      emisorDireccion: fiscalProfile.domicilioComercial || settings.domicilioComercial,
+      emisorIva: fiscalProfile.condicionIva || settings.condicionIva,
+      emisorIibb: fiscalProfile.iibb || settings.iibb,
+      emisorInicio: fiscalProfile.inicioActividades || settings.inicioActividades,
       clienteNombre: customerName,
       clienteDoc: customerDoc,
       clienteDocTipo: customerDocType,
@@ -304,6 +412,7 @@ export class ArcaService {
       importeNeto,
       importeIva,
       importeTotal: total,
+      taxBreakdown: taxData.breakdown,
       cae,
       caeVto: caeVtoStr,
       caeVtoFormatted,
@@ -329,28 +438,92 @@ export class ArcaService {
   }
 
   /**
+   * Genera un Presupuesto Oficial / Comprobante X (No fiscal)
+   */
+  createBudgetForOrder(order, options = {}) {
+    const fiscalProfile = this.resolveFiscalProfile(order, options);
+    const now = new Date();
+    const validityDays = options.validityDays || 15;
+    const expiresAt = new Date(now.getTime() + validityDays * 24 * 60 * 60 * 1000);
+
+    const docNumber = Math.floor(1000 + Math.random() * 9000);
+    const ptoVta = fiscalProfile.ptoVta || 1;
+    const comprobanteNro = `${String(ptoVta).padStart(4, '0')}-${String(docNumber).padStart(8, '0')}`;
+
+    const total = Number(order.totalAmount) || 0;
+    const taxData = this.calculateTaxBreakdown(order, total);
+
+    const budgetData = {
+      isFiscal: false,
+      tipoComprobante: 'Presupuesto (Comprobante X)',
+      tipoLetra: 'X',
+      cbteTipo: 0,
+      ptoVta,
+      comprobanteNro,
+      numeroCompleto: `PRE-${comprobanteNro}`,
+      razonSocial: fiscalProfile.razonSocial,
+      nombreFantasia: fiscalProfile.nombreFantasia,
+      cuit: fiscalProfile.cuit,
+      domicilioComercial: fiscalProfile.domicilioComercial,
+      condicionIva: fiscalProfile.condicionIva,
+      iibb: fiscalProfile.iibb,
+      clienteNombre: order.customerName || 'Consumidor Final',
+      clienteDocNro: order.cuit || order.customerDoc || order.dni || 'Sin Documento',
+      importeTotal: total,
+      importeNeto: taxData.totalNeto,
+      importeIva: taxData.totalIva,
+      taxBreakdown: taxData.breakdown,
+      cae: null,
+      caeVto: null,
+      issuedAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      validityDays,
+      legend: 'DOCUMENTO NO VÁLIDO COMO FACTURA - PRESUPUESTO INFORMATIVO',
+      status: 'budget_issued',
+      notes: options.notes || order.notes || ''
+    };
+
+    db.updateOrder(order.id, {
+      budget: budgetData,
+      invoiceStatus: 'budget',
+      invoiceNumber: budgetData.numeroCompleto,
+      isBudget: true
+    });
+
+    return budgetData;
+  }
+
+  /**
    * Verifica la conectividad y estado de los servidores de ARCA / AFIP
    */
-  async testConnection() {
+  async testConnection(profileId = null) {
+    const profile = profileId ? db.getFiscalProfile(profileId) : this.resolveFiscalProfile({});
     const settings = this.getSettings();
-    const isSandbox = settings.mode !== 'production';
+    const isSandbox = (profile.mode || settings.mode) !== 'production';
 
     return {
       success: true,
-      mode: settings.mode,
+      mode: profile.mode || settings.mode,
       isSandbox,
-      cuit: settings.cuit,
-      ptoVta: settings.ptoVta,
-      razonSocial: settings.razonSocial,
+      profileId: profile.id,
+      cuit: profile.cuit || settings.cuit,
+      ptoVta: profile.ptoVta || settings.ptoVta,
+      razonSocial: profile.razonSocial || settings.razonSocial,
       wsaaStatus: 'OK (Servicio de Autenticación Activo)',
       wsfeStatus: 'OK (Servidor de Facturación Electrónica Disponible)',
-      authMethod: isSandbox ? 'Certificado de Homologación / Test Simulator' : (settings.cert ? 'Certificado X.509 Producción' : 'Afip SDK API Token'),
+      authMethod: isSandbox ? 'Certificado de Homologación / Test Simulator' : (profile.cert ? 'Certificado X.509 Producción' : 'Afip SDK API Token'),
       serverTime: new Date().toISOString(),
       message: isSandbox 
-        ? '✅ Conexión exitosa con el entorno de pruebas de ARCA (Sandbox). Listo para emitir facturas y presupuestos de prueba.'
-        : '✅ Conexión exitosa con los servidores oficiales de ARCA (Producción).'
+        ? `✅ Conexión exitosa con el entorno de pruebas de ARCA (Sandbox) para ${profile.razonSocial || settings.razonSocial}. Listo para emitir facturas y presupuestos de prueba.`
+        : `✅ Conexión exitosa con los servidores oficiales de ARCA (Producción) para ${profile.razonSocial || settings.razonSocial}.`
     };
   }
 }
 
 export const arcaService = new ArcaService();
+
+export const calculateTaxBreakdown = (order, total) => arcaService.calculateTaxBreakdown(order, total);
+export const resolveFiscalProfile = (order, opts) => arcaService.resolveFiscalProfile(order, opts);
+export const emitInvoiceForOrder = (order, opts) => arcaService.emitInvoiceForOrder(order, opts);
+export const createBudgetForOrder = (order, opts) => arcaService.createBudgetForOrder(order, opts);
+export const testConnection = (pId) => arcaService.testConnection(pId);

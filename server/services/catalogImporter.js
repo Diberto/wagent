@@ -95,9 +95,11 @@ export function parseProductFile(bufferOrString, filename = 'catalogo.csv') {
 
   // Detectar índices de columnas en la primera fila
   const headers = rows[0].map(h => String(h).toLowerCase().trim());
-  let codeIdx = headers.findIndex(h => h.includes('cod') || h.includes('plu') || h.includes('sku') || h.includes('barcode') || h.includes('barra') || h.includes('id'));
+  let codeIdx = headers.findIndex(h => h.includes('cod') || h.includes('plu') || h.includes('sku') || h.includes('id'));
+  let barcodeIdx = headers.findIndex(h => h.includes('barcode') || h.includes('barra') || h.includes('ean') || h.includes('upc'));
   let nameIdx = headers.findIndex(h => h.includes('prod') || h.includes('nombre') || h.includes('name') || h.includes('desc') || h.includes('corte') || h.includes('articulo'));
   let priceIdx = headers.findIndex(h => h.includes('prec') || h.includes('price') || h.includes('costo') || h.includes('monto') || h.includes('importe'));
+  let ivaIdx = headers.findIndex(h => h.includes('iva') || h.includes('impuesto') || h.includes('alicuota') || h.includes('tasa'));
   let catIdx = headers.findIndex(h => h.includes('cat') || h.includes('rubro') || h.includes('grupo') || h.includes('sector'));
   let unitIdx = headers.findIndex(h => h.includes('uni') || h.includes('medida') || h.includes('tipo'));
   let stockIdx = headers.findIndex(h => h.includes('stock') || h.includes('cant') || h.includes('disp'));
@@ -114,8 +116,10 @@ export function parseProductFile(bufferOrString, filename = 'catalogo.csv') {
     if (!row || row.length === 0) continue;
 
     const rawCode = String(row[codeIdx] ?? '').trim();
+    const rawBarcode = barcodeIdx !== -1 ? String(row[barcodeIdx] ?? '').trim() : '';
     const rawName = cleanProductName(String(row[nameIdx] ?? '').trim());
     const rawPrice = row[priceIdx] ?? 0;
+    const rawIva = ivaIdx !== -1 ? String(row[ivaIdx] ?? '').replace('%', '').trim() : '';
     const rawCat = catIdx !== -1 ? String(row[catIdx] ?? '').trim() : '';
     const rawUnit = unitIdx !== -1 ? String(row[unitIdx] ?? '').trim() : '';
     const rawStock = stockIdx !== -1 ? Number(row[stockIdx]) : 100;
@@ -126,8 +130,13 @@ export function parseProductFile(bufferOrString, filename = 'catalogo.csv') {
     const category = rawCat || detectCategory(rawName);
     const unit = rawUnit || detectUnit(rawName, category);
 
+    const isMeat = /vacio|costill|cuadril|entra[nñ]a|matambre|bondiola|costeleta|ternera|molida|pollo|pata|muslo|achura|chinchulin|molleja/i.test(rawName) || 
+                   /parrilla|vacun|cerdo|pollo|achura|tradicional/i.test(category);
+    let ivaRate = rawIva ? parseFloat(rawIva) : (isMeat ? 10.5 : 21);
+    if (isNaN(ivaRate)) ivaRate = isMeat ? 10.5 : 21;
+
     let plu = '';
-    let barcode = '';
+    let barcode = rawBarcode;
     let sku = '';
 
     // Manejo de códigos PLU vs Código de Barras vs Notación Científica de Excel
@@ -135,14 +144,18 @@ export function parseProductFile(bufferOrString, filename = 'catalogo.csv') {
       const num = Number(rawCode.replace(',', '.'));
       barcode = Math.round(num).toString();
       sku = barcode;
-    } else if (/^\d{1,5}$/.test(rawCode)) {
-      plu = rawCode;
-      sku = rawCode;
-    } else if (/^\d{6,}$/.test(rawCode)) {
+    } else if (/^\d{6,}$/.test(rawCode) && !barcode) {
       barcode = rawCode;
       sku = rawCode;
     } else {
+      // Soporta tanto PLU alfanumérico (ej: VAC-01, PLU-101, C01) como puramente numérico (ej: 2001, 105)
+      plu = rawCode;
       sku = rawCode;
+    }
+
+    if (!barcode && plu) {
+      const cleanNum = plu.replace(/\D/g, '');
+      barcode = cleanNum ? `779${cleanNum.padStart(4, '0')}000001` : '';
     }
 
     const id = `prod-${plu || barcode || sku || (i + 1)}`.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
@@ -154,6 +167,7 @@ export function parseProductFile(bufferOrString, filename = 'catalogo.csv') {
       sku,
       name: rawName,
       price,
+      ivaRate,
       unit,
       category,
       description: `${category} - Calidad seleccionada República de la Carne`,
@@ -174,6 +188,10 @@ export function normalizeProductObject(item, idx = 0) {
   const barcode = String(item.barcode || item.Barcode || '').trim();
   const sku = String(item.sku || item.SKU || plu || barcode || '').trim();
 
+  const isMeat = /vacio|costill|cuadril|entra[nñ]a|matambre|bondiola|costeleta|ternera|molida|pollo|pata|muslo|achura|chinchulin|molleja/i.test(name) || 
+                 /parrilla|vacun|cerdo|pollo|achura|tradicional/i.test(category);
+  const ivaRate = item.ivaRate !== undefined ? Number(item.ivaRate) : (isMeat ? 10.5 : 21);
+
   return {
     id: item.id || `prod-${plu || barcode || sku || (idx + 1)}`.toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
     plu,
@@ -181,6 +199,7 @@ export function normalizeProductObject(item, idx = 0) {
     sku,
     name,
     price,
+    ivaRate,
     unit,
     category,
     description: item.description || `${category} - Calidad seleccionada República de la Carne`,
@@ -200,6 +219,7 @@ export function exportCatalog(products = [], format = 'xlsx') {
     'Producto / Corte': p.name || '',
     'Categoría': p.category || '',
     'Precio ($)': p.price || 0,
+    'Alícuota IVA (%)': p.ivaRate !== undefined ? p.ivaRate : 10.5,
     'Unidad': p.unit || 'kg',
     'Stock': p.stock !== undefined ? p.stock : 100,
     'Disponible': p.isAvailable ? 'SÍ' : 'NO',
@@ -240,6 +260,7 @@ export function exportCatalog(products = [], format = 'xlsx') {
     { wch: 45 }, // Producto
     { wch: 24 }, // Categoria
     { wch: 14 }, // Precio
+    { wch: 16 }, // IVA
     { wch: 10 }, // Unidad
     { wch: 10 }, // Stock
     { wch: 12 }, // Disponible

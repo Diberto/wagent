@@ -118,6 +118,35 @@ export default function POSView({ socket }) {
     fetchInitialData();
   }, []);
 
+  // Argentine scale barcode parser: 20PPPPPWWWWWX or 02PPPPPWWWWWX
+  const parseBarcodeData = (scannedCode) => {
+    const raw = String(scannedCode).trim();
+    if (/^(20|02)\d{11}$/.test(raw)) {
+      const pluNum = parseInt(raw.substring(2, 7), 10);
+      const weightGrams = parseInt(raw.substring(7, 12), 10);
+      const weightKg = Math.round((weightGrams / 1000) * 1000) / 1000;
+      
+      const found = products.find(p => {
+        const pPlu = parseInt(String(p.plu || '').replace(/\D/g, ''), 10);
+        return pPlu === pluNum || (p.barcode && p.barcode.includes(String(pluNum)));
+      }) || products.find(p => p.plu && String(p.plu).toLowerCase() === String(pluNum).toLowerCase());
+
+      if (found) {
+        return { product: found, quantity: weightKg > 0 ? weightKg : 1, isScale: true, weightKg, plu: pluNum };
+      }
+    }
+
+    const found = products.find(p => 
+      (p.barcode && p.barcode.toLowerCase() === raw.toLowerCase()) ||
+      (p.plu && String(p.plu).toLowerCase() === raw.toLowerCase()) ||
+      (p.sku && p.sku.toLowerCase() === raw.toLowerCase()) ||
+      (p.id && p.id.toLowerCase() === raw.toLowerCase()) ||
+      (p.name && p.name.toLowerCase().includes(raw.toLowerCase()))
+    );
+
+    return { product: found, quantity: 1, isScale: false };
+  };
+
   // Hardware Barcode Scanner Gun Global Listener
   useEffect(() => {
     let barcodeBuffer = '';
@@ -134,20 +163,17 @@ export default function POSView({ socket }) {
           const scannedCode = barcodeBuffer.trim();
           barcodeBuffer = '';
 
-          // Look up product by barcode, sku, id or name
-          const found = products.find(p => 
-            (p.barcode && p.barcode.toLowerCase() === scannedCode.toLowerCase()) ||
-            (p.sku && p.sku.toLowerCase() === scannedCode.toLowerCase()) ||
-            (p.id && p.id.toLowerCase() === scannedCode.toLowerCase()) ||
-            (p.name && p.name.toLowerCase().includes(scannedCode.toLowerCase()))
-          );
-
-          if (found) {
+          const result = parseBarcodeData(scannedCode);
+          if (result && result.product) {
             e.preventDefault();
             playScannerBeep();
-            handleAddToCart(found, 1);
-            setLastScannedProduct({ name: found.name, code: scannedCode });
-            setTimeout(() => setLastScannedProduct(null), 3000);
+            handleAddToCart(result.product, result.quantity);
+            setLastScannedProduct({ 
+              name: result.product.name, 
+              code: scannedCode, 
+              detail: result.isScale ? `Balanza: ${result.weightKg} kg (PLU ${result.plu})` : 'EAN-13 / PLU' 
+            });
+            setTimeout(() => setLastScannedProduct(null), 3500);
           }
         } else {
           barcodeBuffer = '';
@@ -276,8 +302,8 @@ export default function POSView({ socket }) {
     return matchCat && matchSearch;
   });
 
-  // Submit Order (POS Checkout)
-  const handleCheckout = async (sendWhatsApp = false) => {
+  // Submit Order (POS Checkout with Fiscal / Budget options)
+  const handleCheckout = async (sendWhatsApp = false, fiscalAction = 'ticket') => {
     if (activeCart.items.length === 0) {
       alert('Agrega al menos un corte o producto al carrito.');
       return;
@@ -289,6 +315,8 @@ export default function POSView({ socket }) {
     const payload = {
       customerName: activeCart.customerName || 'Cliente Mostrador',
       phone: activeCart.phone || '',
+      customerFiscalCondition: activeCart.customerFiscalCondition || 'CF',
+      customerCuit: activeCart.customerCuit || '',
       address: activeCart.orderType === 'takeaway' 
         ? `Retiro en ${selectedBranch?.name || 'Mostrador'}` 
         : (activeCart.address || 'Entrega a Domicilio'),
@@ -301,6 +329,7 @@ export default function POSView({ socket }) {
         unitPrice: it.price,
         quantity: it.quantity,
         unit: it.unit || 'kg',
+        ivaRate: it.ivaRate !== undefined ? it.ivaRate : 10.5,
         subtotal: it.price * it.quantity
       })),
       totalAmount: total,
@@ -311,7 +340,9 @@ export default function POSView({ socket }) {
       source: 'POS',
       origin: 'POS',
       status: activeCart.orderType === 'takeaway' ? 'preparing' : 'pending',
-      notes: activeCart.notes ? `[POS Mostrador] ${activeCart.notes}` : '[POS Mostrador]'
+      notes: activeCart.notes 
+        ? `[POS Mostrador] [${fiscalAction === 'invoice' ? 'FACTURA FISCAL' : fiscalAction === 'budget' ? 'PRESUPUESTO' : 'TICKET INTERNO'}] ${activeCart.notes}` 
+        : `[POS Mostrador] [${fiscalAction === 'invoice' ? 'FACTURA FISCAL' : fiscalAction === 'budget' ? 'PRESUPUESTO' : 'TICKET INTERNO'}]`
     };
 
     setCheckoutModal({ isSubmitting: true, successMessage: null, order: null });
@@ -324,7 +355,28 @@ export default function POSView({ socket }) {
       });
 
       if (!res.ok) throw new Error('Error al registrar pedido');
-      const createdOrder = await res.json();
+      let createdOrder = await res.json();
+
+      // Si se eligió Factura Electrónica ARCA oficial:
+      if (fiscalAction === 'invoice') {
+        try {
+          const invRes = await fetch(`/api/arca/invoice/${createdOrder.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              branchId: activeCart.branchId,
+              customerCuit: activeCart.customerCuit,
+              customerFiscalCondition: activeCart.customerFiscalCondition
+            })
+          });
+          const invData = await invRes.json();
+          if (invRes.ok && invData.invoice) {
+            createdOrder.invoice = invData.invoice;
+          }
+        } catch (invErr) {
+          console.error('Error emitiendo factura ARCA:', invErr);
+        }
+      }
 
       // Si se solicitó WhatsApp y el cliente tiene número
       if (sendWhatsApp && activeCart.phone) {
@@ -361,7 +413,12 @@ export default function POSView({ socket }) {
       setCheckoutModal({
         isSubmitting: false,
         order: createdOrder,
-        successMessage: `¡Venta registrada con éxito! Pedido #${createdOrder.id}`
+        fiscalAction,
+        successMessage: fiscalAction === 'invoice' 
+          ? `¡Factura ARCA emitida! Pedido #${createdOrder.id} (CAE: ${createdOrder.invoice?.cae || 'Simulado'})`
+          : fiscalAction === 'budget'
+          ? `¡Presupuesto registrado! Pedido #${createdOrder.id} (Sin impacto impositivo)`
+          : `¡Venta registrada con éxito! Pedido #${createdOrder.id}`
       });
 
       // Vaciar carrito
@@ -369,6 +426,8 @@ export default function POSView({ socket }) {
         items: [],
         customerName: '',
         phone: '',
+        customerCuit: '',
+        customerFiscalCondition: 'CF',
         address: '',
         notes: '',
         cashReceived: ''
@@ -674,6 +733,31 @@ export default function POSView({ socket }) {
                 />
               </div>
 
+              {/* Fiscal Condition & CUIT */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <select
+                    value={activeCart.customerFiscalCondition || 'CF'}
+                    onChange={(e) => updateActiveCart({ customerFiscalCondition: e.target.value })}
+                    className="w-full px-2 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="CF">👤 Consumidor Final</option>
+                    <option value="RI">🏢 Resp. Inscripto (Factura A)</option>
+                    <option value="MONO">💼 Monotributo</option>
+                    <option value="EX">🏛️ Exento</option>
+                  </select>
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    placeholder="CUIT / DNI (Facturación)"
+                    value={activeCart.customerCuit || ''}
+                    onChange={(e) => updateActiveCart({ customerCuit: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
               {/* Live matching customers popup */}
               {customerSearch && (
                 <div className="bg-[#182229] border border-slate-700 rounded-xl p-1.5 max-h-32 overflow-y-auto space-y-1 text-xs">
@@ -847,26 +931,39 @@ export default function POSView({ socket }) {
               </span>
             </div>
 
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Action Buttons: Facturar vs Presupuesto vs Cobrar Mostrador */}
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => handleCheckout(false)}
+                onClick={() => handleCheckout(false, 'invoice')}
                 disabled={activeCart.items.length === 0}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl bg-[#111b21] hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold transition disabled:opacity-50"
+                className="flex flex-col items-center justify-center py-2 px-1.5 rounded-2xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 text-[11px] font-bold transition disabled:opacity-50"
+                title="Genera Factura Electrónica A, B o C con CAE en ARCA/AFIP"
               >
-                <Check size={14} className="text-emerald-400" />
-                Registrar Venta
+                <Receipt size={14} className="text-blue-400 mb-0.5" />
+                <span>🧾 Facturar ARCA</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleCheckout(true)}
+                onClick={() => handleCheckout(false, 'budget')}
                 disabled={activeCart.items.length === 0}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-emerald-500/20 transition disabled:opacity-50"
+                className="flex flex-col items-center justify-center py-2 px-1.5 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[11px] font-bold transition disabled:opacity-50"
+                title="Guarda el pedido como Presupuesto / Comprobante X sin impacto fiscal"
               >
-                <Send size={14} />
-                Cobrar & WhatsApp
+                <Calculator size={14} className="text-amber-400 mb-0.5" />
+                <span>📄 Presupuesto</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCheckout(true, 'ticket')}
+                disabled={activeCart.items.length === 0}
+                className="flex flex-col items-center justify-center py-2 px-1.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black shadow-lg shadow-emerald-500/20 transition disabled:opacity-50"
+                title="Registra la venta interna, abre ticket y envía WhatsApp si tiene teléfono"
+              >
+                <Send size={14} className="mb-0.5" />
+                <span>Cobrar / Ticket</span>
               </button>
             </div>
 

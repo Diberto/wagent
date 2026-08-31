@@ -102,6 +102,8 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('republica_customer_name') || '');
   const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('republica_customer_phone') || '');
   const [customerAddress, setCustomerAddress] = useState(() => localStorage.getItem('republica_customer_address') || '');
+  const [customerFiscalCondition, setCustomerFiscalCondition] = useState('CF'); // 'CF' | 'RI' | 'MONO' | 'EX'
+  const [customerCuit, setCustomerCuit] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState(DEFAULT_BRANCHES[0].id);
   const [paymentMethod, setPaymentMethod] = useState('Efectivo contraentrega');
   const [orderNotes, setOrderNotes] = useState('');
@@ -282,6 +284,9 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         customerName: customerName.trim(),
         phone: customerPhone.trim(),
         address: deliveryType === 'delivery' ? customerAddress.trim() : selectedBranchObj.address,
+        fiscalCondition: customerFiscalCondition,
+        cuit: customerFiscalCondition === 'RI' ? customerCuit.trim() : '',
+        customerDoc: customerFiscalCondition === 'RI' ? customerCuit.trim() : '',
         deliveryType,
         branchId: selectedBranchObj.id,
         branchName: selectedBranchObj.name,
@@ -329,6 +334,9 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         : `🏪 *Retiro en Sucursal:* ${selectedBranchObj.name} (${selectedBranchObj.address})`;
 
       const trackingUrl = `${window.location.origin}/tienda?tracking=${orderObj.id}`;
+      const fiscalInfo = customerFiscalCondition === 'RI' 
+        ? `🏢 *Factura Solicitada:* Factura A (CUIT: ${customerCuit.trim()})`
+        : `👤 *Facturación:* Consumidor Final`;
 
       const whatsappText = `¡Hola Carlos! 🥩 Acabo de armar mi pedido en la Tienda Web:
 
@@ -336,6 +344,7 @@ export default function StorefrontView({ onBackToAdmin = null }) {
 👤 *Cliente:* ${customerName.trim()}
 📱 *Teléfono:* ${customerPhone.trim()}
 📍 ${deliveryInfo}
+🧾 ${fiscalInfo}
 💳 *Medio de Pago:* ${paymentMethod}
 
 🥩 *Detalle de Cortes:*
@@ -886,6 +895,53 @@ ${orderNotes.trim() ? `📝 *Aclaraciones:* ${orderNotes.trim()}\n` : ''}
                         className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
                       />
                     </div>
+                  </div>
+
+                  {/* Condición Fiscal IVA para Facturación */}
+                  <div className="space-y-1.5 p-3 rounded-2xl bg-gray-900/90 border border-gray-800">
+                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                      Tipo de Comprobante / Facturación
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCustomerFiscalCondition('CF')}
+                        className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          customerFiscalCondition === 'CF'
+                            ? 'bg-red-500 text-white shadow-md'
+                            : 'bg-gray-950 text-gray-400 border border-gray-800 hover:text-white'
+                        }`}
+                      >
+                        <span>👤 Consumidor Final</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCustomerFiscalCondition('RI')}
+                        className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          customerFiscalCondition === 'RI'
+                            ? 'bg-red-500 text-white shadow-md'
+                            : 'bg-gray-950 text-gray-400 border border-gray-800 hover:text-white'
+                        }`}
+                      >
+                        <span>🏢 Factura A (CUIT)</span>
+                      </button>
+                    </div>
+
+                    {customerFiscalCondition === 'RI' && (
+                      <div className="pt-2">
+                        <label className="block text-[10px] text-gray-400 font-semibold mb-1">
+                          CUIT de la Empresa / Razón Social:
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={customerCuit}
+                          onChange={(e) => setCustomerCuit(e.target.value)}
+                          placeholder="Ej: 30-71234567-8"
+                          className="w-full bg-gray-950 border border-red-500/50 rounded-xl px-3 py-1.5 text-xs text-white font-mono placeholder-gray-600 focus:outline-none focus:border-red-500"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Medio de Pago */}

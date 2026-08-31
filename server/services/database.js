@@ -745,27 +745,27 @@ class DatabaseService {
 
   // --- Products Catalog & PLU Barcode System ---
   static MASTER_PRODUCTS_SEED = [
-    { id: 'prod_asadazo', plu: '2001', barcode: '7792001000001', name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, unit: 'combo', saleMode: 'combo', unitsPerKg: 1, unitWeightGrams: 4000, unitPrice: 39999, category: 'Combos en Oferta', description: '4 kg cortes parrilleros (Bocado, Aguja, Falda, Chori criollo, Morcilla) + 1 Vino Howlmande Malbec Reserva de regalo', stock: 100, isAvailable: true, sku: 'PLU-2001' },
-    { id: 'prod_tapa_cuadril', plu: '2002', barcode: '7792002000002', name: 'Tapa de Cuadril Seleccionada', price: 12800, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1200, unitPrice: 15360, category: 'Parrilla y Horno', description: 'Corte de novillito seleccionado con cobertura de grasa perfecta', stock: 85, isAvailable: true, sku: 'PLU-2002' },
-    { id: 'prod_vacio', plu: '2003', barcode: '7792003000003', name: 'Vacío Especial Seleccionado', price: 11500, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1400, unitPrice: 16100, category: 'Parrilla', description: 'Vacío tierno y jugoso de novillito', stock: 90, isAvailable: true, sku: 'PLU-2003' },
-    { id: 'prod_costillar', plu: '2004', barcode: '7792004000004', name: 'Costillar / Asado de Tira Novillito', price: 9800, unit: 'kg', saleMode: 'kg', unitsPerKg: 2, unitWeightGrams: 500, unitPrice: 4900, category: 'Parrilla', description: 'Tira de asado con excelente marmoleado', stock: 120, isAvailable: true, sku: 'PLU-2004' },
-    { id: 'prod_bife_chorizo', plu: '2005', barcode: '7792005000005', name: 'Bife de Chorizo Premium', price: 14500, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 4833, category: 'Cortes Premium', description: 'Corte deshuesado de lomo de novillito (~330g por bife)', stock: 60, isAvailable: true, sku: 'PLU-2005' },
-    { id: 'prod_entrana', plu: '2006', barcode: '7792006000006', name: 'Entraña Fina Seleccionada', price: 16900, unit: 'kg', saleMode: 'both', unitsPerKg: 2, unitWeightGrams: 500, unitPrice: 8450, category: 'Cortes Premium', description: 'Entraña tierna y crocante a la brasa (~500g la tira)', stock: 45, isAvailable: true, sku: 'PLU-2006' },
-    { id: 'prod_matambre_cerdo', plu: '2007', barcode: '7792007000007', name: 'Matambrito de Cerdo Tiernizado', price: 8500, unit: 'kg', saleMode: 'both', unitsPerKg: 1, unitWeightGrams: 900, unitPrice: 7650, category: 'Cerdo y Parrilla', description: 'Matambre de cerdo fresco listo para parrilla o limón (~900g por pieza)', stock: 70, isAvailable: true, sku: 'PLU-2007' },
-    { id: 'prod_matambre_vaca', plu: '2008', barcode: '7792008000008', name: 'Matambre Vacuno', price: 9500, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1500, unitPrice: 14250, category: 'Parrilla y Horno', description: 'Matambre vacuno magro y tierno', stock: 65, isAvailable: true, sku: 'PLU-2008' },
-    { id: 'prod_bondiola', plu: '2009', barcode: '7792009000009', name: 'Bondiola de Cerdo sin Hueso', price: 8900, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1800, unitPrice: 16020, category: 'Cerdo', description: 'Pieza entera o fraccionada de bondiola de cerdo', stock: 80, isAvailable: true, sku: 'PLU-2009' },
-    { id: 'prod_costeletas_cerdo', plu: '2010', barcode: '7792010000010', name: 'Costeletas de Cerdo (2kg x $15.000 promo)', price: 7500, unit: 'kg', saleMode: 'both', unitsPerKg: 4, unitWeightGrams: 250, unitPrice: 1875, category: 'Cerdo', description: 'Chuletas frescas de cerdo (~4 unidades por kilo)', stock: 110, isAvailable: true, sku: 'PLU-2010' },
-    { id: 'prod_costeletas_ternera', plu: '2011', barcode: '7792011000011', name: 'Costeletas de Ternera (2kg x $35.000 promo)', price: 17500, unit: 'kg', saleMode: 'both', unitsPerKg: 4, unitWeightGrams: 250, unitPrice: 4375, category: 'Cortes Tradicionales', description: 'Costeletas de ternera de primera calidad (~4 unidades por kilo)', stock: 75, isAvailable: true, sku: 'PLU-2011' },
-    { id: 'prod_chorizo', plu: '2012', barcode: '7792012000012', name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', price: 5000, unit: 'kg', saleMode: 'both', unitsPerKg: 8, unitWeightGrams: 125, unitPrice: 625, category: 'Embutidos', description: 'Embutido parrillero 100% puro cerdo (promedio entre 7 y 9 unidades por kilo, ~125g c/u)', stock: 200, isAvailable: true, sku: 'PLU-2012' },
-    { id: 'prod_morcilla', plu: '2013', barcode: '7792013000013', name: 'Morcilla Bombón Parrillera', price: 5200, unit: 'kg', saleMode: 'both', unitsPerKg: 7, unitWeightGrams: 140, unitPrice: 742, category: 'Embutidos', description: 'Morcillas bombón suaves y cremosas (~7 unidades por kilo, ~140g c/u)', stock: 140, isAvailable: true, sku: 'PLU-2013' },
-    { id: 'prod_mollejas', plu: '2014', barcode: '7792014000014', name: 'Mollejas de Corazón', price: 14800, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 4933, category: 'Achuras', description: 'Achura crocante por fuera y suave por dentro (~3 unidades por kilo)', stock: 35, isAvailable: true, sku: 'PLU-2014' },
-    { id: 'prod_chinchulines', plu: '2015', barcode: '7792015000015', name: 'Chinchulines Crocantes', price: 4800, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 4800, category: 'Achuras', description: 'Chinchulines seleccionados y limpios', stock: 90, isAvailable: true, sku: 'PLU-2015' },
-    { id: 'prod_molida_especial', plu: '2016', barcode: '7792016000016', name: 'Carne Molida Especial Seleccionada (Magra)', price: 11800, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 11800, category: 'Diario y Preparados', description: 'Carne picada de primera sin grasa', stock: 150, isAvailable: true, sku: 'PLU-2016' },
-    { id: 'prod_molida_intermedia', plu: '2017', barcode: '7792017000017', name: 'Carne Molida Intermedia (3kg x $27.000 promo)', price: 9000, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 9000, category: 'Diario y Preparados', description: 'Molida para empanadas o salsas', stock: 130, isAvailable: true, sku: 'PLU-2017' },
-    { id: 'prod_milanesas', plu: '2018', barcode: '7792018000018', name: 'Milanesas de Ternera preparadas (2kg x $24.990)', price: 12495, unit: 'kg', saleMode: 'both', unitsPerKg: 6, unitWeightGrams: 165, unitPrice: 2082, category: 'Diario y Preparados', description: 'Milanesas rebozadas listas para freír (~6 milanesas por kilo)', stock: 100, isAvailable: true, sku: 'PLU-2018' },
-    { id: 'prod_pollo', plu: '2019', barcode: '7792019000019', name: 'Pata Muslo Fresca (3kg x $13.990 promo)', price: 4660, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 1553, category: 'Pollo', description: 'Pollo fresco seleccionado (~3 patas muslo por kilo)', stock: 160, isAvailable: true, sku: 'PLU-2019' },
-    { id: 'prod_carbon', plu: '2020', barcode: '7792020000020', name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, unit: 'bolsa', saleMode: 'unit', unitsPerKg: 1, unitWeightGrams: 4000, unitPrice: 2200, category: 'Almacén Parrillero', description: 'Carbón de leña dura de larga duración', stock: 250, isAvailable: true, sku: 'PLU-2020' },
-    { id: 'prod_vino', plu: '2021', barcode: '7792021000021', name: 'Vino Howlmande Malbec Reserva', price: 5500, unit: 'botella', saleMode: 'unit', unitsPerKg: 1, unitWeightGrams: 750, unitPrice: 5500, category: 'Bebidas', description: 'Vino tinto Malbec premium para maridar carnes', stock: 80, isAvailable: true, sku: 'PLU-2021' }
+    { id: 'prod_asadazo', plu: '2001', barcode: '7792001000001', name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, ivaRate: 21, unit: 'combo', saleMode: 'combo', unitsPerKg: 1, unitWeightGrams: 4000, unitPrice: 39999, category: 'Combos en Oferta', description: '4 kg cortes parrilleros (Bocado, Aguja, Falda, Chori criollo, Morcilla) + 1 Vino Howlmande Malbec Reserva de regalo', stock: 100, isAvailable: true, sku: 'PLU-2001' },
+    { id: 'prod_tapa_cuadril', plu: '2002', barcode: '7792002000002', name: 'Tapa de Cuadril Seleccionada', price: 12800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1200, unitPrice: 15360, category: 'Parrilla y Horno', description: 'Corte de novillito seleccionado con cobertura de grasa perfecta', stock: 85, isAvailable: true, sku: 'PLU-2002' },
+    { id: 'prod_vacio', plu: '2003', barcode: '7792003000003', name: 'Vacío Especial Seleccionado', price: 11500, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1400, unitPrice: 16100, category: 'Parrilla', description: 'Vacío tierno y jugoso de novillito', stock: 90, isAvailable: true, sku: 'PLU-2003' },
+    { id: 'prod_costillar', plu: '2004', barcode: '7792004000004', name: 'Costillar / Asado de Tira Novillito', price: 9800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 2, unitWeightGrams: 500, unitPrice: 4900, category: 'Parrilla', description: 'Tira de asado con excelente marmoleado', stock: 120, isAvailable: true, sku: 'PLU-2004' },
+    { id: 'prod_bife_chorizo', plu: '2005', barcode: '7792005000005', name: 'Bife de Chorizo Premium', price: 14500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 4833, category: 'Cortes Premium', description: 'Corte deshuesado de lomo de novillito (~330g por bife)', stock: 60, isAvailable: true, sku: 'PLU-2005' },
+    { id: 'prod_entrana', plu: '2006', barcode: '7792006000006', name: 'Entraña Fina Seleccionada', price: 16900, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 2, unitWeightGrams: 500, unitPrice: 8450, category: 'Cortes Premium', description: 'Entraña tierna y crocante a la brasa (~500g la tira)', stock: 45, isAvailable: true, sku: 'PLU-2006' },
+    { id: 'prod_matambre_cerdo', plu: '2007', barcode: '7792007000007', name: 'Matambrito de Cerdo Tiernizado', price: 8500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 1, unitWeightGrams: 900, unitPrice: 7650, category: 'Cerdo y Parrilla', description: 'Matambre de cerdo fresco listo para parrilla o limón (~900g por pieza)', stock: 70, isAvailable: true, sku: 'PLU-2007' },
+    { id: 'prod_matambre_vaca', plu: '2008', barcode: '7792008000008', name: 'Matambre Vacuno', price: 9500, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1500, unitPrice: 14250, category: 'Parrilla y Horno', description: 'Matambre vacuno magro y tierno', stock: 65, isAvailable: true, sku: 'PLU-2008' },
+    { id: 'prod_bondiola', plu: '2009', barcode: '7792009000009', name: 'Bondiola de Cerdo sin Hueso', price: 8900, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1800, unitPrice: 16020, category: 'Cerdo', description: 'Pieza entera o fraccionada de bondiola de cerdo', stock: 80, isAvailable: true, sku: 'PLU-2009' },
+    { id: 'prod_costeletas_cerdo', plu: '2010', barcode: '7792010000010', name: 'Costeletas de Cerdo (2kg x $15.000 promo)', price: 7500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 4, unitWeightGrams: 250, unitPrice: 1875, category: 'Cerdo', description: 'Chuletas frescas de cerdo (~4 unidades por kilo)', stock: 110, isAvailable: true, sku: 'PLU-2010' },
+    { id: 'prod_costeletas_ternera', plu: '2011', barcode: '7792011000011', name: 'Costeletas de Ternera (2kg x $35.000 promo)', price: 17500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 4, unitWeightGrams: 250, unitPrice: 4375, category: 'Cortes Tradicionales', description: 'Costeletas de ternera de primera calidad (~4 unidades por kilo)', stock: 75, isAvailable: true, sku: 'PLU-2011' },
+    { id: 'prod_chorizo', plu: '2012', barcode: '7792012000012', name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', price: 5000, ivaRate: 21, unit: 'kg', saleMode: 'both', unitsPerKg: 8, unitWeightGrams: 125, unitPrice: 625, category: 'Embutidos', description: 'Embutido parrillero 100% puro cerdo (promedio entre 7 y 9 unidades por kilo, ~125g c/u)', stock: 200, isAvailable: true, sku: 'PLU-2012' },
+    { id: 'prod_morcilla', plu: '2013', barcode: '7792013000013', name: 'Morcilla Bombón Parrillera', price: 5200, ivaRate: 21, unit: 'kg', saleMode: 'both', unitsPerKg: 7, unitWeightGrams: 140, unitPrice: 742, category: 'Embutidos', description: 'Morcillas bombón suaves y cremosas (~7 unidades por kilo, ~140g c/u)', stock: 140, isAvailable: true, sku: 'PLU-2013' },
+    { id: 'prod_mollejas', plu: '2014', barcode: '7792014000014', name: 'Mollejas de Corazón', price: 14800, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 4933, category: 'Achuras', description: 'Achura crocante por fuera y suave por dentro (~3 unidades por kilo)', stock: 35, isAvailable: true, sku: 'PLU-2014' },
+    { id: 'prod_chinchulines', plu: '2015', barcode: '7792015000015', name: 'Chinchulines Crocantes', price: 4800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 4800, category: 'Achuras', description: 'Chinchulines seleccionados y limpios', stock: 90, isAvailable: true, sku: 'PLU-2015' },
+    { id: 'prod_molida_especial', plu: '2016', barcode: '7792016000016', name: 'Carne Molida Especial Seleccionada (Magra)', price: 11800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 11800, category: 'Diario y Preparados', description: 'Carne picada de primera sin grasa', stock: 150, isAvailable: true, sku: 'PLU-2016' },
+    { id: 'prod_molida_intermedia', plu: '2017', barcode: '7792017000017', name: 'Carne Molida Intermedia (3kg x $27.000 promo)', price: 9000, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 9000, category: 'Diario y Preparados', description: 'Molida para empanadas o salsas', stock: 130, isAvailable: true, sku: 'PLU-2017' },
+    { id: 'prod_milanesas', plu: '2018', barcode: '7792018000018', name: 'Milanesas de Ternera preparadas (2kg x $24.990)', price: 12495, ivaRate: 21, unit: 'kg', saleMode: 'both', unitsPerKg: 6, unitWeightGrams: 165, unitPrice: 2082, category: 'Diario y Preparados', description: 'Milanesas rebozadas listas para freír (~6 milanesas por kilo)', stock: 100, isAvailable: true, sku: 'PLU-2018' },
+    { id: 'prod_pollo', plu: '2019', barcode: '7792019000019', name: 'Pata Muslo Fresca (3kg x $13.990 promo)', price: 4660, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 1553, category: 'Pollo', description: 'Pollo fresco seleccionado (~3 patas muslo por kilo)', stock: 160, isAvailable: true, sku: 'PLU-2019' },
+    { id: 'prod_carbon', plu: '2020', barcode: '7792020000020', name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, ivaRate: 21, unit: 'bolsa', saleMode: 'unit', unitsPerKg: 1, unitWeightGrams: 4000, unitPrice: 2200, category: 'Almacén Parrillero', description: 'Carbón de leña dura de larga duración', stock: 250, isAvailable: true, sku: 'PLU-2020' },
+    { id: 'prod_vino', plu: '2021', barcode: '7792021000021', name: 'Vino Howlmande Malbec Reserva', price: 5500, ivaRate: 21, unit: 'botella', saleMode: 'unit', unitsPerKg: 1, unitWeightGrams: 750, unitPrice: 5500, category: 'Bebidas', description: 'Vino tinto Malbec premium para maridar carnes', stock: 80, isAvailable: true, sku: 'PLU-2021' }
   ];
 
   seedMasterProducts(force = false) {
@@ -788,12 +788,44 @@ class DatabaseService {
     return db.products;
   }
 
+  parseBarcode(barcode) {
+    if (!barcode) return null;
+    const raw = String(barcode).trim();
+    // Balanza pesable: código empieza con 20 o 02 (formato balanza argentina: 20 + 5 dígitos PLU + 5 dígitos peso/precio)
+    if (/^(20|02)\d{10,11}$/.test(raw)) {
+      const pluNum = raw.slice(2, 7).replace(/^0+/, '');
+      const valDigits = parseInt(raw.slice(7, 12), 10) || 0;
+      const weightKg = Number((valDigits / 1000).toFixed(3));
+      return {
+        type: 'scale_balance',
+        raw,
+        plu: pluNum,
+        scaleValue: valDigits,
+        weightKg,
+        weight: weightKg,
+        isBalanceWeight: true,
+        isScale: true
+      };
+    }
+    return {
+      type: 'standard',
+      raw,
+      plu: null,
+      isBalanceWeight: false,
+      isScale: false
+    };
+  }
+
   saveProduct(prodData) {
     const db = this.readDb();
     if (!db.products) db.products = [];
 
     const plu = String(prodData.plu || (prodData.barcode ? prodData.barcode.slice(-4) : `${2000 + db.products.length + 1}`)).trim();
     const barcode = String(prodData.barcode || (plu ? `779${plu.padStart(4, '0')}000001` : '')).trim();
+
+    const isMeat = /vacio|costill|cuadril|entra[nñ]a|matambre|bondiola|costeleta|ternera|molida|pollo|pata|muslo|achura|chinchulin|molleja/i.test(prodData.name || '') || 
+                   /parrilla|vacun|cerdo|pollo|achura|tradicional/i.test(prodData.category || '');
+    const ivaRate = prodData.ivaRate !== undefined ? Number(prodData.ivaRate) : (isMeat ? 10.5 : 21);
 
     const existingIndex = db.products.findIndex(p => p.id === prodData.id || (plu && p.plu === plu));
     const newProduct = {
@@ -803,6 +835,7 @@ class DatabaseService {
       name: prodData.name || 'Nuevo Producto',
       category: prodData.category || 'Parrilla',
       price: Number(prodData.price) || 0,
+      ivaRate: ivaRate,
       unit: prodData.unit || 'kg',
       description: prodData.description || '',
       stock: Number(prodData.stock) ?? 100,
@@ -812,7 +845,8 @@ class DatabaseService {
       updatedAt: new Date().toISOString(),
       ...prodData,
       plu: plu,
-      barcode: barcode
+      barcode: barcode,
+      ivaRate: ivaRate
     };
 
     if (existingIndex >= 0) {
@@ -3093,7 +3127,274 @@ class DatabaseService {
     this.writeDb(db);
     return true;
   }
+
+  // --- Fiscal Profiles (Múltiples Razones Sociales & ARCA) ---
+  getFiscalProfiles() {
+    const db = this.readDb();
+    if (!db.fiscalProfiles || db.fiscalProfiles.length === 0) {
+      db.fiscalProfiles = [
+        {
+          id: 'fp-urca-central',
+          name: 'República de la Carne Central (Urca / Sede Principal)',
+          razonSocial: 'REPÚBLICA DE LA CARNE S.R.L.',
+          nombreFantasia: 'República de la Carne - Urca',
+          cuit: '30716892348',
+          condicionIva: 'Responsable Inscripto',
+          iibb: '901-283746-1',
+          inicioActividades: '01/03/2020',
+          domicilioComercial: 'Av. José Roque Funes 1115, Barrio Urca, Córdoba (CP 5009)',
+          ptoVta: 1,
+          defaultDocumentType: 'factura_b',
+          mode: 'sandbox',
+          branchIds: ['br-1', 'br-2', 'br-3'],
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          id: 'fp-norte-distribucion',
+          name: 'Carnes Norte & Frigorífico Distribución',
+          razonSocial: 'DISTRIBUIDORA GASTRONOMICA CORDOBA S.A.',
+          nombreFantasia: 'República de la Carne - Sucursales Norte',
+          cuit: '30719948215',
+          condicionIva: 'Responsable Inscripto',
+          iibb: '902-394821-4',
+          inicioActividades: '15/06/2021',
+          domicilioComercial: 'Av. Figueroa Alcorta 480, Villa Allende, Córdoba',
+          ptoVta: 2,
+          defaultDocumentType: 'factura_b',
+          mode: 'sandbox',
+          branchIds: ['br-4', 'br-5', 'br-6'],
+          isDefault: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+      ];
+      this.writeDb(db);
+    }
+    return db.fiscalProfiles;
+  }
+
+  getFiscalProfile(id) {
+    const profiles = this.getFiscalProfiles();
+    return profiles.find(p => p.id === id) || profiles.find(p => p.isDefault) || profiles[0] || null;
+  }
+
+  getFiscalProfileForBranch(branchId) {
+    const profiles = this.getFiscalProfiles();
+    if (!branchId) return profiles.find(p => p.isDefault) || profiles[0] || null;
+    const branch = this.getBranch(branchId);
+    if (branch && branch.fiscalProfileId) {
+      const match = profiles.find(p => p.id === branch.fiscalProfileId);
+      if (match) return match;
+    }
+    const matchByList = profiles.find(p => Array.isArray(p.branchIds) && p.branchIds.includes(branchId));
+    if (matchByList) return matchByList;
+    return profiles.find(p => p.isDefault) || profiles[0] || null;
+  }
+
+  saveFiscalProfile(data) {
+    const db = this.readDb();
+    if (!db.fiscalProfiles) db.fiscalProfiles = [];
+    const id = data.id || `fp-${Date.now()}`;
+    const cleanCuit = String(data.cuit || '30716892348').replace(/\D/g, '');
+    const entry = {
+      id,
+      name: data.name || data.razonSocial || 'Razón Social',
+      razonSocial: data.razonSocial || 'REPÚBLICA DE LA CARNE S.R.L.',
+      nombreFantasia: data.nombreFantasia || 'República de la Carne',
+      cuit: cleanCuit,
+      condicionIva: data.condicionIva || 'Responsable Inscripto',
+      iibb: data.iibb || '901-283746-1',
+      inicioActividades: data.inicioActividades || '01/03/2020',
+      domicilioComercial: data.domicilioComercial || 'Córdoba, Argentina',
+      ptoVta: parseInt(data.ptoVta || 1, 10),
+      defaultDocumentType: data.defaultDocumentType || 'factura_b',
+      mode: data.mode || 'sandbox',
+      branchIds: Array.isArray(data.branchIds) ? data.branchIds : (data.branchId ? [data.branchId] : (data.branchIds ? [data.branchIds] : [])),
+      isDefault: Boolean(data.isDefault),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (entry.isDefault) {
+      db.fiscalProfiles.forEach(p => { if (p.id !== id) p.isDefault = false; });
+    }
+
+    const idx = db.fiscalProfiles.findIndex(p => p.id === id);
+    if (idx >= 0) {
+      db.fiscalProfiles[idx] = { ...db.fiscalProfiles[idx], ...entry };
+    } else {
+      entry.createdAt = new Date().toISOString();
+      db.fiscalProfiles.push(entry);
+    }
+
+    // Actualizar sucursales asociadas
+    if (Array.isArray(db.branches)) {
+      db.branches.forEach(b => {
+        if (entry.branchIds.includes(b.id)) {
+          b.fiscalProfileId = entry.id;
+        } else if (b.fiscalProfileId === entry.id && !entry.branchIds.includes(b.id)) {
+          b.fiscalProfileId = null;
+        }
+      });
+    }
+
+    this.writeDb(db);
+    return entry;
+  }
+
+  deleteFiscalProfile(id) {
+    const db = this.readDb();
+    if (!db.fiscalProfiles) return true;
+    db.fiscalProfiles = db.fiscalProfiles.filter(p => p.id !== id);
+    if (Array.isArray(db.branches)) {
+      db.branches.forEach(b => {
+        if (b.fiscalProfileId === id) b.fiscalProfileId = null;
+      });
+    }
+    this.writeDb(db);
+    return true;
+  }
+
+  // --- Bulk Mutations Engine (Acciones Masivas en Lote) ---
+  bulkUpdateOrders(orderIds = [], updates = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(orderIds) || orderIds.length === 0 || !db.orders) return [];
+    const modified = [];
+    db.orders.forEach(o => {
+      if (orderIds.includes(o.id)) {
+        Object.assign(o, updates, { updatedAt: new Date().toISOString() });
+        modified.push(o);
+      }
+    });
+    this.writeDb(db);
+    return modified;
+  }
+
+  bulkDeleteOrders(orderIds = []) {
+    const db = this.readDb();
+    if (!Array.isArray(orderIds) || orderIds.length === 0 || !db.orders) return 0;
+    const initialCount = db.orders.length;
+    db.orders = db.orders.filter(o => !orderIds.includes(o.id));
+    const deletedCount = initialCount - db.orders.length;
+    this.writeDb(db);
+    return deletedCount;
+  }
+
+  bulkUpdateProducts(productIds = [], updates = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(productIds) || productIds.length === 0 || !db.products) return [];
+    const modified = [];
+    db.products.forEach(p => {
+      if (productIds.includes(p.id)) {
+        if (updates.pricePercentChange !== undefined) {
+          const factor = 1 + (Number(updates.pricePercentChange) / 100);
+          p.price = Math.round(p.price * factor);
+          if (p.unitPrice) p.unitPrice = Math.round(p.unitPrice * factor);
+        }
+        if (updates.ivaRate !== undefined) {
+          p.ivaRate = Number(updates.ivaRate);
+        }
+        if (updates.category) {
+          p.category = updates.category;
+        }
+        if (updates.isAvailable !== undefined) {
+          p.isAvailable = Boolean(updates.isAvailable);
+        }
+        p.updatedAt = new Date().toISOString();
+        modified.push(p);
+      }
+    });
+    this.writeDb(db);
+    return modified;
+  }
+
+  bulkDeleteProducts(productIds = []) {
+    const db = this.readDb();
+    if (!Array.isArray(productIds) || productIds.length === 0 || !db.products) return 0;
+    const initialCount = db.products.length;
+    db.products = db.products.filter(p => !productIds.includes(p.id));
+    const deletedCount = initialCount - db.products.length;
+    this.writeDb(db);
+    return deletedCount;
+  }
+
+  bulkUpdateLeads(leadIds = [], updates = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !db.leads) return [];
+    const modified = [];
+    db.leads.forEach(l => {
+      if (leadIds.includes(l.id) || leadIds.includes(l.jid)) {
+        if (updates.tagToAdd) {
+          if (!l.tags) l.tags = [];
+          if (!l.tags.includes(updates.tagToAdd)) l.tags.push(updates.tagToAdd);
+        }
+        if (updates.stage) l.stage = updates.stage;
+        if (updates.fiscalCondition) l.fiscalCondition = updates.fiscalCondition;
+        if (updates.aiEnabled !== undefined) l.aiEnabled = Boolean(updates.aiEnabled);
+        l.updatedAt = new Date().toISOString();
+        modified.push(l);
+      }
+    });
+    this.writeDb(db);
+    return modified;
+  }
+
+  bulkDeleteLeads(leadIds = []) {
+    const db = this.readDb();
+    if (!Array.isArray(leadIds) || leadIds.length === 0 || !db.leads) return 0;
+    const initialCount = db.leads.length;
+    db.leads = db.leads.filter(l => !leadIds.includes(l.id) && !leadIds.includes(l.jid));
+    if (db.messages) {
+      db.messages = db.messages.filter(m => !leadIds.includes(m.chatId));
+    }
+    const deletedCount = initialCount - db.leads.length;
+    this.writeDb(db);
+    return deletedCount;
+  }
+
+  bulkUpdateUsers(userIds = [], updates = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(userIds) || userIds.length === 0 || !db.users) return [];
+    const modified = [];
+    db.users.forEach(u => {
+      if (userIds.includes(u.id)) {
+        Object.assign(u, updates, { updatedAt: new Date().toISOString() });
+        modified.push(u);
+      }
+    });
+    this.writeDb(db);
+    return modified;
+  }
+
+  bulkDeleteUsers(userIds = []) {
+    const db = this.readDb();
+    if (!Array.isArray(userIds) || userIds.length === 0 || !db.users) return 0;
+    const initialCount = db.users.length;
+    db.users = db.users.filter(u => !userIds.includes(u.id));
+    const deletedCount = initialCount - db.users.length;
+    this.writeDb(db);
+    return deletedCount;
+  }
 }
 
 export const db = new DatabaseService();
+
+export const getFiscalProfiles = () => db.getFiscalProfiles();
+export const getFiscalProfile = (id) => db.getFiscalProfile(id);
+export const getFiscalProfileForBranch = (bId) => db.getFiscalProfileForBranch(bId);
+export const saveFiscalProfile = (data) => db.saveFiscalProfile(data);
+export const deleteFiscalProfile = (id) => db.deleteFiscalProfile(id);
+export const parseBarcode = (b) => db.parseBarcode(b);
+export const getProducts = () => db.getProducts();
+export const saveProduct = (p) => db.saveProduct(p);
+export const bulkUpdateOrders = (ids, u) => db.bulkUpdateOrders(ids, u);
+export const bulkDeleteOrders = (ids) => db.bulkDeleteOrders(ids);
+export const bulkUpdateProducts = (ids, u) => db.bulkUpdateProducts(ids, u);
+export const bulkDeleteProducts = (ids) => db.bulkDeleteProducts(ids);
+export const bulkUpdateLeads = (ids, u) => db.bulkUpdateLeads(ids, u);
+export const bulkDeleteLeads = (ids) => db.bulkDeleteLeads(ids);
+export const bulkUpdateUsers = (ids, u) => db.bulkUpdateUsers(ids, u);
+export const bulkDeleteUsers = (ids) => db.bulkDeleteUsers(ids);
+
 

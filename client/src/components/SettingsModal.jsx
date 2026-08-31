@@ -329,21 +329,75 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
-  // ARCA (AFIP) Facturación Electrónica
+  // ARCA (AFIP) Facturación Electrónica & Multi-Razón Social
   const [isTestingArca, setIsTestingArca] = useState(false);
   const [arcaTestResult, setArcaTestResult] = useState(null);
+  const [fiscalProfiles, setFiscalProfiles] = useState([]);
+  const [editingProfile, setEditingProfile] = useState(null);
+  const [allBranches, setAllBranches] = useState([]);
 
-  const handleTestArca = async () => {
+  const fetchFiscalProfiles = async () => {
+    try {
+      const [fpRes, brRes] = await Promise.all([
+        fetch('/api/fiscal-profiles').then(r => r.json()).catch(() => []),
+        fetch('/api/branches').then(r => r.json()).catch(() => [])
+      ]);
+      if (Array.isArray(fpRes)) setFiscalProfiles(fpRes);
+      if (Array.isArray(brRes)) setAllBranches(brRes);
+    } catch (e) {
+      console.error('Error fetching fiscal profiles:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'arca' || isOpen) {
+      fetchFiscalProfiles();
+    }
+  }, [activeTab, isOpen]);
+
+  const handleTestArca = async (profileId = null) => {
     setIsTestingArca(true);
     setArcaTestResult(null);
     try {
-      const res = await fetch('/api/arca/test', { method: 'POST' });
+      const url = profileId ? `/api/fiscal-profiles/${profileId}/test` : '/api/arca/test';
+      const res = await fetch(url, { method: 'POST' });
       const data = await res.json();
       setArcaTestResult(data);
     } catch (err) {
       setArcaTestResult({ success: false, message: `Error: ${err.message}` });
     } finally {
       setIsTestingArca(false);
+    }
+  };
+
+  const handleSaveFiscalProfile = async (profileData) => {
+    try {
+      const isEdit = profileData.id && fiscalProfiles.some(p => p.id === profileData.id);
+      const method = isEdit ? 'PUT' : 'POST';
+      const url = isEdit ? `/api/fiscal-profiles/${profileData.id}` : '/api/fiscal-profiles';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData)
+      });
+      if (res.ok) {
+        await fetchFiscalProfiles();
+        setEditingProfile(null);
+      }
+    } catch (e) {
+      console.error('Error guardando perfil fiscal:', e);
+    }
+  };
+
+  const handleDeleteFiscalProfile = async (profileId) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta Razón Social / Perfil Fiscal?')) return;
+    try {
+      const res = await fetch(`/api/fiscal-profiles/${profileId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setFiscalProfiles(prev => prev.filter(p => p.id !== profileId));
+      }
+    } catch (e) {
+      console.error('Error eliminando perfil fiscal:', e);
     }
   };
 
@@ -1593,7 +1647,7 @@ export default function SettingsModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* TAB ARCA / FACTURACIÓN ELECTRÓNICA */}
+          {/* TAB ARCA / FACTURACIÓN ELECTRÓNICA & MULTI-RAZÓN SOCIAL */}
           {activeTab === 'arca' && (
             <div className="space-y-4 animate-in fade-in">
               {/* Banner Header ARCA */}
@@ -1604,26 +1658,51 @@ export default function SettingsModal({ isOpen, onClose }) {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      ARCA (ex AFIP) Facturación Electrónica & Presupuestos
+                      ARCA (ex AFIP) Multi-Razón Social & Facturación
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold border border-blue-500/30">
                         🇦🇷 RG 4291 / 4892
                       </span>
                     </h3>
                     <p className="text-[11px] text-slate-300">
-                      Emisión de Facturas A, B, C con CAE y QR oficial, o Presupuestos / Comprobantes X no fiscales
+                      Asocia múltiples CUITs y Razones Sociales a tus sucursales con puntos de venta específicos y alícuotas de IVA.
                     </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleTestArca}
-                  disabled={isTestingArca}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md transition disabled:opacity-50 shrink-0"
-                >
-                  <RefreshCw size={13} className={isTestingArca ? 'animate-spin' : ''} />
-                  {isTestingArca ? 'Verificando...' : '⚡ Probar Conexión'}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProfile({
+                      id: '',
+                      name: '',
+                      razonSocial: '',
+                      nombreFantasia: '',
+                      cuit: '',
+                      condicionIva: 'Responsable Inscripto',
+                      iibb: '',
+                      inicioActividades: '',
+                      domicilioComercial: '',
+                      ptoVta: 1,
+                      defaultDocumentType: 'factura_b',
+                      mode: 'sandbox',
+                      branchIds: [],
+                      isDefault: fiscalProfiles.length === 0
+                    })}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold shadow-md transition"
+                  >
+                    <Plus size={14} /> Nueva Razón Social
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTestArca()}
+                    disabled={isTestingArca}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md transition disabled:opacity-50"
+                  >
+                    <RefreshCw size={13} className={isTestingArca ? 'animate-spin' : ''} />
+                    {isTestingArca ? 'Verificando...' : '⚡ Probar ARCA'}
+                  </button>
+                </div>
               </div>
 
               {/* Status Test Result Alert */}
@@ -1648,201 +1727,289 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               )}
 
-              {/* Switch de Entorno: Modo Sandbox vs Producción */}
+              {/* LIST OF FISCAL PROFILES / RAZONES SOCIALES */}
               <div className="p-4 rounded-2xl bg-[#182229] border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-200">Entorno de Facturación</span>
-                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                    settings?.arcaConfig?.mode === 'production'
-                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  }`}>
-                    {settings?.arcaConfig?.mode === 'production' ? '🚀 PRODUCCIÓN (Facturación Real)' : '🧪 MODO PRUEBAS (Sandbox / Homologación)'}
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Razones Sociales & CUITs Registrados</h4>
+                    <p className="text-[11px] text-slate-400">Cada sucursal facturará bajo su Razón Social y Punto de Venta asignado</p>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    {fiscalProfiles.length} Perfil(es)
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSettings(prev => ({
-                      ...prev,
-                      arcaConfig: { ...(prev?.arcaConfig || {}), mode: 'sandbox' }
-                    }))}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      (settings?.arcaConfig?.mode || 'sandbox') !== 'production'
-                        ? 'border-amber-500 bg-amber-500/10 text-white shadow-sm'
-                        : 'border-slate-800 bg-[#111b21] text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 font-bold text-xs text-amber-300 mb-1">
-                      🧪 Modo Pruebas (Sandbox)
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-tight">
-                      Emite facturas y presupuestos de prueba con CAE simulado y QR verificable sin impacto fiscal.
-                    </p>
-                  </button>
+                <div className="space-y-2.5">
+                  {fiscalProfiles.map(profile => {
+                    const assignedBranches = allBranches.filter(b => 
+                      b.fiscalProfileId === profile.id || (Array.isArray(profile.branchIds) && profile.branchIds.includes(b.id))
+                    );
 
-                  <button
-                    type="button"
-                    onClick={() => setSettings(prev => ({
-                      ...prev,
-                      arcaConfig: { ...(prev?.arcaConfig || {}), mode: 'production' }
-                    }))}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      settings?.arcaConfig?.mode === 'production'
-                        ? 'border-blue-500 bg-blue-500/10 text-white shadow-sm'
-                        : 'border-slate-800 bg-[#111b21] text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 font-bold text-xs text-blue-400 mb-1">
-                      🚀 Modo Producción (ARCA)
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-tight">
-                      Conexión directa con servidores de ARCA / AFIP para comprobantes con validez fiscal formal.
-                    </p>
-                  </button>
+                    return (
+                      <div 
+                        key={profile.id}
+                        className="p-3 rounded-2xl bg-[#111b21] border border-slate-700/80 space-y-2"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-extrabold text-white">{profile.razonSocial}</span>
+                              {profile.isDefault && (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                  ★ Predeterminada
+                                </span>
+                              )}
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                profile.mode === 'production'
+                                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              }`}>
+                                {profile.mode === 'production' ? '🚀 Producción' : '🧪 Sandbox'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span>CUIT: <b className="text-white font-mono">{profile.cuit}</b></span>
+                              <span>Pto. Venta: <b className="text-emerald-400 font-mono">#{profile.ptoVta}</b></span>
+                              <span>Condición: <b className="text-slate-300">{profile.condicionIva}</b></span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleTestArca(profile.id)}
+                              className="px-2.5 py-1 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-bold border border-blue-500/30 transition"
+                              title="Probar conexión de esta Razón Social"
+                            >
+                              ⚡ Probar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProfile({ ...profile })}
+                              className="p-1.5 rounded-xl bg-[#182229] hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition"
+                              title="Editar datos fiscales"
+                            >
+                              ✏️
+                            </button>
+                            {!profile.isDefault && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteFiscalProfile(profile.id)}
+                                className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition"
+                                title="Eliminar razón social"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Associated Branches Badges */}
+                        <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400 font-bold mr-1">Sucursales Asociadas:</span>
+                          {assignedBranches.length > 0 ? (
+                            assignedBranches.map(b => (
+                              <span key={b.id} className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-[#182229] text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <Store size={10} /> {b.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-amber-400/80 italic">Ninguna sucursal vinculada (se aplicará como fallback)</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Parámetros Fiscales del Emisor */}
-              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-800 space-y-4">
-                <h4 className="text-xs font-bold text-slate-200 border-b border-slate-700/60 pb-2">
-                  Datos Fiscales de la Carnicería (Emisor)
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">CUIT Emisor (11 dígitos):</label>
-                    <input
-                      type="text"
-                      value={settings?.arcaConfig?.cuit || '30716892348'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), cuit: e.target.value.replace(/\D/g, '') }
-                      }))}
-                      placeholder="30716892348"
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Punto de Venta (Pto Vta):</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="9999"
-                      value={settings?.arcaConfig?.ptoVta || 1}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), ptoVta: parseInt(e.target.value, 10) || 1 }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Razón Social:</label>
-                    <input
-                      type="text"
-                      value={settings?.arcaConfig?.razonSocial || 'REPÚBLICA DE LA CARNE S.R.L.'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), razonSocial: e.target.value }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Nombre de Fantasía:</label>
-                    <input
-                      type="text"
-                      value={settings?.arcaConfig?.nombreFantasia || 'República de la Carne'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), nombreFantasia: e.target.value }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Condición frente al IVA:</label>
-                    <select
-                      value={settings?.arcaConfig?.condicionIva || 'Responsable Inscripto'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), condicionIva: e.target.value }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+              {/* MODAL / FORMULARIO EDICIÓN DE RAZÓN SOCIAL */}
+              {editingProfile && (
+                <div className="p-4 rounded-2xl bg-[#111b21] border border-blue-500/40 space-y-3 animate-in zoom-in-95">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                      <Receipt size={14} className="text-blue-400" />
+                      {editingProfile.id ? 'Editar Razón Social' : 'Nueva Razón Social / CUIT'}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setEditingProfile(null)}
+                      className="text-slate-400 hover:text-white"
                     >
-                      <option value="Responsable Inscripto">Responsable Inscripto</option>
-                      <option value="Monotributo">Monotributo</option>
-                      <option value="Exento">IVA Exento</option>
-                    </select>
+                      <X size={15} />
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Tipo Comprobante por Defecto:</label>
-                    <select
-                      value={settings?.arcaConfig?.defaultDocumentType || 'factura_b'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), defaultDocumentType: e.target.value }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="factura_b">Factura B (Consumidor Final)</option>
-                      <option value="factura_a">Factura A (Responsable Inscripto - IVA 21%)</option>
-                      <option value="factura_c">Factura C (Monotributo)</option>
-                      <option value="presupuesto">Presupuesto / Comprobante X (No Fiscal)</option>
-                    </select>
-                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Razón Social Legal:</label>
+                      <input
+                        type="text"
+                        value={editingProfile.razonSocial || ''}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, razonSocial: e.target.value })}
+                        placeholder="Ej: REPÚBLICA DE LA CARNE S.R.L."
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Domicilio Comercial:</label>
-                    <input
-                      type="text"
-                      value={settings?.arcaConfig?.domicilioComercial || 'Av. José Roque Funes 1115, Urca, Córdoba'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), domicilioComercial: e.target.value }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Nombre de Fantasía:</label>
+                      <input
+                        type="text"
+                        value={editingProfile.nombreFantasia || ''}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, nombreFantasia: e.target.value })}
+                        placeholder="Ej: República de la Carne - Urca"
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">CUIT Emisor (11 dígitos):</label>
+                      <input
+                        type="text"
+                        value={editingProfile.cuit || ''}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, cuit: e.target.value.replace(/\D/g, '') })}
+                        placeholder="30716892348"
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Punto de Venta (Pto Vta):</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="9999"
+                        value={editingProfile.ptoVta || 1}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, ptoVta: parseInt(e.target.value, 10) || 1 })}
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Condición frente al IVA:</label>
+                      <select
+                        value={editingProfile.condicionIva || 'Responsable Inscripto'}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, condicionIva: e.target.value })}
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="Responsable Inscripto">Responsable Inscripto</option>
+                        <option value="Monotributo">Monotributo</option>
+                        <option value="Exento">IVA Exento</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Entorno:</label>
+                      <select
+                        value={editingProfile.mode || 'sandbox'}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, mode: e.target.value })}
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="sandbox">🧪 Sandbox / Homologación (Pruebas)</option>
+                        <option value="production">🚀 Producción (Facturación Oficial)</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Domicilio Comercial:</label>
+                      <input
+                        type="text"
+                        value={editingProfile.domicilioComercial || ''}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, domicilioComercial: e.target.value })}
+                        placeholder="Av. José Roque Funes 1115, Barrio Urca, Córdoba"
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Ingresos Brutos (IIBB):</label>
+                      <input
+                        type="text"
+                        value={editingProfile.iibb || ''}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, iibb: e.target.value })}
+                        placeholder="901-283746-1"
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">Inicio de Actividades:</label>
+                      <input
+                        type="text"
+                        value={editingProfile.inicioActividades || ''}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, inicioActividades: e.target.value })}
+                        placeholder="01/03/2020"
+                        className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    {/* Selector de Sucursales Asociadas */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Sucursales que operan bajo esta Razón Social:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 bg-[#182229] border border-slate-800 rounded-xl">
+                        {allBranches.map(b => {
+                          const isChecked = Array.isArray(editingProfile.branchIds) && editingProfile.branchIds.includes(b.id);
+                          return (
+                            <label key={b.id} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const currentIds = Array.isArray(editingProfile.branchIds) ? [...editingProfile.branchIds] : [];
+                                  if (e.target.checked) {
+                                    if (!currentIds.includes(b.id)) currentIds.push(b.id);
+                                  } else {
+                                    const filtered = currentIds.filter(id => id !== b.id);
+                                    setEditingProfile({ ...editingProfile, branchIds: filtered });
+                                    return;
+                                  }
+                                  setEditingProfile({ ...editingProfile, branchIds: currentIds });
+                                }}
+                                className="rounded text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="truncate">{b.name}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2 flex items-center justify-between pt-2">
+                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(editingProfile.isDefault)}
+                          onChange={(e) => setEditingProfile({ ...editingProfile, isDefault: e.target.checked })}
+                          className="rounded text-blue-600"
+                        />
+                        <span>Establecer como Razón Social Predeterminada</span>
+                      </label>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProfile(null)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveFiscalProfile(editingProfile)}
+                          className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md"
+                        >
+                          Guardar Razón Social
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Ingresos Brutos (IIBB):</label>
-                    <input
-                      type="text"
-                      value={settings?.arcaConfig?.iibb || '901-283746-1'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), iibb: e.target.value }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Inicio de Actividades:</label>
-                    <input
-                      type="text"
-                      value={settings?.arcaConfig?.inicioActividades || '01/03/2020'}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        arcaConfig: { ...(prev?.arcaConfig || {}), inicioActividades: e.target.value }
-                      }))}
-                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Opciones y Automatización */}
+              {/* Automatización de Facturación al Cobrar */}
               <div className="p-4 rounded-2xl bg-[#182229] border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>

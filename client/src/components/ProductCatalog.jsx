@@ -40,8 +40,12 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     isFeaturedWhatsApp: false,
     plu: '',
     barcode: '',
-    sku: ''
+    sku: '',
+    ivaRate: 10.5
   });
+
+  // Selección Múltiple y Acciones Masivas
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
 
   // Modal de Ajuste Rápido de Stock
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
@@ -112,6 +116,81 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncMessage(null), 6000);
+    }
+  };
+
+  // --- Manejo de Selección Múltiple y Acciones en Lote ---
+  const handleToggleSelectAll = () => {
+    if (selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(filteredProducts.map(p => p.id));
+    }
+  };
+
+  const handleToggleSelectProduct = (id) => {
+    setSelectedProductIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkUpdatePrice = async () => {
+    const percentStr = window.prompt(`Ingresa el % de aumento o descuento para los ${selectedProductIds.length} productos seleccionados (ej: 15 para +15%, -10 para -10%):`);
+    if (percentStr === null) return;
+    const percent = parseFloat(percentStr);
+    if (isNaN(percent)) return alert('Porcentaje inválido.');
+    
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/products/bulk-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: selectedProductIds, updates: { pricePercentChange: percent } })
+      });
+      if (res.ok) {
+        await fetchProducts();
+        setSelectedProductIds([]);
+        setSyncMessage({ type: 'success', text: `¡Precios actualizados en ${selectedProductIds.length} productos con ${percent > 0 ? '+' : ''}${percent}%!` });
+        setTimeout(() => setSyncMessage(null), 4000);
+      }
+    } catch (e) {
+      console.error('Error en bulk price update:', e);
+    }
+  };
+
+  const handleBulkUpdateIva = async (ivaRate) => {
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/products/bulk-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: selectedProductIds, updates: { ivaRate: Number(ivaRate) } })
+      });
+      if (res.ok) {
+        await fetchProducts();
+        setSelectedProductIds([]);
+        setSyncMessage({ type: 'success', text: `¡Alícuota IVA de ${ivaRate}% asignada a ${selectedProductIds.length} productos!` });
+        setTimeout(() => setSyncMessage(null), 4000);
+      }
+    } catch (e) {
+      console.error('Error en bulk iva update:', e);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`¿Estás seguro de eliminar los ${selectedProductIds.length} productos seleccionados? Esta acción no se puede deshacer.`)) return;
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/products/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: selectedProductIds })
+      });
+      if (res.ok) {
+        await fetchProducts();
+        setSelectedProductIds([]);
+        setSyncMessage({ type: 'success', text: `¡${selectedProductIds.length} productos eliminados del catálogo!` });
+        setTimeout(() => setSyncMessage(null), 4000);
+      }
+    } catch (e) {
+      console.error('Error en bulk delete:', e);
     }
   };
 
@@ -711,11 +790,20 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
                   <tr>
+                    <th className="py-3.5 px-3 w-8 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0}
+                        onChange={handleToggleSelectAll}
+                        className="rounded text-emerald-500 bg-[#182229] border-slate-700 focus:ring-0 cursor-pointer"
+                      />
+                    </th>
                     <th className="py-3.5 px-4">Código PLU</th>
                     <th className="py-3.5 px-4">Código de Barras (EAN-13)</th>
                     <th className="py-3.5 px-4">Nombre del Corte / Producto</th>
                     <th className="py-3.5 px-4">Categoría</th>
                     <th className="py-3.5 px-4">Precio / Unidad</th>
+                    <th className="py-3.5 px-4">Alícuota IVA</th>
                     <th className="py-3.5 px-4 text-center">Control de Stock</th>
                     <th className="py-3.5 px-4 text-center">WhatsApp</th>
                     <th className="py-3.5 px-4 text-center">Menú Top 8</th>
@@ -725,12 +813,21 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                 <tbody className="divide-y divide-slate-800/60">
                   {filteredProducts.map(prod => {
                     const plu = prod.plu || (prod.barcode ? prod.barcode.slice(-4) : '2001');
-                    const barcode = prod.barcode || `779${plu.padStart(4, '0')}000001`;
+                    const barcode = prod.barcode || `779${String(plu).padStart(4, '0')}000001`;
                     const currentStock = Number(prod.stockQuantity ?? prod.stock ?? 0);
                     const minAlert = Number(prod.stockMinAlert ?? 5);
+                    const isSelected = selectedProductIds.includes(prod.id);
 
                     return (
-                      <tr key={prod.id} className="hover:bg-[#202c33]/50 transition-colors">
+                      <tr key={prod.id} className={`transition-colors ${isSelected ? 'bg-emerald-500/10' : 'hover:bg-[#202c33]/50'}`}>
+                        <td className="py-3.5 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectProduct(prod.id)}
+                            className="rounded text-emerald-500 bg-[#182229] border-slate-700 focus:ring-0 cursor-pointer"
+                          />
+                        </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <button
                             onClick={() => copyToClipboard(plu, 'plu')}
@@ -773,6 +870,17 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                         <td className="py-3.5 px-4 font-extrabold text-white whitespace-nowrap">
                           <span className="text-emerald-400 text-sm">${Number(prod.price).toLocaleString()}</span>
                           <span className="text-[10px] text-slate-400 font-normal ml-0.5">/{prod.unit || 'kg'}</span>
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${
+                            Number(prod.ivaRate ?? 10.5) === 10.5
+                              ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                              : Number(prod.ivaRate) === 21
+                              ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                              : 'bg-slate-700 text-slate-300 border-slate-600'
+                          }`}>
+                            IVA {prod.ivaRate !== undefined ? `${prod.ivaRate}%` : '10.5%'}
+                          </span>
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap text-center">
                           {prod.stockControl ? (
@@ -1103,23 +1211,23 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
                     <Tag size={13} className="text-emerald-400" />
-                    Código PLU (Balanza) *
+                    Código PLU *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej: 2001"
+                    placeholder="Ej: 2001 o VAC-01"
                     value={formData.plu}
                     onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
+                      const val = e.target.value.trim().toUpperCase();
                       setFormData({ 
                         ...formData, 
                         plu: val,
-                        barcode: val ? `779${val.padStart(4, '0')}000001` : formData.barcode,
+                        barcode: val && /^\d+$/.test(val) ? `779${val.padStart(4, '0')}000001` : formData.barcode,
                         sku: val ? `PLU-${val}` : formData.sku
                       });
                     }}
@@ -1130,7 +1238,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
                     <Barcode size={13} className="text-slate-400" />
-                    Código de Barras (EAN-13)
+                    Código de Barras
                   </label>
                   <input
                     type="text"
@@ -1139,6 +1247,19 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                     onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Alícuota IVA (ARCA)</label>
+                  <select
+                    value={formData.ivaRate !== undefined ? formData.ivaRate : 10.5}
+                    onChange={(e) => setFormData({ ...formData, ivaRate: parseFloat(e.target.value) })}
+                    className="w-full px-3 py-2 bg-[#202c33] border border-blue-500/40 rounded-xl text-xs text-blue-300 font-bold focus:outline-none focus:border-blue-500"
+                  >
+                    <option value={10.5}>10.5% (Carnes)</option>
+                    <option value={21.0}>21.0% (General / Elaborados)</option>
+                    <option value={0}>0% (Exento)</option>
+                  </select>
                 </div>
               </div>
 
@@ -1639,6 +1760,60 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
         onSelectImage={(url) => setFormData(prev => ({ ...prev, imageUrl: url }))}
         selectedImageUrl={formData.imageUrl}
       />
+
+      {/* Barra Flotante de Acciones Masivas en Lote */}
+      {selectedProductIds.length > 0 && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-[#182229]/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom">
+          <div className="flex items-center gap-2 pr-3 border-r border-slate-700">
+            <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">
+              {selectedProductIds.length}
+            </span>
+            <span className="text-xs font-bold text-white hidden sm:inline">Seleccionados</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleBulkUpdatePrice}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/30 transition"
+              title="Aumentar o reducir precio en % a todos los seleccionados"
+            >
+              📈 Cambiar Precios %
+            </button>
+
+            <button
+              onClick={() => handleBulkUpdateIva(10.5)}
+              className="px-2.5 py-1.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs font-bold border border-blue-500/30 transition"
+              title="Asignar IVA 10.5% (Carnes)"
+            >
+              IVA 10.5%
+            </button>
+
+            <button
+              onClick={() => handleBulkUpdateIva(21.0)}
+              className="px-2.5 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-xs font-bold border border-purple-500/30 transition"
+              title="Asignar IVA 21% (Elaborados/Almacén)"
+            >
+              IVA 21%
+            </button>
+
+            <button
+              onClick={handleBulkDelete}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 text-xs font-bold border border-rose-500/30 transition"
+              title="Eliminar productos seleccionados"
+            >
+              <Trash2 size={13} className="inline mr-1" /> Eliminar
+            </button>
+
+            <button
+              onClick={() => setSelectedProductIds([])}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition ml-1"
+              title="Cancelar selección"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -2662,6 +2662,168 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // --- Fiscal Profiles (Razones Sociales Múltiples) ---
+  router.get('/fiscal-profiles', (req, res) => {
+    try {
+      const profiles = db.getFiscalProfiles();
+      res.json(profiles);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/fiscal-profiles/:id', (req, res) => {
+    try {
+      const profile = db.getFiscalProfile(req.params.id);
+      if (!profile) return res.status(404).json({ error: 'Perfil fiscal no encontrado' });
+      res.json(profile);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/fiscal-profiles', (req, res) => {
+    try {
+      const created = db.saveFiscalProfile(req.body);
+      io.emit('fiscal-profile:new', created);
+      res.json(created);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.put('/fiscal-profiles/:id', (req, res) => {
+    try {
+      const updated = db.saveFiscalProfile({ ...req.body, id: req.params.id });
+      io.emit('fiscal-profile:update', updated);
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/fiscal-profiles/:id', (req, res) => {
+    try {
+      db.deleteFiscalProfile(req.params.id);
+      io.emit('fiscal-profile:delete', { id: req.params.id });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/fiscal-profiles/:id/test', async (req, res) => {
+    try {
+      const result = await arcaService.testConnection(req.params.id);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // --- BULK MUTATIONS (ACCIONES MASIVAS EN LOTE) ---
+  // =========================================================================
+  router.post('/orders/bulk-status', (req, res) => {
+    try {
+      const { orderIds, status } = req.body;
+      if (!Array.isArray(orderIds) || !status) {
+        return res.status(400).json({ error: 'orderIds (array) y status son requeridos' });
+      }
+      const updated = db.bulkUpdateOrders(orderIds, { status });
+      updated.forEach(o => io.emit('order:update', o));
+      res.json({ success: true, count: updated.length, updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/orders/bulk-delete', (req, res) => {
+    try {
+      const { orderIds } = req.body;
+      if (!Array.isArray(orderIds)) return res.status(400).json({ error: 'orderIds (array) es requerido' });
+      const count = db.bulkDeleteOrders(orderIds);
+      orderIds.forEach(id => io.emit('order:delete', { id }));
+      res.json({ success: true, count });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/products/bulk-update', (req, res) => {
+    try {
+      const { productIds, updates } = req.body;
+      if (!Array.isArray(productIds) || !updates) {
+        return res.status(400).json({ error: 'productIds (array) y updates son requeridos' });
+      }
+      const updated = db.bulkUpdateProducts(productIds, updates);
+      updated.forEach(p => io.emit('product:update', p));
+      res.json({ success: true, count: updated.length, updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/products/bulk-delete', (req, res) => {
+    try {
+      const { productIds } = req.body;
+      if (!Array.isArray(productIds)) return res.status(400).json({ error: 'productIds (array) es requerido' });
+      const count = db.bulkDeleteProducts(productIds);
+      productIds.forEach(id => io.emit('product:delete', { id }));
+      res.json({ success: true, count });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/leads/bulk-tag', (req, res) => {
+    try {
+      const { leadIds, tagToAdd } = req.body;
+      if (!Array.isArray(leadIds) || !tagToAdd) return res.status(400).json({ error: 'leadIds y tagToAdd son requeridos' });
+      const updated = db.bulkUpdateLeads(leadIds, { tagToAdd });
+      updated.forEach(l => io.emit('lead:update', l));
+      res.json({ success: true, count: updated.length, updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/leads/bulk-delete', (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      if (!Array.isArray(leadIds)) return res.status(400).json({ error: 'leadIds (array) es requerido' });
+      const count = db.bulkDeleteLeads(leadIds);
+      leadIds.forEach(id => io.emit('lead:delete', { id }));
+      res.json({ success: true, count });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/users/bulk-update', (req, res) => {
+    try {
+      const { userIds, updates } = req.body;
+      if (!Array.isArray(userIds) || !updates) return res.status(400).json({ error: 'userIds y updates son requeridos' });
+      const updated = db.bulkUpdateUsers ? db.bulkUpdateUsers(userIds, updates) : [];
+      updated.forEach(u => io.emit('user:update', u));
+      res.json({ success: true, count: updated.length, updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/users/bulk-delete', (req, res) => {
+    try {
+      const { userIds } = req.body;
+      if (!Array.isArray(userIds)) return res.status(400).json({ error: 'userIds (array) es requerido' });
+      const count = db.bulkDeleteUsers ? db.bulkDeleteUsers(userIds) : 0;
+      userIds.forEach(id => io.emit('user:delete', { id }));
+      res.json({ success: true, count });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // =========================================================================
   // --- AUTOMATIONS & WORKFLOW ENGINE ENDPOINTS ---
   // =========================================================================

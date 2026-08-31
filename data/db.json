@@ -54,10 +54,10 @@
       "afipSdkApiKey": "",
       "autoInvoicePaidOrders": false,
       "nextPresupuestoNumber": 1003,
-      "lastSandboxInvoiceB": 1253,
+      "lastSandboxInvoiceB": 1256,
       "lastSandboxInvoiceA": 342,
       "lastSandboxInvoiceC": 510,
-      "updatedAt": "2026-08-31T19:46:35.034Z"
+      "updatedAt": "2026-08-31T20:57:28.974Z"
     }
   },
   "knowledgeBase": [
@@ -188,36 +188,42 @@
       "plu": "2002",
       "barcode": "7792002000002",
       "name": "Tapa de Cuadril Seleccionada",
-      "price": 26407,
+      "price": 29048,
       "unit": "kg",
       "saleMode": "kg",
       "unitsPerKg": 1,
       "unitWeightGrams": 1200,
-      "unitPrice": 15360,
+      "unitPrice": 16896,
       "category": "Parrilla y Horno",
       "description": "Corte de novillito seleccionado con cobertura de grasa perfecta",
       "stock": 85,
       "isAvailable": true,
       "sku": "PLU-2002",
-      "updatedAt": "2026-08-31T15:10:05.358Z",
-      "isFeaturedWhatsApp": true
+      "updatedAt": "2026-08-31T20:57:29.086Z",
+      "isFeaturedWhatsApp": true,
+      "imageUrl": "",
+      "stockQuantity": 85,
+      "stockControl": false,
+      "stockMinAlert": 5,
+      "allowBackorder": true
     },
     {
       "id": "prod_milanesas",
       "plu": "2018",
       "barcode": "7792018000018",
       "name": "Milanesas de Ternera preparadas (2kg x $24.990)",
-      "price": 12495,
+      "price": 13745,
       "unit": "kg",
       "saleMode": "both",
       "unitsPerKg": 6,
       "unitWeightGrams": 165,
-      "unitPrice": 2082,
+      "unitPrice": 2290,
       "category": "Diario y Preparados",
       "description": "Milanesas rebozadas listas para freír (~6 milanesas por kilo)",
       "stock": 100,
       "isAvailable": true,
-      "sku": "PLU-2018"
+      "sku": "PLU-2018",
+      "updatedAt": "2026-08-31T20:57:29.086Z"
     },
     {
       "id": "prod_molida_intermedia",
@@ -16286,10 +16292,76 @@
       "origin": "WHATSAPP",
       "notes": "",
       "createdAt": "2026-08-31T19:46:33.614Z",
-      "updatedAt": "2026-08-31T19:46:34.446Z",
+      "updatedAt": "2026-08-31T20:57:29.020Z",
       "mercadopagoPreferenceId": "2050924390-c1ed426c-8239-4c35-82b2-a8179d95e550",
       "mercadopagoMode": "sandbox",
-      "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-c1ed426c-8239-4c35-82b2-a8179d95e550"
+      "sandboxPaymentLink": "https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=2050924390-c1ed426c-8239-4c35-82b2-a8179d95e550",
+      "invoice": {
+        "id": "FAC-ORD-MP-mthnfuoa-mthpz255",
+        "orderId": "ORD-MP-mthnfuoa",
+        "isFiscal": true,
+        "documentType": "Factura B",
+        "typeCode": "B",
+        "tipoCbte": 6,
+        "letter": "B",
+        "fiscalProfileId": "fp-urca-central",
+        "ptoVta": 1,
+        "ptoVtaFormatted": "0001",
+        "nroCbte": 1256,
+        "nroFormatted": "00001256",
+        "fullDocNumber": "B-0001-00001256",
+        "fecha": "2026-08-31",
+        "fechaFormatted": "31/08/2026",
+        "emisorCuit": "30716892348",
+        "emisorRazonSocial": "REPÚBLICA DE LA CARNE S.R.L.",
+        "emisorNombreFantasia": "República de la Carne - Urca",
+        "emisorDireccion": "Av. José Roque Funes 1115, Barrio Urca, Córdoba (CP 5009)",
+        "emisorIva": "Responsable Inscripto",
+        "emisorIibb": "901-283746-1",
+        "emisorInicio": "01/03/2020",
+        "clienteNombre": "Cliente MP Test",
+        "clienteDoc": "0",
+        "clienteDocTipo": "CONSUMIDOR FINAL",
+        "docTipoCode": 99,
+        "importeNeto": 49998,
+        "importeIva": 0,
+        "importeTotal": 49998,
+        "taxBreakdown": {
+          "0": {
+            "rate": 0,
+            "decimalRate": 0,
+            "subtotalNeto": 0,
+            "subtotalIva": 0,
+            "subtotalBruto": 0
+          },
+          "21": {
+            "rate": 21,
+            "decimalRate": 0.21,
+            "subtotalNeto": 0,
+            "subtotalIva": 0,
+            "subtotalBruto": 0
+          },
+          "10.5": {
+            "rate": 10.5,
+            "decimalRate": 0.105,
+            "subtotalNeto": 45247.06,
+            "subtotalIva": 4750.94,
+            "subtotalBruto": 49998
+          }
+        },
+        "cae": "72608313834102",
+        "caeVto": "2026-09-10",
+        "caeVtoFormatted": "10/09/2026",
+        "mode": "sandbox",
+        "legend": "COMPROBANTE AUTORIZADO POR ARCA (HOMOLOGACIÓN / SANDBOX)",
+        "status": "authorized",
+        "issuedAt": "2026-08-31T20:57:28.949Z",
+        "qrUrl": "https://www.afip.gob.ar/fe/qr/?p=eyJ2ZXIiOjEsImZlY2hhIjoiMjAyNi0wOC0zMSIsImN1aXQiOjMwNzE2ODkyMzQ4LCJwdG9WdGEiOjEsInRpcG9DbXAiOjYsIm5yb0NtcCI6MTI1NiwiaW1wb3J0ZSI6NDk5OTgsIm1vbmVkYSI6IlBFUyIsImN0eiI6MSwidGlwb0RvY1JlYyI6OTksIm5yb0RvY1JlYyI6MCwidGlwb0NvZEF1dCI6IkUiLCJjb2RBdXQiOjcyNjA4MzEzODM0MTAyfQ==",
+        "qrDataUrl": "data:image/png;base64,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"
+      },
+      "invoiceStatus": "authorized",
+      "invoiceNumber": "B-0001-00001256",
+      "paymentStatus": "paid"
     },
     {
       "id": "ORD-TEST-mthn7pov",
@@ -17404,6 +17476,130 @@
         "canViewFinancials": false,
         "canToggleAi": false
       }
+    }
+  ],
+  "fiscalProfiles": [
+    {
+      "id": "fp-urca-central",
+      "name": "República de la Carne Central (Urca / Sede Principal)",
+      "razonSocial": "REPÚBLICA DE LA CARNE S.R.L.",
+      "nombreFantasia": "República de la Carne - Urca",
+      "cuit": "30716892348",
+      "condicionIva": "Responsable Inscripto",
+      "iibb": "901-283746-1",
+      "inicioActividades": "01/03/2020",
+      "domicilioComercial": "Av. José Roque Funes 1115, Barrio Urca, Córdoba (CP 5009)",
+      "ptoVta": 1,
+      "defaultDocumentType": "factura_b",
+      "mode": "sandbox",
+      "branchIds": [
+        "br-1",
+        "br-2",
+        "br-3"
+      ],
+      "isDefault": true,
+      "createdAt": "2026-08-31T20:54:09.190Z",
+      "updatedAt": "2026-08-31T20:54:09.190Z"
+    },
+    {
+      "id": "fp-norte-distribucion",
+      "name": "Carnes Norte & Frigorífico Distribución",
+      "razonSocial": "DISTRIBUIDORA GASTRONOMICA CORDOBA S.A.",
+      "nombreFantasia": "República de la Carne - Sucursales Norte",
+      "cuit": "30719948215",
+      "condicionIva": "Responsable Inscripto",
+      "iibb": "902-394821-4",
+      "inicioActividades": "15/06/2021",
+      "domicilioComercial": "Av. Figueroa Alcorta 480, Villa Allende, Córdoba",
+      "ptoVta": 2,
+      "defaultDocumentType": "factura_b",
+      "mode": "sandbox",
+      "branchIds": [
+        "br-4",
+        "br-5",
+        "br-6"
+      ],
+      "isDefault": false,
+      "createdAt": "2026-08-31T20:54:09.190Z",
+      "updatedAt": "2026-08-31T20:54:09.190Z"
+    },
+    {
+      "id": "fp-1788209649200",
+      "name": "FRIGORIFICO CORDOBA SUR S.A.",
+      "razonSocial": "FRIGORIFICO CORDOBA SUR S.A.",
+      "nombreFantasia": "República de la Carne",
+      "cuit": "30719988774",
+      "condicionIva": "RI",
+      "iibb": "901-445566-2",
+      "inicioActividades": "2021-05-10",
+      "domicilioComercial": "Córdoba, Argentina",
+      "ptoVta": 4,
+      "defaultDocumentType": "factura_b",
+      "mode": "sandbox",
+      "branchIds": [],
+      "isDefault": false,
+      "updatedAt": "2026-08-31T20:54:09.200Z",
+      "createdAt": "2026-08-31T20:54:09.200Z"
+    },
+    {
+      "id": "fp-1788209710149",
+      "name": "FRIGORIFICO CORDOBA SUR S.A.",
+      "razonSocial": "FRIGORIFICO CORDOBA SUR S.A.",
+      "nombreFantasia": "República de la Carne",
+      "cuit": "30719988774",
+      "condicionIva": "RI",
+      "iibb": "901-445566-2",
+      "inicioActividades": "2021-05-10",
+      "domicilioComercial": "Córdoba, Argentina",
+      "ptoVta": 4,
+      "defaultDocumentType": "factura_b",
+      "mode": "sandbox",
+      "branchIds": [
+        "branch-test-sur"
+      ],
+      "isDefault": false,
+      "updatedAt": "2026-08-31T20:55:10.149Z",
+      "createdAt": "2026-08-31T20:55:10.149Z"
+    },
+    {
+      "id": "fp-1788209759168",
+      "name": "FRIGORIFICO CORDOBA SUR S.A.",
+      "razonSocial": "FRIGORIFICO CORDOBA SUR S.A.",
+      "nombreFantasia": "República de la Carne",
+      "cuit": "30719988774",
+      "condicionIva": "RI",
+      "iibb": "901-445566-2",
+      "inicioActividades": "2021-05-10",
+      "domicilioComercial": "Córdoba, Argentina",
+      "ptoVta": 4,
+      "defaultDocumentType": "factura_b",
+      "mode": "sandbox",
+      "branchIds": [
+        "branch-test-sur"
+      ],
+      "isDefault": false,
+      "updatedAt": "2026-08-31T20:55:59.168Z",
+      "createdAt": "2026-08-31T20:55:59.168Z"
+    },
+    {
+      "id": "fp-1788209796056",
+      "name": "FRIGORIFICO CORDOBA SUR S.A.",
+      "razonSocial": "FRIGORIFICO CORDOBA SUR S.A.",
+      "nombreFantasia": "República de la Carne",
+      "cuit": "30719988774",
+      "condicionIva": "RI",
+      "iibb": "901-445566-2",
+      "inicioActividades": "2021-05-10",
+      "domicilioComercial": "Córdoba, Argentina",
+      "ptoVta": 4,
+      "defaultDocumentType": "factura_b",
+      "mode": "sandbox",
+      "branchIds": [
+        "branch-test-sur"
+      ],
+      "isDefault": false,
+      "updatedAt": "2026-08-31T20:56:36.056Z",
+      "createdAt": "2026-08-31T20:56:36.056Z"
     }
   ]
 }
