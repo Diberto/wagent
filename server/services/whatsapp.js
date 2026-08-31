@@ -66,7 +66,59 @@ export class WhatsAppService {
   }
 
   /**
-   * Limpia archivos de autenticación obsoletos o corruptos
+   * Respalda las credenciales de Baileys para asegurar que nunca se pierda la sesión
+   */
+  backupAuthFiles() {
+    try {
+      const backupDir = path.join(CONFIG.DATA_DIR, 'backups', `auth_backup_${this.sessionId}`);
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+      if (fs.existsSync(this.authDir)) {
+        const files = fs.readdirSync(this.authDir);
+        for (const file of files) {
+          if (file.endsWith('.json')) {
+            fs.copyFileSync(path.join(this.authDir, file), path.join(backupDir, file));
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Error respaldando auth de WhatsApp [${this.sessionId}]:`, err);
+    }
+  }
+
+  /**
+   * Restaura las credenciales desde el backup si el directorio activo estuviera vacío o dañado
+   */
+  restoreAuthFromBackup() {
+    try {
+      const backupDir = path.join(CONFIG.DATA_DIR, 'backups', `auth_backup_${this.sessionId}`);
+      const credsActive = path.join(this.authDir, 'creds.json');
+      const credsBackup = path.join(backupDir, 'creds.json');
+
+      const isCredsActiveValid = fs.existsSync(credsActive) && fs.statSync(credsActive).size > 10;
+      const isCredsBackupValid = fs.existsSync(credsBackup) && fs.statSync(credsBackup).size > 10;
+
+      if (!isCredsActiveValid && isCredsBackupValid) {
+        console.log(`🔄 Restaurando credenciales de WhatsApp [${this.sessionId}] desde backup seguro...`);
+        if (!fs.existsSync(this.authDir)) {
+          fs.mkdirSync(this.authDir, { recursive: true });
+        }
+        const files = fs.readdirSync(backupDir);
+        for (const file of files) {
+          if (file.endsWith('.json')) {
+            fs.copyFileSync(path.join(backupDir, file), path.join(this.authDir, file));
+          }
+        }
+        console.log(`✅ Credenciales de WhatsApp [${this.sessionId}] restauradas.`);
+      }
+    } catch (err) {
+      console.error(`Error restaurando auth desde backup [${this.sessionId}]:`, err);
+    }
+  }
+
+  /**
+   * Limpia archivos de autenticación solo si el usuario lo solicita explícitamente o WhatsApp cerró sesión
    */
   async clearAuthFiles() {
     try {
@@ -109,6 +161,9 @@ export class WhatsAppService {
         fs.mkdirSync(this.authDir, { recursive: true });
       }
 
+      // Si las credenciales activas no están pero existe backup, restaurar
+      this.restoreAuthFromBackup();
+
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
       const { version, isLatest } = await fetchLatestBaileysVersion();
       console.log(`Iniciando Baileys WhatsApp [Sesión: ${this.sessionId}] v${version.join('.')} (Latest: ${isLatest})`);
@@ -122,11 +177,17 @@ export class WhatsAppService {
         auth: state,
         browser: [`WAgent CRM (${this.sessionId})`, 'Chrome', '124.0.0'],
         syncFullHistory: false,
-        generateHighQualityLinkPreview: true
+        generateHighQualityLinkPreview: true,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000,
+        retryRequestDelayMs: 2000
       });
 
-      // Guardar credenciales automáticamente
-      this.sock.ev.on('creds.update', saveCreds);
+      // Guardar credenciales y respaldar automáticamente
+      this.sock.ev.on('creds.update', async () => {
+        await saveCreds();
+        this.backupAuthFiles();
+      });
 
       // Eventos de conexión y QR
       this.sock.ev.on('connection.update', async (update) => {
@@ -153,7 +214,7 @@ export class WhatsAppService {
           console.log(`Conexión de WhatsApp cerrada [${this.sessionId}]. Motivo: ${statusCode}. Reconectar: ${shouldReconnect}`);
           
           if (isLoggedOut) {
-            console.log(`⚠️ Sesión [${this.sessionId}] cerrada por WhatsApp (Logged Out). Limpiando auth...`);
+            console.log(`⚠️ Sesión [${this.sessionId}] cerrada por WhatsApp (Logged Out explícito). Limpiando auth...`);
             await this.clearAuthFiles();
           }
 
@@ -163,20 +224,15 @@ export class WhatsAppService {
           this.user = null;
           this.emitStatus();
 
-          if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+          if (shouldReconnect) {
             this.reconnectAttempts++;
-            console.log(`Reintentando conexión (${this.reconnectAttempts}/${this.maxReconnectAttempts}) en 4 segundos...`);
+            // Backoff exponencial progresivo: 4s, 6s, 9s... hasta 30s máx (sin límite destructivo de intentos)
+            const delayMs = Math.min(30000, Math.round(4000 * Math.pow(1.25, Math.min(this.reconnectAttempts, 10))));
+            console.log(`Reintentando conexión automática (${this.reconnectAttempts}) en ${Math.round(delayMs / 1000)}s...`);
             setTimeout(() => {
               this.isInitializing = false;
               this.initialize();
-            }, 4000);
-          } else {
-            this.reconnectAttempts = 0;
-            // Si falló varias veces y no se conectó, limpiar auth para que el próximo intento genere un QR limpio
-            if (shouldReconnect && !isLoggedOut) {
-              console.log(`⚠️ Múltiples fallos de reconexión en [${this.sessionId}]. Preparando estado para nuevo QR.`);
-              await this.clearAuthFiles();
-            }
+            }, delayMs);
           }
         } else if (connection === 'open') {
           console.log(`✅ ¡Conexión de WhatsApp establecida exitosamente [${this.sessionId}]!`);
@@ -186,6 +242,8 @@ export class WhatsAppService {
           this.reconnectAttempts = 0;
           this.user = this.sock.user;
           this.emitStatus();
+          // Asegurar respaldo de credenciales válidas
+          this.backupAuthFiles();
         }
       });
 

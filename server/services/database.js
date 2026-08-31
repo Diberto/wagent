@@ -49,6 +49,11 @@ class DatabaseService {
       fs.mkdirSync(this.mediaDir, { recursive: true });
     }
 
+    const backupsDir = path.join(this.dataDir, 'backups');
+    if (!fs.existsSync(backupsDir)) {
+      fs.mkdirSync(backupsDir, { recursive: true });
+    }
+
     if (!fs.existsSync(this.dbFile)) {
       const initialData = {
         settings: CONFIG.DEFAULT_SETTINGS,
@@ -60,7 +65,104 @@ class DatabaseService {
       };
       this.writeDb(initialData);
     } else {
+      // Crear respaldo de seguridad obligatorio al iniciar el servidor
+      this.createBackup('startup');
       this.deduplicateDatabase();
+    }
+
+    // Configurar respaldo automático periódico cada 1 hora
+    if (!this._backupInterval) {
+      this._backupInterval = setInterval(() => {
+        this.createBackup('auto');
+      }, 60 * 60 * 1000);
+    }
+  }
+
+  createBackup(label = 'auto') {
+    try {
+      const backupsDir = path.join(this.dataDir, 'backups');
+      if (!fs.existsSync(backupsDir)) {
+        fs.mkdirSync(backupsDir, { recursive: true });
+      }
+
+      if (!fs.existsSync(this.dbFile)) return null;
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `db_backup_${timestamp}_${label}.json`;
+      const backupPath = path.join(backupsDir, filename);
+
+      fs.copyFileSync(this.dbFile, backupPath);
+
+      // Rotar backups antiguos: mantener los 30 más recientes
+      const files = fs.readdirSync(backupsDir)
+        .filter(f => f.startsWith('db_backup_') && f.endsWith('.json'))
+        .map(f => ({
+          name: f,
+          path: path.join(backupsDir, f),
+          time: fs.statSync(path.join(backupsDir, f)).mtimeMs
+        }))
+        .sort((a, b) => b.time - a.time);
+
+      if (files.length > 30) {
+        for (const file of files.slice(30)) {
+          try { fs.unlinkSync(file.path); } catch (e) {}
+        }
+      }
+
+      return { filename, path: backupPath, createdAt: new Date().toISOString() };
+    } catch (err) {
+      console.error('Error creando backup de la base de datos:', err);
+      return null;
+    }
+  }
+
+  getBackupsList() {
+    try {
+      const backupsDir = path.join(this.dataDir, 'backups');
+      if (!fs.existsSync(backupsDir)) return [];
+
+      return fs.readdirSync(backupsDir)
+        .filter(f => f.startsWith('db_backup_') && f.endsWith('.json'))
+        .map(f => {
+          const filePath = path.join(backupsDir, f);
+          const stat = fs.statSync(filePath);
+          return {
+            filename: f,
+            size: stat.size,
+            createdAt: stat.mtime.toISOString(),
+            formattedSize: (stat.size / 1024).toFixed(2) + ' KB'
+          };
+        })
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } catch (err) {
+      console.error('Error listando backups:', err);
+      return [];
+    }
+  }
+
+  restoreBackup(filename) {
+    try {
+      const backupsDir = path.join(this.dataDir, 'backups');
+      const backupPath = path.join(backupsDir, filename);
+
+      if (!fs.existsSync(backupPath)) {
+        throw new Error(`El archivo de respaldo ${filename} no existe.`);
+      }
+
+      const content = fs.readFileSync(backupPath, 'utf8');
+      const parsed = JSON.parse(content);
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('El archivo de respaldo no contiene una estructura de datos válida.');
+      }
+
+      // Respaldar estado actual antes de restaurar
+      this.createBackup('pre_restore');
+
+      this.writeDb(parsed);
+      return { success: true, message: `Respaldo ${filename} restaurado exitosamente.` };
+    } catch (err) {
+      console.error(`Error restaurando backup ${filename}:`, err);
+      return { success: false, error: err.message };
     }
   }
 

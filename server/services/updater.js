@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
 import { CONFIG } from '../config/index.js';
+import { BackupService } from './backup.js';
 
 const execAsync = promisify(exec);
 
@@ -84,6 +85,14 @@ export class UpdateService {
     const logs = [];
 
     try {
+      logs.push('0. Creando respaldo completo de base de datos previo a la actualización...');
+      try {
+        const backup = BackupService.createBackup('pre-update');
+        logs.push(`Respaldo de seguridad creado: ${backup.filename}`);
+      } catch (bkpErr) {
+        logs.push(`⚠️ Aviso: no se pudo completar respaldo previo: ${bkpErr.message}`);
+      }
+
       logs.push('1. Obteniendo últimos cambios de GitHub (git pull)...');
       const gitPath = 'C:\\Program Files\\Git\\cmd';
       const env = { ...process.env, PATH: `${gitPath};${process.env.PATH}` };

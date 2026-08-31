@@ -104,6 +104,54 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // --- Endpoints de Respaldos de Base de Datos y Persistencia ---
+  router.get('/backups', (req, res) => {
+    try {
+      const backups = BackupService.listBackups();
+      res.json({ success: true, backups });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/backups', (req, res) => {
+    try {
+      const label = req.body?.label || 'manual';
+      const created = BackupService.createBackup(label);
+      res.json({ success: true, backup: created });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/backups/restore', (req, res) => {
+    try {
+      const { filename, payload } = req.body;
+      let result;
+      if (filename) {
+        const filePath = BackupService.getBackupFilePath(filename);
+        const content = fs.readFileSync(filePath, 'utf8');
+        result = BackupService.restoreBackup(content);
+      } else if (payload) {
+        result = BackupService.restoreBackup(payload);
+      } else {
+        return res.status(400).json({ success: false, error: 'Debe especificar filename o payload de respaldo.' });
+      }
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.delete('/backups/:filename', (req, res) => {
+    try {
+      BackupService.deleteBackup(req.params.filename);
+      res.json({ success: true, message: 'Respaldo eliminado.' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   router.post('/upload', upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {

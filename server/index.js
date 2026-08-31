@@ -138,17 +138,42 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Apagado elegante (Graceful Shutdown)
-const gracefulShutdown = (signal) => {
+const gracefulShutdown = async (signal) => {
   console.log(`\n🛑 Recibida señal ${signal}. Cerrando servidor de forma segura...`);
+  
+  try {
+    // 1. Crear respaldo preventivo antes de apagar
+    console.log('💾 Creando respaldo de seguridad previo al apagado/actualización...');
+    BackupService.createBackup('pre-update-shutdown');
+  } catch (err) {
+    console.error('Error guardando backup de apagado:', err);
+  }
+
+  try {
+    // 2. Cerrar sockets de WhatsApp de forma limpia sin destruir credenciales
+    console.log('📱 Desconectando sockets de WhatsApp de forma ordenada (preservando sesión)...');
+    const sessions = whatsapp.getAllSessions();
+    for (const s of sessions) {
+      if (s.sock) {
+        try {
+          s.sock.ev.removeAllListeners();
+          s.sock.end(undefined);
+        } catch (e) {}
+      }
+    }
+  } catch (err) {
+    console.error('Error cerrando sesiones de WhatsApp:', err);
+  }
+
   server.close(() => {
-    console.log('Servidor HTTP cerrado.');
+    console.log('✅ Servidor HTTP cerrado correctamente.');
     process.exit(0);
   });
 
   setTimeout(() => {
     console.error('Forzando cierre por tiempo límite.');
     process.exit(1);
-  }, 10000);
+  }, 8000);
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

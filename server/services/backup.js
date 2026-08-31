@@ -130,7 +130,7 @@ export class BackupService {
     // 1. Crear respaldo de seguridad automático previo a la restauración
     this.createBackup('pre-restore-safety');
 
-    // 2. Aplicar restauración asegurando propiedades clave
+    // 2. Aplicar restauración asegurando todas las colecciones del sistema
     const currentDb = db.readDb();
     const newDb = {
       settings: { ...currentDb.settings, ...(dataToRestore.settings || {}) },
@@ -138,7 +138,13 @@ export class BackupService {
       products: Array.isArray(dataToRestore.products) ? dataToRestore.products : currentDb.products,
       leads: Array.isArray(dataToRestore.leads) ? dataToRestore.leads : currentDb.leads,
       messages: Array.isArray(dataToRestore.messages) ? dataToRestore.messages : currentDb.messages,
-      calls: Array.isArray(dataToRestore.calls) ? dataToRestore.calls : currentDb.calls
+      calls: Array.isArray(dataToRestore.calls) ? dataToRestore.calls : currentDb.calls,
+      orders: Array.isArray(dataToRestore.orders) ? dataToRestore.orders : currentDb.orders,
+      branches: Array.isArray(dataToRestore.branches) ? dataToRestore.branches : currentDb.branches,
+      drivers: Array.isArray(dataToRestore.drivers) ? dataToRestore.drivers : currentDb.drivers,
+      users: Array.isArray(dataToRestore.users) ? dataToRestore.users : currentDb.users,
+      automations: Array.isArray(dataToRestore.automations) ? dataToRestore.automations : currentDb.automations,
+      broadcastCampaigns: Array.isArray(dataToRestore.broadcastCampaigns) ? dataToRestore.broadcastCampaigns : currentDb.broadcastCampaigns
     };
 
     db.writeDb(newDb);
@@ -151,6 +157,9 @@ export class BackupService {
         leads: (newDb.leads || []).length,
         messages: (newDb.messages || []).length,
         products: (newDb.products || []).length,
+        orders: (newDb.orders || []).length,
+        branches: (newDb.branches || []).length,
+        drivers: (newDb.drivers || []).length,
         calls: (newDb.calls || []).length,
         knowledgeBase: (newDb.knowledgeBase || []).length
       }

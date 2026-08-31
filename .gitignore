@@ -1,12 +1,14 @@
 node_modules/
 client/node_modules/
 client/dist/
-data/auth_info_baileys/
+data/auth_info_baileys*/
 data/media/*
 !data/media/.gitkeep
 data/db.json.bak*
 data/db.backup*
 data/backups/
+data/*.tmp*
+data/*.tmp.*
 scratch/
 .graphify/
 logs/
