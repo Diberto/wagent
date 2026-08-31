@@ -10460,7 +10460,7 @@
       "name": "Don Juan",
       "pushName": "Don Juan",
       "email": "",
-      "address": "Locelso 7100",
+      "address": "ROque funes 1704",
       "preferredBranch": "Urca Central",
       "deliveryType": "delivery",
       "customFields": {},
@@ -10469,7 +10469,8 @@
       "tags": [
         "WhatsApp",
         "Cliente Comprador",
-        "Cliente VIP"
+        "Cliente VIP",
+        "Frecuente"
       ],
       "aiEnabled": true,
       "unreadCount": 0,
@@ -10490,7 +10491,7 @@
         "notes": ""
       },
       "createdAt": "2026-08-31T15:37:44.913Z",
-      "updatedAt": "2026-08-31T16:51:01.999Z",
+      "updatedAt": "2026-08-31T17:07:41.449Z",
       "lastMessage": "¡Hola Don Juan! ✨🥩 ¡Tu pedido #ORD-4230 YA ESTÁ LISTO y preparado en URCA CENTRAL! Podés pasar a retirarlo cuando gustes. ¡Te esperamos! 🙌",
       "lastMessageAt": "2026-08-31T15:47:00.416Z",
       "avatar": "https://pps.whatsapp.net/v/t61.24694-24/505921264_1636280273726009_810259708632007770_n.jpg?ccb=11-4&oh=01_Q5Aa5QH_xkevOYcj4Z2vsPGDU-fSCy1xYChJQ4tVVHx3-Zu0NA&oe=6AA2AC4D&_nc_sid=5e03e0&_nc_cat=106",
@@ -10498,14 +10499,14 @@
         "Suele organizar comidas para 4 personas.",
         "Suele organizar comidas para 6 personas."
       ],
-      "totalOrders": 2,
-      "totalSpent": 102918,
-      "lastOrderAt": "2026-08-31T16:51:01.993Z",
-      "lastOrderId": "ORD-5986",
-      "notes": "Cliente agendado y registrado. Dirección: Locelso 7100 | Tel: +54 9 351 626-2475",
+      "totalOrders": 5,
+      "totalSpent": 212178,
+      "lastOrderAt": "2026-08-31T17:07:39.315Z",
+      "lastOrderId": "ORD-3330",
+      "notes": "Cliente agendado y registrado. Dirección: ROque funes 1704 | Tel: +54 9 351 626-2475",
       "isRegistered": true,
       "isVerified": true,
-      "registeredAt": "2026-08-31T16:51:01.986Z"
+      "registeredAt": "2026-08-31T17:07:41.367Z"
     }
   ],
   "messages": [
@@ -12143,71 +12144,56 @@
   ],
   "orders": [
     {
-      "id": "ORD-5986",
+      "id": "ORD-3330",
       "jid": "153051277086768@lid",
       "phone": "+54 9 351 626-2475",
       "customerName": "Don Juan",
-      "address": "Locelso 7100",
-      "branch": "URCA CENTRAL",
-      "branchName": "URCA CENTRAL",
-      "branchId": "branch_urca_1",
+      "address": "ROque funes 1704",
+      "branch": "",
+      "branchName": "URCA 2 – ALTO TEJEDA",
+      "branchId": "branch_urca_2",
       "deliveryType": "delivery",
       "items": [
-        "• 2 kg COSTILLA — $49.998",
         "• 1 kg MATAMBRE CERDO — $23.150",
         "• 6 Unidades de CHORIZO DE CERDO — $11.070",
         "• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200"
       ],
       "products": [
         {
-          "id": "prod-14",
-          "plu": "",
-          "barcode": "",
-          "name": "COSTILLA",
-          "price": 24999,
-          "unitPrice": 24999,
-          "quantity": 2,
-          "unit": "kg",
-          "subtotal": 49998
-        },
-        {
           "id": "prod-111",
-          "plu": "",
-          "barcode": "",
           "name": "MATAMBRE CERDO",
           "price": 23150,
-          "unitPrice": 23150,
           "quantity": 1,
           "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
           "subtotal": 23150
         },
         {
           "id": "prod-184",
-          "plu": "",
-          "barcode": "",
           "name": "CHORIZO DE CERDO",
           "price": 14760,
-          "unitPrice": 14760,
           "quantity": 0.75,
           "unit": "kg",
+          "isUnitMode": true,
+          "unitCount": 6,
           "subtotal": 11070
         },
         {
           "id": "prod_carbon",
-          "plu": "",
-          "barcode": "",
           "name": "Carbón Quebracho Blanco (Bolsa Grande)",
           "price": 2200,
-          "unitPrice": 2200,
           "quantity": 1,
           "unit": "bolsa",
+          "isUnitMode": true,
+          "unitCount": 1,
           "subtotal": 2200
         }
       ],
-      "totalAmount": 86418,
-      "paymentMethod": "Efectivo / Transferencia / Mercado Pago",
+      "totalAmount": 36420,
+      "paymentMethod": "Efectivo al repartidor",
       "paymentLink": null,
-      "status": "pending",
+      "status": "preparing",
       "isPrepared": false,
       "preparedAt": null,
       "preparedBy": null,
@@ -12215,76 +12201,8 @@
       "source": "WHATSAPP",
       "origin": "WHATSAPP",
       "notes": "",
-      "createdAt": "2026-08-31T16:51:01.993Z",
-      "updatedAt": "2026-08-31T16:51:01.993Z"
-    },
-    {
-      "id": "ORD-4230",
-      "jid": "153051277086768@lid",
-      "phone": "+153051277086768",
-      "customerName": "Don Juan",
-      "address": "Jose roque funes 1704",
-      "branch": "Urca Central (Av. José Roque Funes 1115)",
-      "branchName": "URCA CENTRAL",
-      "branchId": "branch_urca_1",
-      "deliveryType": "delivery",
-      "items": [
-        "• 1 kg Vacío Especial Seleccionado — $11.500",
-        "• 1 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $5.000",
-        "• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200"
-      ],
-      "products": [
-        {
-          "id": "prod_vacio",
-          "plu": "2003",
-          "barcode": "7792003000003",
-          "name": "Vacío Especial Seleccionado",
-          "price": 11500,
-          "unitPrice": 11500,
-          "quantity": 1,
-          "unit": "kg",
-          "isUnitMode": false,
-          "subtotal": 11500
-        },
-        {
-          "id": "prod_chorizo",
-          "plu": "2012",
-          "barcode": "7792012000012",
-          "name": "Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)",
-          "price": 5000,
-          "unitPrice": 5000,
-          "quantity": 1,
-          "unit": "kg",
-          "isUnitMode": false,
-          "subtotal": 5000
-        },
-        {
-          "id": "prod_carbon",
-          "plu": "2020",
-          "barcode": "7792020000020",
-          "name": "Carbón Quebracho Blanco (Bolsa Grande)",
-          "price": 2200,
-          "unitPrice": 2200,
-          "quantity": 1,
-          "unit": "bolsa",
-          "isUnitMode": true,
-          "subtotal": 2200
-        }
-      ],
-      "totalAmount": 18700,
-      "paymentMethod": "Efectivo en sucursal",
-      "paymentLink": null,
-      "status": "ready",
-      "isPrepared": true,
-      "preparedAt": "2026-08-31T15:46:59.784Z",
-      "preparedBy": null,
-      "channel": "WHATSAPP",
-      "source": "WHATSAPP",
-      "origin": "WHATSAPP",
-      "notes": "[Elegida Opción Clásica Equilibrada (2 kg)]",
-      "createdAt": "2026-08-31T15:38:18.244Z",
-      "updatedAt": "2026-08-31T16:51:01.358Z",
-      "readyAt": "2026-08-31T15:46:59.785Z"
+      "createdAt": "2026-08-31T17:07:39.315Z",
+      "updatedAt": "2026-08-31T17:07:41.441Z"
     }
   ],
   "branches": [

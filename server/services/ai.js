@@ -1844,19 +1844,30 @@ export class AIService {
       const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
       const amount = (targetOrder && targetOrder.totalAmount > 0) ? targetOrder.totalAmount : (historyTotal > 0 ? historyTotal : 39999);
       const orderId = targetOrder ? targetOrder.id : `ORD-${Date.now().toString().slice(-4)}`;
-      const isPickup = targetOrder?.deliveryType === 'pickup' || Boolean(targetOrder?.branch) || lead?.deliveryType === 'pickup' || Boolean(lead?.preferredBranch);
-      const branchName = targetOrder?.branch || lead?.preferredBranch || 'la sucursal seleccionada';
+      const isDelivery = targetOrder?.deliveryType === 'delivery' || lead?.deliveryType === 'delivery' || Boolean(targetOrder?.address && !targetOrder?.branch);
+      const isPickup = !isDelivery && (targetOrder?.deliveryType === 'pickup' || lead?.deliveryType === 'pickup' || Boolean(targetOrder?.branch));
+      const branchName = targetOrder?.branch || lead?.preferredBranch || 'Urca Central (Av. José Roque Funes 1115)';
       const destAddr = targetOrder?.address || lead?.address || 'tu domicilio';
       const destLocation = isPickup 
         ? `al retirar por la sucursal **${branchName}**`
-        : `en **${destAddr}** en el día dentro de las 24 hs`;
+        : `a tu domicilio en **${destAddr}** en el día (dentro de las 24 hs)`;
 
       if (/^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|efectivo|cash|al repartidor|contraentrega)$/i.test(t.trim())) {
         if (targetOrder) {
-          db.updateOrder(targetOrder.id, { paymentMethod: isPickup ? 'Efectivo en sucursal' : 'Efectivo contraentrega', status: 'preparing' });
+          db.updateOrder(targetOrder.id, { 
+            paymentMethod: isPickup ? 'Efectivo en sucursal' : 'Efectivo al repartidor', 
+            status: 'preparing',
+            deliveryType: isPickup ? 'pickup' : 'delivery',
+            ...(isPickup ? { branch: branchName } : { branch: '', address: destAddr })
+          });
         }
-        return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
-          `📍 Te esperamos ${destLocation}. ¡Ya está en marcha la preparación de tus cortes en carnicería! 🙌 [[STAGE:closed_won]]`;
+        if (isPickup) {
+          return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo en sucursal** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
+            `📍 Te esperamos al retirar por la sucursal **${branchName}**. ¡Ya está en marcha la preparación de tus cortes en carnicería! 🙌 [[STAGE:closed_won]]`;
+        } else {
+          return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo al repartidor** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
+            `🛵 Te lo llevamos a domicilio a **${destAddr}** en el día (dentro de las 24 hs). ¡Podés abonar en efectivo directo al repartidor al recibir tu pedido! 🙌 [[STAGE:closed_won]]`;
+        }
       }
 
       if (/^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|transferencia|transferir|alias|banco|cbu)$/i.test(t.trim())) {
@@ -2184,11 +2195,12 @@ export class AIService {
         `👉 Respondé *1* o *2*.`;
     }
 
-    const isDeliveryIntentExplicit = /^(?:delivery|envio|envío|a domicilio|a mi casa|mandamelo|mandámelo|enviámelo|enviamelo|traemelo|traémelo)$/i.test(t.trim()) ||
+    const isDeliveryIntentExplicit = /^(?:delivery|envio|envío|a domicilio|a mi casa|a mi domicilio|lo quiero a mi domicilio|quiero que lo envien a mi domicilio|lo envian a mi domicilio|mandamelo|mandámelo|enviámelo|enviamelo|traemelo|traémelo)$/i.test(t.trim()) ||
+      /(?:lo\s+quiero\s+a\s+mi\s+domicilio|quiero\s+que\s+lo\s+envien\s+a\s+mi\s+domicilio|a\s+mi\s+domicilio|por\s+delivery|con\s+env[ií]o|para\s+env[ií]o)/i.test(t.trim()) ||
       (wasDeliveryTypeOffered && /^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|envio|envío|domicilio|delivery)$/i.test(t.trim()));
 
     if (isDeliveryIntentExplicit) {
-      if (currentActiveOrder) db.updateOrder(currentActiveOrder.id, { deliveryType: 'delivery' });
+      if (currentActiveOrder) db.updateOrder(currentActiveOrder.id, { deliveryType: 'delivery', branch: '' });
       if (lead.jid || lead.id) db.updateLead(lead.jid || lead.id, { deliveryType: 'delivery' });
 
       if (lead.address && lead.address.length >= 4 && !isGarbageAddress(lead.address)) {
@@ -2488,13 +2500,17 @@ export class AIService {
         payMethod = 'Efectivo contraentrega';
       }
 
+      const isDelivery = lastOrder?.deliveryType === 'delivery' || lead?.deliveryType === 'delivery' || Boolean(lastOrder?.address && !lastOrder?.branch);
+      const isPickup = !isDelivery && (lastOrder?.deliveryType === 'pickup' || lead?.deliveryType === 'pickup' || Boolean(lastOrder?.branch) || /retirar|sucursal/i.test(t));
       const branchName = lastOrder?.branch || lead.preferredBranch || 'Urca Central (Av. José Roque Funes 1115)';
+      const destAddr = lastOrder?.address || lead.address || 'tu domicilio';
 
       if (lastOrder) {
         lastOrder = db.updateOrder(lastOrder.id, {
           status: 'preparing',
           paymentMethod: payMethod,
-          ...(lastOrder.deliveryType === 'pickup' || /retirar|sucursal/i.test(t) ? { branch: branchName, deliveryType: 'pickup' } : {})
+          deliveryType: isPickup ? 'pickup' : 'delivery',
+          ...(isPickup ? { branch: branchName } : { branch: '', address: destAddr })
         });
       } else {
         const { items: historyItems, total: historyTotal, products: parsedProducts } = extractItemsFromHistoryAndText(history, '', products, lead);
@@ -2506,7 +2522,7 @@ export class AIService {
           jid: lead.jid || lead.id,
           customerName: clientName,
           phone: lead.phone || (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351 626-2475'),
-          address: lead.address || '',
+          address: isPickup ? '' : destAddr,
           items: finalItems,
           products: parsedProducts && parsedProducts.length > 0 ? parsedProducts : undefined,
           totalAmount: finalTotal,
@@ -2515,21 +2531,22 @@ export class AIService {
           channel: 'WHATSAPP',
           source: 'WHATSAPP',
           origin: 'WHATSAPP',
-          deliveryType: lead.deliveryType || 'pickup',
-          branch: branchName
+          deliveryType: isPickup ? 'pickup' : 'delivery',
+          branch: isPickup ? branchName : ''
         });
       }
 
       if (lead.jid || lead.id) {
         db.updateLead(lead.jid || lead.id, {
           stage: 'closed_won',
-          ...(lastOrder?.deliveryType === 'pickup' || /retirar|sucursal/i.test(t) ? { preferredBranch: branchName, deliveryType: 'pickup' } : {})
+          deliveryType: isPickup ? 'pickup' : 'delivery',
+          ...(isPickup ? { preferredBranch: branchName } : { address: destAddr })
         });
       }
 
-      const destinationText = (lastOrder?.deliveryType === 'pickup' || /retirar|sucursal/i.test(t)) 
+      const destinationText = isPickup 
         ? `para que lo retires listo por nuestra sucursal **${branchName}**` 
-        : 'para despacharlo dentro de las 24 hs a tu domicilio';
+        : `para despacharlo dentro de las 24 hs a tu domicilio (**${destAddr}**)`;
 
       let paymentExtraInfo = '';
       if (payMethod.includes('Transferencia')) {
@@ -2593,14 +2610,19 @@ export class AIService {
       ];
       const finalTotal = parsedTotal > 0 ? parsedTotal : 49999;
       const formattedTotal = `$${finalTotal.toLocaleString('es-AR')}`;
-      const addressDest = lead.address || 'Locelso 7100';
-      const clientPhone = lead.phone || (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351');
+      const freshLead = db.getLead(lead.jid || lead.id) || lead;
+      const addressDest = currentActiveOrder?.address || freshLead.address || lead.address || 'Locelso 7100';
+      let clientPhone = (lead.phone && !lead.phone.includes('@lid')) ? lead.phone : (freshLead.phone && !freshLead.phone.includes('@lid') ? freshLead.phone : (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351 626-2475'));
+
+      lead.address = addressDest;
+      lead.deliveryType = 'delivery';
 
       if (lead.jid || lead.id) {
         db.updateLead(lead.jid || lead.id, { 
           name: clientName,
           pushName: clientName,
           address: addressDest,
+          deliveryType: 'delivery',
           phone: clientPhone,
           isRegistered: true,
           isVerified: true,
@@ -2609,21 +2631,38 @@ export class AIService {
         });
       }
 
-      const newOrder = db.createOrder({
-        jid: lead.jid || lead.id,
-        phone: clientPhone,
-        customerName: clientName,
-        address: addressDest,
-        items: finalItems,
-        products: parsedProducts && parsedProducts.length > 0 ? parsedProducts : undefined,
-        totalAmount: finalTotal,
-        paymentMethod: 'Efectivo / Transferencia / Mercado Pago',
-        status: 'pending'
-      });
+      let orderObj;
+      if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
+        orderObj = db.updateOrder(currentActiveOrder.id, {
+          customerName: clientName,
+          address: addressDest,
+          deliveryType: 'delivery',
+          branch: '',
+          items: finalItems,
+          products: parsedProducts && parsedProducts.length > 0 ? parsedProducts : currentActiveOrder.products,
+          totalAmount: finalTotal,
+          paymentMethod: 'Efectivo / Transferencia / Mercado Pago'
+        }) || currentActiveOrder;
+      } else {
+        orderObj = db.createOrder({
+          jid: lead.jid || lead.id,
+          phone: clientPhone,
+          customerName: clientName,
+          address: addressDest,
+          deliveryType: 'delivery',
+          branch: '',
+          items: finalItems,
+          products: parsedProducts && parsedProducts.length > 0 ? parsedProducts : undefined,
+          totalAmount: finalTotal,
+          paymentMethod: 'Efectivo / Transferencia / Mercado Pago',
+          status: 'pending'
+        });
+        currentActiveOrder = orderObj;
+      }
 
       const customerNum = lead.customerNumber || `CLI-${(lead.id || '0000').slice(-4).toUpperCase()}`;
       return `¡Excelente ${clientName}! 🎉 Datos confirmados y agendados con éxito. Ya generamos tu orden de compra:\n\n` +
-        `🆔 *N° de Pedido:* #${newOrder.id}\n` +
+        `🆔 *N° de Pedido:* #${orderObj.id}\n` +
         `👤 *Cliente:* ${clientName} (N.° ${customerNum})\n` +
         `📱 *Teléfono:* ${clientPhone}\n` +
         `📋 *RESUMEN DE TU PEDIDO:*\n${finalItems.join('\n')}\n` +
@@ -2695,7 +2734,8 @@ export class AIService {
     const isInformationalQuery = /(?:hora|horario|cierran|abren|cuanto|precio|costo|consulta|duda|donde|dónde|a que hora|tenes|tenés|vendes|vendés|abierto|atienden)\b/i.test(t);
     const hasAddressPatterns = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro|entre|altura|manzana|lote|san martin)/i.test(t) ||
       /^(?:te paso mi direccion|mi direccion es|direccion:?|la direccion es|la direccion de entrega es|vivo en|estoy en|mandalo a|mandar a|enviar a|entregar en)\s+/i.test(t) ||
-      (rawText.includes(',') && /[0-9]{2,5}/.test(rawText));
+      (rawText.includes(',') && /[0-9]{2,5}/.test(rawText)) ||
+      /^[a-záéíóúñÁÉÍÓÚÑ\s\.\-]+\s+[0-9]{1,5}$/i.test(cleanConfirmText);
     const hasRealAddress = !isInformationalQuery && hasAddressPatterns && (/[0-9]{1,5}/.test(t) || /vivo en|enviar a|mandar a|entregar en/i.test(t) || ((/funes|locelso|pidal|quiros|alamos|alcorta|luchesse/i.test(t)) && /[0-9]{2,5}/.test(t)));
 
     if (hasRealAddress && t.length > 5) {
@@ -2715,14 +2755,23 @@ export class AIService {
       let finalClientName = extractedName || clientName;
 
       const phoneMatch = rawText.match(/(?:tel|cel|telefono|teléfono|wsp|whatsapp)?\s*[:\-\s]?\s*(\+?54\s*9?\s*\d{8,12}|\b351\d{7}\b|\b15\d{7,8}\b|\b\d{10,13}\b)/i);
-      let clientPhone = lead.phone || (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351');
+      let clientPhone = (lead.phone && !lead.phone.includes('@lid')) ? lead.phone : (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351 626-2475');
       if (phoneMatch && phoneMatch[1]) {
         clientPhone = phoneMatch[1].trim();
+      }
+
+      if (currentActiveOrder) {
+        db.updateOrder(currentActiveOrder.id, {
+          address: cleanAddress,
+          deliveryType: 'delivery',
+          branch: ''
+        });
       }
 
       db.updateLead(lead.jid || lead.id, { 
         address: cleanAddress, 
         phone: clientPhone,
+        deliveryType: 'delivery',
         ...(finalClientName ? { name: finalClientName, pushName: finalClientName } : {}),
         notes: `Dirección registrada: ${cleanAddress}${finalClientName ? ` | Nombre: ${finalClientName}` : ''} | Tel: ${clientPhone}`
       });

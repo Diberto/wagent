@@ -24,7 +24,7 @@ export const DEFAULT_ORDER_RULES = [
     name: 'Zona de Cobertura de Envíos en Córdoba',
     type: 'location',
     operator: 'contains',
-    value: 'Córdoba, Urca, Cerro, Villa Allende, Argüello, Alberdi, Centro, Nueva Córdoba, General Paz, Cofico, Alto Verde, Las Rosas, Poeta Lugones, San Isidro, Valle Escondido, Tablada, Guiñazú, Jardín, Manantiales, Villa Belgrano',
+    value: 'Córdoba, Cordoba, Urca, Cerro, Villa Allende, Argüello, Alberdi, Centro, Nueva Córdoba, General Paz, Cofico, Alto Verde, Las Rosas, Poeta Lugones, San Isidro, Valle Escondido, Tablada, Guiñazú, Jardín, Manantiales, Villa Belgrano, Funes, Locelso, Pidal, Quirós, Álamos, Alcorta, Luchesse, Colón, Velez Sarsfield, Chacabuco, Estrada, San Martín, Rivadavia, Sagrada Familia, Recta Martinoli, Rafael Nuñez, Tejeda, Gauss, Donato Alvarez, Monseñor Pablo Cabrera, Castro Barros, Santa Fe, Costanera, Duarte Quirós, Menéndez Pidal, Figueroa Alcorta, Padre Luchesse',
     isPositive: true,
     action: 'pickup_only',
     customMessage: 'Nuestros envíos directos en moto/auto cubren Córdoba Capital y Gran Córdoba (hasta 15 km de nuestras 6 sucursales). Si tu dirección está fuera de este radio, podés retirar tu pedido en cualquiera de nuestras sucursales sin cargo. 🏪',
@@ -126,7 +126,9 @@ export class OrderFilterEngine {
           if (deliveryType !== 'delivery' || cleanAddress.length < 3) break;
           const allowedKeywords = String(rawVal || '').split(/[,;]+/).map(k => k.trim().toLowerCase()).filter(Boolean);
 
-          const matchesLocation = allowedKeywords.some(kw => cleanAddress.includes(kw));
+          const hasExcludedLocation = /(?:buenos aires|bs as|caba|rosario|santa fe capital|mendoza|san juan|tucum[aá]n|chile|uruguay|brasil|exterior)\b/i.test(cleanAddress);
+          const hasStreetAndNumber = /[a-záéíóúñ\s\.\-]+\s+[0-9]{1,5}/i.test(cleanAddress);
+          const matchesLocation = (allowedKeywords.some(kw => cleanAddress.includes(kw)) || hasStreetAndNumber) && !hasExcludedLocation;
           passed = isPositive ? matchesLocation : !matchesLocation;
           break;
         }
