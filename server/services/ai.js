@@ -967,19 +967,44 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     : parseProductsFromItems(existingOrder.items || [], catList);
 
   const t = (rawText || '').toLowerCase().trim();
-  const isAddition = /(?:agrega|agreg[aá]|agregar|agregame|agregale|suma|sum[aá]|sumar|sumale|sumame|ponele|pon[eé]|sumar\s+\d+|mas\s+\d+|más\s+\d+|sumar\s+\d+\s+chorizo|mas\s+chorizo|más\s+chorizo)/i.test(t);
+  const isAddition = /(?:agrega|agreg[aá]|agregar|agregame|agregale|suma|sum[aá]|sumar|sumale|sumame|ponele|pon[eé]|sumar\s+\d+|mas\s+\d+|más\s+\d+|sumar\s+\d+\s+chorizo|mas\s+chorizo|más\s+chorizo|sumale\s+también)/i.test(t);
   const isRemoval = /(?:sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin\s+|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.test(t);
   const isReplacement = /(?:cambi[aá](?:me|le|lo)?|en\s+vez\s+de|reemplaz[aá](?:me|le|lo)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(t);
+
+  const isSameProductOrCut = (p1, p2) => {
+    if (!p1 || !p2) return false;
+    if (p1.id && p2.id && p1.id === p2.id) return true;
+    const n1 = (p1.name || '').toLowerCase();
+    const n2 = (p2.name || '').toLowerCase();
+    if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
+    
+    const cutFamilies = [
+      /chori/i,
+      /morcill/i,
+      /vac[ií]o/i,
+      /costill|costelet/i,
+      /matambre/i,
+      /cuadril/i,
+      /entra[ñn]a/i,
+      /lomo/i,
+      /peceto/i,
+      /nalga/i,
+      /bola\s+de\s+lomo/i,
+      /falda/i,
+      /milanes/i,
+      /carb[oó]n/i,
+      /vino/i
+    ];
+    for (const fam of cutFamilies) {
+      if (fam.test(n1) && fam.test(n2)) return true;
+    }
+    return false;
+  };
 
   if (isAddition) {
     const extracted = extractItemsFromHistoryAndText([], rawText, catList, lead);
     for (const np of extracted.products) {
-      const existing = currentProds.find(p => 
-        p.id === np.id || 
-        p.name.toLowerCase() === np.name.toLowerCase() || 
-        p.name.toLowerCase().includes(np.name.toLowerCase()) || 
-        np.name.toLowerCase().includes(p.name.toLowerCase())
-      );
+      const existing = currentProds.find(p => isSameProductOrCut(p, np));
 
       if (existing) {
         if (np.isUnitMode || existing.isUnitMode) {
@@ -1001,7 +1026,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     const removeQuery = t.replace(/(?:sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin\s+|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?/i, '').trim();
     const prodToRemove = matchBestProduct(removeQuery, currentProds.length > 0 ? currentProds : catList);
     if (prodToRemove) {
-      const idx = currentProds.findIndex(p => p.name.toLowerCase() === prodToRemove.name.toLowerCase() || p.id === prodToRemove.id);
+      const idx = currentProds.findIndex(p => isSameProductOrCut(p, prodToRemove));
       if (idx >= 0) currentProds.splice(idx, 1);
     }
   } else if (isReplacement) {
@@ -1009,7 +1034,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     const newQuery = isReplacement[2].trim();
     const oldProd = matchBestProduct(oldQuery, currentProds.length > 0 ? currentProds : catList);
     if (oldProd) {
-      const idx = currentProds.findIndex(p => p.name.toLowerCase() === oldProd.name.toLowerCase() || p.id === oldProd.id);
+      const idx = currentProds.findIndex(p => isSameProductOrCut(p, oldProd));
       if (idx >= 0) currentProds.splice(idx, 1);
     }
     const extracted = extractItemsFromHistoryAndText([], newQuery, catList, lead);
@@ -1017,9 +1042,23 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
       currentProds.push(np);
     }
   } else {
-    // Corrección o reemplazo directo
+    // Ajuste de producto existente o reemplazo específico
     const extracted = extractItemsFromHistoryAndText([], rawText, catList, lead);
-    if (extracted.products.length > 0) {
+    if (extracted.products.length > 0 && currentProds.length > 0) {
+      for (const np of extracted.products) {
+        const existing = currentProds.find(p => isSameProductOrCut(p, np));
+        if (existing) {
+          existing.name = np.name;
+          existing.price = np.price;
+          existing.quantity = np.quantity;
+          existing.unitCount = np.unitCount;
+          existing.isUnitMode = np.isUnitMode;
+          existing.subtotal = np.subtotal || Math.round(existing.price * np.quantity);
+        } else {
+          currentProds.push(np);
+        }
+      }
+    } else if (extracted.products.length > 0) {
       return {
         items: extracted.items,
         products: extracted.products,
@@ -1853,15 +1892,35 @@ export class AIService {
 
     // 0.0002 RESPUESTAS A PROPUESTAS DE ASADO / MENÚS RECOMENDADOS (Opción 1, 2 o 3)
     if (wasAsadoProposalOffered) {
-      const isOpt1 = /^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|clasica|clásica)$/i.test(t.trim());
-      const isOpt2 = /^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|combo|asadazo)$/i.test(t.trim());
-      const isOpt3 = /^(?:3|3️⃣|tres|el 3|la 3|opci[oó]n 3|gourmet)$/i.test(t.trim());
+      let selectedOptNum = null;
+      let modificationText = '';
 
-      if (isOpt1 || isOpt2 || isOpt3) {
-        const optNum = isOpt1 ? 1 : isOpt2 ? 2 : 3;
+      // 1. Detectar opción explícita (1, 2 o 3) sola o en frase
+      const optMatch = t.match(/(?:opci[oó]n|la|el|voy con|me quedo con|dame|elegimos|quiero(?:\s+la)?)\s*(?:opci[oó]n\s*)?([1-3]|uno|dos|tres|1️⃣|2️⃣|3️⃣)/i);
+      if (optMatch) {
+        const rawNum = optMatch[1].toLowerCase();
+        if (rawNum === '1' || rawNum === 'uno' || rawNum === '1️⃣') selectedOptNum = 1;
+        else if (rawNum === '2' || rawNum === 'dos' || rawNum === '2️⃣') selectedOptNum = 2;
+        else if (rawNum === '3' || rawNum === 'tres' || rawNum === '3️⃣') selectedOptNum = 3;
+
+        // Extraer si hay texto de modificación posterior (ej: "pero con 2 kilos de chorizo", "y sumale carbon")
+        const afterMatch = t.slice(optMatch.index + optMatch[0].length).trim();
+        if (afterMatch && /(?:pero|con|mas|más|y\s+|sumale|agregale|cambiame|sacale|sin|en\s+vez\s+de)/i.test(afterMatch)) {
+          modificationText = afterMatch.replace(/^(?:pero|y)\s+/i, '').trim();
+        }
+      } else if (/^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|clasica|clásica)$/i.test(t.trim())) {
+        selectedOptNum = 1;
+      } else if (/^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|combo|asadazo)$/i.test(t.trim())) {
+        selectedOptNum = 2;
+      } else if (/^(?:3|3️⃣|tres|el 3|la 3|opci[oó]n 3|gourmet)$/i.test(t.trim())) {
+        selectedOptNum = 3;
+      }
+
+      if (selectedOptNum !== null) {
+        const optNum = selectedOptNum;
         const parsedOpt = parseAsadoOptionFromMessage(lastAgentMessage, optNum);
         
-        let optionTitle = isOpt1 ? 'Opción 1 (Clásica Equilibrada)' : isOpt2 ? 'Opción 2 (Combo Asadazo + Agregados)' : 'Opción 3 (Parrillera Gourmet)';
+        let optionTitle = optNum === 1 ? 'Opción 1 (Clásica Equilibrada)' : optNum === 2 ? 'Opción 2 (Combo Asadazo + Agregados)' : 'Opción 3 (Parrillera Gourmet)';
         let optionItems = [];
         let optionTotal = 0;
 
@@ -1871,13 +1930,13 @@ export class AIService {
           optionTotal = parsedOpt.total;
         } else {
           // Fallback con cálculos coherentes
-          if (isOpt1) {
+          if (optNum === 1) {
             optionItems = [
               '• 2 kg Vacío Especial Seleccionado — $23.000',
               '• 1 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $5.000'
             ];
             optionTotal = 28000;
-          } else if (isOpt2) {
+          } else if (optNum === 2) {
             optionItems = ['• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999'];
             optionTotal = 39999;
           } else {
@@ -1890,32 +1949,49 @@ export class AIService {
           }
         }
 
+        let finalProducts = parseProductsFromItems(optionItems, products);
+        let finalItems = [...optionItems];
+        let finalTotal = optionTotal;
+
+        // Si el cliente solicitó modificaciones adicionales sobre la opción elegida (ej: "pero con 2 kilos de chorizo de cerdo")
+        if (modificationText) {
+          const modRes = applyItemModificationToOrder({ items: finalItems, products: finalProducts }, modificationText, products, lead);
+          if (modRes && modRes.items && modRes.items.length > 0) {
+            finalItems = modRes.items;
+            finalProducts = modRes.products;
+            finalTotal = modRes.total > 0 ? modRes.total : finalTotal;
+          }
+        }
+
         // Crear o actualizar pedido en la base de datos
-        if (currentActiveOrder) {
+        if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
           db.updateOrder(currentActiveOrder.id, {
-            items: optionItems,
-            totalAmount: optionTotal,
-            notes: (currentActiveOrder.notes ? currentActiveOrder.notes + '\n' : '') + `[Elegida ${optionTitle}]`
+            items: finalItems,
+            products: finalProducts,
+            totalAmount: finalTotal,
+            notes: (currentActiveOrder.notes ? currentActiveOrder.notes + '\n' : '') + `[Elegida ${optionTitle}${modificationText ? ` con modificación: "${modificationText}"` : ''}]`
           });
         } else {
           currentActiveOrder = db.createOrder({
             jid: lead.jid || lead.id,
             phone: lead.phone || '',
             customerName: clientName,
-            items: optionItems,
-            totalAmount: optionTotal,
+            items: finalItems,
+            products: finalProducts,
+            totalAmount: finalTotal,
             channel: 'WHATSAPP',
             source: 'WHATSAPP',
             origin: 'WHATSAPP',
-            notes: `[Elegida ${optionTitle}]`
+            notes: `[Elegida ${optionTitle}${modificationText ? ` con modificación: "${modificationText}"` : ''}]`
           });
         }
 
-        const itemsDisplay = optionItems.join('\n');
-        return `¡De diez ${clientName}! 🥩 Ya tengo anotada la **${optionTitle}**:\n\n` +
+        const itemsDisplay = finalItems.join('\n');
+        const modNotice = modificationText ? ' con tu modificación' : '';
+        return `¡De diez ${clientName}! 🥩 Ya tengo anotada la **${optionTitle}**${modNotice}:\n\n` +
           `📋 *Detalle de tu pedido:*\n` +
           `${itemsDisplay}\n` +
-          `💰 *Total:* **$${Number(optionTotal).toLocaleString('es-AR')}**\n\n` +
+          `💰 *Total:* **$${Number(finalTotal).toLocaleString('es-AR')}**\n\n` +
           `👉 *¿Cómo seguimos con tu pedido?*\n` +
           `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
           `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +

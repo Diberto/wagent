@@ -19,6 +19,7 @@ import { ChatStrategyGraphService } from '../services/chatStrategyGraph.js';
 import { parseProductFile, exportCatalog } from '../services/catalogImporter.js';
 import { OFFICIAL_MASTER_CATALOG } from '../services/masterCatalogData.js';
 import { OrderFilterEngine } from '../services/orderFilterEngine.js';
+import { arcaService } from '../services/arca.js';
 import * as XLSX from 'xlsx';
 import { CONFIG } from '../config/index.js';
 
@@ -1040,6 +1041,42 @@ export function createApiRouter(whatsappService, io) {
     io.emit('orders:sync', db.getOrders());
     res.json(updated);
   });
+
+  const handleOrderMercadoPago = async (req, res) => {
+    try {
+      const order = db.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+      const preference = await mercadoPagoService.createPaymentPreference(order);
+      
+      const updated = db.updateOrder(order.id, {
+        paymentMethod: preference.isSandbox ? 'Mercado Pago (Sandbox)' : 'Mercado Pago',
+        paymentPreferenceId: preference.id,
+        paymentLink: preference.checkoutUrl,
+        paymentMode: preference.mode,
+        sandboxPaymentLink: preference.sandboxInitPoint
+      });
+
+      io.emit('order:update', updated);
+
+      res.json({
+        success: true,
+        init_point: preference.checkoutUrl,
+        sandbox_init_point: preference.sandboxInitPoint,
+        checkoutUrl: preference.checkoutUrl,
+        preferenceId: preference.id,
+        mode: preference.mode,
+        isSandbox: preference.isSandbox,
+        ...preference
+      });
+    } catch (err) {
+      console.error('Error generando link de Mercado Pago para pedido:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  };
+
+  router.post('/orders/:id/mercadopago', handleOrderMercadoPago);
+  router.post('/orders/:id/payment-link', handleOrderMercadoPago);
 
   router.patch('/orders/:id/prepare', (req, res) => {
     const { isPrepared, preparedBy } = req.body;
@@ -2499,6 +2536,130 @@ export function createApiRouter(whatsappService, io) {
   router.get('/woocommerce/logs', (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 50;
     res.json(db.getWooCommerceLogs(limit));
+  });
+
+  // =========================================================================
+  // --- 11.5 ARCA (ex AFIP) FACTURACIÓN ELECTRÓNICA Y PRESUPUESTOS ---
+  // =========================================================================
+  router.get('/arca/status', (req, res) => {
+    try {
+      const settings = arcaService.getSettings();
+      res.json({
+        success: true,
+        settings: {
+          enabled: settings.enabled,
+          mode: settings.mode,
+          isSandbox: settings.mode !== 'production',
+          cuit: settings.cuit,
+          razonSocial: settings.razonSocial,
+          nombreFantasia: settings.nombreFantasia,
+          domicilioComercial: settings.domicilioComercial,
+          condicionIva: settings.condicionIva,
+          iibb: settings.iibb,
+          inicioActividades: settings.inicioActividades,
+          ptoVta: settings.ptoVta,
+          defaultDocumentType: settings.defaultDocumentType,
+          hasCert: Boolean(settings.cert),
+          hasKey: Boolean(settings.key),
+          autoInvoicePaidOrders: Boolean(settings.autoInvoicePaidOrders),
+          ...settings
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/arca/settings', (req, res) => {
+    try {
+      const updated = arcaService.saveSettings(req.body);
+      io.emit('arca:settings-updated', updated);
+      res.json({ success: true, settings: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/arca/test', async (req, res) => {
+    try {
+      const result = await arcaService.testConnection();
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/arca/invoice', async (req, res) => {
+    try {
+      const { orderId, documentType, customerName, customerDoc, customerDocType, ptoVta, sendWhatsApp } = req.body;
+      if (!orderId) return res.status(400).json({ error: 'orderId es requerido' });
+
+      const invoice = await arcaService.emitInvoiceForOrder(orderId, {
+        documentType: documentType || 'factura_b',
+        customerName,
+        customerDoc,
+        customerDocType,
+        ptoVta
+      });
+
+      const updatedOrder = db.getOrder(orderId);
+      io.emit('order:update', updatedOrder);
+      io.emit('arca:invoice-issued', { orderId, invoice });
+
+      if (sendWhatsApp && updatedOrder) {
+        const targetJid = updatedOrder.jid || (updatedOrder.phone ? `${updatedOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+        if (targetJid && whatsappService && whatsappService.status === 'connected') {
+          const docTitle = invoice.isFiscal ? `🧾 *[FACTURA ELECTRÓNICA ARCA - ${invoice.fullDocNumber}]*` : `📄 *[PRESUPUESTO - ${invoice.fullDocNumber}]*`;
+          const fiscalNote = invoice.isFiscal ? `\n\n🔑 *CAE:* ${invoice.cae}\n📅 *Vto. CAE:* ${invoice.caeVtoFormatted || invoice.caeVto}` : '\n\n*(Documento no válido como factura fiscal)*';
+          const msg = `${docTitle}\n¡Hola ${invoice.clienteNombre}! 🥩 Adjuntamos el detalle de tu comprobante por un total de *$${Number(invoice.importeTotal).toLocaleString('es-AR')}*:${fiscalNote}\n\n¡Muchas gracias por elegir República de la Carne! 🙌`;
+          
+          await whatsappService.sendMessage(targetJid, msg);
+        }
+      }
+
+      res.json({ success: true, invoice, order: updatedOrder });
+    } catch (err) {
+      console.error('Error emitiendo comprobante ARCA:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/arca/presupuesto', async (req, res) => {
+    try {
+      const { orderId, customerName, customerDoc, ptoVta } = req.body;
+      if (!orderId) return res.status(400).json({ error: 'orderId es requerido' });
+
+      const invoice = await arcaService.emitInvoiceForOrder(orderId, {
+        documentType: 'presupuesto',
+        customerName,
+        customerDoc,
+        ptoVta
+      });
+
+      const updatedOrder = db.getOrder(orderId);
+      io.emit('order:update', updatedOrder);
+      io.emit('arca:invoice-issued', { orderId, invoice });
+
+      res.json({ success: true, invoice, order: updatedOrder });
+    } catch (err) {
+      console.error('Error emitiendo presupuesto:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/arca/order/:orderId', (req, res) => {
+    try {
+      const order = db.getOrder(req.params.orderId);
+      if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+      res.json({
+        success: true,
+        orderId: order.id,
+        invoice: order.invoice || null,
+        hasInvoice: Boolean(order.invoice)
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // =========================================================================

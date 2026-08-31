@@ -41,7 +41,10 @@ import {
   Clock,
   Compass,
   SlidersHorizontal,
-  ArrowRight
+  ArrowRight,
+  Receipt,
+  FileText,
+  QrCode
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 
@@ -326,6 +329,24 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
+  // ARCA (AFIP) Facturación Electrónica
+  const [isTestingArca, setIsTestingArca] = useState(false);
+  const [arcaTestResult, setArcaTestResult] = useState(null);
+
+  const handleTestArca = async () => {
+    setIsTestingArca(true);
+    setArcaTestResult(null);
+    try {
+      const res = await fetch('/api/arca/test', { method: 'POST' });
+      const data = await res.json();
+      setArcaTestResult(data);
+    } catch (err) {
+      setArcaTestResult({ success: false, message: `Error: ${err.message}` });
+    } finally {
+      setIsTestingArca(false);
+    }
+  };
+
   // Filtros y Condiciones de Aceptación de Pedidos
   const [orderFiltersConfig, setOrderFiltersConfig] = useState({
     enabled: true,
@@ -455,6 +476,7 @@ export default function SettingsModal({ isOpen, onClose }) {
     { id: 'ai', label: 'Motor de IA', icon: Bot },
     { id: 'orderFilters', label: 'Filtros de Pedidos', icon: Filter },
     { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
+    { id: 'arca', label: 'ARCA / Facturación', icon: Receipt },
     { id: 'voice', label: 'Voz & Síntesis (TTS)', icon: Volume2 },
     { id: 'automation', label: 'Llamadas & Auto-Respuestas', icon: PhoneCall },
     { id: 'prompt', label: 'Prompt & Contexto Regional', icon: Sliders },
@@ -1568,6 +1590,281 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </p>
               </div>
 
+            </div>
+          )}
+
+          {/* TAB ARCA / FACTURACIÓN ELECTRÓNICA */}
+          {activeTab === 'arca' && (
+            <div className="space-y-4 animate-in fade-in">
+              {/* Banner Header ARCA */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-[#111b21] border border-blue-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-extrabold text-sm shadow-md shadow-blue-500/30 shrink-0">
+                    <Receipt size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      ARCA (ex AFIP) Facturación Electrónica & Presupuestos
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold border border-blue-500/30">
+                        🇦🇷 RG 4291 / 4892
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300">
+                      Emisión de Facturas A, B, C con CAE y QR oficial, o Presupuestos / Comprobantes X no fiscales
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTestArca}
+                  disabled={isTestingArca}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md transition disabled:opacity-50 shrink-0"
+                >
+                  <RefreshCw size={13} className={isTestingArca ? 'animate-spin' : ''} />
+                  {isTestingArca ? 'Verificando...' : '⚡ Probar Conexión'}
+                </button>
+              </div>
+
+              {/* Status Test Result Alert */}
+              {arcaTestResult && (
+                <div className={`p-3.5 rounded-2xl border text-xs flex flex-col gap-1.5 ${
+                  arcaTestResult.success
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                }`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    {arcaTestResult.success ? <CheckCircle2 size={16} className="text-emerald-400" /> : <AlertCircle size={16} className="text-rose-400" />}
+                    {arcaTestResult.message || (arcaTestResult.success ? 'Conexión con ARCA exitosa' : 'Error conectando con ARCA')}
+                  </div>
+                  {arcaTestResult.success && (
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 mt-1 pt-2 border-t border-emerald-500/20">
+                      <div><b>WSAA:</b> {arcaTestResult.wsaaStatus}</div>
+                      <div><b>WSFE:</b> {arcaTestResult.wsfeStatus}</div>
+                      <div><b>Entorno:</b> {arcaTestResult.isSandbox ? '🧪 Sandbox / Homologación' : '🚀 Producción'}</div>
+                      <div><b>Método:</b> {arcaTestResult.authMethod}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Switch de Entorno: Modo Sandbox vs Producción */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-200">Entorno de Facturación</span>
+                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    settings?.arcaConfig?.mode === 'production'
+                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  }`}>
+                    {settings?.arcaConfig?.mode === 'production' ? '🚀 PRODUCCIÓN (Facturación Real)' : '🧪 MODO PRUEBAS (Sandbox / Homologación)'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSettings(prev => ({
+                      ...prev,
+                      arcaConfig: { ...(prev?.arcaConfig || {}), mode: 'sandbox' }
+                    }))}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      (settings?.arcaConfig?.mode || 'sandbox') !== 'production'
+                        ? 'border-amber-500 bg-amber-500/10 text-white shadow-sm'
+                        : 'border-slate-800 bg-[#111b21] text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-bold text-xs text-amber-300 mb-1">
+                      🧪 Modo Pruebas (Sandbox)
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Emite facturas y presupuestos de prueba con CAE simulado y QR verificable sin impacto fiscal.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettings(prev => ({
+                      ...prev,
+                      arcaConfig: { ...(prev?.arcaConfig || {}), mode: 'production' }
+                    }))}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      settings?.arcaConfig?.mode === 'production'
+                        ? 'border-blue-500 bg-blue-500/10 text-white shadow-sm'
+                        : 'border-slate-800 bg-[#111b21] text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 font-bold text-xs text-blue-400 mb-1">
+                      🚀 Modo Producción (ARCA)
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Conexión directa con servidores de ARCA / AFIP para comprobantes con validez fiscal formal.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Parámetros Fiscales del Emisor */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-800 space-y-4">
+                <h4 className="text-xs font-bold text-slate-200 border-b border-slate-700/60 pb-2">
+                  Datos Fiscales de la Carnicería (Emisor)
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">CUIT Emisor (11 dígitos):</label>
+                    <input
+                      type="text"
+                      value={settings?.arcaConfig?.cuit || '30716892348'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), cuit: e.target.value.replace(/\D/g, '') }
+                      }))}
+                      placeholder="30716892348"
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Punto de Venta (Pto Vta):</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="9999"
+                      value={settings?.arcaConfig?.ptoVta || 1}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), ptoVta: parseInt(e.target.value, 10) || 1 }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Razón Social:</label>
+                    <input
+                      type="text"
+                      value={settings?.arcaConfig?.razonSocial || 'REPÚBLICA DE LA CARNE S.R.L.'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), razonSocial: e.target.value }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Nombre de Fantasía:</label>
+                    <input
+                      type="text"
+                      value={settings?.arcaConfig?.nombreFantasia || 'República de la Carne'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), nombreFantasia: e.target.value }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Condición frente al IVA:</label>
+                    <select
+                      value={settings?.arcaConfig?.condicionIva || 'Responsable Inscripto'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), condicionIva: e.target.value }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="Responsable Inscripto">Responsable Inscripto</option>
+                      <option value="Monotributo">Monotributo</option>
+                      <option value="Exento">IVA Exento</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Tipo Comprobante por Defecto:</label>
+                    <select
+                      value={settings?.arcaConfig?.defaultDocumentType || 'factura_b'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), defaultDocumentType: e.target.value }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="factura_b">Factura B (Consumidor Final)</option>
+                      <option value="factura_a">Factura A (Responsable Inscripto - IVA 21%)</option>
+                      <option value="factura_c">Factura C (Monotributo)</option>
+                      <option value="presupuesto">Presupuesto / Comprobante X (No Fiscal)</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Domicilio Comercial:</label>
+                    <input
+                      type="text"
+                      value={settings?.arcaConfig?.domicilioComercial || 'Av. José Roque Funes 1115, Urca, Córdoba'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), domicilioComercial: e.target.value }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Ingresos Brutos (IIBB):</label>
+                    <input
+                      type="text"
+                      value={settings?.arcaConfig?.iibb || '901-283746-1'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), iibb: e.target.value }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Inicio de Actividades:</label>
+                    <input
+                      type="text"
+                      value={settings?.arcaConfig?.inicioActividades || '01/03/2020'}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), inicioActividades: e.target.value }
+                      }))}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Opciones y Automatización */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white">Facturación Automática al Cobrar</div>
+                    <div className="text-[11px] text-slate-400">
+                      Genera automáticamente el comprobante fiscal o presupuesto al recibir el pago.
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(settings?.arcaConfig?.autoInvoicePaidOrders)}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        arcaConfig: { ...(prev?.arcaConfig || {}), autoInvoicePaidOrders: e.target.checked }
+                      }))}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
             </div>
           )}
 
