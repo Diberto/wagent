@@ -16,16 +16,26 @@ import UsersView from './components/UsersView';
 import POSView from './components/POSView';
 import WooCommerceView from './components/WooCommerceView';
 import AutomationRulesView from './components/AutomationRulesView';
+import BroadcastCampaignsView from './components/BroadcastCampaignsView';
+import NeuralMemoryView from './components/NeuralMemoryView';
 import QRModal from './components/QRModal';
 import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
+import StorefrontView from './components/StorefrontView';
+import MediaGalleryModal from './components/MediaGalleryModal';
 
 const socket = io();
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState('inbox');
+  const [currentTab, setCurrentTab] = useState(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/tienda')) {
+      return 'storefront';
+    }
+    return 'inbox';
+  });
   const [leads, setLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
+  const [targetOrderId, setTargetOrderId] = useState(null);
   const [calls, setCalls] = useState([]);
   const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
 
@@ -43,6 +53,7 @@ export default function App() {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callTargetLead, setCallTargetLead] = useState(null);
 
@@ -162,19 +173,17 @@ export default function App() {
     });
 
     socket.on('whatsapp:status', (data) => {
-      console.log('WhatsApp status event:', data);
+      if (!data || (data.sessionId && data.sessionId !== 'default')) return;
+      console.log('WhatsApp primary status event:', data);
       setWhatsappStatus(data.status);
       setQrDataUrl(data.qrDataUrl);
       setWhatsappUser(data.user);
-      if (data.status === 'qr_ready') {
-        setIsQRModalOpen(true);
-      }
     });
 
     socket.on('whatsapp:qr', (data) => {
+      if (!data || (data.sessionId && data.sessionId !== 'default')) return;
       setQrDataUrl(data.qrDataUrl);
       setWhatsappStatus('qr_ready');
-      setIsQRModalOpen(true);
     });
 
     socket.on('chat:message', ({ message, lead }) => {
@@ -358,29 +367,48 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen bg-[#0b141a] text-slate-100 overflow-hidden select-none">
       
-      {/* Top Navbar */}
-      <Navbar
-        currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
-        whatsappStatus={whatsappStatus}
-        onOpenQR={() => setIsQRModalOpen(true)}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
-        onOpenCallModal={() => handleOpenCallModal(null)}
-        globalAiEnabled={globalAiEnabled}
-        onToggleGlobalAi={handleToggleGlobalAi}
-        unreadCount={totalUnreadCount}
-        currentUser={currentUser}
-        allUsers={allUsers}
-        onSwitchUser={(user) => {
-          setCurrentUser(user);
-          localStorage.setItem('wagent_user', JSON.stringify(user));
-        }}
-        isMobileDrawerOpen={isMobileDrawerOpen}
-        setIsMobileDrawerOpen={setIsMobileDrawerOpen}
-      />
+      {/* Top Navbar (Solo visible en vistas de Administración / Operador, NO en la Tienda Web del Cliente) */}
+      {currentTab !== 'storefront' && (
+        <Navbar
+          currentTab={currentTab}
+          setCurrentTab={(tab) => {
+            if (tab === 'storefront') {
+              window.history.pushState({}, '', '/tienda');
+            } else if (window.location.pathname.startsWith('/tienda')) {
+              window.history.pushState({}, '', '/');
+            }
+            setCurrentTab(tab);
+          }}
+          whatsappStatus={whatsappStatus}
+          onOpenQR={() => setIsQRModalOpen(true)}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          onOpenCallModal={() => handleOpenCallModal(null)}
+          onOpenMediaGallery={() => setIsMediaGalleryOpen(true)}
+          globalAiEnabled={globalAiEnabled}
+          onToggleGlobalAi={handleToggleGlobalAi}
+          unreadCount={totalUnreadCount}
+          currentUser={currentUser}
+          allUsers={allUsers}
+          onSwitchUser={(user) => {
+            setCurrentUser(user);
+            localStorage.setItem('wagent_user', JSON.stringify(user));
+          }}
+          isMobileDrawerOpen={isMobileDrawerOpen}
+          setIsMobileDrawerOpen={setIsMobileDrawerOpen}
+        />
+      )}
 
       {/* Main View Area */}
       <main className="flex-1 overflow-hidden">
+        {currentTab === 'storefront' && (
+          <div className="h-full overflow-y-auto custom-scrollbar">
+            <StorefrontView onBackToAdmin={() => {
+              setCurrentTab('inbox');
+              window.history.pushState({}, '', '/');
+            }} />
+          </div>
+        )}
+
         {currentTab === 'inbox' && (
           <ChatInbox
             socket={socket}
@@ -394,6 +422,10 @@ export default function App() {
             onCallLead={(lead) => handleOpenCallModal(lead)}
             onDeleteLead={handleDeleteLead}
             onClearChat={() => loadLeads()}
+            onNavigateToOrders={(orderId) => {
+              setTargetOrderId(orderId);
+              setCurrentTab('orders');
+            }}
           />
         )}
 
@@ -402,7 +434,11 @@ export default function App() {
         )}
 
         {currentTab === 'orders' && (
-          <OrdersView socket={socket} />
+          <OrdersView 
+            socket={socket} 
+            targetOrderId={targetOrderId} 
+            onClearTargetOrder={() => setTargetOrderId(null)}
+          />
         )}
 
         {currentTab === 'automations' && (
@@ -461,6 +497,14 @@ export default function App() {
           />
         )}
 
+        {currentTab === 'neural-memory' && (
+          <NeuralMemoryView socket={socket} />
+        )}
+
+        {currentTab === 'campaigns' && (
+          <BroadcastCampaignsView socket={socket} />
+        )}
+
         {currentTab === 'knowledge' && (
           <KnowledgeBase />
         )}
@@ -481,56 +525,58 @@ export default function App() {
         )}
       </main>
 
-      {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet screens < lg) */}
-      <div className="lg:hidden h-14 bg-[#111b21]/95 border-t border-slate-800 flex items-center justify-around px-2 z-30 sticky bottom-0 backdrop-blur-md">
-        <button
-          onClick={() => setCurrentTab('inbox')}
-          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            currentTab === 'inbox' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <MessageSquare size={18} />
-          <span className="text-[10px]">Chats</span>
-        </button>
+      {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet screens < lg solo en panel Admin) */}
+      {currentTab !== 'storefront' && (
+        <div className="lg:hidden h-14 bg-[#111b21]/95 border-t border-slate-800 flex items-center justify-around px-2 z-30 sticky bottom-0 backdrop-blur-md">
+          <button
+            onClick={() => setCurrentTab('inbox')}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              currentTab === 'inbox' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <MessageSquare size={18} />
+            <span className="text-[10px]">Chats</span>
+          </button>
 
-        <button
-          onClick={() => setCurrentTab('pos')}
-          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            currentTab === 'pos' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <Calculator size={18} />
-          <span className="text-[10px]">POS</span>
-        </button>
+          <button
+            onClick={() => setCurrentTab('pos')}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              currentTab === 'pos' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Calculator size={18} />
+            <span className="text-[10px]">POS</span>
+          </button>
 
-        <button
-          onClick={() => setCurrentTab('orders')}
-          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            currentTab === 'orders' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <PackageCheck size={18} />
-          <span className="text-[10px]">Pedidos</span>
-        </button>
+          <button
+            onClick={() => setCurrentTab('orders')}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              currentTab === 'orders' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <PackageCheck size={18} />
+            <span className="text-[10px]">Pedidos</span>
+          </button>
 
-        <button
-          onClick={() => setCurrentTab('drivers')}
-          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            currentTab === 'drivers' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <Bike size={18} />
-          <span className="text-[10px]">Reparto</span>
-        </button>
+          <button
+            onClick={() => setCurrentTab('drivers')}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              currentTab === 'drivers' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Bike size={18} />
+            <span className="text-[10px]">Reparto</span>
+          </button>
 
-        <button
-          onClick={() => setIsMobileDrawerOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl text-slate-400 hover:text-white transition"
-        >
-          <Menu size={18} />
-          <span className="text-[10px]">Menú</span>
-        </button>
-      </div>
+          <button
+            onClick={() => setIsMobileDrawerOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl text-slate-400 hover:text-white transition"
+          >
+            <Menu size={18} />
+            <span className="text-[10px]">Menú</span>
+          </button>
+        </div>
+      )}
 
       {/* QR Code Modal (Multi-Operator WhatsApp) */}
       <QRModal
@@ -566,6 +612,12 @@ export default function App() {
         onAnswerCallAi={handleAnswerCallAi}
         onRejectCall={handleRejectCall}
         onMakeOutboundCall={handleMakeOutboundCall}
+      />
+
+      {/* Media Gallery & Product Images Modal */}
+      <MediaGalleryModal
+        isOpen={isMediaGalleryOpen}
+        onClose={() => setIsMediaGalleryOpen(false)}
       />
 
     </div>

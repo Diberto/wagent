@@ -24,9 +24,11 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-      imgSrc: ["'self'", "data:", "blob:", "*"],
+      imgSrc: ["'self'", "data:", "blob:", "*", "https://*.tile.openstreetmap.org", "https://*.openstreetmap.org"],
       mediaSrc: ["'self'", "blob:", "data:", "*"],
-      connectSrc: ["'self'", "ws:", "wss:", "*"]
+      connectSrc: ["'self'", "ws:", "wss:", "*", "https://nominatim.openstreetmap.org"],
+      frameSrc: ["'self'", "https://www.openstreetmap.org", "https://*.openstreetmap.org", "https://maps.google.com", "https://*.mercadopago.com.ar", "https://*.mercadopago.com"],
+      childSrc: ["'self'", "blob:", "https://www.openstreetmap.org", "https://*.openstreetmap.org"]
     }
   },
   crossOriginEmbedderPolicy: false
@@ -44,6 +46,9 @@ const io = new SocketIOServer(server, {
   pingTimeout: 60000,
   pingInterval: 25000
 });
+
+// Vincular WebSockets a la Base de Datos para sincronización en tiempo real
+db.setIo(io);
 
 // Middleware estándar
 app.use(cors());

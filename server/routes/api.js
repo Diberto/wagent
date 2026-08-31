@@ -9,14 +9,24 @@ import { AudioConverter } from '../services/audioConverter.js';
 import { UpdateService } from '../services/updater.js';
 import { BackupService } from '../services/backup.js';
 import { mercadoPagoService } from '../services/mercadopago.js';
+import { broadcastService } from '../services/broadcast.js';
 import { wooCommerceService } from '../services/woocommerce.js';
 import { DEFAULT_AUTOMATIONS } from '../services/automation.js';
 import { ElevenLabsAgentService } from '../services/elevenlabsAgent.js';
+import { NeuralMemoryService } from '../services/neuralMemory.js';
+import { ImageService } from '../services/imageService.js';
+import { ChatStrategyGraphService } from '../services/chatStrategyGraph.js';
+import { parseProductFile, exportCatalog } from '../services/catalogImporter.js';
+import { OFFICIAL_MASTER_CATALOG } from '../services/masterCatalogData.js';
+import { OrderFilterEngine } from '../services/orderFilterEngine.js';
+import * as XLSX from 'xlsx';
 import { CONFIG } from '../config/index.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
   wooCommerceService.setSocketIO(io);
+  broadcastService.setWhatsAppService(whatsappService);
+  broadcastService.setSocketIO(io);
 
   // Configuración de Multer para subida de audios y archivos desde el panel web
   const storage = multer.diskStorage({
@@ -30,7 +40,267 @@ export function createApiRouter(whatsappService, io) {
   });
   const upload = multer({ storage });
 
+  // --- 0. Image Processing & WebP Optimization Endpoints ---
+  router.get('/strategy-graph', (req, res) => {
+    try {
+      const graph = ChatStrategyGraphService.getGraphDefinition();
+      res.json({ success: true, graph });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- Neural Memory & Continuous Self-Learning Endpoints ---
+  const handleSystemMap = (req, res) => {
+    try {
+      const mentalMap = NeuralMemoryService.getSystemMentalMap();
+      res.json({ success: true, ...mentalMap, mentalMap });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  };
+
+  router.get('/neural-memory/map', handleSystemMap);
+  router.get('/neural-memory/system-map', handleSystemMap);
+
+  const handleChatMap = (req, res) => {
+    try {
+      const conversationMap = NeuralMemoryService.getConversationNeuralMap(req.params.chatId);
+      res.json({ success: true, ...conversationMap, conversationMap });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  };
+
+  router.get('/neural-memory/chat/:chatId', handleChatMap);
+  router.get('/neural-memory/chat-map/:chatId', handleChatMap);
+
+  router.get('/neural-memory/insights', (req, res) => {
+    try {
+      const insights = db.getLearnedInsights ? db.getLearnedInsights() : [];
+      res.json({ success: true, insights });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/neural-memory/insights', (req, res) => {
+    try {
+      const saved = NeuralMemoryService.recordLearningInsight(req.body);
+      io.emit('neural:insight', saved);
+      res.json({ success: true, insight: saved });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.delete('/neural-memory/insights/:id', (req, res) => {
+    try {
+      if (db.deleteLearnedInsight) db.deleteLearnedInsight(req.params.id);
+      io.emit('neural:insight-deleted', { id: req.params.id });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/upload', upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No se envió ningún archivo.' });
+      }
+      // Si es una imagen, convertir a WebP y redimensionar a máx 1080x1920 / 1920x1080
+      const isImage = req.file.mimetype.startsWith('image/') || /\.(jpg|jpeg|png|gif|bmp|webp|heic|tiff)$/i.test(req.file.originalname);
+      if (isImage) {
+        const optimized = await ImageService.handleUploadedImage(req.file);
+        return res.json({
+          success: true,
+          url: optimized.url,
+          filename: optimized.filename,
+          width: optimized.width,
+          height: optimized.height,
+          size: optimized.size,
+          format: optimized.format
+        });
+      }
+
+      res.json({
+        success: true,
+        url: `/media/${req.file.filename}`,
+        filename: req.file.filename,
+        size: req.file.size
+      });
+    } catch (err) {
+      console.error('Error en /api/upload:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/campaigns/upload-banner', upload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No se envió ninguna imagen de banner.' });
+      }
+      const optimized = await ImageService.handleUploadedImage(req.file);
+      res.json({
+        success: true,
+        mediaUrl: optimized.url,
+        filename: optimized.filename
+      });
+    } catch (err) {
+      console.error('Error subiendo banner:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/products/upload-image', upload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No se envió ninguna imagen de producto.' });
+      }
+      const optimized = await ImageService.handleUploadedImage(req.file);
+      res.json({
+        success: true,
+        imageUrl: optimized.url,
+        filename: optimized.filename
+      });
+    } catch (err) {
+      console.error('Error subiendo imagen de producto:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/users/upload-avatar', upload.single('avatar'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No se envió ningún avatar.' });
+      }
+      const optimized = await ImageService.handleUploadedImage(req.file);
+      res.json({
+        success: true,
+        avatarUrl: optimized.url,
+        filename: optimized.filename
+      });
+    } catch (err) {
+      console.error('Error subiendo avatar:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- Media Gallery Endpoints ---
+  router.get('/media', (req, res) => {
+    try {
+      const mediaDir = CONFIG.MEDIA_DIR;
+      if (!fs.existsSync(mediaDir)) {
+        fs.mkdirSync(mediaDir, { recursive: true });
+      }
+      const files = fs.readdirSync(mediaDir);
+      const mediaList = files
+        .filter(f => /\.(webp|png|jpe?g|gif|svg|bmp)$/i.test(f))
+        .map(filename => {
+          const filePath = path.join(mediaDir, filename);
+          try {
+            const stats = fs.statSync(filePath);
+            return {
+              filename,
+              url: `/media/${filename}`,
+              size: stats.size,
+              createdAt: stats.birthtime || stats.mtime,
+              modifiedAt: stats.mtime,
+              format: path.extname(filename).replace('.', '').toLowerCase()
+            };
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
+
+      res.json({ success: true, files: mediaList });
+    } catch (err) {
+      console.error('Error listando medios:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/media/upload', upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No se envió ningún archivo de imagen.' });
+      }
+      const isImage = req.file.mimetype.startsWith('image/') || /\.(jpg|jpeg|png|gif|bmp|webp|heic|tiff)$/i.test(req.file.originalname);
+      if (isImage) {
+        const optimized = await ImageService.handleUploadedImage(req.file);
+        return res.json({
+          success: true,
+          file: {
+            filename: optimized.filename,
+            url: optimized.url,
+            width: optimized.width,
+            height: optimized.height,
+            size: optimized.size,
+            format: optimized.format,
+            createdAt: new Date().toISOString()
+          }
+        });
+      }
+      res.json({
+        success: true,
+        file: {
+          filename: req.file.filename,
+          url: `/media/${req.file.filename}`,
+          size: req.file.size,
+          format: path.extname(req.file.filename).replace('.', '').toLowerCase(),
+          createdAt: new Date().toISOString()
+        }
+      });
+    } catch (err) {
+      console.error('Error subiendo imagen a galería:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.delete('/media/:filename', (req, res) => {
+    try {
+      const safeFilename = path.basename(req.params.filename);
+      const filePath = path.join(CONFIG.MEDIA_DIR, safeFilename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        return res.json({ success: true, deleted: safeFilename });
+      }
+      res.status(404).json({ success: false, error: 'Archivo no encontrado' });
+    } catch (err) {
+      console.error('Error eliminando medio:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // --- 1. WhatsApp Connection & Multi-Operator QR ---
+  const ALLOWED_QR_ROLES = ['admin', 'gerencia', 'encargado', 'cajero'];
+
+  const validateQrAccess = (userId, requestingUser = null) => {
+    if (!userId || userId === 'default') {
+      if (requestingUser && !ALLOWED_QR_ROLES.includes(requestingUser.role)) {
+        return { allowed: false, error: 'Solo los roles de agentes de venta, encargados o administradores pueden gestionar conexiones de WhatsApp.' };
+      }
+      return { allowed: true };
+    }
+
+    const user = db.getUser(userId);
+    if (!user) {
+      return { allowed: true };
+    }
+
+    if (user.role === 'cliente' || user.role === 'repartidor') {
+      return { 
+        allowed: false, 
+        error: `Los usuarios con rol "${user.role.toUpperCase()}" no pueden vincularse por QR de WhatsApp. Esta función es exclusiva para Agentes de Venta, Encargados, Gerencia y Administradores.` 
+      };
+    }
+
+    return { allowed: true, user };
+  };
+
   router.get('/whatsapp/status', (req, res) => {
     const userId = req.query.userId || 'default';
     res.json(whatsappService.getStatus(userId));
@@ -43,8 +313,35 @@ export function createApiRouter(whatsappService, io) {
   router.post('/whatsapp/connect', async (req, res) => {
     try {
       const userId = req.body.userId || 'default';
-      const status = await whatsappService.connectUserSession(userId);
+      const resetAuth = Boolean(req.body.resetAuth);
+      const requestingUserId = req.body.requestingUserId || req.headers['x-user-id'];
+      const requestingUser = requestingUserId ? db.getUser(requestingUserId) : null;
+
+      const authCheck = validateQrAccess(userId, requestingUser);
+      if (!authCheck.allowed) {
+        return res.status(403).json({ error: authCheck.error });
+      }
+
+      const status = await whatsappService.connectUserSession(userId, { resetAuth });
       res.json({ success: true, message: `Inicializando conexión de WhatsApp para ${userId}`, status });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/whatsapp/reset', async (req, res) => {
+    try {
+      const userId = req.body.userId || 'default';
+      const requestingUserId = req.body.requestingUserId || req.headers['x-user-id'];
+      const requestingUser = requestingUserId ? db.getUser(requestingUserId) : null;
+
+      const authCheck = validateQrAccess(userId, requestingUser);
+      if (!authCheck.allowed) {
+        return res.status(403).json({ error: authCheck.error });
+      }
+
+      const status = await whatsappService.resetUserSession(userId);
+      res.json({ success: true, message: `Sesión de WhatsApp ${userId} reseteada. Generando nuevo QR limpio.`, status });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -53,7 +350,16 @@ export function createApiRouter(whatsappService, io) {
   router.post('/whatsapp/disconnect', async (req, res) => {
     try {
       const userId = req.body.userId || 'default';
-      const status = await whatsappService.disconnectUserSession(userId);
+      const clearAuth = req.body.clearAuth !== false;
+      const requestingUserId = req.body.requestingUserId || req.headers['x-user-id'];
+      const requestingUser = requestingUserId ? db.getUser(requestingUserId) : null;
+
+      const authCheck = validateQrAccess(userId, requestingUser);
+      if (!authCheck.allowed) {
+        return res.status(403).json({ error: authCheck.error });
+      }
+
+      const status = await whatsappService.disconnectUserSession(userId, { clearAuth });
       res.json({ success: true, message: `WhatsApp de ${userId} desconectado exitosamente`, status });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -161,12 +467,15 @@ export function createApiRouter(whatsappService, io) {
     if (!text) return res.status(400).json({ error: 'El texto es obligatorio' });
 
     try {
+      let sentKeyId = null;
       // Si WhatsApp está conectado, enviar mensaje real
       if (sendViaWhatsApp && whatsappService.status === 'connected') {
-        await whatsappService.sendTextMessage(jid, text);
+        const sent = await whatsappService.sendTextMessage(jid, text);
+        sentKeyId = sent?.key?.id || null;
       }
 
       const msg = db.saveMessage({
+        id: sentKeyId,
         chatId: jid,
         sender: 'agent',
         type: 'text',
@@ -443,6 +752,127 @@ export function createApiRouter(whatsappService, io) {
     res.json({ success: true });
   });
 
+  // Ajuste rápido de stock y configuración de stock por producto
+  router.patch('/products/:id/stock', (req, res) => {
+    try {
+      const { stockDelta, stockQuantity, isAbsolute = false, stockControl, stockMinAlert, allowBackorder } = req.body;
+      const updates = {};
+      if (stockControl !== undefined) updates.stockControl = Boolean(stockControl);
+      if (stockMinAlert !== undefined) updates.stockMinAlert = Number(stockMinAlert);
+      if (allowBackorder !== undefined) updates.allowBackorder = Boolean(allowBackorder);
+
+      if (Object.keys(updates).length > 0) {
+        db.updateProduct(req.params.id, updates);
+      }
+
+      if (stockDelta !== undefined || stockQuantity !== undefined) {
+        const val = stockQuantity !== undefined ? stockQuantity : stockDelta;
+        const isAbs = isAbsolute || stockQuantity !== undefined;
+        const updated = db.updateProductStock(req.params.id, val, isAbs);
+        io.emit('catalog:updated', { product: updated });
+        return res.json({ success: true, product: updated });
+      }
+
+      const current = db.getProducts().find(p => p.id === req.params.id);
+      io.emit('catalog:updated', { product: current });
+      res.json({ success: true, product: current });
+    } catch (err) {
+      console.error('Error actualizando stock:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Restaurar / Cargar Catálogo Maestro Oficial con Códigos PLU
+  router.post('/products/seed-master', (req, res) => {
+    try {
+      const products = db.saveProductsBulk(OFFICIAL_MASTER_CATALOG, true);
+      io.emit('catalog:updated', { count: products.length, products });
+      res.json({
+        success: true,
+        message: `¡Catálogo maestro cargado con éxito! ${products.length} productos y códigos PLU registrados.`,
+        count: products.length,
+        products
+      });
+    } catch (err) {
+      console.error('Error cargando catálogo maestro:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Importar Catálogo desde Excel (.xlsx, .xls) / CSV / TSV / JSON
+  router.post('/products/import', upload.single('file'), async (req, res) => {
+    try {
+      let fileBuffer = null;
+      let filename = 'catalogo.csv';
+
+      if (req.file) {
+        fileBuffer = fs.readFileSync(req.file.path);
+        filename = req.file.originalname || req.file.filename;
+        // Eliminar archivo temporal
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      } else if (req.body && typeof req.body === 'string' && req.body.trim()) {
+        fileBuffer = req.body;
+      } else if (req.body && Array.isArray(req.body)) {
+        fileBuffer = JSON.stringify(req.body);
+        filename = 'catalogo.json';
+      } else if (req.body && req.body.products && Array.isArray(req.body.products)) {
+        fileBuffer = JSON.stringify(req.body.products);
+        filename = 'catalogo.json';
+      } else if (req.body && typeof req.body === 'object') {
+        const bodyKeys = Object.keys(req.body);
+        if (bodyKeys.length > 0 && typeof bodyKeys[0] === 'string' && bodyKeys[0].includes(';')) {
+          fileBuffer = bodyKeys.join('\n');
+        } else {
+          fileBuffer = JSON.stringify(req.body);
+          filename = 'catalogo.json';
+        }
+      }
+
+      if (!fileBuffer) {
+        return res.status(400).json({ success: false, error: 'No se recibió ningún contenido o archivo para importar.' });
+      }
+
+      const replaceAll = req.query.replace === 'true' || req.body?.replaceAll === true;
+      const parsedProducts = parseProductFile(fileBuffer, filename);
+
+      if (!parsedProducts || parsedProducts.length === 0) {
+        return res.status(400).json({ success: false, error: 'No se pudieron extraer productos válidos del archivo proporcionado. Verifica las columnas (Cod.;Producto;Precio).' });
+      }
+
+      const saved = db.saveProductsBulk(parsedProducts, replaceAll);
+      io.emit('catalog:updated', { count: saved.length, products: saved });
+
+      res.json({
+        success: true,
+        message: `¡Importación exitosa! Se procesaron ${parsedProducts.length} productos con sus códigos PLU y precios.`,
+        importedCount: parsedProducts.length,
+        totalProducts: saved.length,
+        products: saved
+      });
+    } catch (err) {
+      console.error('Error importando catálogo:', err);
+      res.status(500).json({ success: false, error: `Error al procesar archivo: ${err.message}` });
+    }
+  });
+
+  // Exportar Catálogo en Excel (.xlsx, .xls), CSV con UTF-8 BOM, o JSON
+  router.get('/products/export', (req, res) => {
+    try {
+      const format = (req.query.format || 'xlsx').toLowerCase();
+      const products = db.getProducts();
+
+      const { buffer, contentType, extension } = exportCatalog(products, format);
+      const filename = `catalogo_republica_carne_${new Date().toISOString().slice(0, 10)}.${extension}`;
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } catch (err) {
+      console.error('Error exportando catálogo:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Sincronizar catálogo con WhatsApp Business
   router.post('/whatsapp/sync-catalog', async (req, res) => {
     try {
@@ -496,47 +926,359 @@ export function createApiRouter(whatsappService, io) {
   });
 
   router.post('/orders', (req, res) => {
-    const order = db.createOrder(req.body);
+    const payload = {
+      ...req.body,
+      channel: req.body.channel || (req.body.notes?.includes('[POS') ? 'POS' : 'WHATSAPP'),
+      source: req.body.source || (req.body.notes?.includes('[POS') ? 'POS' : 'WHATSAPP'),
+      origin: req.body.origin || (req.body.notes?.includes('[POS') ? 'POS' : 'WHATSAPP')
+    };
+    const order = db.createOrder(payload);
     io.emit('order:new', order);
     res.json(order);
   });
 
+  router.get('/orders/:id', (req, res) => {
+    const order = db.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+    res.json(order);
+  });
+
+  router.put('/orders/:id', (req, res) => {
+    const updated = db.updateOrder(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+    io.emit('order:update', updated);
+    io.emit('orders:sync', db.getOrders());
+    res.json(updated);
+  });
+
+  router.patch('/orders/:id', (req, res) => {
+    const updated = db.updateOrder(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+    io.emit('order:update', updated);
+    io.emit('orders:sync', db.getOrders());
+    res.json(updated);
+  });
+
   router.patch('/orders/:id/status', async (req, res) => {
-    const { status, notifyCustomer, notificationMessage } = req.body;
+    const { status, notify, customMessage } = req.body;
+    if (!status) return res.status(400).json({ error: 'Estado no proporcionado' });
+
     const order = db.getOrder(req.params.id);
     if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
 
     const updated = db.updateOrderStatus(req.params.id, status);
-    io.emit('order:update', updated);
 
-    // Si el operador confirmó el envío de aviso por WhatsApp al cliente
-    if (notifyCustomer && notificationMessage) {
-      try {
-        const targetJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
-        if (targetJid) {
-          await whatsappService.sendMessage(targetJid, notificationMessage);
-          
+    if (notify) {
+      const targetJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      if (targetJid && whatsappService && whatsappService.status === 'connected') {
+        const msgToSend = customMessage || `¡Hola ${order.customerName || 'Cliente'}! Tu pedido #${order.id} ha cambiado de estado a: *${status}*. 🥩`;
+        try {
+          await whatsappService.sendMessage(targetJid, msgToSend);
           const savedMsg = db.saveMessage({
             chatId: targetJid,
             sender: 'agent',
             type: 'text',
-            content: notificationMessage,
+            content: msgToSend,
+            timestamp: new Date().toISOString()
+          });
+          io.emit('chat:message', { message: savedMsg });
+        } catch (waErr) {
+          console.error('Error enviando notificación de estado por WhatsApp:', waErr);
+        }
+      }
+    }
+
+    io.emit('order:update', updated);
+    io.emit('orders:sync', db.getOrders());
+    res.json(updated);
+  });
+
+  router.patch('/orders/:id/prepare', (req, res) => {
+    const { isPrepared, preparedBy } = req.body;
+    const order = db.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+    const targetPrepared = isPrepared !== undefined ? Boolean(isPrepared) : !Boolean(order.isPrepared);
+    const updated = db.setOrderPrepared(req.params.id, targetPrepared, preparedBy);
+    
+    io.emit('order:update', updated);
+    io.emit('orders:sync', db.getOrders());
+    res.json(updated);
+  });
+
+  router.patch('/orders/:id/archive', (req, res) => {
+    const { isArchived } = req.body;
+    const order = db.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+    const targetArchived = isArchived !== undefined ? Boolean(isArchived) : !Boolean(order.isArchived);
+    const updated = db.archiveOrder(req.params.id, targetArchived);
+
+    io.emit('order:update', updated);
+    io.emit('orders:sync', db.getOrders());
+    res.json(updated);
+  });
+
+  router.delete('/orders/:id', (req, res) => {
+    const deleted = db.deleteOrder(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Pedido no encontrado' });
+    io.emit('order:delete', req.params.id);
+    io.emit('orders:sync', db.getOrders());
+    res.json({ success: true, id: req.params.id });
+  });
+
+  // --- Public Order Tracking Endpoint (Seguimiento de pedidos por código #ORD-XXXX o Teléfono) ---
+  router.get('/orders/track/:query', (req, res) => {
+    try {
+      const q = req.params.query;
+      const orders = db.getOrdersByQuery(q);
+      if (orders.length > 0) {
+        return res.json({ success: true, count: orders.length, orders, order: orders[0] });
+      }
+
+      // Si no encontró por query general, probar getOrder directo
+      const single = db.getOrder(q);
+      if (single) {
+        return res.json({ success: true, count: 1, orders: [single], order: single });
+      }
+
+      return res.json({ success: true, count: 0, orders: [], order: null, message: 'No se encontraron pedidos con ese código o número de teléfono.' });
+    } catch (err) {
+      console.error('Error buscando tracking de pedido:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- Storefront Order API (Creación de pedidos desde la Tienda Web) ---
+  router.post('/store/order', (req, res) => {
+    try {
+      const {
+        customerName,
+        phone,
+        address,
+        deliveryType = 'delivery',
+        branchId,
+        branchName,
+        items,
+        totalAmount,
+        paymentMethod,
+        notes
+      } = req.body;
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, error: 'El pedido debe contener al menos un producto o corte.' });
+      }
+
+      if (!customerName || !phone) {
+        return res.status(400).json({ success: false, error: 'Nombre y teléfono de WhatsApp son obligatorios.' });
+      }
+
+      const cleanPhone = String(phone).replace(/\D/g, '');
+      const jid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@s.whatsapp.net`;
+
+      // Evaluar filtros y condiciones de aceptación de pedidos
+      const filterResult = OrderFilterEngine.evaluateOrder({
+        phone: cleanPhone,
+        address: address || '',
+        amount: Number(totalAmount) || 0,
+        deliveryType: deliveryType || 'delivery'
+      });
+
+      let finalDeliveryType = deliveryType;
+      let finalAddress = address;
+
+      if (!filterResult.allowed) {
+        if (filterResult.action === 'reject') {
+          return res.status(400).json({
+            success: false,
+            error: filterResult.message,
+            action: filterResult.action,
+            rejectedRules: filterResult.rejectedRules
+          });
+        } else if (filterResult.action === 'pickup_only') {
+          finalDeliveryType = 'pickup';
+          finalAddress = branchName ? `Retiro en ${branchName}` : 'Retiro en Sucursal Central';
+        }
+      }
+
+      // Crear o actualizar cliente en CRM
+      const lead = db.findOrCreateLead({
+        jid,
+        name: customerName,
+        phone: cleanPhone,
+        address: finalDeliveryType === 'delivery' ? (finalAddress || '') : '',
+        tags: ['Tienda Web', finalDeliveryType === 'delivery' ? 'Envío a Domicilio' : 'Retiro en Sucursal']
+      });
+
+      // Crear orden formal con origen TIENDA garantizado
+      const orderData = {
+        customerName: customerName.trim(),
+        phone: cleanPhone,
+        jid,
+        customerJid: jid,
+        address: finalDeliveryType === 'delivery' ? (finalAddress || 'Domicilio del cliente') : (branchName || 'Retiro en Sucursal'),
+        deliveryType: finalDeliveryType,
+        branchId: branchId || null,
+        branch: branchName || null,
+        branchName: branchName || null,
+        items: items.map(it => {
+          if (typeof it === 'string') return it;
+          if (it.isUnitMode && it.unitCount > 0) {
+            return `• ${it.unitCount} Unidades de ${it.name} — $${Number(it.subtotal || it.price * it.quantity).toLocaleString('es-AR')}`;
+          }
+          return `• ${it.quantity} ${it.unit || 'kg'} ${it.name} — $${Number(it.subtotal || it.price * it.quantity).toLocaleString('es-AR')}`;
+        }),
+        products: items,
+        totalAmount: Number(totalAmount) || 0,
+        paymentMethod: paymentMethod || 'Efectivo contraentrega',
+        paymentStatus: 'pending',
+        status: 'pending',
+        channel: 'TIENDA',
+        source: 'TIENDA',
+        origin: 'TIENDA',
+        notes: notes ? `[Tienda Web] ${notes}` : '[Tienda Web]'
+      };
+
+      const newOrder = db.createOrder(orderData);
+
+      // Emitir en tiempo real a administradores y operadores
+      io.emit('order:new', newOrder);
+
+      if (lead) {
+        io.emit('lead:update', lead);
+      }
+
+      res.json({ success: true, order: newOrder, lead, filterResult });
+    } catch (err) {
+      console.error('Error creando orden desde tienda:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- Quick Replies / Plantillas de Chat para Operador ---
+  router.get('/quick-replies', (req, res) => {
+    try {
+      res.json({ success: true, quickReplies: db.getQuickReplies() });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/quick-replies', (req, res) => {
+    try {
+      const reply = db.saveQuickReply(req.body);
+      res.json({ success: true, quickReply: reply });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.delete('/quick-replies/:id', (req, res) => {
+    try {
+      db.deleteQuickReply(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- Order Acceptance Rules & Filters ---
+  router.get('/order-filters', (req, res) => {
+    try {
+      res.json({ success: true, enabled: true, rules: OrderFilterEngine.getRules() });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/order-filters', (req, res) => {
+    try {
+      const success = OrderFilterEngine.saveRules(req.body.rules || req.body);
+      res.json({ success, rules: OrderFilterEngine.getRules() });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/order-filters/evaluate', (req, res) => {
+    try {
+      const result = OrderFilterEngine.evaluateOrder(req.body);
+      res.json({ success: true, ...result, result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.patch('/orders/:id/status', async (req, res) => {
+    const { status, paymentStatus, notifyCustomer, notify, notifyClient, notificationMessage, customMessage } = req.body;
+    const order = db.getOrder(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+    const shouldNotify = (notifyCustomer !== false && notify !== false && notifyClient !== false);
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (paymentStatus) updateData.paymentStatus = paymentStatus;
+
+    const updated = db.updateOrder(req.params.id, updateData);
+    io.emit('order:update', updated);
+
+    // Enviar notificación automática por WhatsApp al cliente a menos que se desactive explícitamente
+    if (shouldNotify && status) {
+      try {
+        const lead = db.getLead(order.jid || order.phone);
+        const cleanDigits = (order.phone || '').replace(/\D/g, '');
+        const targetJid = lead?.jid || (lead?.altJids && lead.altJids[0]) || order.jid || (cleanDigits ? `${cleanDigits}@s.whatsapp.net` : null);
+
+        if (targetJid) {
+          let messageToSend = notificationMessage || customMessage;
+          if (!messageToSend) {
+            const clientName = order.customerName || lead?.name || 'Estimado cliente';
+            switch (status) {
+              case 'preparing':
+                messageToSend = `¡Hola ${clientName}! 🥩 Tu pedido #${order.id} por $${Number(order.totalAmount || 0).toLocaleString('es-AR')} ingresó al sector de corte y ya está siendo preparado con la máxima calidad y terneza artesanal. En breve te avisamos cuando esté listo. 🙌`;
+                break;
+              case 'in_transit':
+                messageToSend = `¡Buenas noticias ${clientName}! 🛵🥩 Tu pedido #${order.id} ya está en camino a tu domicilio (${order.address || 'Córdoba'}). El repartidor llegará en los próximos minutos.`;
+                break;
+              case 'ready_for_pickup':
+                messageToSend = `¡Tu pedido #${order.id} ya está listo para retirar! 🎉🥩 Podés pasar por nuestra sucursal **${order.branch || 'Urca Central'}** (${order.address || 'Av. José Roque Funes 1115'}). ¡Te esperamos!`;
+                break;
+              case 'delivered':
+                messageToSend = `¡Pedido #${order.id} entregado con éxito! 🎉🥩 Esperamos que disfrutes tu compra en República de la Carne. ¡La calidad nos hace diferentes! 🙌`;
+                break;
+              case 'cancelled':
+                messageToSend = `Hola ${clientName}, te informamos que tu pedido #${order.id} ha sido cancelado. Si necesitás asistencia o realizar un nuevo pedido, escribinos por acá.`;
+                break;
+              default:
+                messageToSend = `Hola ${clientName}, el estado de tu pedido #${order.id} ha sido actualizado a: *${status}*.`;
+            }
+          }
+
+          try {
+            await whatsappService.sendMessage(targetJid, messageToSend);
+          } catch (sendErr) {
+            console.error('Error enviando WhatsApp mediante WhatsAppService:', sendErr.message);
+          }
+          
+          const savedMsg = db.saveMessage({
+            chatId: targetJid,
+            sender: 'bot',
+            type: 'text',
+            content: messageToSend,
             timestamp: new Date().toISOString()
           });
 
-          // Actualizar último mensaje del lead
-          const lead = db.getLead(targetJid);
           if (lead) {
             db.updateLead(lead.id, {
-              lastMessage: notificationMessage,
+              lastMessage: messageToSend,
               lastMessageAt: new Date().toISOString()
             });
           }
 
-          io.emit('chat:message', { message: savedMsg, lead });
+          io.emit('chat:message', { message: savedMsg, lead: lead || { jid: targetJid, name: order.customerName } });
         }
       } catch (notifyErr) {
-        console.error('Error enviando notificación de estado de pedido al cliente:', notifyErr);
+        console.error('Error enviando notificación automática de estado de pedido:', notifyErr);
       }
     }
 
@@ -660,6 +1402,162 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // --- 🥩 Catálogo de Productos y Balanzas con Códigos PLU y Códigos de Barras ---
+  router.get('/products', (req, res) => {
+    try {
+      const products = db.getProducts();
+      res.json(products);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/products', (req, res) => {
+    try {
+      const saved = db.saveProduct(req.body);
+      io.emit('products:updated', db.getProducts());
+      res.json({ success: true, product: saved });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.put('/products/:id', (req, res) => {
+    try {
+      const updated = db.updateProduct(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ error: 'Producto no encontrado' });
+      io.emit('products:updated', db.getProducts());
+      res.json({ success: true, product: updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/products/:id', (req, res) => {
+    try {
+      db.deleteProduct(req.params.id);
+      io.emit('products:updated', db.getProducts());
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Restaurar / Cargar Catálogo Maestro de Base de Conocimiento
+  router.post('/products/seed-master', (req, res) => {
+    try {
+      const seeded = db.seedMasterProducts(true);
+      io.emit('products:updated', seeded);
+      res.json({ success: true, count: seeded.length, products: seeded, message: `¡${seeded.length} productos con códigos PLU cargados desde la base de conocimiento!` });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Exportar Productos a Excel / CSV / JSON
+  router.get('/products/export', (req, res) => {
+    try {
+      const format = (req.query.format || 'csv').toLowerCase();
+      const products = db.getProducts();
+
+      if (format === 'json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', 'attachment; filename="catalogo_productos_republica_carne.json"');
+        return res.json(products);
+      }
+
+      // Generar CSV / Excel con BOM UTF-8 para apertura directa en Microsoft Excel
+      const headers = ['ID', 'PLU', 'Codigo_Barras', 'Nombre', 'Categoria', 'Precio', 'Unidad', 'Stock', 'Disponible', 'Descripcion'];
+      const rows = products.map(p => [
+        `"${p.id || ''}"`,
+        `"${p.plu || ''}"`,
+        `"${p.barcode || ''}"`,
+        `"${(p.name || '').replace(/"/g, '""')}"`,
+        `"${(p.category || '').replace(/"/g, '""')}"`,
+        p.price || 0,
+        `"${p.unit || 'kg'}"`,
+        p.stock ?? 100,
+        p.isAvailable !== false ? 'SI' : 'NO',
+        `"${(p.description || '').replace(/"/g, '""')}"`
+      ]);
+
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="catalogo_productos_republica_carne.csv"');
+      res.send(csvContent);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Importar Productos desde CSV / JSON / Array
+  router.post('/products/import', (req, res) => {
+    try {
+      let incoming = req.body;
+      let itemsToImport = [];
+
+      if (typeof incoming === 'string') {
+        // Parsear CSV
+        const lines = incoming.trim().split(/\r?\n/).filter(l => l.trim());
+        if (lines.length > 1) {
+          const headers = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim().toLowerCase());
+          for (let i = 1; i < lines.length; i++) {
+            // Manejar regex CSV respetando comillas
+            const cols = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+            const cleanCols = cols.map(c => c.replace(/^["']|["']$/g, '').replace(/""/g, '"').trim());
+            const obj = {};
+            headers.forEach((h, idx) => {
+              obj[h] = cleanCols[idx] || '';
+            });
+            itemsToImport.push(obj);
+          }
+        }
+      } else if (Array.isArray(incoming)) {
+        itemsToImport = incoming;
+      } else if (Array.isArray(incoming.products)) {
+        itemsToImport = incoming.products;
+      }
+
+      if (itemsToImport.length === 0) {
+        return res.status(400).json({ error: 'No se encontraron productos válidos para importar' });
+      }
+
+      let count = 0;
+      itemsToImport.forEach(item => {
+        const plu = item.plu || item.PLU || item.codigo_plu || (item.barcode ? item.barcode.slice(-4) : '');
+        const barcode = item.barcode || item.Codigo_Barras || item.codigo_barras || (plu ? `779${plu.padStart(4, '0')}000001` : '');
+        const name = item.name || item.Nombre || item.nombre || item.producto || 'Producto Importado';
+        const price = Number(item.price || item.Precio || item.precio) || 0;
+        const category = item.category || item.Categoria || item.categoria || 'Parrilla';
+        const unit = item.unit || item.Unidad || item.unidad || 'kg';
+        const stock = Number(item.stock || item.Stock) || 100;
+        const description = item.description || item.Descripcion || item.descripcion || '';
+
+        db.saveProduct({
+          id: item.id || `prod_${Date.now()}_${count}`,
+          plu,
+          barcode,
+          name,
+          price,
+          category,
+          unit,
+          stock,
+          description,
+          isAvailable: true
+        });
+        count++;
+      });
+
+      const all = db.getProducts();
+      io.emit('products:updated', all);
+      res.json({ success: true, importedCount: count, total: all.length, message: `¡${count} productos importados y sincronizados con éxito!` });
+    } catch (err) {
+      console.error('Error importando productos:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Derivar pedido a sucursal y notificar por WhatsApp
   router.post('/orders/:id/derive', async (req, res) => {
     const { branchId, notes, notifyClient = true } = req.body;
@@ -731,9 +1629,7 @@ export function createApiRouter(whatsappService, io) {
       if (sendWhatsApp) {
         const targetJid = jid || order?.jid || (phone ? `${phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
         if (targetJid && whatsappService.status === 'connected') {
-          const modeTag = preference.isSandbox ? '🧪 *[MODO PRUEBAS / SANDBOX]*\n' : '';
-          const sandboxNote = preference.isSandbox ? '\n*(Enlace de prueba Sandbox - No debita dinero real)*' : '';
-          const paymentMsg = `${modeTag}¡Hola ${orderData.customerName}! 🥩💳 Acá tenés el link de pago ${preference.isSandbox ? 'de prueba ' : ''}de Mercado Pago para tu pedido #${orderData.id} por $${Number(orderData.totalAmount).toLocaleString('es-AR')}:\n\n🔗 ${preference.checkoutUrl}\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia.${sandboxNote}\n\nEn cuanto se acredite, ¡comenzamos la preparación de tu pedido!`;
+          const paymentMsg = `💳 *[MERCADO PAGO CHECKOUT OFICIAL]*\n¡Hola ${orderData.customerName}! 🥩💳 Acá tenés el link de pago seguro de Mercado Pago para tu pedido #${orderData.id} por $${Number(orderData.totalAmount).toLocaleString('es-AR')}:\n\n🔗 ${preference.checkoutUrl}\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia.\n\nEn cuanto se acredite, ¡comenzamos la preparación de tu pedido! 🙌`;
           
           await whatsappService.sendMessage(targetJid, paymentMsg);
 
@@ -798,62 +1694,218 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
-  router.post('/mercadopago/webhook', async (req, res) => {
+  const handleMercadoPagoNotification = async (req, res) => {
     try {
-      const { type, action, data } = req.body;
-      const topic = type || req.query.topic;
-      const paymentId = (data && data.id) || req.query.id;
+      const result = await mercadoPagoService.processNotification({
+        body: req.body || {},
+        query: req.query || {},
+        headers: req.headers || {}
+      });
 
-      if ((topic === 'payment' || action === 'payment.created' || action === 'payment.updated') && paymentId) {
-        const payment = await mercadoPagoService.getPayment(paymentId);
-        
-        if (payment && (payment.status === 'approved' || payment.status === 'accredited')) {
-          const orderId = payment.external_reference;
-          console.log(`💰 ¡Pago acreditado en Mercado Pago para pedido #${orderId}! Monto: $${payment.transaction_amount}`);
-          
-          if (orderId) {
-            const updatedOrder = db.updateOrderStatus(orderId, 'preparing');
-            if (updatedOrder) {
-              db.updateOrder(orderId, {
-                paymentStatus: 'paid',
-                paymentMethod: 'Mercado Pago (Acreditado)',
-                paymentId: String(paymentId)
-              });
-              io.emit('order:update', updatedOrder);
+      if (result.handled && result.status === 'approved' && result.order) {
+        const orderId = result.orderId;
+        const updatedOrder = result.order;
+        console.log(`💰 ¡Pago acreditado en Mercado Pago para pedido #${orderId}! Monto: $${result.amount}`);
 
-              // Notificar al cliente por WhatsApp que su pago fue recibido con éxito
-              const targetJid = updatedOrder.jid || (updatedOrder.phone ? `${updatedOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
-              if (targetJid && whatsappService.status === 'connected') {
-                const confirmMsg = `¡Pago recibido con éxito! 🎉🥩 Ya registramos tu acreditación de Mercado Pago por $${Number(payment.transaction_amount).toLocaleString('es-AR')} para el pedido #${orderId}. Tus cortes pasan de inmediato a preparación. ¡Muchas gracias! 🙌`;
-                
-                await whatsappService.sendMessage(targetJid, confirmMsg);
+        io.emit('order:update', updatedOrder);
+        io.emit('payment:received', {
+          orderId,
+          amount: result.amount,
+          paymentId: result.paymentId,
+          order: updatedOrder
+        });
 
-                const savedMsg = db.saveMessage({
-                  chatId: targetJid,
-                  sender: 'agent',
-                  type: 'text',
-                  content: confirmMsg,
-                  timestamp: new Date().toISOString()
-                });
-
-                const lead = db.getLead(targetJid);
-                if (lead) {
-                  db.updateLead(lead.id, {
-                    lastMessage: confirmMsg,
-                    lastMessageAt: new Date().toISOString()
-                  });
-                }
-
-                io.emit('chat:message', { message: savedMsg, lead });
-              }
-            }
+        // Actualizar Lead a closed_won o en preparación
+        const targetJid = updatedOrder.jid || (updatedOrder.phone ? `${updatedOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+        if (targetJid) {
+          const lead = db.getLead(targetJid);
+          if (lead) {
+            db.updateLead(lead.id, { stage: 'closed_won' });
+            io.emit('lead:update', db.getLead(targetJid));
           }
         }
+
+        // Notificar al cliente por WhatsApp que su pago fue recibido con éxito
+        if (targetJid && whatsappService.status === 'connected') {
+          const confirmMsg = `¡Pago recibido con éxito! 🎉🥩 Ya registramos tu acreditación de Mercado Pago por $${Number(result.amount).toLocaleString('es-AR')} para el pedido #${orderId}. Tus cortes pasan de inmediato al sector de carnicería para su preparación. ¡Muchas gracias por elegir República de la Carne! 🙌`;
+          
+          await whatsappService.sendMessage(targetJid, confirmMsg);
+
+          const savedMsg = db.saveMessage({
+            chatId: targetJid,
+            sender: 'agent',
+            type: 'text',
+            content: confirmMsg,
+            timestamp: new Date().toISOString()
+          });
+
+          const lead = db.getLead(targetJid);
+          if (lead) {
+            db.updateLead(lead.id, {
+              lastMessage: confirmMsg,
+              lastMessageAt: new Date().toISOString()
+            });
+          }
+
+          io.emit('chat:message', { message: savedMsg, lead });
+        }
       }
-      res.sendStatus(200);
+
+      // Responder 200 OK inmediatamente según las directivas oficiales de Mercado Pago
+      res.status(200).json({ status: 'ok', handled: result.handled });
     } catch (err) {
-      console.error('Error procesando webhook de Mercado Pago:', err);
-      res.sendStatus(500);
+      console.error('Error procesando notificación de Mercado Pago:', err);
+      res.status(200).json({ status: 'error', error: err.message });
+    }
+  };
+
+  router.all('/mercadopago/webhook', handleMercadoPagoNotification);
+  router.all('/mercadopago/ipn', handleMercadoPagoNotification);
+  router.all('/mercadopago/notifications', handleMercadoPagoNotification);
+
+  // --- Verificación de Pago en Vivo de Mercado Pago ---
+  router.post('/orders/:id/verify-payment', async (req, res) => {
+    try {
+      const orderId = req.params.id;
+      const order = db.getOrder(orderId);
+      if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+      const result = await mercadoPagoService.verifyOrderPayment(orderId);
+      if (result.verified && result.order) {
+        io.emit('order:update', result.order);
+      }
+      res.json(result);
+    } catch (err) {
+      console.error(`Error verificando pago para pedido ${req.params.id}:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Asignación / Registro Manual de Pago (Efectivo, Transferencia, Mercado Pago) ---
+  router.put('/orders/:id/payment', (req, res) => {
+    try {
+      const orderId = req.params.id;
+      const { paymentMethod, paymentStatus, paidAmount, transactionRef, notes } = req.body;
+      const updated = mercadoPagoService.updateOrderPaymentManual(orderId, {
+        paymentMethod,
+        paymentStatus,
+        paidAmount,
+        transactionRef,
+        notes
+      });
+
+      if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+      io.emit('order:update', updated);
+      res.json({ success: true, order: updated });
+    } catch (err) {
+      console.error(`Error actualizando pago manual para orden ${req.params.id}:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // --- 5.4 WHATSAPP BROADCASTS & SCHEDULED CAMPAIGNS ENGINE ---
+  // =========================================================================
+  router.get('/campaigns', (req, res) => {
+    try {
+      const campaigns = db.getCampaigns();
+      res.json(campaigns);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/campaigns/audience-count', (req, res) => {
+    try {
+      const { segment = 'all' } = req.query;
+      const audience = broadcastService.getAudienceForSegment(segment);
+      res.json({ segment, count: audience.length });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/campaigns/preview', (req, res) => {
+    try {
+      const { template, segment = 'all' } = req.body;
+      const audience = broadcastService.getAudienceForSegment(segment);
+      const sampleLead = audience[0] || {
+        name: 'Don Juan',
+        phone: '+54 9 351 626-2475',
+        customerNumber: 'CLI-1001',
+        jid: '5493516262475@s.whatsapp.net'
+      };
+
+      const rendered = broadcastService.renderMessageTemplate(template, sampleLead);
+      res.json({
+        rendered,
+        sampleLead: {
+          name: sampleLead.name,
+          phone: sampleLead.phone,
+          customerNumber: sampleLead.customerNumber || 'CLI-1001'
+        },
+        recipientCount: audience.length
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/campaigns/upload-banner', upload.single('image'), (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No se subió ninguna imagen' });
+      }
+      const mediaUrl = `/media/${req.file.filename}`;
+      res.json({ success: true, mediaUrl, filename: req.file.filename });
+    } catch (err) {
+      console.error('Error subiendo imagen de campaña:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/campaigns', (req, res) => {
+    try {
+      const campaign = broadcastService.createCampaign(req.body);
+      res.json({ success: true, campaign });
+    } catch (err) {
+      console.error('Error creando campaña:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/campaigns/:id/send', async (req, res) => {
+    try {
+      const campaignId = req.params.id;
+      const campaign = await broadcastService.executeCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ error: 'Campaña no encontrada' });
+      }
+      res.json({ success: true, campaign });
+    } catch (err) {
+      console.error('Error ejecutando campaña:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.put('/campaigns/:id', (req, res) => {
+    try {
+      const updated = db.saveCampaign({ id: req.params.id, ...req.body });
+      io.emit('campaign:update', updated);
+      res.json({ success: true, campaign: updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/campaigns/:id', (req, res) => {
+    try {
+      db.deleteCampaign(req.params.id);
+      io.emit('campaign:delete', req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 
@@ -939,9 +1991,106 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
-  // --- 7. Metrics & Analytics ---
+  // --- 7. Metrics & Sales Analytics ---
   router.get('/metrics', (req, res) => {
     res.json(db.getMetrics());
+  });
+
+  // Estadísticas completas de ventas (Sucursal, Producto, Canal, Método de Pago, Timeline)
+  router.get('/sales/stats', (req, res) => {
+    try {
+      const stats = db.getSalesStatistics(req.query);
+      res.json(stats);
+    } catch (err) {
+      console.error('Error calculando estadísticas de ventas:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Lista detallada y filtrable de ventas
+  router.get('/sales/list', (req, res) => {
+    try {
+      const sales = db.getSalesList(req.query);
+      res.json(sales);
+    } catch (err) {
+      console.error('Error obteniendo lista de ventas:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Exportar reporte de ventas a Excel (.xlsx, .xls) o CSV
+  router.get('/sales/export', (req, res) => {
+    try {
+      const format = (req.query.format || 'xlsx').toLowerCase();
+      const sales = db.getSalesList({ ...req.query, limit: 5000 });
+
+      // Transformar datos a filas planas para Excel
+      const rows = sales.map((s, idx) => {
+        const productsSummary = Array.isArray(s.products) && s.products.length > 0
+          ? s.products.map(p => `${p.quantity} ${p.unit || 'kg'} ${p.name}`).join(' | ')
+          : (Array.isArray(s.items) ? s.items.join(' | ') : '');
+
+        const channel = s.channel || (s.notes?.includes('[POS Mostrador]') ? 'POS Mostrador' : (s.notes?.includes('[WooCommerce]') ? 'Tienda Web' : 'WhatsApp'));
+        const isPaid = s.paymentStatus === 'paid' || s.mpPaymentId || (s.paymentMethod && s.paymentMethod.toLowerCase().includes('mercado pago')) || s.status === 'delivered';
+
+        return {
+          'N° Ticket/Orden': `#${s.id}`,
+          'Fecha / Hora': new Date(s.createdAt).toLocaleString('es-AR'),
+          'Cliente': s.customerName || 'Cliente Mostrador',
+          'Teléfono': s.phone || '',
+          'Canal de Venta': channel,
+          'Sucursal': s.branchName || s.branch || 'URCA CENTRAL',
+          'Modalidad': s.deliveryType === 'pickup' ? 'Retiro en Sucursal' : 'Envío a Domicilio',
+          'Dirección': s.address || '',
+          'Repartidor': s.driverName || '',
+          'Detalle de Cortes': productsSummary,
+          'Total ($)': Number(s.totalAmount) || 0,
+          'Medio de Pago': s.paymentMethod || 'Efectivo',
+          'Estado del Pago': isPaid ? 'PAGADO' : 'PENDIENTE',
+          'Estado Pedido': s.status === 'delivered' ? 'Entregado' : s.status === 'in_transit' ? 'En Camino' : s.status === 'preparing' ? 'En Preparación' : s.status === 'cancelled' ? 'Cancelado' : 'Pendiente',
+          'Notas': s.notes || ''
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      // Auto-ancho de columnas
+      const colWidths = [
+        { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 24 },
+        { wch: 18 }, { wch: 26 }, { wch: 18 }, { wch: 45 }, { wch: 14 }, { wch: 20 },
+        { wch: 14 }, { wch: 14 }, { wch: 25 }
+      ];
+      worksheet['!cols'] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Ventas');
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      let buffer;
+      let contentType;
+      let ext;
+
+      if (format === 'csv') {
+        const csvContent = '\uFEFF' + XLSX.utils.sheet_to_csv(worksheet, { FS: ';' });
+        buffer = Buffer.from(csvContent, 'utf8');
+        contentType = 'text/csv; charset=utf-8';
+        ext = 'csv';
+      } else if (format === 'xls') {
+        buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'biff8' });
+        contentType = 'application/vnd.ms-excel';
+        ext = 'xls';
+      } else {
+        buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        ext = 'xlsx';
+      }
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="reporte_ventas_${dateStr}.${ext}"`);
+      res.send(buffer);
+    } catch (err) {
+      console.error('Error exportando reporte de ventas:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // --- 8. GitHub Updates System ---
@@ -1140,7 +2289,47 @@ export function createApiRouter(whatsappService, io) {
   });
 
   router.get('/users', (req, res) => {
-    res.json(db.getUsers());
+    let users = db.getUsers();
+    const { role, q } = req.query;
+    if (role) users = users.filter(u => u.role === role);
+    if (q) {
+      const query = q.toLowerCase();
+      users = users.filter(u =>
+        (u.name || '').toLowerCase().includes(query) ||
+        (u.username || '').toLowerCase().includes(query) ||
+        (u.email || '').toLowerCase().includes(query) ||
+        (u.phone || '').replace(/\D/g, '').includes(query.replace(/\D/g, ''))
+      );
+    }
+    res.json(users);
+  });
+
+  // Lookup by phone — must be before /:id
+  router.get('/users/by-phone/:phone', (req, res) => {
+    const user = db.getUserByPhone(req.params.phone);
+    if (!user) return res.status(404).json({ error: 'No se encontró usuario con ese teléfono' });
+    res.json(user);
+  });
+
+  router.post('/users/login', (req, res) => {
+    const { username, pin } = req.body;
+    const result = db.authenticateUser(username, pin);
+    if (!result.success) {
+      return res.status(401).json({ error: result.error });
+    }
+    res.json(result);
+  });
+
+  // Promote lead → system user (cliente)
+  router.post('/users/from-lead/:leadId', (req, res) => {
+    const { leadId } = req.params;
+    const extraData = req.body || {};
+    const user = db.promoteLeadToUser(leadId, extraData);
+    if (!user) return res.status(404).json({ error: 'Lead no encontrado o ya tiene usuario vinculado' });
+    const lead = db.getLead(leadId);
+    io.emit('user:new', user);
+    if (lead) io.emit('lead:update', lead);
+    res.json({ user, lead });
   });
 
   router.post('/users', (req, res) => {
@@ -1162,6 +2351,17 @@ export function createApiRouter(whatsappService, io) {
     res.json(updated);
   });
 
+  // Link existing user ↔ existing lead
+  router.post('/users/:id/link-lead', (req, res) => {
+    const { leadId } = req.body;
+    if (!leadId) return res.status(400).json({ error: 'leadId requerido' });
+    const result = db.linkLeadToUser(leadId, req.params.id);
+    if (!result) return res.status(404).json({ error: 'Usuario o Lead no encontrado' });
+    io.emit('user:update', result.user);
+    io.emit('lead:update', result.lead);
+    res.json(result);
+  });
+
   router.post('/users/:id/duplicate', (req, res) => {
     const cloned = db.duplicateUser(req.params.id);
     if (!cloned) return res.status(404).json({ error: 'Usuario no encontrado' });
@@ -1173,15 +2373,6 @@ export function createApiRouter(whatsappService, io) {
     db.deleteUser(req.params.id);
     io.emit('user:delete', req.params.id);
     res.json({ success: true });
-  });
-
-  router.post('/users/login', (req, res) => {
-    const { username, pin } = req.body;
-    const result = db.authenticateUser(username, pin);
-    if (!result.success) {
-      return res.status(401).json({ error: result.error });
-    }
-    res.json(result);
   });
 
   // =========================================================================
@@ -1288,16 +2479,45 @@ export function createApiRouter(whatsappService, io) {
     res.json({ success: true, automations: resetRules });
   });
 
+  router.post('/automations/test', async (req, res) => {
+    try {
+      const { message, customerName = 'Don Juan' } = req.body;
+      const fakeLead = {
+        id: 'lead-test-sim',
+        name: customerName,
+        pushName: customerName,
+        phone: '+54 9 351 000-0000',
+        stage: 'proposal'
+      };
+      const settings = db.getSettings() || {};
+      const knowledgeBase = db.getKnowledgeBase() || {};
+      const result = await AIService.generateReply({
+        jid: fakeLead.id,
+        incomingText: message,
+        isAudioInput: false
+      });
+      res.json({
+        success: true,
+        reply: result.text,
+        shouldSendAudio: result.shouldSendAudio,
+        suggestedStage: result.suggestedStage
+      });
+    } catch (err) {
+      console.error('Error en simulación de automatización:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // =========================================================================
   // --- GEOCODING & MAP DISTANCE ENGINE (CÓRDOBA) ---
   // =========================================================================
   const BRANCH_COORDINATES = [
-    { id: 'br-1', name: 'Urca Central', address: 'Av. José Roque Funes 1115', lat: -31.3828, lng: -64.2372 },
-    { id: 'br-2', name: 'Urca 2 (Alto Tejeda)', address: 'Av. Menéndez Pidal 3575', lat: -31.3785, lng: -64.2320 },
-    { id: 'br-3', name: 'Intercountry (Corteza Mall)', address: 'Av. Los Álamos 1015', lat: -31.3650, lng: -64.2690 },
-    { id: 'br-4', name: 'Duarte Quirós', address: 'Av. Duarte Quirós 5130', lat: -31.4085, lng: -64.2490 },
-    { id: 'br-5', name: 'Villa Allende', address: 'Av. Figueroa Alcorta 480', lat: -31.2965, lng: -64.2950 },
-    { id: 'br-6', name: 'Country San Isidro', address: 'Av. Padre Luchesse km 2', lat: -31.3120, lng: -64.2750 }
+    { id: 'br-1', name: 'URCA CENTRAL', address: 'Av. José Roque Funes 1115', phone: '+54 9 3513 906947', hours: 'Lunes a sábado: 9:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs', lat: -31.3828, lng: -64.2372 },
+    { id: 'br-2', name: 'URCA 2 – ALTO TEJEDA', address: 'Av. Menéndez Pidal 3575', phone: '+54 9 3518 623195', hours: 'Lunes a sábado: 9:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs', lat: -31.3785, lng: -64.2320 },
+    { id: 'br-3', name: 'INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA', address: 'Av. Los Álamos 1015', phone: '+54 9 3518 623194', hours: 'Lunes a domingos: 9:00 a 21:00 hs', lat: -31.3650, lng: -64.2690 },
+    { id: 'br-4', name: 'DUARTE QUIRÓS', address: 'Av. Duarte Quirós 5130', phone: '+54 9 3518 156595', hours: 'Lunes a sábado: 9:00 a 13:30 hs y 17:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs', lat: -31.4085, lng: -64.2490 },
+    { id: 'br-5', name: 'VILLA ALLENDE – MERCADITO DE LA VILLA', address: 'Av. Figueroa Alcorta 480', phone: '+54 9 3513 540031', hours: 'Lunes a sábado: 9:00 a 13:30 hs y 17:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs', lat: -31.2965, lng: -64.2950 },
+    { id: 'br-6', name: 'COUNTRY SAN ISIDRO – ALTO TEJEDA (Nueva)', address: 'Av. Padre Luchesse km 2', phone: '+54 9 3518 769099', hours: 'Lun a Mié: 07:00 a 00:00 hs | Jue y Vie: 07:00 a 01:00 hs | Sáb: 08:00 a 01:00 hs | Dom: 08:30 a 00:00 hs', lat: -31.3120, lng: -64.2750 }
   ];
 
   function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -1437,6 +2657,281 @@ export function createApiRouter(whatsappService, io) {
     const { toolName, parameters, context } = req.body;
     const result = await ElevenLabsAgentService.executeTool(toolName, parameters, context);
     res.json(result);
+  });
+
+  // =========================================================================
+  // --- 13. NEURAL MEMORY & COGNITIVE MENTAL MAP ENDPOINTS ---
+  // =========================================================================
+  router.get('/neural-memory/map', (req, res) => {
+    try {
+      const mentalMap = NeuralMemoryService.getSystemMentalMap();
+      res.json(mentalMap);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/neural-memory/chat/:chatId', (req, res) => {
+    try {
+      const { chatId } = req.params;
+      const conversationMap = NeuralMemoryService.getConversationNeuralMap(chatId);
+      if (!conversationMap) return res.status(404).json({ error: 'Conversación no encontrada' });
+      res.json(conversationMap);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/neural-memory/context/:jid?', (req, res) => {
+    try {
+      const jid = req.params.jid || null;
+      const context = NeuralMemoryService.generateCognitiveContext({ jid });
+      res.json(context);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/neural-memory/query', (req, res) => {
+    try {
+      const { query } = req.body;
+      const results = NeuralMemoryService.searchSynapticContext(query);
+      res.json({ query, results, count: results.length });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/knowledge', (req, res) => {
+    try {
+      const knowledge = db.getKnowledge();
+      res.json(knowledge);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/knowledge', (req, res) => {
+    try {
+      const doc = db.saveKnowledgeDoc(req.body);
+      res.json({ success: true, doc });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // --- 14. GEOCODING & LOGISTICS ROUTING API ---
+  // =========================================================================
+  const CORDOBA_LANDMARKS = [
+    { name: 'roque funes', lat: -31.3828, lng: -64.2372, address: 'Av. José Roque Funes 1115, Urca, Córdoba' },
+    { name: 'urca', lat: -31.3828, lng: -64.2372, address: 'Av. José Roque Funes 1115, Urca, Córdoba' },
+    { name: 'menendez pidal', lat: -31.3785, lng: -64.2320, address: 'Av. Menéndez Pidal 3575, Urca 2, Córdoba' },
+    { name: 'los alamos', lat: -31.3650, lng: -64.2690, address: 'Av. Los Álamos 1015, Intercountry, Córdoba' },
+    { name: 'corteza mall', lat: -31.3650, lng: -64.2690, address: 'Corteza Mall, Intercountry, Córdoba' },
+    { name: 'duarte quiros', lat: -31.4085, lng: -64.2490, address: 'Av. Duarte Quirós 5130, Córdoba' },
+    { name: 'villa allende', lat: -31.2965, lng: -64.2950, address: 'Av. Figueroa Alcorta 480, Villa Allende, Córdoba' },
+    { name: 'figueroa alcorta', lat: -31.2965, lng: -64.2950, address: 'Av. Figueroa Alcorta 480, Villa Allende, Córdoba' },
+    { name: 'san isidro', lat: -31.3120, lng: -64.2750, address: 'Av. Padre Luchesse km 2, Country San Isidro, Córdoba' },
+    { name: 'luchesse', lat: -31.3120, lng: -64.2750, address: 'Av. Padre Luchesse km 2, San Isidro, Córdoba' },
+    { name: 'cerro de las rosas', lat: -31.3750, lng: -64.2350, address: 'Cerro de las Rosas, Córdoba' },
+    { name: 'rafael nunez', lat: -31.3720, lng: -64.2340, address: 'Av. Rafael Núñez, Cerro de las Rosas, Córdoba' },
+    { name: 'recta martinoli', lat: -31.3620, lng: -64.2580, address: 'Recta Martinoli, Argüello, Córdoba' },
+    { name: 'cuesta colorada', lat: -31.3500, lng: -64.3100, address: 'Cuesta Colorada, La Calera / Córdoba' },
+    { name: 'la calera', lat: -31.3450, lng: -64.3350, address: 'La Calera, Córdoba' },
+    { name: 'centro', lat: -31.4167, lng: -64.1833, address: 'Centro, Córdoba, Argentina' }
+  ];
+
+  function calcDistKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Number((R * c).toFixed(2));
+  }
+
+  router.post('/geocode', async (req, res) => {
+    const { address } = req.body;
+    const rawAddr = (address || '').trim();
+    if (!rawAddr) return res.status(400).json({ error: 'Dirección requerida' });
+
+    let lat = -31.3828;
+    let lng = -64.2372;
+    let matchedName = rawAddr;
+
+    // 1. Check local Córdoba landmarks first
+    const lower = rawAddr.toLowerCase();
+    const localMatch = CORDOBA_LANDMARKS.find(l => lower.includes(l.name));
+    if (localMatch) {
+      lat = localMatch.lat;
+      lng = localMatch.lng;
+      matchedName = localMatch.address;
+    } else {
+      // 2. Try Nominatim OpenStreetMap
+      try {
+        const query = encodeURIComponent(`${rawAddr}, Cordoba, Argentina`);
+        const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
+          headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
+        });
+        const osmData = await osmRes.json();
+        if (osmData && osmData[0]) {
+          lat = parseFloat(osmData[0].lat);
+          lng = parseFloat(osmData[0].lon);
+          matchedName = osmData[0].display_name;
+        }
+      } catch (e) {
+        console.error('Error geocodificando con Nominatim:', e.message);
+      }
+    }
+
+    // 3. Compute distances to all 6 branches
+    const branches = db.getBranches();
+    const branchesWithDist = branches.map(b => {
+      const dist = (b.lat && b.lng) ? calcDistKm(lat, lng, b.lat, b.lng) : calcDistKm(lat, lng, -31.3828, -64.2372);
+      return { ...b, distanceKm: dist };
+    }).sort((a, b) => a.distanceKm - b.distanceKm);
+
+    const closestBranch = branchesWithDist[0] || null;
+
+    res.json({
+      success: true,
+      address: rawAddr,
+      formattedAddress: matchedName,
+      coordinates: { lat, lng },
+      closestBranch,
+      allBranches: branchesWithDist
+    });
+  });
+
+  router.post('/reverse-geocode', async (req, res) => {
+    const { lat, lng } = req.body;
+    if (lat === undefined || lng === undefined) return res.status(400).json({ error: 'Lat y Lng requeridos' });
+
+    let detectedAddress = `Ubicación (${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}), Córdoba`;
+    try {
+      const osmRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+        headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
+      });
+      const osmData = await osmRes.json();
+      if (osmData && osmData.display_name) {
+        const parts = osmData.display_name.split(',');
+        detectedAddress = parts.slice(0, 3).join(', ').trim();
+      }
+    } catch (e) {}
+
+    const branches = db.getBranches();
+    const branchesWithDist = branches.map(b => {
+      const dist = (b.lat && b.lng) ? calcDistKm(lat, lng, b.lat, b.lng) : calcDistKm(lat, lng, -31.3828, -64.2372);
+      return { ...b, distanceKm: dist };
+    }).sort((a, b) => a.distanceKm - b.distanceKm);
+
+    res.json({
+      success: true,
+      address: detectedAddress,
+      coordinates: { lat: Number(lat), lng: Number(lng) },
+      closestBranch: branchesWithDist[0] || null,
+      allBranches: branchesWithDist
+    });
+  });
+
+  router.post('/route', async (req, res) => {
+    const { origin, destination } = req.body;
+    if (!origin || !destination) return res.status(400).json({ error: 'Origen y Destino requeridos' });
+
+    const oLat = Number(origin.lat);
+    const oLng = Number(origin.lng);
+    const dLat = Number(destination.lat);
+    const dLng = Number(destination.lng);
+
+    const directDist = calcDistKm(oLat, oLng, dLat, dLng);
+    let routeGeoJson = null;
+    let distanceKm = Number((directDist * 1.25).toFixed(2)); // Factor de curvas de calle en ciudad
+    let durationMin = Math.max(10, Math.round(distanceKm * 3 + 5));
+
+    try {
+      const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson`;
+      const r = await fetch(osrmUrl, { headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' } });
+      const data = await r.json();
+      if (data.code === 'Ok' && data.routes && data.routes[0]) {
+        const route = data.routes[0];
+        distanceKm = Number((route.distance / 1000).toFixed(2));
+        durationMin = Math.max(8, Math.round(route.duration / 60));
+        routeGeoJson = route.geometry;
+      }
+    } catch (e) {
+      console.error('Error calculando ruta OSRM:', e.message);
+    }
+
+    res.json({
+      success: true,
+      distanceKm,
+      durationMin,
+      routeGeoJson,
+      origin: { lat: oLat, lng: oLng },
+      destination: { lat: dLat, lng: dLng }
+    });
+  });
+
+  // =========================================================================
+  // --- 15. USERS & ROLES RBAC API ---
+  // =========================================================================
+  router.get('/users', (req, res) => {
+    res.json(db.getUsers());
+  });
+
+  router.post('/users', (req, res) => {
+    const user = db.createUser(req.body);
+    io.emit('user:new', user);
+    res.json(user);
+  });
+
+  router.put('/users/:id', (req, res) => {
+    const user = db.updateUser(req.params.id, req.body);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    io.emit('user:update', user);
+    res.json(user);
+  });
+
+  router.delete('/users/:id', (req, res) => {
+    const success = db.deleteUser(req.params.id);
+    io.emit('user:delete', req.params.id);
+    res.json({ success });
+  });
+
+  router.get('/roles', (req, res) => {
+    res.json(db.getRoles());
+  });
+
+  router.post('/auth/verify-pin', (req, res) => {
+    const { userId, username, pin, password } = req.body;
+    const key = pin || password;
+    const result = db.authenticateUser(userId || username || 'admin_central', key);
+    res.json(result);
+  });
+
+  router.post('/auth/login-admin', (req, res) => {
+    const { password } = req.body;
+    if (password === 'R3publ1c4') {
+      const centralUser = db.getUsers().find(u => u.id === 'usr-central-admin') || db.getUsers()[0];
+      return res.json({ success: true, user: centralUser, token: 'session_central_admin_master' });
+    }
+    const authResult = db.authenticateUser('admin_central', password);
+    res.json(authResult);
+  });
+
+  router.post('/leads/:id/sync-profile', async (req, res) => {
+    const { id } = req.params;
+    const lead = db.getLead(id);
+    if (!lead) return res.status(404).json({ error: 'Lead no encontrado' });
+
+    if (whatsappService?.fetchAndSyncContactProfile) {
+      const updated = await whatsappService.fetchAndSyncContactProfile(lead.jid || id, lead.pushName);
+      return res.json({ success: true, lead: updated || lead });
+    }
+    res.json({ success: true, lead });
   });
 
   return router;

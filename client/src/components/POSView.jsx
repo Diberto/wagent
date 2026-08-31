@@ -25,6 +25,7 @@ import {
   ScanLine,
   Barcode
 } from 'lucide-react';
+import TicketPrintModal from './TicketPrintModal.jsx';
 
 const playScannerBeep = () => {
   try {
@@ -54,6 +55,9 @@ export default function POSView({ socket }) {
 
   // Barcode Scanner Gun Status
   const [lastScannedProduct, setLastScannedProduct] = useState(null); // null | { name, code }
+
+  // Thermal & Multi-format Ticket Print Modal
+  const [ticketPrintModal, setTicketPrintModal] = useState(null); // null | order object
 
   // Parallel Cart Tabs State
   const [tabs, setTabs] = useState([
@@ -288,11 +292,24 @@ export default function POSView({ socket }) {
       address: activeCart.orderType === 'takeaway' 
         ? `Retiro en ${selectedBranch?.name || 'Mostrador'}` 
         : (activeCart.address || 'Entrega a Domicilio'),
+      deliveryType: activeCart.orderType === 'takeaway' ? 'pickup' : 'delivery',
       items: orderItems,
+      products: activeCart.items.map(it => ({
+        id: it.id,
+        name: it.name,
+        price: it.price,
+        unitPrice: it.price,
+        quantity: it.quantity,
+        unit: it.unit || 'kg',
+        subtotal: it.price * it.quantity
+      })),
       totalAmount: total,
       paymentMethod: activeCart.paymentMethod,
       branchId: activeCart.branchId || null,
       branchName: selectedBranch?.name || null,
+      channel: 'POS',
+      source: 'POS',
+      origin: 'POS',
       status: activeCart.orderType === 'takeaway' ? 'preparing' : 'pending',
       notes: activeCart.notes ? `[POS Mostrador] ${activeCart.notes}` : '[POS Mostrador]'
     };
@@ -899,16 +916,16 @@ export default function POSView({ socket }) {
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
                   <button
                     type="button"
-                    onClick={() => handlePrintReceipt(checkoutModal.order)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#111b21] hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold"
+                    onClick={() => setTicketPrintModal(checkoutModal.order)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 font-bold transition"
                   >
-                    <Printer size={14} /> Imprimir Ticket
+                    <Printer size={14} /> 🖨️ Imprimir Ticket
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setCheckoutModal(null)}
-                    className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold"
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold transition"
                   >
                     Nueva Venta
                   </button>
@@ -918,6 +935,14 @@ export default function POSView({ socket }) {
 
           </div>
         </div>
+      )}
+
+      {/* Complete Thermal & Multi-format Ticket Print Modal */}
+      {ticketPrintModal && (
+        <TicketPrintModal
+          order={ticketPrintModal}
+          onClose={() => setTicketPrintModal(null)}
+        />
       )}
 
     </div>

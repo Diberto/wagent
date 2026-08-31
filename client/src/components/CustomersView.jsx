@@ -3,6 +3,7 @@ import {
   Users, 
   Search, 
   Phone, 
+  Mail,
   MapPin, 
   DollarSign, 
   ShoppingBag, 
@@ -24,8 +25,14 @@ import {
   Copy,
   Trash2,
   X,
-  Store
+  Store,
+  Layers,
+  FileText,
+  UserCheck2,
+  Navigation,
+  Compass
 } from 'lucide-react';
+import ClientLocationMap from './ClientLocationMap';
 
 export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [customers, setCustomers] = useState([]);
@@ -38,6 +45,10 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [newCustomKey, setNewCustomKey] = useState('');
+  const [newCustomVal, setNewCustomVal] = useState('');
+  const [dossierTab, setDossierTab] = useState('orders'); // 'orders' | 'payments' | 'custom_fields'
+  const [mapPicker, setMapPicker] = useState(null); // null | { address, customerName, target: 'edit' | 'create' }
 
   const fetchCustomers = async () => {
     setIsLoading(true);
@@ -103,8 +114,12 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
       setEditForm({
         name: selectedCustomer.name || '',
         phone: selectedCustomer.phone || '',
+        email: selectedCustomer.email || '',
         address: selectedCustomer.address || '',
+        preferredBranch: selectedCustomer.preferredBranch || '',
         preferredBranchId: selectedCustomer.preferredBranchId || '',
+        preferredDriverId: selectedCustomer.preferredDriverId || '',
+        customFields: selectedCustomer.customFields || {},
         preferences: {
           favoriteCuts: selectedCustomer.preferences?.favoriteCuts || [],
           cookingPreference: selectedCustomer.preferences?.cookingPreference || 'Parrilla',
@@ -150,15 +165,35 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
   };
 
   const handleDeleteCustomer = async (customerId) => {
-    if (!window.confirm(`¿Eliminar la ficha de este cliente de la base de datos?`)) return;
+    if (!window.confirm('¿Eliminar este cliente del sistema?')) return;
     try {
-      const res = await fetch(`/api/customers/${customerId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/leads/${customerId}`, { method: 'DELETE' });
       if (res.ok) {
         setCustomers(prev => prev.filter(c => c.id !== customerId));
-        setSelectedCustomer(null);
+        if (selectedCustomer?.id === customerId) setSelectedCustomer(null);
       }
     } catch (err) {
       console.error('Error eliminando cliente:', err);
+    }
+  };
+
+  const handlePromoteToUser = async (customer) => {
+    if (!customer) return;
+    const confirmed = window.confirm(`¿Convertir a ${customer.name} en Usuario del Sistema con rol "Cliente"?\nSe creará un perfil de acceso vinculado a este lead.`);
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`/api/users/from-lead/${customer.id}`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        const updatedLead = { ...customer, linkedUserId: data.user?.id };
+        setCustomers(prev => prev.map(c => c.id === customer.id ? updatedLead : c));
+        setSelectedCustomer(updatedLead);
+        alert(`✅ Usuario creado: ${data.user?.name} (ID: ${data.user?.id})\nPIN de acceso: ${data.user?.pin}`);
+      } else {
+        alert(data.error || 'Error al convertir en usuario');
+      }
+    } catch (err) {
+      console.error('Error promoviendo a usuario:', err);
     }
   };
 
@@ -166,10 +201,13 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [newCustomerForm, setNewCustomerForm] = useState({
     name: '',
     phone: '',
+    email: '',
     address: '',
+    preferredBranch: '',
     cookingPreference: 'Parrilla',
     groupSize: '4 personas',
-    notes: ''
+    notes: '',
+    customFields: {}
   });
 
   // Order modal state inside Customer dossier
@@ -579,9 +617,51 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                         </h2>
                       )}
                       
-                      <div className="text-xs text-slate-400 flex items-center gap-2 mt-1">
-                        <Phone size={12} className="text-emerald-400" />
-                        <span>{selectedCustomer.phone || selectedCustomer.jid?.split('@')[0]}</span>
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1">
+                        <div className="flex items-center gap-1.5">
+                          <Phone size={12} className="text-emerald-400" />
+                          <span>{selectedCustomer.phone || selectedCustomer.jid?.split('@')[0]}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <Mail size={12} className="text-sky-400" />
+                          {isEditing ? (
+                            <input
+                              type="email"
+                              placeholder="email@ejemplo.com"
+                              value={editForm.email || ''}
+                              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                              className="px-2 py-0.5 rounded bg-[#111b21] border border-slate-700 text-xs text-white"
+                            />
+                          ) : (
+                            <span className={selectedCustomer.email ? 'text-slate-300 font-medium' : 'text-slate-500 italic'}>
+                              {selectedCustomer.email || 'Sin email registrado'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <Store size={12} className="text-amber-400" />
+                          {isEditing ? (
+                            <select
+                              value={editForm.preferredBranch || ''}
+                              onChange={(e) => setEditForm({ ...editForm, preferredBranch: e.target.value })}
+                              className="px-2 py-0.5 rounded bg-[#111b21] border border-slate-700 text-xs text-white"
+                            >
+                              <option value="">🏢 Sin sucursal fija</option>
+                              <option value="URCA CENTRAL">📍 URCA CENTRAL</option>
+                              <option value="URCA 2 – ALTO TEJEDA">📍 URCA 2 – ALTO TEJEDA</option>
+                              <option value="INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA">📍 INTERCOUNTRY – CORTEZA MALL</option>
+                              <option value="DUARTE QUIRÓS">📍 DUARTE QUIRÓS</option>
+                              <option value="VILLA ALLENDE – MERCADITO DE LA VILLA">📍 VILLA ALLENDE</option>
+                              <option value="COUNTRY SAN ISIDRO – ALTO TEJEDA">📍 COUNTRY SAN ISIDRO</option>
+                            </select>
+                          ) : (
+                            <span className="text-slate-300">
+                              {selectedCustomer.preferredBranch || 'URCA CENTRAL'}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -626,14 +706,31 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                       </button>
                     )}
 
+                  {/* Sistema de Usuarios — badge si ya tiene userId, botón si no */}
+                  {selectedCustomer.linkedUserId ? (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-lime-500/10 border border-lime-500/30 text-lime-300 text-xs font-bold">
+                      <UserCheck2 size={13} />
+                      <span>Usuario del Sistema</span>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => handleDeleteCustomer(selectedCustomer.id)}
-                      className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
-                      title="Eliminar cliente"
+                      onClick={() => handlePromoteToUser(selectedCustomer)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-lime-500/10 hover:bg-lime-500/20 text-lime-400 border border-lime-500/30 text-xs font-bold transition"
+                      title="Crear perfil de usuario del sistema para este cliente"
                     >
-                      <Trash2 size={14} />
+                      <UserCheck2 size={13} />
+                      Convertir en Usuario
                     </button>
-                  </div>
+                  )}
+
+                  <button
+                    onClick={() => handleDeleteCustomer(selectedCustomer.id)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
+                    title="Eliminar cliente"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
                 </div>
 
                 {/* KPI Metrics */}
@@ -664,22 +761,149 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
 
               {/* Delivery Address & General Data */}
               <div className="bg-[#182229] border border-slate-800 rounded-3xl p-5 space-y-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <MapPin size={16} className="text-rose-400" />
-                  Dirección Habitual de Entrega
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <MapPin size={16} className="text-rose-400" />
+                    Dirección Habitual de Entrega & Logística
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setMapPicker({
+                      address: isEditing ? editForm.address : selectedCustomer.address,
+                      customerName: selectedCustomer.name || selectedCustomer.pushName,
+                      target: isEditing ? 'edit' : 'view'
+                    })}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition"
+                  >
+                    <Compass size={13} />
+                    <span>{isEditing ? 'Marcar en Mapa' : 'Ver Mapa y Ruta'}</span>
+                  </button>
+                </div>
 
                 {isEditing ? (
-                  <input
-                    type="text"
-                    placeholder="Ej: Locelso 7089, Barrio Urca..."
-                    value={editForm.address}
-                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ej: Locelso 7089, Barrio Urca..."
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setMapPicker({
+                        address: editForm.address,
+                        customerName: editForm.name || 'Cliente',
+                        target: 'edit'
+                      })}
+                      className="px-3 py-2.5 rounded-xl bg-[#111b21] hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-semibold shrink-0 flex items-center gap-1"
+                    >
+                      <MapPin size={14} />
+                      <span>Elegir en Mapa</span>
+                    </button>
+                  </div>
                 ) : (
-                  <div className="p-3 bg-[#111b21] rounded-2xl border border-slate-800 text-xs text-slate-200 font-medium">
-                    {selectedCustomer.address || selectedCustomer.notes?.replace('Dirección de entrega: ', '') || 'No especificada'}
+                  <div className="p-3 bg-[#111b21] rounded-2xl border border-slate-800 text-xs text-slate-200 font-medium flex items-center justify-between">
+                    <span>{selectedCustomer.address || selectedCustomer.notes?.replace('Dirección de entrega: ', '') || 'No especificada'}</span>
+                    {selectedCustomer.address && (
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                        📍 Geolocalizada
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Campos Personalizados del Cliente */}
+              <div className="bg-[#182229] border border-slate-800 rounded-3xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Layers size={16} className="text-sky-400" />
+                    Campos & Atributos Personalizados
+                  </h3>
+                  <span className="text-[11px] text-slate-400">Datos adicionales de facturación, CUIT, cumpleaños, etc.</span>
+                </div>
+
+                {isEditing ? (
+                  <div className="space-y-2">
+                    {Object.entries(editForm.customFields || {}).map(([key, val]) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <span className="w-1/3 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-800 text-xs text-slate-300 font-bold">{key}</span>
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={(e) => {
+                            setEditForm({
+                              ...editForm,
+                              customFields: { ...editForm.customFields, [key]: e.target.value }
+                            });
+                          }}
+                          className="flex-1 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...editForm.customFields };
+                            delete updated[key];
+                            setEditForm({ ...editForm, customFields: updated });
+                          }}
+                          className="p-1.5 text-slate-500 hover:text-rose-400"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                      <input
+                        type="text"
+                        placeholder="Nombre de campo (ej: CUIT, Barrio, Cumpleaños)..."
+                        value={newCustomKey}
+                        onChange={(e) => setNewCustomKey(e.target.value)}
+                        className="w-1/3 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Valor del campo..."
+                        value={newCustomVal}
+                        onChange={(e) => setNewCustomVal(e.target.value)}
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newCustomKey.trim()) {
+                            setEditForm({
+                              ...editForm,
+                              customFields: {
+                                ...(editForm.customFields || {}),
+                                [newCustomKey.trim()]: newCustomVal.trim()
+                              }
+                            });
+                            setNewCustomKey('');
+                            setNewCustomVal('');
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 text-xs font-bold transition"
+                      >
+                        + Agregar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {selectedCustomer.customFields && Object.keys(selectedCustomer.customFields).length > 0 ? (
+                      Object.entries(selectedCustomer.customFields).map(([key, val]) => (
+                        <div key={key} className="p-2.5 bg-[#111b21] rounded-2xl border border-slate-800 flex flex-col">
+                          <span className="text-[10px] text-slate-400 uppercase font-bold">{key}</span>
+                          <span className="text-xs font-semibold text-white mt-0.5">{val || '-'}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-full p-3 bg-[#111b21] rounded-2xl border border-slate-800 text-xs text-slate-500 italic">
+                        Sin campos personalizados. Hacé clic en "Editar" para agregar CUIT, Cumpleaños, etc.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -765,48 +989,24 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                     </span>
                     {isEditing ? (
                       <select
-                        value={editForm.preferredBranchId || ''}
+                        value={editForm.preferredBranch || ''}
                         onChange={(e) => setEditForm({
                           ...editForm,
-                          preferredBranchId: e.target.value
+                          preferredBranch: e.target.value
                         })}
                         className="w-full bg-[#182229] border border-slate-700 text-xs text-white rounded-lg p-1.5"
                       >
-                        <option value="">🏢 Sin sucursal fija (Cualquiera)</option>
-                        {branches.map(b => (
-                          <option key={b.id} value={b.id}>📍 {b.name} ({b.address})</option>
-                        ))}
+                        <option value="">🏢 Sin sucursal fija</option>
+                        <option value="URCA CENTRAL">📍 URCA CENTRAL</option>
+                        <option value="URCA 2 – ALTO TEJEDA">📍 URCA 2 – ALTO TEJEDA</option>
+                        <option value="INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA">📍 INTERCOUNTRY – CORTEZA MALL</option>
+                        <option value="DUARTE QUIRÓS">📍 DUARTE QUIRÓS</option>
+                        <option value="VILLA ALLENDE – MERCADITO DE LA VILLA">📍 VILLA ALLENDE</option>
+                        <option value="COUNTRY SAN ISIDRO – ALTO TEJEDA">📍 COUNTRY SAN ISIDRO</option>
                       </select>
                     ) : (
                       <div className="text-xs font-bold text-sky-400 truncate">
-                        {branches.find(b => b.id === selectedCustomer.preferredBranchId)?.name || 'Sin sucursal asignada'}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800 space-y-1">
-                    <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
-                      🛵 Repartidor Habitual
-                    </span>
-                    {isEditing ? (
-                      <select
-                        value={editForm.preferredDriverId || ''}
-                        onChange={(e) => setEditForm({
-                          ...editForm,
-                          preferredDriverId: e.target.value
-                        })}
-                        className="w-full bg-[#182229] border border-slate-700 text-xs text-white rounded-lg p-1.5"
-                      >
-                        <option value="">Sin repartidor fijo</option>
-                        {drivers.map(d => (
-                          <option key={d.id} value={d.id}>
-                            {d.vehicle === 'Auto' ? '🚗' : '🛵'} {d.name} ({d.vehicle})
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="text-xs font-bold text-emerald-400 truncate">
-                        {drivers.find(d => d.id === selectedCustomer.preferredDriverId)?.name || 'Cualquier repartidor'}
+                        {selectedCustomer.preferredBranch || 'URCA CENTRAL'}
                       </div>
                     )}
                   </div>
@@ -880,13 +1080,34 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                 </div>
               </div>
 
-              {/* Order History */}
+              {/* Order and Payments History Tabs */}
               <div className="bg-[#182229] border border-slate-800 rounded-3xl p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <ShoppingBag size={16} className="text-emerald-400" />
-                    Historial de Pedidos Realizados ({selectedCustomer.orders?.length || 0})
-                  </h3>
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setDossierTab('orders')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                        dossierTab === 'orders'
+                          ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                          : 'bg-[#111b21] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <ShoppingBag size={14} />
+                      Pedidos ({selectedCustomer.orders?.length || 0})
+                    </button>
+
+                    <button
+                      onClick={() => setDossierTab('payments')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                        dossierTab === 'payments'
+                          ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                          : 'bg-[#111b21] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <CreditCard size={14} />
+                      Historial de Pagos
+                    </button>
+                  </div>
 
                   <button
                     onClick={handleOpenCreateOrderForCustomer}
@@ -897,93 +1118,127 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                   </button>
                 </div>
 
-                {selectedCustomer.orders && selectedCustomer.orders.length > 0 ? (
-                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                    {selectedCustomer.orders.map(order => (
-                      <div
-                        key={order.id}
-                        className="bg-[#111b21] hover:bg-[#152026] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3 text-xs transition"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-extrabold text-emerald-400 font-mono text-xs">#{order.id}</span>
-                              <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                                <Calendar size={11} /> {new Date(order.createdAt).toLocaleString()}
-                              </span>
+                {dossierTab === 'orders' ? (
+                  selectedCustomer.orders && selectedCustomer.orders.length > 0 ? (
+                    <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                      {selectedCustomer.orders.map(order => (
+                        <div
+                          key={order.id}
+                          className="bg-[#111b21] hover:bg-[#152026] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between gap-3 text-xs transition"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-emerald-400 font-mono text-xs">#{order.id}</span>
+                                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                                  <Calendar size={11} /> {new Date(order.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+
+                              {order.address && (
+                                <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                                  <MapPin size={11} className="text-rose-400 shrink-0" />
+                                  <span className="truncate">{order.address}</span>
+                                </div>
+                              )}
                             </div>
 
-                            {order.address && (
-                              <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                                <MapPin size={11} className="text-rose-400 shrink-0" />
-                                <span className="truncate">{order.address}</span>
-                              </div>
+                            <div className="text-right shrink-0">
+                              <div className="font-bold text-emerald-400 text-sm">${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}</div>
+                              <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 inline-block mt-0.5">
+                                {order.status === 'pending' ? '⏳ Pendiente' :
+                                 order.status === 'preparing' ? '🥩 En Preparación' :
+                                 order.status === 'in_transit' ? '🚚 En Camino' :
+                                 order.status === 'delivered' ? '✅ Entregado' :
+                                 order.status === 'cancelled' ? '❌ Cancelado' : order.status}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Items list */}
+                          <div className="bg-[#182229] rounded-xl p-2.5 border border-slate-800 text-[11px] text-slate-300 font-mono space-y-0.5">
+                            {Array.isArray(order.items) && order.items.length > 0 ? (
+                              order.items.map((item, idx) => (
+                                <div key={idx} className="truncate">{item}</div>
+                              ))
+                            ) : (
+                              <div className="text-slate-400">{order.items || '1x Combo Asadazo ($39.999)'}</div>
                             )}
                           </div>
 
-                          <div className="text-right shrink-0">
-                            <div className="font-bold text-emerald-400 text-sm">${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}</div>
-                            <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 inline-block mt-0.5">
-                              {order.status === 'pending' ? '⏳ Pendiente' :
-                               order.status === 'preparing' ? '🥩 En Preparación' :
-                               order.status === 'in_transit' ? '🚚 En Camino' :
-                               order.status === 'delivered' ? '✅ Entregado' :
-                               order.status === 'cancelled' ? '❌ Cancelado' : order.status}
+                          {/* Action buttons inside customer order card */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
+                            <span className="text-slate-400 italic truncate max-w-[200px]">
+                              {order.paymentMethod || 'Efectivo al repartidor'}
+                            </span>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenEditOrderFromCustomer(order)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-slate-300 hover:text-emerald-400 border border-slate-700 transition"
+                                title="Editar este pedido"
+                              >
+                                <Edit3 size={12} />
+                                <span>Editar</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleDuplicateOrderFromCustomer(order.id)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-sky-950/40 text-slate-300 hover:text-sky-400 border border-slate-700 transition"
+                                title="Duplicar este pedido"
+                              >
+                                <Copy size={12} />
+                                <span>Duplicar</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteOrderFromCustomer(order.id)}
+                                className="p-1 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition"
+                                title="Eliminar este pedido"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-xs text-slate-500">
+                      Este cliente aún no registra pedidos en el sistema
+                    </div>
+                  )
+                ) : (
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                    {selectedCustomer.orders && selectedCustomer.orders.length > 0 ? (
+                      selectedCustomer.orders.map(order => (
+                        <div key={order.id} className="p-3 bg-[#111b21] rounded-2xl border border-slate-800 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="font-bold text-white flex items-center gap-2">
+                              <span>Pedido #{order.id}</span>
+                              <span className="text-[10px] text-emerald-400 px-2 py-0.2 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                                {order.paymentMethod || 'Efectivo contraentrega'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              Fecha: {new Date(order.createdAt).toLocaleDateString('es-AR')} | {order.deliveryType === 'pickup' ? 'Retiro en Sucursal' : 'Envío a Domicilio'}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-extrabold text-emerald-400 font-mono">
+                              ${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}
+                            </div>
+                            <span className="text-[10px] text-slate-400">
+                              {order.paymentLink ? '🔗 Con Link de Pago' : 'Efectivo'}
                             </span>
                           </div>
                         </div>
-
-                        {/* Items list */}
-                        <div className="bg-[#182229] rounded-xl p-2.5 border border-slate-800 text-[11px] text-slate-300 font-mono space-y-0.5">
-                          {Array.isArray(order.items) && order.items.length > 0 ? (
-                            order.items.map((item, idx) => (
-                              <div key={idx} className="truncate">{item}</div>
-                            ))
-                          ) : (
-                            <div className="text-slate-400">{order.items || '1x Combo Asadazo ($39.999)'}</div>
-                          )}
-                        </div>
-
-                        {/* Action buttons inside customer order card */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
-                          <span className="text-slate-400 italic truncate max-w-[200px]">
-                            {order.paymentMethod || 'Efectivo al repartidor'}
-                          </span>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleOpenEditOrderFromCustomer(order)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-slate-300 hover:text-emerald-400 border border-slate-700 transition"
-                              title="Editar este pedido"
-                            >
-                              <Edit3 size={12} />
-                              <span>Editar</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleDuplicateOrderFromCustomer(order.id)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-sky-950/40 text-slate-300 hover:text-sky-400 border border-slate-700 transition"
-                              title="Duplicar este pedido"
-                            >
-                              <Copy size={12} />
-                              <span>Duplicar</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleDeleteOrderFromCustomer(order.id)}
-                              className="p-1 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition"
-                              title="Eliminar este pedido"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center text-xs text-slate-500">
+                        No hay pagos registrados para este cliente.
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-6 text-center text-xs text-slate-500 bg-[#111b21] rounded-2xl border border-slate-800">
-                    Este cliente aún no registra pedidos cerrados. Haz clic en "Cargar Pedido" para crear uno.
+                    )}
                   </div>
                 )}
               </div>
@@ -1048,15 +1303,72 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Correo Electrónico (Email):</label>
+                  <input
+                    type="email"
+                    placeholder="Ej: cliente@correo.com"
+                    value={newCustomerForm.email}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Sucursal Preferida:</label>
+                  <select
+                    value={newCustomerForm.preferredBranch}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, preferredBranch: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  >
+                    <option value="">🏢 Sin sucursal fija</option>
+                    <option value="URCA CENTRAL">📍 URCA CENTRAL</option>
+                    <option value="URCA 2 – ALTO TEJEDA">📍 URCA 2 – ALTO TEJEDA</option>
+                    <option value="INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA">📍 INTERCOUNTRY – CORTEZA MALL</option>
+                    <option value="DUARTE QUIRÓS">📍 DUARTE QUIRÓS</option>
+                    <option value="VILLA ALLENDE – MERCADITO DE LA VILLA">📍 VILLA ALLENDE</option>
+                    <option value="COUNTRY SAN ISIDRO – ALTO TEJEDA">📍 COUNTRY SAN ISIDRO</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-slate-300 font-semibold">Dirección de Entrega:</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Av. Recta Martinoli 6500, Villa Belgrano"
-                  value={newCustomerForm.address}
-                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-semibold">Dirección de Entrega:</label>
+                  <button
+                    type="button"
+                    onClick={() => setMapPicker({
+                      address: newCustomerForm.address,
+                      customerName: newCustomerForm.name || 'Nuevo Cliente',
+                      target: 'create'
+                    })}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1"
+                  >
+                    <Compass size={12} />
+                    <span>Marcar en Mapa</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ej: Av. Recta Martinoli 6500, Villa Belgrano"
+                    value={newCustomerForm.address}
+                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
+                    className="flex-1 px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMapPicker({
+                      address: newCustomerForm.address,
+                      customerName: newCustomerForm.name || 'Nuevo Cliente',
+                      target: 'create'
+                    })}
+                    className="px-3 py-2 rounded-xl bg-[#111b21] hover:bg-slate-800 text-sky-400 border border-slate-700 text-xs font-semibold shrink-0"
+                  >
+                    📍 Mapa
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1295,6 +1607,46 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
 
           </div>
         </div>
+      )}
+
+      {/* Interactive Map Picker & Logistics Modal */}
+      {mapPicker && (
+        <ClientLocationMap
+          address={mapPicker.address || ''}
+          customerName={mapPicker.customerName || 'Cliente'}
+          onClose={() => setMapPicker(null)}
+          onConfirmLocation={(loc) => {
+            if (mapPicker.target === 'edit') {
+              setEditForm(prev => ({
+                ...prev,
+                address: loc.address,
+                preferredBranch: loc.closestBranch ? loc.closestBranch.name.toUpperCase() : prev.preferredBranch
+              }));
+            } else if (mapPicker.target === 'create') {
+              setNewCustomerForm(prev => ({
+                ...prev,
+                address: loc.address,
+                preferredBranch: loc.closestBranch ? loc.closestBranch.name.toUpperCase() : prev.preferredBranch
+              }));
+            } else if (mapPicker.target === 'view' && selectedCustomer) {
+              // Actualizar datos del cliente directamente si fue en vista
+              fetch(`/api/customers/${selectedCustomer.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  address: loc.address,
+                  preferredBranch: loc.closestBranch ? loc.closestBranch.name.toUpperCase() : selectedCustomer.preferredBranch
+                })
+              }).then(res => res.json()).then(updated => {
+                if (updated && updated.id) {
+                  setSelectedCustomer(updated);
+                  setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c));
+                }
+              }).catch(err => console.error('Error updating customer location:', err));
+            }
+            setMapPicker(null);
+          }}
+        />
       )}
 
     </div>

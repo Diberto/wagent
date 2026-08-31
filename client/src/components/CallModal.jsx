@@ -227,7 +227,7 @@ export default function CallModal({
     }
   };
 
-  // Captura y transmisión de audio de micrófono en PCM 16kHz Base64
+  // Captura y transmisión de audio de micrófono en PCM 16kHz Base64 con AudioWorklet moderno
   const startMicrophoneStream = async (ws) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -246,31 +246,69 @@ export default function CallModal({
       audioContextRef.current = audioCtx;
 
       const source = audioCtx.createMediaStreamSource(stream);
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      scriptProcessorRef.current = processor;
 
-      processor.onaudioprocess = (e) => {
+      // Helper para convertir Float32 a PCM Int16 y Base64
+      const sendPcmChunk = (inputData) => {
         if (isMutedRef.current || ws.readyState !== WebSocket.OPEN) return;
-        const inputData = e.inputBuffer.getChannelData(0);
-
-        // Conversión de Float32 [-1, 1] a Int16 PCM
         const pcm16 = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
           const s = Math.max(-1, Math.min(1, inputData[i]));
           pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
 
-        // Codificar a Base64 y enviar evento "user_audio_chunk"
         const bytes = new Uint8Array(pcm16.buffer);
         let binary = '';
         for (let i = 0; i < bytes.byteLength; i++) {
           binary += String.fromCharCode(bytes[i]);
         }
         const base64Audio = btoa(binary);
-
         ws.send(JSON.stringify({ user_audio_chunk: base64Audio }));
       };
 
+      // Intentar usar AudioWorkletNode moderno para evitar deprecación de ScriptProcessorNode
+      if (audioCtx.audioWorklet) {
+        try {
+          const workletCode = `
+            class PCMStreamProcessor extends AudioWorkletProcessor {
+              process(inputs, outputs, parameters) {
+                const input = inputs[0];
+                if (input && input.length > 0) {
+                  const channelData = input[0];
+                  if (channelData && channelData.length > 0) {
+                    this.port.postMessage(channelData);
+                  }
+                }
+                return true;
+              }
+            }
+            registerProcessor('pcm-stream-processor', PCMStreamProcessor);
+          `;
+          const blob = new Blob([workletCode], { type: 'application/javascript' });
+          const workletUrl = URL.createObjectURL(blob);
+          await audioCtx.audioWorklet.addModule(workletUrl);
+
+          const workletNode = new AudioWorkletNode(audioCtx, 'pcm-stream-processor');
+          scriptProcessorRef.current = workletNode;
+
+          workletNode.port.onmessage = (e) => {
+            if (e.data) sendPcmChunk(e.data);
+          };
+
+          source.connect(workletNode);
+          workletNode.connect(audioCtx.destination);
+          return;
+        } catch (workletErr) {
+          console.warn('AudioWorklet falló, usando fallback seguro:', workletErr);
+        }
+      }
+
+      // Fallback seguro si AudioWorklet no está disponible
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      scriptProcessorRef.current = processor;
+      processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        sendPcmChunk(inputData);
+      };
       source.connect(processor);
       processor.connect(audioCtx.destination);
     } catch (err) {
@@ -402,7 +440,12 @@ export default function CallModal({
         }
       };
 
-      recognition.onerror = (e) => console.log('Speech error in call:', e);
+      recognition.onerror = (e) => {
+        // 'no-speech' y 'aborted' son estados normales de silencio en el navegador
+        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          console.warn('SpeechRecognition notice:', e.error);
+        }
+      };
       recognition.start();
       recognitionRef.current = recognition;
     }

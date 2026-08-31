@@ -25,6 +25,7 @@ import {
   List,
   LayoutGrid
 } from 'lucide-react';
+import UserPicker from './ui/UserPicker.jsx';
 
 export default function BranchesView({ socket }) {
   const [branches, setBranches] = useState([]);
@@ -89,6 +90,7 @@ export default function BranchesView({ socket }) {
         address: '',
         phone: '',
         managerName: '',
+        encargadoId: null,
         email: '',
         hours: 'Lun a Sáb 8:30 a 20:30 | Dom 9:00 a 14:00',
         coverageZones: ['Centro', 'General Paz'],
@@ -657,16 +659,29 @@ export default function BranchesView({ socket }) {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Nombre del Encargado:</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Encargado de Sucursal:</label>
+                  <UserPicker
+                    role="encargado"
+                    value={branchModal.data.encargadoId || ''}
+                    onChange={(userId, user) => setBranchModal({
+                      ...branchModal,
+                      data: {
+                        ...branchModal.data,
+                        encargadoId: userId || null,
+                        managerName: user?.name || branchModal.data.managerName
+                      }
+                    })}
+                    placeholder="Seleccionar encargado del sistema..."
+                  />
                   <input
                     type="text"
-                    placeholder="Ej: Roberto Gomez"
+                    placeholder="O escribir nombre manualmente: Ej: Roberto Gomez"
                     value={branchModal.data.managerName}
                     onChange={(e) => setBranchModal({
                       ...branchModal,
                       data: { ...branchModal.data, managerName: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full mt-1.5 px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white text-xs focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>

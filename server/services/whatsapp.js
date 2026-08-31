@@ -61,11 +61,47 @@ export class WhatsAppService {
     this.qrDataUrl = null;
     this.user = null;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 15;
+    this.maxReconnectAttempts = 5;
+    this.isInitializing = false;
   }
 
-  async initialize() {
+  /**
+   * Limpia archivos de autenticación obsoletos o corruptos
+   */
+  async clearAuthFiles() {
     try {
+      if (fs.existsSync(this.authDir)) {
+        const files = fs.readdirSync(this.authDir);
+        for (const file of files) {
+          try {
+            fs.unlinkSync(path.join(this.authDir, file));
+          } catch (e) {}
+        }
+        console.log(`🧹 Sesión [${this.sessionId}] purgada: archivos de auth eliminados de ${this.authDir}`);
+      }
+    } catch (err) {
+      console.error(`Error purgando authDir de sesión [${this.sessionId}]:`, err);
+    }
+  }
+
+  async initialize({ resetAuth = false } = {}) {
+    if (this.isInitializing) return;
+    this.isInitializing = true;
+
+    try {
+      if (resetAuth) {
+        await this.clearAuthFiles();
+        this.reconnectAttempts = 0;
+      }
+
+      if (this.sock) {
+        try {
+          this.sock.ev.removeAllListeners();
+          this.sock.end(undefined);
+          this.sock = null;
+        } catch (e) {}
+      }
+
       this.status = 'connecting';
       this.emitStatus();
 
@@ -102,7 +138,8 @@ export class WhatsAppService {
           try {
             this.qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
             this.emitQR();
-            console.log('📌 Nuevo Código QR generado para vinculación.');
+            this.emitStatus();
+            console.log(`📌 [${this.sessionId}] Nuevo Código QR generado para vinculación.`);
           } catch (err) {
             console.error('Error generando DataURL del QR:', err);
           }
@@ -110,9 +147,16 @@ export class WhatsAppService {
 
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error instanceof Boom)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+          const shouldReconnect = !isLoggedOut;
           
-          console.log(`Conexión de WhatsApp cerrada. Motivo: ${statusCode}. Reconectar: ${shouldReconnect}`);
+          console.log(`Conexión de WhatsApp cerrada [${this.sessionId}]. Motivo: ${statusCode}. Reconectar: ${shouldReconnect}`);
+          
+          if (isLoggedOut) {
+            console.log(`⚠️ Sesión [${this.sessionId}] cerrada por WhatsApp (Logged Out). Limpiando auth...`);
+            await this.clearAuthFiles();
+          }
+
           this.status = 'disconnected';
           this.qrCode = null;
           this.qrDataUrl = null;
@@ -122,10 +166,20 @@ export class WhatsAppService {
           if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             console.log(`Reintentando conexión (${this.reconnectAttempts}/${this.maxReconnectAttempts}) en 4 segundos...`);
-            setTimeout(() => this.initialize(), 4000);
+            setTimeout(() => {
+              this.isInitializing = false;
+              this.initialize();
+            }, 4000);
+          } else {
+            this.reconnectAttempts = 0;
+            // Si falló varias veces y no se conectó, limpiar auth para que el próximo intento genere un QR limpio
+            if (shouldReconnect && !isLoggedOut) {
+              console.log(`⚠️ Múltiples fallos de reconexión en [${this.sessionId}]. Preparando estado para nuevo QR.`);
+              await this.clearAuthFiles();
+            }
           }
         } else if (connection === 'open') {
-          console.log('✅ ¡Conexión de WhatsApp establecida exitosamente!');
+          console.log(`✅ ¡Conexión de WhatsApp establecida exitosamente [${this.sessionId}]!`);
           this.status = 'connected';
           this.qrCode = null;
           this.qrDataUrl = null;
@@ -148,10 +202,9 @@ export class WhatsAppService {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
-          // Ignorar estados o mensajes broadcast de sistema
           if (!msg.key || !msg.key.remoteJid) continue;
           if (msg.key.remoteJid === 'status@broadcast') continue;
-          if (msg.key.remoteJid.endsWith('@g.us')) continue; // Ignorar grupos por defecto
+          if (msg.key.remoteJid.endsWith('@g.us')) continue;
 
           await this.handleIncomingMessage(msg);
         }
@@ -161,6 +214,8 @@ export class WhatsAppService {
       console.error('Error inicializando Baileys:', error);
       this.status = 'disconnected';
       this.emitStatus();
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -298,6 +353,9 @@ export class WhatsAppService {
       aiEnabled: true
     });
 
+    // Sincronizar foto de perfil, estado de WhatsApp y pushName en segundo plano
+    this.fetchAndSyncContactProfile(jid, pushName).catch(() => {});
+
     let textContent = '';
     let messageType = 'text';
     let mediaUrl = null;
@@ -396,8 +454,8 @@ export class WhatsAppService {
     // Actualizar lead
     lead = db.getLead(jid);
 
-    // Emitir mensaje en tiempo real al frontend
-    if (this.io) {
+    // Emitir mensaje en tiempo real al frontend sólo si no es un duplicado ya emitido
+    if (this.io && !savedMessage._isDuplicate) {
       this.io.emit('chat:message', { message: savedMessage, lead });
     }
 
@@ -417,31 +475,25 @@ export class WhatsAppService {
       return;
     }
 
-    // Si el mensaje viene de un cliente y la IA está activa (Control Global + Individual por Chat)
+    // 5. Flujo Automático del Agente de Inteligencia Artificial (Atención al Cliente)
+    // Se ejecuta solo si: no es un mensaje propio, la IA global está activa y el chat tiene IA activada
     const settings = db.getSettings();
-    const isGlobalAiEnabled = settings.autoReplyEnabled !== false;
-    const isLeadAiEnabled = lead.aiEnabled !== false;
+    const isAiGloballyEnabled = Boolean(settings.autoReplyEnabled !== false);
+    const isAiChatEnabled = Boolean(lead ? lead.aiEnabled !== false : true);
 
-    if (!isFromMe && isGlobalAiEnabled && isLeadAiEnabled) {
+    if (!isFromMe && isAiGloballyEnabled && isAiChatEnabled) {
       console.log(`🤖 Agente de IA procesando respuesta automática para ${jid} (Global: ON, Chat: ON)...`);
 
-      // Marcar como leído
-      try {
-        if (this.sock) {
-          await this.sock.readMessages([msg.key]);
-        }
-      } catch (e) {}
+      // Mostrar estado de presencia "componiendo" / "escribiendo" en WhatsApp
+      if (this.sock) {
+        try {
+          await this.sock.sendPresenceUpdate('composing', jid);
+        } catch (e) {}
+      }
 
-      // Simular delay natural de escritura
+      // Delay natural de respuesta humana (1.2 a 2.5 seg)
       setTimeout(async () => {
         try {
-          // Enviar presencia de escribiendo / grabando audio
-          if (this.sock) {
-            try {
-              await this.sock.sendPresenceUpdate(isAudio ? 'recording' : 'composing', jid);
-            } catch (presenceErr) {}
-          }
-
           let responseText = '';
           let shouldSendAudio = false;
           let audioPath = null;
@@ -449,11 +501,11 @@ export class WhatsAppService {
           let audioDuration = 0;
 
           if (isImage && downloadedImagePath) {
-            // Análisis visual con IA para comprobantes o productos
-            const visionResult = await AIService.analyzeImageAndReply({
-              jid,
+            // Analizar imagen (comprobantes, cartas, productos)
+            const visionResult = await SpeechService.analyzeImageWithAI({
               imagePath: downloadedImagePath,
-              caption: textContent
+              caption: textContent,
+              jid
             });
             responseText = visionResult.text;
           } else {
@@ -470,41 +522,46 @@ export class WhatsAppService {
             audioDuration = aiResponse.audioDuration;
           }
 
-          console.log(`📤 Enviando respuesta a ${jid}: "${responseText}" (Voz: ${shouldSendAudio})`);
+          // Sanitizar COMPLETAMENTE cualquier etiqueta técnica interna [[...]] antes de enviar al cliente
+          const cleanClientResponse = (responseText || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
+
+          console.log(`📤 Enviando respuesta a ${jid}: "${cleanClientResponse}" (Voz: ${shouldSendAudio})`);
 
           // Enviar respuesta por WhatsApp
           if (shouldSendAudio && audioPath && fs.existsSync(audioPath)) {
             // Enviar Nota de Voz Oficial PTT
-            await this.sendVoiceNote(jid, audioPath);
+            const sent = await this.sendVoiceNote(jid, audioPath);
 
             const savedAiMsg = db.saveMessage({
+              id: sent?.key?.id,
               chatId: jid,
               sender: 'agent',
               type: 'audio',
-              content: responseText,
+              content: cleanClientResponse,
               mediaUrl: audioMp3Path ? `/media/${path.basename(audioMp3Path)}` : null,
               audioDuration: audioDuration || 4,
               timestamp: new Date().toISOString(),
               status: 'sent'
             });
 
-            if (this.io) {
+            if (this.io && !savedAiMsg._isDuplicate) {
               this.io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(jid) });
             }
           } else {
             // Enviar Mensaje de Texto
-            await this.sendTextMessage(jid, responseText);
+            const sent = await this.sendTextMessage(jid, cleanClientResponse);
 
             const savedAiMsg = db.saveMessage({
+              id: sent?.key?.id,
               chatId: jid,
               sender: 'agent',
               type: 'text',
-              content: responseText,
+              content: cleanClientResponse,
               timestamp: new Date().toISOString(),
               status: 'sent'
             });
 
-            if (this.io) {
+            if (this.io && !savedAiMsg._isDuplicate) {
               this.io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(jid) });
             }
           }
@@ -530,11 +587,30 @@ export class WhatsAppService {
       throw new Error('WhatsApp no está conectado');
     }
     const cleanJid = jidNormalizedUser(jid);
-    return await this.sock.sendMessage(cleanJid, { text });
+    const cleanText = (text || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
+    return await this.sock.sendMessage(cleanJid, { text: cleanText });
   }
 
   async sendMessage(jid, text) {
     return await this.sendTextMessage(jid, text);
+  }
+
+  /**
+   * Envía una imagen con texto / epígrafe a un JID
+   */
+  async sendImageMessage(jid, imagePathOrBuffer, caption = '') {
+    if (!this.sock || this.status !== 'connected') {
+      throw new Error('WhatsApp no está conectado');
+    }
+
+    const cleanJid = jidNormalizedUser(jid);
+    const imgBuffer = Buffer.isBuffer(imagePathOrBuffer) ? imagePathOrBuffer : fs.readFileSync(imagePathOrBuffer);
+    const cleanCaption = (caption || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
+
+    return await this.sock.sendMessage(cleanJid, {
+      image: imgBuffer,
+      caption: cleanCaption
+    });
   }
 
   /**
@@ -759,6 +835,44 @@ export class WhatsAppService {
   }
 
   /**
+   * Obtiene la foto de perfil en alta resolución y el estado de WhatsApp de un contacto
+   */
+  async fetchAndSyncContactProfile(jid, pushName = null) {
+    if (!this.sock || this.status !== 'connected' || !jid) return null;
+    try {
+      const cleanJid = jidNormalizedUser(jid);
+      let profilePicUrl = null;
+      try {
+        profilePicUrl = await this.sock.profilePictureUrl(cleanJid, 'image');
+      } catch (e) {
+        // Puede estar oculto por privacidad
+      }
+
+      let statusBio = null;
+      try {
+        const statusRes = await this.sock.fetchStatus(cleanJid);
+        statusBio = statusRes?.status || null;
+      } catch (e) {}
+
+      const updates = {};
+      if (profilePicUrl) updates.avatar = profilePicUrl;
+      if (statusBio) updates.bio = statusBio;
+      if (pushName && pushName !== 'Contacto WhatsApp') updates.pushName = pushName;
+
+      if (Object.keys(updates).length > 0) {
+        const updatedLead = db.updateLead(cleanJid, updates);
+        if (this.io && updatedLead) {
+          this.io.emit('lead:update', updatedLead);
+        }
+        return updatedLead;
+      }
+    } catch (err) {
+      // Ignorar errores silenciosos de Baileys
+    }
+    return null;
+  }
+
+  /**
    * Procesa mensajes y comandos interactivos enviados por Repartidores
    */
   async handleDriverMessage(driver, driverJid, textContent) {
@@ -861,15 +975,22 @@ export class WhatsAppService {
     await this.sendMessage(driverJid, helpMsg);
   }
 
-  async disconnect() {
+  async disconnect({ clearAuth = true } = {}) {
     try {
       this.status = 'disconnected';
       this.qrCode = null;
       this.qrDataUrl = null;
       this.user = null;
+      this.reconnectAttempts = 0;
       if (this.sock) {
-        this.sock.end(new Error('Manual user disconnect'));
-        this.sock = null;
+        try {
+          this.sock.ev.removeAllListeners();
+          this.sock.end(undefined);
+          this.sock = null;
+        } catch (e) {}
+      }
+      if (clearAuth) {
+        await this.clearAuthFiles();
       }
       this.emitStatus();
     } catch (e) {
@@ -891,8 +1012,11 @@ export class WhatsAppService {
   emitStatus() {
     if (this.io) {
       const statusData = this.getStatus();
-      this.io.emit('whatsapp:status', statusData);
+      if (this.sessionId === 'default') {
+        this.io.emit('whatsapp:status', statusData);
+      }
       this.io.emit(`whatsapp:status:${this.sessionId}`, statusData);
+      this.io.emit('whatsapp:sessions:update', statusData);
     }
   }
 
@@ -904,7 +1028,9 @@ export class WhatsAppService {
         qrCode: this.qrCode,
         qrDataUrl: this.qrDataUrl
       };
-      this.io.emit('whatsapp:qr', qrData);
+      if (this.sessionId === 'default') {
+        this.io.emit('whatsapp:qr', qrData);
+      }
       this.io.emit(`whatsapp:qr:${this.sessionId}`, qrData);
     }
   }
@@ -936,15 +1062,22 @@ export class WhatsAppManager {
     return this.sessions.get(id);
   }
 
-  async connectUserSession(userId) {
+  async connectUserSession(userId, { resetAuth = false } = {}) {
     const session = this.getSession(userId);
-    await session.initialize();
+    await session.initialize({ resetAuth });
     return session.getStatus();
   }
 
-  async disconnectUserSession(userId) {
+  async disconnectUserSession(userId, { clearAuth = true } = {}) {
     const session = this.getSession(userId);
-    await session.disconnect();
+    await session.disconnect({ clearAuth });
+    return session.getStatus();
+  }
+
+  async resetUserSession(userId) {
+    const session = this.getSession(userId);
+    await session.disconnect({ clearAuth: true });
+    await session.initialize({ resetAuth: true });
     return session.getStatus();
   }
 
@@ -979,6 +1112,14 @@ export class WhatsAppManager {
       session = this.primarySession;
     }
     return session.sendVoiceNote(jid, audioPathOrBuffer);
+  }
+
+  async sendImageMessage(jid, imagePathOrBuffer, caption = '', userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session || session.status !== 'connected') {
+      session = this.primarySession;
+    }
+    return session.sendImageMessage(jid, imagePathOrBuffer, caption);
   }
 
   async sendMessage(jid, text, media = null, userId = 'default') {

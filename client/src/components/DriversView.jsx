@@ -26,6 +26,7 @@ import {
   List,
   LayoutGrid
 } from 'lucide-react';
+import UserPicker from './ui/UserPicker.jsx';
 
 export default function DriversView({ socket }) {
   const [drivers, setDrivers] = useState([]);
@@ -92,7 +93,8 @@ export default function DriversView({ socket }) {
         plate: '',
         branchId: branches[0]?.id || '',
         status: 'available',
-        rating: 5.0
+        rating: 5.0,
+        userId: null
       }
     });
   };
@@ -726,6 +728,26 @@ export default function DriversView({ socket }) {
                     <option value="offline">⚪ Desconectado</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Link to System User */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Usuario del Sistema Vinculado:</label>
+                <UserPicker
+                  role="repartidor"
+                  value={driverModal.data.userId || ''}
+                  onChange={(userId, user) => setDriverModal({
+                    ...driverModal,
+                    data: {
+                      ...driverModal.data,
+                      userId: userId || null,
+                      name: user?.name || driverModal.data.name,
+                      phone: user?.phone || driverModal.data.phone
+                    }
+                  })}
+                  placeholder="Vincular con usuario rol repartidor (opcional)..."
+                />
+                <p className="text-[10px] text-slate-500 mt-0.5">Al vincular, el nombre y teléfono se sincronizan automáticamente</p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">

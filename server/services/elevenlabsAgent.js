@@ -1,6 +1,7 @@
 import { db } from './database.js';
 import { mercadoPagoService } from './mercadopago.js';
 import { SpeechService } from './speech.js';
+import { NeuralMemoryService } from './neuralMemory.js';
 
 export class ElevenLabsAgentService {
   static DEFAULT_AGENT_ID = 'agent_3701khpbdw76fyqb7pd3gj6a1a8g';
@@ -99,6 +100,9 @@ export class ElevenLabsAgentService {
     const addr = address || lead?.address || '';
     const firstMsg = customFirstMessage || settings.elevenlabsFirstMessage || this.DEFAULT_FIRST_MESSAGE;
 
+    // Obtener contexto de la Red Neuronal
+    const neural = NeuralMemoryService.generateCognitiveContext({ jid: lead?.jid, lead });
+
     // Buscar último pedido si existe
     let lastOrderSummary = '';
     if (lead?.jid) {
@@ -128,6 +132,10 @@ export class ElevenLabsAgentService {
         phone: phone,
         address: addr,
         last_order: lastOrderSummary,
+        preferred_branch: lead?.preferredBranch || 'Urca Central',
+        user_role: neural.linkedSystemUser ? neural.linkedSystemUser.role : 'cliente',
+        system_branches_count: '6 sucursales (Urca Central, Alto Tejeda, Intercountry Mall, Duarte Quirós, Villa Allende, San Isidro)',
+        catalog_star_promo: 'Combo Asadazo 4kg + Vino regalo = $39.999',
         business_name: settings.businessName || 'República de la Carne',
         currency: 'ARS',
         city: 'Córdoba',
@@ -243,44 +251,44 @@ export class ElevenLabsAgentService {
       branches: [
         {
           id: 1,
-          name: 'Urca Central',
+          name: 'URCA CENTRAL',
           address: 'Av. José Roque Funes 1115',
-          hours: 'Lunes a Sábado 9:00 a 21:00 hs | Domingo 9:00 a 13:30 hs',
+          hours: 'Lunes a sábado: 9:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs',
           phone: '+54 9 3513 906947'
         },
         {
           id: 2,
-          name: 'Urca 2 (Alto Tejeda)',
+          name: 'URCA 2 – ALTO TEJEDA',
           address: 'Av. Menéndez Pidal 3575',
-          hours: 'Lunes a Sábado 9:00 a 21:00 hs',
+          hours: 'Lunes a sábado: 9:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs',
           phone: '+54 9 3518 623195'
         },
         {
           id: 3,
-          name: 'Intercountry (Corteza Mall)',
+          name: 'INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA',
           address: 'Av. Los Álamos 1015',
-          hours: 'Todos los días de 9:00 a 21:00 hs',
+          hours: 'Lunes a domingos: 9:00 a 21:00 hs',
           phone: '+54 9 3518 623194'
         },
         {
           id: 4,
-          name: 'Duarte Quirós',
+          name: 'DUARTE QUIRÓS',
           address: 'Av. Duarte Quirós 5130',
-          hours: 'Lunes a Sábado 9:00 a 13:30 y 17:00 a 21:00 hs',
+          hours: 'Lunes a sábado: 9:00 a 13:30 hs y 17:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs',
           phone: '+54 9 3518 156595'
         },
         {
           id: 5,
-          name: 'Villa Allende (Mercadito de la Villa)',
+          name: 'VILLA ALLENDE – MERCADITO DE LA VILLA',
           address: 'Av. Figueroa Alcorta 480',
-          hours: 'Lunes a Sábado 9:00 a 21:00 hs',
+          hours: 'Lunes a sábado: 9:00 a 13:30 hs y 17:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs',
           phone: '+54 9 3513 540031'
         },
         {
           id: 6,
-          name: 'Country San Isidro',
-          address: 'Av. Padre Luchesse km 2 (Villa Allende)',
-          hours: 'Lunes a Sábado 9:00 a 21:00 hs',
+          name: 'COUNTRY SAN ISIDRO – ALTO TEJEDA (Nueva)',
+          address: 'Av. Padre Luchesse km 2',
+          hours: 'Lun a Mié: 07:00 a 00:00 hs | Jue y Vie: 07:00 a 01:00 hs | Sáb: 08:00 a 01:00 hs | Dom: 08:30 a 00:00 hs',
           phone: '+54 9 3518 769099'
         }
       ]
@@ -425,6 +433,88 @@ export class ElevenLabsAgentService {
   }
 
   /**
+   * 4.1 Cancelar pedido desde el Agente de Voz
+   */
+  static cancelOrderFromAgent({ phoneNumberOrJid, orderId }) {
+    const clean = (phoneNumberOrJid || '').replace(/\D/g, '');
+    const jid = clean ? `${clean}@s.whatsapp.net` : phoneNumberOrJid;
+
+    let targetOrder = null;
+    if (orderId) {
+      targetOrder = db.getOrder(orderId);
+    }
+    if (!targetOrder && jid) {
+      const active = db.getActiveOrdersByJid(jid);
+      targetOrder = active[0] || db.getLatestOrderByJid(jid);
+    }
+
+    if (!targetOrder) {
+      return { success: false, message: 'No se encontró ningún pedido activo para cancelar.' };
+    }
+
+    if (['pending', 'preparing', 'ready_for_pickup'].includes(targetOrder.status)) {
+      db.updateOrderStatus(targetOrder.id, 'cancelled');
+      return {
+        success: true,
+        orderId: targetOrder.id,
+        message: `El pedido #${targetOrder.id} ha sido cancelado con éxito.`
+      };
+    } else if (targetOrder.status === 'in_transit') {
+      return {
+        success: false,
+        orderId: targetOrder.id,
+        message: `El pedido #${targetOrder.id} ya se encuentra en camino con el repartidor. No es posible cancelar en este momento.`
+      };
+    } else {
+      return {
+        success: false,
+        message: `El pedido #${targetOrder.id} ya figura como ${targetOrder.status}.`
+      };
+    }
+  }
+
+  /**
+   * 4.2 Modificar pedido desde el Agente de Voz
+   */
+  static modifyOrderFromAgent({ phoneNumberOrJid, orderId, newAddress, addedItems = [], notes }) {
+    const clean = (phoneNumberOrJid || '').replace(/\D/g, '');
+    const jid = clean ? `${clean}@s.whatsapp.net` : phoneNumberOrJid;
+
+    let targetOrder = null;
+    if (orderId) {
+      targetOrder = db.getOrder(orderId);
+    }
+    if (!targetOrder && jid) {
+      const active = db.getActiveOrdersByJid(jid);
+      targetOrder = active[0];
+    }
+
+    if (!targetOrder) {
+      return { success: false, message: 'No se encontró un pedido activo para modificar.' };
+    }
+
+    if (!['pending', 'preparing'].includes(targetOrder.status)) {
+      return { success: false, message: `El pedido #${targetOrder.id} está en estado '${targetOrder.status}' y no admite modificaciones.` };
+    }
+
+    const updates = {};
+    if (newAddress) updates.address = newAddress;
+    if (notes) updates.notes = `${targetOrder.notes || ''} | ${notes}`.trim();
+    if (Array.isArray(addedItems) && addedItems.length > 0) {
+      updates.items = [...(targetOrder.items || []), ...addedItems];
+    }
+
+    const updated = db.updateOrder(targetOrder.id, updates);
+    return {
+      success: true,
+      orderId: updated.id,
+      address: updated.address,
+      items: updated.items,
+      message: `El pedido #${updated.id} ha sido modificado exitosamente.`
+    };
+  }
+
+  /**
    * 5. Actualizar datos del cliente (Nombre, Dirección, Preferencias)
    */
   static updateCustomerData({ phoneNumber, name, address, notes }) {
@@ -488,6 +578,14 @@ export class ElevenLabsAgentService {
       case 'get_order_status':
       case 'getOrderStatus':
         return this.getCustomerOrderStatus(parameters.phoneNumber || parameters.jid || context.phone);
+
+      case 'cancel_order':
+      case 'cancelOrder':
+        return this.cancelOrderFromAgent({ ...parameters, phoneNumberOrJid: parameters.phoneNumber || parameters.jid || context.phone });
+
+      case 'modify_order':
+      case 'modifyOrder':
+        return this.modifyOrderFromAgent({ ...parameters, phoneNumberOrJid: parameters.phoneNumber || parameters.jid || context.phone });
 
       case 'update_customer_data':
       case 'update_customer':

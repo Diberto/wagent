@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   MessageSquare, 
   Kanban, 
@@ -8,25 +8,23 @@ import {
   Settings, 
   Bot, 
   QrCode, 
+  ShoppingBag, 
+  PackageCheck, 
+  Users, 
+  Store, 
+  Calculator, 
+  Bike, 
+  Menu, 
+  X, 
+  ChevronDown, 
+  ShieldCheck, 
+  Globe, 
+  Zap,
+  Layers,
   Sparkles,
-  Smartphone,
-  PhoneForwarded,
-  UserCheck,
-  ShoppingBag,
-  PackageCheck,
-  Users,
-  Store,
-  Calculator,
-  Power,
-  Bike,
-  Menu,
-  X,
-  ChevronDown,
-  LogIn,
-  ShieldCheck,
-  Globe,
-  User,
-  Zap
+  Brain,
+  Send,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -36,6 +34,7 @@ export default function Navbar({
   onOpenQR, 
   onOpenSettings,
   onOpenCallModal,
+  onOpenMediaGallery,
   globalAiEnabled = true,
   onToggleGlobalAi,
   unreadCount = 0,
@@ -46,35 +45,82 @@ export default function Navbar({
   setIsMobileDrawerOpen
 }) {
   const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState(null); // 'operations' | 'commercial' | 'ai' | 'admin' | null
+  const navRef = useRef(null);
 
-  const allTabs = [
-    { id: 'inbox', label: 'Mensajes & Audios', icon: MessageSquare, badge: unreadCount },
-    { id: 'pos', label: 'POS Mostrador', icon: Calculator },
-    { id: 'orders', label: 'Pedidos', icon: PackageCheck },
-    { id: 'automations', label: 'Automatizaciones', icon: Zap },
-    { id: 'woo', label: 'WooCommerce', icon: Globe },
-    { id: 'drivers', label: 'Repartidores', icon: Bike },
-    { id: 'customers', label: 'Clientes', icon: Users },
-    { id: 'branches', label: 'Sucursales', icon: Store },
-    { id: 'catalog', label: 'Catálogo', icon: ShoppingBag },
-    { id: 'kanban', label: 'Embudo', icon: Kanban },
-    { id: 'callcenter', label: 'Llamadas', icon: PhoneCall },
-    { id: 'knowledge', label: 'Base de Conocimiento', icon: BookOpen },
-    { id: 'analytics', label: 'Métricas', icon: BarChart3 },
-    { id: 'users', label: 'Usuarios & Roles', icon: ShieldCheck },
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (navRef.current && !navRef.current.contains(event.target)) {
+        setActiveDropdown(null);
+        setIsUserSwitcherOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const navGroups = [
+    {
+      id: 'operations',
+      label: 'Operaciones',
+      icon: PackageCheck,
+      items: [
+        { id: 'inbox', label: 'Mensajes & WhatsApp', icon: MessageSquare, badge: unreadCount, desc: 'Chats en vivo, audios y fotos' },
+        { id: 'orders', label: 'Pedidos & Despacho', icon: PackageCheck, desc: 'Gestión y estado de pedidos' },
+        { id: 'pos', label: 'POS Mostrador', icon: Calculator, desc: 'Cobro rápido y caja' },
+        { id: 'drivers', label: 'Repartidores', icon: Bike, desc: 'Cadetes y logística' }
+      ]
+    },
+    {
+      id: 'commercial',
+      label: 'Comercial & Sucursales',
+      icon: Store,
+      items: [
+        { id: 'storefront', label: '🛍️ Tienda Online (/tienda)', icon: Globe, desc: 'Catálogo webapp y pedidos WhatsApp para clientes' },
+        { id: 'customers', label: 'Clientes & CRM', icon: Users, desc: 'Fichas, emails y preferencias' },
+        { id: 'catalog', label: 'Catálogo de Cortes', icon: ShoppingBag, desc: 'Precios, combos y stock' },
+        { id: 'media-gallery', label: '🖼️ Galería de Medios', icon: ImageIcon, desc: 'Imágenes optimizadas WebP para productos' },
+        { id: 'branches', label: '6 Sucursales', icon: Store, desc: 'Direcciones y horarios Córdoba' },
+        { id: 'kanban', label: 'Embudo de Ventas', icon: Kanban, desc: 'Pipeline de conversión' }
+      ]
+    },
+    {
+      id: 'ai',
+      label: 'IA & Automatización',
+      icon: Zap,
+      items: [
+        { id: 'neural-memory', label: 'Red Neuronal & Mapa Mental', icon: Brain, desc: 'Grafo cognitivo y contexto del agente' },
+        { id: 'campaigns', label: 'Difusiones & Campañas', icon: Send, desc: 'Envíos masivos y ofertas programadas' },
+        { id: 'callcenter', label: 'Centro de Voz (ElevenLabs)', icon: PhoneCall, desc: 'Llamadas y agente de voz' },
+        { id: 'automations', label: 'Automatizaciones', icon: Zap, desc: 'Reglas y flujos de pedidos' },
+        { id: 'woo', label: 'WooCommerce', icon: Globe, desc: 'Sincronización de tienda' },
+        { id: 'knowledge', label: 'Base de Conocimiento', icon: BookOpen, desc: 'Respuestas y catálogo IA' }
+      ]
+    },
+    {
+      id: 'admin',
+      label: 'Gestión',
+      icon: BarChart3,
+      items: [
+        { id: 'analytics', label: 'Reporte de Ventas & KPIs', icon: BarChart3, desc: 'Ventas por sucursal, productos y exportación Excel' },
+        { id: 'users', label: 'Usuarios & Permisos', icon: ShieldCheck, desc: 'Control de acceso RBAC' }
+      ]
+    }
   ];
 
-  // Filter tabs according to user permissions (Admin sees all)
-  const allowedTabs = allTabs.filter(tab => {
-    if (!currentUser || currentUser.role === 'admin') return true;
-    if (Array.isArray(currentUser.tabs)) {
-      return currentUser.tabs.includes(tab.id);
-    }
-    return true;
-  });
+  // Direct fast shortcuts on top navbar
+  const primaryTabs = [
+    { id: 'inbox', label: 'WhatsApp', icon: MessageSquare, badge: unreadCount },
+    { id: 'orders', label: 'Pedidos', icon: PackageCheck },
+    { id: 'pos', label: 'POS', icon: Calculator },
+    { id: 'customers', label: 'Clientes', icon: Users }
+  ];
 
-  const getRoleIconAndBadge = (role) => {
+  const getRoleBadge = (role) => {
     switch (role) {
+      case 'agente_ia_principal':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-emerald-500/25 to-purple-500/25 text-emerald-300 border border-emerald-400/40">🤖 IA Central Master</span>;
       case 'admin':
         return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/20 text-purple-400 border border-purple-500/30">👑 Admin</span>;
       case 'gerencia':
@@ -91,7 +137,7 @@ export default function Navbar({
   };
 
   return (
-    <header className="h-16 border-b border-slate-800/80 bg-[#111b21]/95 backdrop-blur-xl px-3 sm:px-4 lg:px-6 flex items-center justify-between z-40 sticky top-0">
+    <header ref={navRef} className="h-16 border-b border-slate-800/80 bg-[#111b21]/95 backdrop-blur-xl px-3 sm:px-4 lg:px-6 flex items-center justify-between z-40 sticky top-0">
       
       {/* Left: Mobile Menu Toggle & Brand Logo */}
       <div className="flex items-center gap-2 sm:gap-4">
@@ -125,19 +171,24 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* Desktop Navigation Tabs (Hidden on small screens) */}
-        <nav className="hidden lg:flex items-center gap-1 bg-[#182229] p-1 rounded-2xl border border-slate-800 overflow-x-auto max-w-[52vw] xl:max-w-none">
-          {allowedTabs.map(tab => {
+        {/* Desktop Modern Grouped Navigation */}
+        <nav className="hidden lg:flex items-center gap-1.5 bg-[#182229] p-1 rounded-2xl border border-slate-800 ml-2">
+          
+          {/* Primary Quick Access Tabs */}
+          {primaryTabs.map(tab => {
             const Icon = tab.icon;
             const isActive = currentTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setCurrentTab(tab.id)}
+                onClick={() => {
+                  setCurrentTab(tab.id);
+                  setActiveDropdown(null);
+                }}
                 className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                   isActive
-                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-extrabold'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                 }`}
               >
                 <Icon size={14} />
@@ -152,6 +203,83 @@ export default function Navbar({
               </button>
             );
           })}
+
+          <div className="w-[1px] h-5 bg-slate-700/60 mx-1" />
+
+          {/* Grouped Category Dropdowns */}
+          {navGroups.map(group => {
+            const isGroupActive = group.items.some(it => it.id === currentTab);
+            const isOpen = activeDropdown === group.id;
+            const GroupIcon = group.icon;
+
+            return (
+              <div key={group.id} className="relative">
+                <button
+                  onClick={() => setActiveDropdown(isOpen ? null : group.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                    isGroupActive
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : isOpen
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  }`}
+                >
+                  <GroupIcon size={13} />
+                  <span>{group.label}</span>
+                  <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180 text-emerald-400' : 'text-slate-500'}`} />
+                </button>
+
+                {/* Dropdown Popover */}
+                {isOpen && (
+                  <div className="absolute left-0 top-10 w-64 bg-[#182229] border border-slate-700 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95">
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 py-1 border-b border-slate-800 mb-1">
+                      {group.label}
+                    </div>
+                    <div className="space-y-0.5">
+                      {group.items.map(item => {
+                        const ItemIcon = item.icon;
+                        const isItemActive = currentTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              if (item.id === 'media-gallery') {
+                                onOpenMediaGallery?.();
+                              } else {
+                                setCurrentTab(item.id);
+                              }
+                              setActiveDropdown(null);
+                            }}
+                            className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition ${
+                              isItemActive
+                                ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                                : 'hover:bg-[#202c33] text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <ItemIcon size={15} className={isItemActive ? 'text-slate-950' : 'text-emerald-400'} />
+                              <div>
+                                <div className="text-xs leading-tight font-bold">{item.label}</div>
+                                {item.desc && <div className={`text-[10px] leading-tight ${isItemActive ? 'text-slate-800' : 'text-slate-400'}`}>{item.desc}</div>}
+                              </div>
+                            </div>
+                            {item.badge > 0 && (
+                              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${
+                                isItemActive ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500 text-slate-950'
+                              }`}>
+                                {item.badge}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
         </nav>
       </div>
 
@@ -173,7 +301,7 @@ export default function Navbar({
           <span className={`w-2 h-2 rounded-full ${globalAiEnabled ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
         </button>
 
-        {/* Outbound Call Button (Hidden on extra small screens) */}
+        {/* Outbound Call Button */}
         <button
           onClick={onOpenCallModal}
           className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-400 text-xs font-bold border border-slate-700/60 transition active:scale-95"
@@ -207,7 +335,7 @@ export default function Navbar({
         {/* Settings button */}
         <button
           onClick={onOpenSettings}
-          className="p-2 sm:p-2 rounded-xl bg-[#182229] hover:bg-slate-800 text-slate-300 hover:text-emerald-400 border border-slate-700/60 transition"
+          className="p-2 rounded-xl bg-[#182229] hover:bg-slate-800 text-slate-300 hover:text-emerald-400 border border-slate-700/60 transition"
           title="Configuración General del Sistema y Agente IA"
         >
           <Settings size={17} />
@@ -225,7 +353,7 @@ export default function Navbar({
             </div>
             <div className="hidden sm:flex flex-col items-start text-left leading-tight">
               <span className="text-xs font-bold text-white max-w-[90px] truncate">{currentUser?.name || 'Usuario'}</span>
-              <span className="text-[10px] text-slate-400">{getRoleIconAndBadge(currentUser?.role || 'admin')}</span>
+              <span className="text-[10px] text-slate-400">{getRoleBadge(currentUser?.role || 'admin')}</span>
             </div>
             <ChevronDown size={14} className="text-slate-400 hidden sm:block" />
           </button>
@@ -268,7 +396,7 @@ export default function Navbar({
                           <div className="text-[10px] text-slate-400">@{user.username}</div>
                         </div>
                       </div>
-                      {getRoleIconAndBadge(user.role)}
+                      {getRoleBadge(user.role)}
                     </button>
                   );
                 })}
@@ -291,7 +419,7 @@ export default function Navbar({
 
       </div>
 
-      {/* Mobile Drawer (Deslizable lateral) */}
+      {/* Mobile Drawer Categorizado */}
       {isMobileDrawerOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden animate-fade-in">
           {/* Backdrop */}
@@ -301,7 +429,7 @@ export default function Navbar({
           />
 
           {/* Drawer Content */}
-          <div className="relative w-72 max-w-[85vw] bg-[#111b21] border-r border-slate-800 h-full p-4 flex flex-col justify-between shadow-2xl z-10 overflow-y-auto">
+          <div className="relative w-80 max-w-[85vw] bg-[#111b21] border-r border-slate-800 h-full p-4 flex flex-col justify-between shadow-2xl z-10 overflow-y-auto">
             
             <div className="space-y-4">
               {/* Drawer Header & Profile */}
@@ -312,7 +440,7 @@ export default function Navbar({
                   </div>
                   <div>
                     <div className="text-xs font-bold text-white leading-tight">{currentUser?.name || 'Carlos R.'}</div>
-                    <div className="mt-0.5">{getRoleIconAndBadge(currentUser?.role || 'admin')}</div>
+                    <div className="mt-0.5">{getRoleBadge(currentUser?.role || 'admin')}</div>
                   </div>
                 </div>
 
@@ -324,39 +452,50 @@ export default function Navbar({
                 </button>
               </div>
 
-              {/* Navigation List */}
-              <div className="space-y-1">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1">
-                  Módulos del Sistema
-                </div>
-                {allowedTabs.map(tab => {
-                  const Icon = tab.icon;
-                  const isActive = currentTab === tab.id;
+              {/* Categorized Navigation List */}
+              <div className="space-y-4">
+                {navGroups.map(group => {
                   return (
-                    <button
-                      key={tab.id}
-                      onClick={() => {
-                        setCurrentTab(tab.id);
-                        setIsMobileDrawerOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition ${
-                        isActive
-                          ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
-                          : 'text-slate-300 hover:bg-[#182229] hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Icon size={16} />
-                        <span>{tab.label}</span>
+                    <div key={group.id} className="space-y-1">
+                      <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-2 flex items-center gap-1.5">
+                        <group.icon size={12} className="text-emerald-400" />
+                        {group.label}
                       </div>
-                      {tab.badge > 0 && (
-                        <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
-                          isActive ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500 text-slate-950'
-                        }`}>
-                          {tab.badge}
-                        </span>
-                      )}
-                    </button>
+                      {group.items.map(item => {
+                        const ItemIcon = item.icon;
+                        const isActive = currentTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              if (item.id === 'media-gallery') {
+                                onOpenMediaGallery?.();
+                              } else {
+                                setCurrentTab(item.id);
+                              }
+                              setIsMobileDrawerOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition ${
+                              isActive
+                                ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
+                                : 'text-slate-300 hover:bg-[#182229] hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <ItemIcon size={16} />
+                              <span>{item.label}</span>
+                            </div>
+                            {item.badge > 0 && (
+                              <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+                                isActive ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500 text-slate-950'
+                              }`}>
+                                {item.badge}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   );
                 })}
               </div>

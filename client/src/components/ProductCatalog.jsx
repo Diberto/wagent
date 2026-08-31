@@ -1,21 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, Plus, Search, Tag, DollarSign, Edit3, Trash2, 
   RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X, Copy, Barcode,
-  List, LayoutGrid
+  List, LayoutGrid, Download, Upload, FileSpreadsheet, Database, ArrowUpDown, FileText,
+  Star, Smartphone, EyeOff, Eye, Image as ImageIcon, Boxes, AlertTriangle
 } from 'lucide-react';
+import MediaGalleryModal from './MediaGalleryModal';
 
 export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [whatsappFilter, setWhatsappFilter] = useState('all'); // 'all' | 'enabled' | 'disabled' | 'featured'
+  const [stockFilter, setStockFilter] = useState('all'); // 'all' | 'with_control' | 'low_stock' | 'out_of_stock'
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('catalog_view_mode') || 'table');
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
+  const [copiedPlu, setCopiedPlu] = useState(null);
+  const fileInputRef = useRef(null);
   
   // Modal de Crear / Editar
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMediaGalleryPickerOpen, setIsMediaGalleryPickerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -23,21 +30,43 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     price: '',
     unit: 'kg',
     description: '',
-    stock: 50,
+    imageUrl: '',
+    stock: 100,
+    stockQuantity: 100,
+    stockControl: false,
+    stockMinAlert: 5,
+    allowBackorder: true,
     isAvailable: true,
-    sku: '',
-    barcode: ''
+    isFeaturedWhatsApp: false,
+    plu: '',
+    barcode: '',
+    sku: ''
   });
+
+  // Modal de Ajuste Rápido de Stock
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [stockModalProduct, setStockModalProduct] = useState(null);
+  const [stockModalQuantity, setStockModalQuantity] = useState(0);
+  const [stockModalControl, setStockModalControl] = useState(false);
+  const [stockModalMinAlert, setStockModalMinAlert] = useState(5);
+  const [stockModalAllowBackorder, setStockModalAllowBackorder] = useState(true);
+  const [isUpdatingStock, setIsUpdatingStock] = useState(false);
 
   const categories = [
     'all',
+    'Combos en Oferta',
     'Parrilla',
+    'Parrilla y Horno',
     'Cortes Premium',
-    'Horno y Olla',
-    'Milanesas y Preparados',
-    'Achuras y Embutidos',
-    'Comidas Diarias',
-    'Combos y Promociones',
+    'Cerdo',
+    'Cerdo y Parrilla',
+    'Cortes Tradicionales',
+    'Embutidos',
+    'Achuras',
+    'Diario y Preparados',
+    'Pollo',
+    'Almacén Parrillero',
+    'Bebidas',
     'General'
   ];
 
@@ -51,7 +80,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       const res = await fetch(`${apiBaseUrl}/api/products`);
       if (res.ok) {
         const data = await res.json();
-        setProducts(data);
+        setProducts(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error('Error fetching products:', err);
@@ -60,6 +89,33 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     }
   };
 
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importReplaceAll, setImportReplaceAll] = useState(false);
+
+  // Cargar Catálogo Maestro Oficial con Códigos PLU (757 Productos)
+  const handleSeedMasterCatalog = async () => {
+    if (!window.confirm('¿Deseas cargar el Catálogo Maestro Oficial con los 757 productos y códigos PLU (Cod.;Producto;Precio)?')) return;
+    try {
+      setSyncing(true);
+      setSyncMessage(null);
+      const res = await fetch(`${apiBaseUrl}/api/products/seed-master`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setProducts(data.products || []);
+        setSyncMessage({ type: 'success', text: data.message || `¡Catálogo maestro cargado con ${data.count || 0} productos y códigos PLU!` });
+      } else {
+        setSyncMessage({ type: 'error', text: data.error || 'Error al cargar catálogo maestro' });
+      }
+    } catch (err) {
+      setSyncMessage({ type: 'error', text: 'Error de conexión con el servidor' });
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMessage(null), 6000);
+    }
+  };
+
+  // Sincronizar catálogo con WhatsApp Business
   const handleSyncWithWhatsApp = async () => {
     try {
       setSyncing(true);
@@ -80,35 +136,183 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     }
   };
 
+  // Exportar Catálogo en diferentes formatos
+  const handleExport = (format = 'xlsx') => {
+    setShowExportMenu(false);
+    window.open(`${apiBaseUrl}/api/products/export?format=${format}`, '_blank');
+  };
+
+  // Importar Archivo Binario (Excel .xlsx / .xls / .csv / .tsv / .json)
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setSyncing(true);
+      setSyncMessage(null);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('replaceAll', importReplaceAll ? 'true' : 'false');
+
+      const res = await fetch(`${apiBaseUrl}/api/products/import?replace=${importReplaceAll ? 'true' : 'false'}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setSyncMessage({ 
+          type: 'success', 
+          text: data.message || `¡Se procesaron ${data.importedCount || 0} productos con sus códigos PLU y precios!` 
+        });
+        setIsImportModalOpen(false);
+        fetchProducts();
+      } else {
+        setSyncMessage({ type: 'error', text: data.error || 'Error al importar archivo' });
+      }
+    } catch (err) {
+      setSyncMessage({ type: 'error', text: 'Error procesando archivo: ' + err.message });
+    } finally {
+      setSyncing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setTimeout(() => setSyncMessage(null), 6000);
+    }
+  };
+
   const handleOpenCreateModal = () => {
     setEditingProduct(null);
+    const nextPlu = `${2000 + (products.length || 0) + 1}`;
     setFormData({
       name: '',
       category: 'Parrilla',
       price: '',
       unit: 'kg',
       description: '',
-      stock: 50,
+      imageUrl: '',
+      stock: 100,
+      stockQuantity: 100,
+      stockControl: false,
+      stockMinAlert: 5,
+      allowBackorder: true,
       isAvailable: true,
-      sku: ''
+      isFeaturedWhatsApp: false,
+      plu: nextPlu,
+      barcode: `779${nextPlu.padStart(4, '0')}000001`,
+      sku: `PLU-${nextPlu}`,
+      saleMode: 'kilo',
+      unitsPerKg: '',
+      unitWeightGrams: '',
+      unitPrice: ''
     });
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (product) => {
     setEditingProduct(product);
+    const plu = product.plu || (product.barcode ? product.barcode.slice(-4) : '');
     setFormData({
       name: product.name,
-      category: product.category || 'General',
+      category: product.category || 'Parrilla',
       price: product.price,
       unit: product.unit || 'kg',
       description: product.description || '',
-      stock: product.stock ?? 50,
+      imageUrl: product.imageUrl || product.image || '',
+      stock: product.stockQuantity ?? product.stock ?? 100,
+      stockQuantity: product.stockQuantity ?? product.stock ?? 100,
+      stockControl: Boolean(product.stockControl),
+      stockMinAlert: product.stockMinAlert ?? 5,
+      allowBackorder: product.allowBackorder !== false,
       isAvailable: product.isAvailable !== false,
-      sku: product.sku || '',
-      barcode: product.barcode || ''
+      isFeaturedWhatsApp: Boolean(product.isFeaturedWhatsApp),
+      plu: plu,
+      barcode: product.barcode || (plu ? `779${plu.padStart(4, '0')}000001` : ''),
+      sku: product.sku || (plu ? `PLU-${plu}` : ''),
+      saleMode: product.saleMode || (product.unitsPerKg ? 'both' : 'kilo'),
+      unitsPerKg: product.unitsPerKg || '',
+      unitWeightGrams: product.unitWeightGrams || '',
+      unitPrice: product.unitPrice || ''
     });
     setIsModalOpen(true);
+  };
+
+  const handleOpenStockModal = (product) => {
+    setStockModalProduct(product);
+    setStockModalQuantity(product.stockQuantity ?? product.stock ?? 100);
+    setStockModalControl(Boolean(product.stockControl));
+    setStockModalMinAlert(product.stockMinAlert ?? 5);
+    setStockModalAllowBackorder(product.allowBackorder !== false);
+    setIsStockModalOpen(true);
+  };
+
+  const handleSaveStockAdjustment = async (e) => {
+    e.preventDefault();
+    if (!stockModalProduct) return;
+    try {
+      setIsUpdatingStock(true);
+      const res = await fetch(`${apiBaseUrl}/api/products/${stockModalProduct.id}/stock`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stockQuantity: Number(stockModalQuantity),
+          isAbsolute: true,
+          stockControl: stockModalControl,
+          stockMinAlert: Number(stockModalMinAlert),
+          allowBackorder: stockModalAllowBackorder
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setProducts(prev => prev.map(p => p.id === stockModalProduct.id ? { ...p, ...data.product } : p));
+        setIsStockModalOpen(false);
+        setSyncMessage({ type: 'success', text: `Stock de "${stockModalProduct.name}" actualizado: ${stockModalQuantity} ${stockModalProduct.unit || 'kg'}` });
+        setTimeout(() => setSyncMessage(null), 3000);
+      }
+    } catch (err) {
+      console.error('Error ajustando stock:', err);
+    } finally {
+      setIsUpdatingStock(false);
+    }
+  };
+
+  const handleToggleWhatsAppAvailability = async (product) => {
+    const newAvailable = product.isAvailable === false ? true : false;
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isAvailable: newAvailable } : p));
+    try {
+      await fetch(`${apiBaseUrl}/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...product, isAvailable: newAvailable })
+      });
+      setSyncMessage({
+        type: 'success',
+        text: `Producto "${product.name}" ${newAvailable ? 'habilitado para WhatsApp' : 'ocultado de WhatsApp'}`
+      });
+      setTimeout(() => setSyncMessage(null), 3000);
+    } catch (err) {
+      console.error('Error toggling availability:', err);
+      fetchProducts();
+    }
+  };
+
+  const handleToggleFeaturedWhatsApp = async (product) => {
+    const newFeatured = !product.isFeaturedWhatsApp;
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isFeaturedWhatsApp: newFeatured } : p));
+    try {
+      await fetch(`${apiBaseUrl}/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...product, isFeaturedWhatsApp: newFeatured })
+      });
+      setSyncMessage({
+        type: 'success',
+        text: `Producto "${product.name}" ${newFeatured ? '⭐ Destacado en Menú de Bienvenida' : 'removido de destacados'}`
+      });
+      setTimeout(() => setSyncMessage(null), 3000);
+    } catch (err) {
+      console.error('Error toggling featured:', err);
+      fetchProducts();
+    }
   };
 
   const handleSaveProduct = async (e) => {
@@ -119,19 +323,33 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
         : `${apiBaseUrl}/api/products`;
       const method = editingProduct ? 'PUT' : 'POST';
 
+      const finalStock = Number(formData.stockQuantity !== undefined ? formData.stockQuantity : formData.stock) || 0;
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           price: Number(formData.price) || 0,
-          stock: Number(formData.stock) || 0
+          imageUrl: formData.imageUrl || '',
+          stock: finalStock,
+          stockQuantity: finalStock,
+          stockControl: Boolean(formData.stockControl),
+          stockMinAlert: Number(formData.stockMinAlert ?? 5),
+          allowBackorder: formData.allowBackorder !== false,
+          isAvailable: Boolean(formData.isAvailable),
+          isFeaturedWhatsApp: Boolean(formData.isFeaturedWhatsApp),
+          unitsPerKg: formData.unitsPerKg ? Number(formData.unitsPerKg) : null,
+          unitWeightGrams: formData.unitWeightGrams ? Number(formData.unitWeightGrams) : null,
+          unitPrice: formData.unitPrice ? Number(formData.unitPrice) : null
         })
       });
 
       if (res.ok) {
         setIsModalOpen(false);
         fetchProducts();
+        setSyncMessage({ type: 'success', text: `Producto ${formData.name} guardado con éxito con PLU ${formData.plu}` });
+        setTimeout(() => setSyncMessage(null), 4000);
       }
     } catch (err) {
       console.error('Error saving product:', err);
@@ -150,51 +368,153 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     }
   };
 
-  const handleDuplicateProduct = async (id) => {
-    try {
-      const res = await fetch(`${apiBaseUrl}/api/products/${id}/duplicate`, { method: 'POST' });
-      if (res.ok) {
-        const cloned = await res.json();
-        setProducts(prev => [cloned, ...prev]);
-      }
-    } catch (err) {
-      console.error('Error duplicating product:', err);
-    }
+  const copyToClipboard = (text, type = 'plu') => {
+    navigator.clipboard.writeText(text);
+    setCopiedPlu(text);
+    setTimeout(() => setCopiedPlu(null), 2000);
   };
 
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    const matchesSearch = product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          product.category?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
+    
+    // Filtro de estado WhatsApp
+    let matchesWhatsApp = true;
+    if (whatsappFilter === 'enabled') {
+      matchesWhatsApp = product.isAvailable !== false;
+    } else if (whatsappFilter === 'disabled') {
+      matchesWhatsApp = product.isAvailable === false;
+    } else if (whatsappFilter === 'featured') {
+      matchesWhatsApp = Boolean(product.isFeaturedWhatsApp);
+    }
+
+    // Filtro de Stock
+    let matchesStock = true;
+    if (stockFilter === 'with_control') {
+      matchesStock = Boolean(product.stockControl);
+    } else if (stockFilter === 'low_stock') {
+      const qty = Number(product.stockQuantity ?? product.stock ?? 0);
+      const min = Number(product.stockMinAlert ?? 5);
+      matchesStock = product.stockControl && qty <= min && qty > 0;
+    } else if (stockFilter === 'out_of_stock') {
+      const qty = Number(product.stockQuantity ?? product.stock ?? 0);
+      matchesStock = product.stockControl && qty <= 0;
+    }
+
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = 
+      (product.name || '').toLowerCase().includes(term) ||
+      (product.description || '').toLowerCase().includes(term) ||
+      (product.category || '').toLowerCase().includes(term) ||
+      (product.plu || '').toLowerCase().includes(term) ||
+      (product.barcode || '').toLowerCase().includes(term) ||
+      (product.sku || '').toLowerCase().includes(term);
+    return matchesCategory && matchesWhatsApp && matchesStock && matchesSearch;
   });
 
   return (
     <div className="flex-1 flex flex-col bg-[#0b141a] h-full overflow-hidden text-slate-200">
+      {/* Input oculto para importación de archivos */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".csv, .txt, .json"
+        className="hidden"
+      />
+
       {/* Header */}
       <div className="bg-[#111b21] border-b border-[#222e35] px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <ShoppingBag className="w-5 h-5 text-emerald-400" />
-            Catálogo de Productos y Ofertas
+            Catálogo de Productos & Códigos PLU de Balanza
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Administra los cortes, precios y combos que el Asesor de IA consultará para cotizar y cerrar ventas
+            Administra los cortes, precios, stock y códigos de barras EAN/PLU sincronizados con el Asesor Virtual y las Balanzas
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Cargar Catálogo Maestro Oficial */}
+          <button
+            onClick={handleSeedMasterCatalog}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 hover:text-white transition disabled:opacity-50 shadow-sm"
+            title="Cargar los 757 productos oficiales con códigos PLU del negocio"
+          >
+            <Database className="w-3.5 h-3.5 text-purple-400" />
+            <span>Catálogo Oficial (757 PLUs)</span>
+          </button>
+
+          {/* Exportar Multi-Formato Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-slate-200 hover:text-white transition"
+              title="Descargar Catálogo en Excel, CSV o JSON"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Exportar</span>
+              <span className="text-[10px] text-slate-400">▼</span>
+            </button>
+
+            {showExportMenu && (
+              <div 
+                className="absolute right-0 mt-1.5 w-48 bg-[#182229] border border-slate-700 rounded-2xl shadow-2xl z-30 py-1.5 overflow-hidden animate-fade-in text-xs"
+                onMouseLeave={() => setShowExportMenu(false)}
+              >
+                <button
+                  onClick={() => handleExport('xlsx')}
+                  className="w-full text-left px-3.5 py-2 hover:bg-[#202c33] text-slate-200 hover:text-emerald-400 flex items-center justify-between transition"
+                >
+                  <span className="font-semibold">📊 Excel Moderno (.xlsx)</span>
+                </button>
+                <button
+                  onClick={() => handleExport('xls')}
+                  className="w-full text-left px-3.5 py-2 hover:bg-[#202c33] text-slate-200 hover:text-emerald-400 flex items-center justify-between transition"
+                >
+                  <span className="font-semibold">📑 Excel 97-2004 (.xls)</span>
+                </button>
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="w-full text-left px-3.5 py-2 hover:bg-[#202c33] text-slate-200 hover:text-emerald-400 flex items-center justify-between transition"
+                >
+                  <span className="font-semibold">📄 CSV (; UTF-8 BOM)</span>
+                </button>
+                <div className="border-t border-slate-800 my-1"></div>
+                <button
+                  onClick={() => handleExport('json')}
+                  className="w-full text-left px-3.5 py-2 hover:bg-[#202c33] text-slate-200 hover:text-sky-400 flex items-center justify-between transition"
+                >
+                  <span className="font-semibold">🗄️ JSON Estructurado</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Importar Archivo Excel / CSV Modal */}
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-slate-200 hover:text-white transition disabled:opacity-50"
+            title="Importar catálogo desde archivo Excel (.xlsx, .xls) o CSV"
+          >
+            <Upload className="w-3.5 h-3.5 text-sky-400" />
+            <span>Importar Excel/CSV</span>
+          </button>
+
+          {/* Sincronizar Catálogo WhatsApp */}
           <button
             onClick={handleSyncWithWhatsApp}
             disabled={syncing}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-slate-200 hover:text-white transition disabled:opacity-50"
-            title="Importar catálogo desde WhatsApp Business"
+            title="Sincronizar catálogo con WhatsApp Business"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-            <span>{syncing ? 'Sincronizando...' : 'Sincronizar Catálogo'}</span>
+            <span className="hidden sm:inline">{syncing ? 'Sincronizando...' : 'Sincronizar'}</span>
           </button>
 
+          {/* Nuevo Producto */}
           <button
             onClick={handleOpenCreateModal}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/20 transition"
@@ -218,34 +538,90 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       )}
 
       {/* Search, Categories and View Mode Bar */}
-      <div className="p-4 bg-[#111b21] border-b border-[#222e35] flex flex-wrap items-center justify-between gap-3">
-        <div className="relative flex-1 min-w-[240px] max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre, descripción o corte..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-[#182229] border border-slate-700/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-          />
-        </div>
+      <div className="p-4 bg-[#111b21] border-b border-[#222e35] space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative flex-1 min-w-[240px] max-w-md">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Buscar por corte, código PLU, código de barras o categoría..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-1.5 bg-[#182229] border border-slate-700/60 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
-          {/* Category Pills */}
+          {/* Filtros rápidos de estado WhatsApp & Stock */}
           <div className="flex items-center gap-1.5 overflow-x-auto">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                  selectedCategory === cat
-                    ? 'bg-emerald-500 text-slate-950 font-bold'
-                    : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                {cat === 'all' ? 'Todos' : cat}
-              </button>
-            ))}
+            <button
+              onClick={() => { setWhatsappFilter('all'); setStockFilter('all'); }}
+              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                whatsappFilter === 'all' && stockFilter === 'all'
+                  ? 'bg-slate-700 text-white font-bold'
+                  : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              Todos ({products.length})
+            </button>
+            <button
+              onClick={() => setWhatsappFilter('enabled')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                whatsappFilter === 'enabled'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                  : 'bg-[#182229] text-emerald-400 hover:text-emerald-300 border border-slate-800'
+              }`}
+            >
+              <Smartphone size={12} />
+              <span>En WhatsApp ({products.filter(p => p.isAvailable !== false).length})</span>
+            </button>
+            <button
+              onClick={() => setWhatsappFilter('featured')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                whatsappFilter === 'featured'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                  : 'bg-[#182229] text-amber-400 hover:text-amber-300 border border-slate-800'
+              }`}
+            >
+              <Star size={12} fill="currentColor" />
+              <span>Destacados ({products.filter(p => p.isFeaturedWhatsApp).length})</span>
+            </button>
+
+            {/* Separador */}
+            <div className="h-4 w-px bg-slate-700 mx-1 hidden sm:block" />
+
+            <button
+              onClick={() => setStockFilter('with_control')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                stockFilter === 'with_control'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow-sm'
+                  : 'bg-[#182229] text-sky-400 hover:text-sky-300 border border-slate-800'
+              }`}
+            >
+              <Boxes size={12} />
+              <span>Con Control ({products.filter(p => p.stockControl).length})</span>
+            </button>
+            <button
+              onClick={() => setStockFilter('low_stock')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                stockFilter === 'low_stock'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                  : 'bg-[#182229] text-amber-400 hover:text-amber-300 border border-slate-800'
+              }`}
+            >
+              <AlertTriangle size={12} />
+              <span>Stock Bajo ({products.filter(p => p.stockControl && (p.stockQuantity ?? p.stock ?? 0) <= (p.stockMinAlert || 5) && (p.stockQuantity ?? p.stock ?? 0) > 0).length})</span>
+            </button>
+            <button
+              onClick={() => setStockFilter('out_of_stock')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                stockFilter === 'out_of_stock'
+                  ? 'bg-rose-500 text-white font-bold shadow-sm'
+                  : 'bg-[#182229] text-rose-400 hover:text-rose-300 border border-slate-800'
+              }`}
+            >
+              <AlertCircle size={12} />
+              <span>Agotados ({products.filter(p => p.stockControl && (p.stockQuantity ?? p.stock ?? 0) <= 0).length})</span>
+            </button>
           </div>
 
           {/* Toggle View Mode */}
@@ -259,10 +635,10 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
               className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition ${
                 viewMode === 'table' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
-              title="Vista en Lista / Tabla detallada"
+              title="Vista en Lista / Tabla detallada con Códigos PLU"
             >
               <List className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Lista</span>
+              <span className="hidden sm:inline">Tabla</span>
             </button>
             <button
               type="button"
@@ -280,6 +656,23 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
             </button>
           </div>
         </div>
+
+        {/* Category Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                selectedCategory === cat
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
+                  : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              {cat === 'all' ? 'Todas las Categorías' : cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Product Content */}
@@ -294,91 +687,186 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
             <Package className="w-12 h-12 mb-3 text-slate-600" />
             <p className="text-sm font-semibold text-slate-300">No se encontraron productos</p>
             <p className="text-xs text-slate-500 mt-1 max-w-sm">
-              Agrega tus productos o sincroniza desde WhatsApp Business para que el Asesor Virtual pueda venderlos.
+              Carga el catálogo maestro de productos con códigos PLU de la base de conocimiento o importa un archivo Excel/CSV.
             </p>
-            <button
-              onClick={handleOpenCreateModal}
-              className="mt-4 px-4 py-2 bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 rounded-xl text-xs font-semibold text-emerald-400"
-            >
-              Crear primer producto
-            </button>
+            <div className="flex items-center gap-2 mt-4">
+              <button
+                onClick={handleSeedMasterCatalog}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-600/20 transition"
+              >
+                🥩 Cargar Catálogo Oficial
+              </button>
+              <button
+                onClick={handleOpenCreateModal}
+                className="px-4 py-2 bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 rounded-xl text-xs font-semibold text-emerald-400"
+              >
+                Crear producto manual
+              </button>
+            </div>
           </div>
         ) : viewMode === 'table' ? (
-          /* VISTA EN FORMATO LISTA / TABLA DE PRODUCTOS */
+          /* VISTA EN FORMATO LISTA / TABLA DE PRODUCTOS CON CÓDIGOS PLU */
           <div className="bg-[#182229] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-300">
                 <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
                   <tr>
-                    <th className="py-3 px-4">Código / SKU</th>
-                    <th className="py-3 px-4">Nombre del Corte / Producto</th>
-                    <th className="py-3 px-4">Categoría</th>
-                    <th className="py-3 px-4">Precio / Unidad</th>
-                    <th className="py-3 px-4">Stock</th>
-                    <th className="py-3 px-4">Disponibilidad</th>
-                    <th className="py-3 px-4 text-right">Acciones</th>
+                    <th className="py-3.5 px-4">Código PLU</th>
+                    <th className="py-3.5 px-4">Código de Barras (EAN-13)</th>
+                    <th className="py-3.5 px-4">Nombre del Corte / Producto</th>
+                    <th className="py-3.5 px-4">Categoría</th>
+                    <th className="py-3.5 px-4">Precio / Unidad</th>
+                    <th className="py-3.5 px-4 text-center">Control de Stock</th>
+                    <th className="py-3.5 px-4 text-center">WhatsApp</th>
+                    <th className="py-3.5 px-4 text-center">Menú Top 8</th>
+                    <th className="py-3.5 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {filteredProducts.map(prod => (
-                    <tr key={prod.id} className="hover:bg-[#202c33]/50 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
-                        {prod.sku || prod.barcode || `PROD-${prod.id.slice(-4)}`}
-                      </td>
-                      <td className="py-3.5 px-4 min-w-[200px]">
-                        <div className="font-bold text-white">{prod.name}</div>
-                        {prod.description && (
-                          <div className="text-[11px] text-slate-400 line-clamp-1">{prod.description}</div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-[#202c33] text-emerald-400 border border-emerald-500/20">
-                          {prod.category || 'General'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-extrabold text-white whitespace-nowrap">
-                        <span className="text-emerald-400">${Number(prod.price).toLocaleString()}</span>
-                        <span className="text-[10px] text-slate-400 font-normal ml-0.5">/{prod.unit || 'kg'}</span>
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-300 font-mono">
-                        {prod.stock !== undefined ? prod.stock : 50} {prod.unit || 'kg'}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          prod.isAvailable !== false
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                        }`}>
-                          {prod.isAvailable !== false ? 'Disponible' : 'Agotado'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
+                  {filteredProducts.map(prod => {
+                    const plu = prod.plu || (prod.barcode ? prod.barcode.slice(-4) : '2001');
+                    const barcode = prod.barcode || `779${plu.padStart(4, '0')}000001`;
+                    const currentStock = Number(prod.stockQuantity ?? prod.stock ?? 0);
+                    const minAlert = Number(prod.stockMinAlert ?? 5);
+
+                    return (
+                      <tr key={prod.id} className="hover:bg-[#202c33]/50 transition-colors">
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <button
-                            onClick={() => handleOpenEditModal(prod)}
-                            className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-emerald-400 rounded-lg transition"
-                            title="Editar producto"
+                            onClick={() => copyToClipboard(plu, 'plu')}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono font-extrabold text-xs transition"
+                            title="Click para copiar código PLU de balanza"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Tag className="w-3 h-3 text-emerald-400" />
+                            <span>PLU {plu}</span>
+                            {copiedPlu === plu && <Check className="w-3 h-3 text-emerald-300 ml-0.5" />}
                           </button>
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
                           <button
-                            onClick={() => handleDuplicateProduct(prod.id)}
-                            className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-sky-400 rounded-lg transition"
-                            title="Duplicar producto"
+                            onClick={() => copyToClipboard(barcode, 'barcode')}
+                            className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-400 hover:text-white transition"
+                            title="Copiar código de barras EAN-13"
                           >
-                            <Copy className="w-3.5 h-3.5" />
+                            <Barcode className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{barcode}</span>
                           </button>
+                        </td>
+                        <td className="py-3.5 px-4 min-w-[220px]">
+                          <div className="font-bold text-white text-sm flex items-center gap-2">
+                            <span>{prod.name}</span>
+                            {prod.isFeaturedWhatsApp && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                                ⭐ Top 8
+                              </span>
+                            )}
+                          </div>
+                          {prod.description && (
+                            <div className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">{prod.description}</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-[#202c33] text-emerald-400 border border-emerald-500/20">
+                            {prod.category || 'General'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-extrabold text-white whitespace-nowrap">
+                          <span className="text-emerald-400 text-sm">${Number(prod.price).toLocaleString()}</span>
+                          <span className="text-[10px] text-slate-400 font-normal ml-0.5">/{prod.unit || 'kg'}</span>
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                          {prod.stockControl ? (
+                            <button
+                              onClick={() => handleOpenStockModal(prod)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-extrabold transition active:scale-95 border ${
+                                currentStock <= 0
+                                  ? 'bg-rose-500/15 text-rose-400 border-rose-500/30 hover:bg-rose-500/25'
+                                  : currentStock <= minAlert
+                                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                              }`}
+                              title="Click para ajustar stock o inventario físico"
+                            >
+                              <Boxes size={12} />
+                              <span>{currentStock} {prod.unit || 'kg'}</span>
+                              {currentStock <= 0 && <span className="text-[10px] uppercase ml-1">Agotado</span>}
+                              {currentStock > 0 && currentStock <= minAlert && <span className="text-[10px] ml-1">⚠️ Bajo</span>}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenStockModal(prod)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] text-slate-400 hover:text-slate-200 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition"
+                              title="Click para activar control de stock en este producto"
+                            >
+                              <span className="text-slate-500">Ilimitado</span>
+                              <span className="text-[10px] text-emerald-400 underline ml-0.5">+ Activar</span>
+                            </button>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
                           <button
-                            onClick={() => handleDeleteProduct(prod.id)}
-                            className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-rose-400 rounded-lg transition"
-                            title="Eliminar producto"
+                            onClick={() => handleToggleWhatsAppAvailability(prod)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition active:scale-95 ${
+                              prod.isAvailable !== false
+                                ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30'
+                            }`}
+                            title={prod.isAvailable !== false ? 'Click para ocultar o quitar de WhatsApp' : 'Click para activar en WhatsApp'}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            {prod.isAvailable !== false ? (
+                              <>
+                                <Smartphone size={12} />
+                                <span>Activo</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff size={12} />
+                                <span>Oculto</span>
+                              </>
+                            )}
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                          <button
+                            onClick={() => handleToggleFeaturedWhatsApp(prod)}
+                            className={`p-1.5 rounded-xl border transition active:scale-95 ${
+                              prod.isFeaturedWhatsApp
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-300 bg-[#202c33] border-slate-700/60'
+                            }`}
+                            title={prod.isFeaturedWhatsApp ? 'Destacado en Menú de Bienvenida de WhatsApp' : 'Click para destacar en Menú de Bienvenida'}
+                          >
+                            <Star size={14} fill={prod.isFeaturedWhatsApp ? 'currentColor' : 'none'} />
+                          </button>
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenStockModal(prod)}
+                              className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-sky-400 rounded-lg transition"
+                              title="Ajuste rápido de stock"
+                            >
+                              <Boxes className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditModal(prod)}
+                              className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-emerald-400 rounded-lg transition"
+                              title="Editar producto, precio y PLU"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(prod.id)}
+                              className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-rose-400 rounded-lg transition"
+                              title="Eliminar producto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -386,97 +874,156 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
         ) : (
           /* VISTA EN FORMATO CUADRÍCULA / TARJETAS */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map(prod => (
-              <div
-                key={prod.id}
-                className="group relative bg-[#111b21] hover:bg-[#182229] border border-[#222e35] hover:border-emerald-500/40 rounded-2xl p-4 flex flex-col justify-between transition shadow-md hover:shadow-xl hover:shadow-emerald-500/5"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-[#202c33] text-emerald-400 border border-emerald-500/20">
-                      {prod.category || 'General'}
-                    </span>
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
+            {filteredProducts.map(prod => {
+              const plu = prod.plu || (prod.barcode ? prod.barcode.slice(-4) : '2001');
+              const barcode = prod.barcode || `779${plu.padStart(4, '0')}000001`;
+
+              return (
+                <div
+                  key={prod.id}
+                  className="group relative bg-[#111b21] hover:bg-[#182229] border border-[#222e35] hover:border-emerald-500/40 rounded-2xl p-4 flex flex-col justify-between transition shadow-md hover:shadow-xl hover:shadow-emerald-500/5"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
                       <button
-                        onClick={() => handleOpenEditModal(prod)}
-                        className="p-1 hover:bg-[#202c33] text-slate-400 hover:text-emerald-400 rounded-lg transition"
-                        title="Editar"
+                        onClick={() => copyToClipboard(plu, 'plu')}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono font-black text-[11px] transition"
+                        title="Click para copiar PLU"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        <Tag className="w-3 h-3 text-emerald-400" />
+                        <span>PLU {plu}</span>
+                        {copiedPlu === plu && <Check className="w-3 h-3 text-emerald-300 ml-0.5" />}
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleToggleFeaturedWhatsApp(prod)}
+                          className={`p-1 rounded-lg border transition ${
+                            prod.isFeaturedWhatsApp
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'text-slate-600 hover:text-slate-400 border-transparent'
+                          }`}
+                          title="Destacar en menú de bienvenida"
+                        >
+                          <Star size={13} fill={prod.isFeaturedWhatsApp ? 'currentColor' : 'none'} />
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleWhatsAppAvailability(prod)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition ${
+                            prod.isAvailable !== false
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                          }`}
+                        >
+                          {prod.isAvailable !== false ? 'WhatsApp' : 'Oculto'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <h3 className="font-bold text-white text-sm group-hover:text-emerald-400 transition-colors">
+                      {prod.name}
+                    </h3>
+                    {prod.description && (
+                      <p className="text-xs text-slate-400 line-clamp-2 mt-1">{prod.description}</p>
+                    )}
+
+                    {/* Badge de Stock en Tarjeta */}
+                    <div className="mt-2.5">
+                      {prod.stockControl ? (
+                        <button
+                          onClick={() => handleOpenStockModal(prod)}
+                          className={`w-full flex items-center justify-between px-2.5 py-1 rounded-xl text-xs font-bold border transition ${
+                            (prod.stockQuantity ?? prod.stock ?? 0) <= 0
+                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                              : (prod.stockQuantity ?? prod.stock ?? 0) <= (prod.stockMinAlert || 5)
+                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                          }`}
+                          title="Click para ajustar stock o inventario físico"
+                        >
+                          <span className="flex items-center gap-1">
+                            <Boxes size={12} />
+                            <span>Stock: {prod.stockQuantity ?? prod.stock ?? 0} {prod.unit || 'kg'}</span>
+                          </span>
+                          <span className="text-[10px] underline">Ajustar</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenStockModal(prod)}
+                          className="w-full flex items-center justify-between px-2.5 py-1 rounded-xl text-xs text-slate-400 bg-slate-800/60 border border-slate-700/60 hover:text-white transition"
+                          title="Click para activar control de stock"
+                        >
+                          <span>Stock: Ilimitado</span>
+                          <span className="text-[10px] text-emerald-400 underline">+ Activar</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800/80 mt-3 flex items-center justify-between">
+                    <div>
+                      <span className="text-base font-black text-emerald-400">
+                        ${Number(prod.price).toLocaleString()}
+                      </span>
+                      <span className="text-xs text-slate-400 ml-1">/{prod.unit || 'kg'}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenStockModal(prod)}
+                        className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-sky-400 rounded-lg transition"
+                        title="Ajuste rápido de stock"
+                      >
+                        <Boxes className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDuplicateProduct(prod.id)}
-                        className="p-1 hover:bg-[#202c33] text-slate-400 hover:text-sky-400 rounded-lg transition"
-                        title="Duplicar"
+                        onClick={() => handleOpenEditModal(prod)}
+                        className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-emerald-400 rounded-lg transition"
+                        title="Editar producto"
                       >
-                        <Copy className="w-3.5 h-3.5" />
+                        <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteProduct(prod.id)}
-                        className="p-1 hover:bg-[#202c33] text-slate-400 hover:text-rose-400 rounded-lg transition"
-                        title="Eliminar"
+                        className="p-1.5 hover:bg-[#202c33] text-slate-400 hover:text-rose-400 rounded-lg transition"
+                        title="Eliminar producto"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
-
-                  <h3 className="text-sm font-bold text-white mb-1.5 line-clamp-1">{prod.name}</h3>
-                  <p className="text-xs text-slate-400 line-clamp-2 mb-3 leading-relaxed">
-                    {prod.description || 'Sin descripción adicional'}
-                  </p>
                 </div>
-
-                <div className="pt-3 border-t border-[#222e35] flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-500 block font-medium">Precio</span>
-                    <div className="text-base font-extrabold text-emerald-400 flex items-baseline gap-0.5">
-                      <span>${Number(prod.price).toLocaleString()}</span>
-                      <span className="text-[10px] text-slate-400 font-normal">/{prod.unit || 'kg'}</span>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-500 block font-medium">Estado</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      prod.isAvailable !== false
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                    }`}>
-                      {prod.isAvailable !== false ? 'Disponible' : 'Agotado'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* Modal de Crear / Editar Producto */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#111b21] border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="px-5 py-4 border-b border-[#222e35] flex items-center justify-between bg-[#182229]">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-emerald-400" />
-                {editingProduct ? 'Editar Producto' : 'Nuevo Producto / Corte'}
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#111b21] border border-[#222e35] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-[#222e35] flex items-center justify-between">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-emerald-400" />
+                {editingProduct ? 'Editar Producto & Código PLU' : 'Nuevo Producto en Catálogo'}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-1 hover:bg-[#202c33] text-slate-400 hover:text-white rounded-lg transition"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="p-5 space-y-3.5">
+            <form onSubmit={handleSaveProduct} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Nombre del Corte / Producto *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ej: Costilla de Novillito, Vacío, Matambre..."
+                  placeholder="Ej: Tapa de Cuadril Seleccionada"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
@@ -493,15 +1040,19 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                   >
                     {Array.from(new Set([
                       'Parrilla',
+                      'Parrilla y Horno',
                       'Cortes Premium',
-                      'Horno y Olla',
-                      'Milanesas y Preparados',
-                      'Achuras y Embutidos',
-                      'Comidas Diarias',
-                      'Combos y Promociones',
-                      'Bebidas & Almacén',
-                      'General',
-                      ...products.map(p => p.category).filter(Boolean)
+                      'Cerdo',
+                      'Cerdo y Parrilla',
+                      'Cortes Tradicionales',
+                      'Embutidos',
+                      'Achuras',
+                      'Diario y Preparados',
+                      'Pollo',
+                      'Almacén Parrillero',
+                      'Bebidas',
+                      'Combos en Oferta',
+                      'General'
                     ])).map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
@@ -533,7 +1084,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                     type="number"
                     step="0.01"
                     required
-                    placeholder="7800"
+                    placeholder="12800"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
@@ -544,7 +1095,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Stock Estimado</label>
                   <input
                     type="number"
-                    placeholder="50"
+                    placeholder="100"
                     value={formData.stock}
                     onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
@@ -555,27 +1106,105 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                    <Barcode size={13} className="text-emerald-400" />
-                    Código de Barras (EAN / Pistola)
+                    <Tag size={13} className="text-emerald-400" />
+                    Código PLU (Balanza) *
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: 7791234567890"
+                    required
+                    placeholder="Ej: 2001"
+                    value={formData.plu}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setFormData({ 
+                        ...formData, 
+                        plu: val,
+                        barcode: val ? `779${val.padStart(4, '0')}000001` : formData.barcode,
+                        sku: val ? `PLU-${val}` : formData.sku
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-[#202c33] border border-emerald-500/40 rounded-xl text-xs text-emerald-400 font-mono font-bold placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                    <Barcode size={13} className="text-slate-400" />
+                    Código de Barras (EAN-13)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 7792001000001"
                     value={formData.barcode}
                     onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Código SKU / Referencia</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: CORTE-01"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                  />
+              {/* Modalidad de Venta & Estimación de Piezas por Kilo */}
+              <div className="p-3.5 bg-[#182229] border border-slate-700/80 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <span>⚖️</span> Modalidad de Venta & Piezas por Kilo
+                  </span>
+                  <span className="text-[10px] text-slate-400">Para clientes que piden por unidad</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Unidades / kg
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="Ej: 8 (chorizos)"
+                      value={formData.unitsPerKg}
+                      onChange={(e) => {
+                        const upk = e.target.value;
+                        const p = Number(formData.price) || 0;
+                        const calculatedWeight = upk ? Math.round(1000 / Number(upk)) : '';
+                        const calculatedUnitPrice = (upk && p) ? Math.round(p / Number(upk)) : '';
+                        setFormData({
+                          ...formData,
+                          unitsPerKg: upk,
+                          unitWeightGrams: calculatedWeight,
+                          unitPrice: calculatedUnitPrice
+                        });
+                      }}
+                      className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Peso Estimado (g)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Ej: 125g"
+                      value={formData.unitWeightGrams}
+                      onChange={(e) => setFormData({ ...formData, unitWeightGrams: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Precio sugerido ($/un)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Ej: $625"
+                      value={formData.unitPrice}
+                      onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-emerald-400 font-bold placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-400 italic">
+                  💡 Si el cliente pide ej: "6 chorizos", la IA calculará automáticamente ~0.75 kg (6 / 8 un/kg).
                 </div>
               </div>
 
@@ -583,24 +1212,165 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Descripción & Recomendaciones de Cocina</label>
                 <textarea
                   rows={2}
-                  placeholder="Ej: Corte tierno con grasa moderada. Ideal para asar a fuego lento o al horno..."
+                  placeholder="Ej: Corte tierno con cobertura de grasa ideal para asar a fuego lento o al horno..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none"
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="isAvailable"
-                  checked={formData.isAvailable}
-                  onChange={(e) => setFormData({ ...formData, isAvailable: e.target.checked })}
-                  className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 bg-[#202c33]"
-                />
-                <label htmlFor="isAvailable" className="text-xs font-medium text-slate-300 cursor-pointer">
-                  Producto disponible para venta inmediata
+              {/* Control de Stock Detallado (Opcional) */}
+              <div className="p-3.5 bg-[#182229] border border-slate-700/80 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Boxes className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <span className="text-xs font-bold text-white">Control de Stock Detallado</span>
+                      <span className="text-[10px] text-slate-400 block">Descuento automático al vender y alertas de reposición</span>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.stockControl)}
+                      onChange={(e) => setFormData({ ...formData, stockControl: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                {formData.stockControl && (
+                  <div className="pt-2 border-t border-slate-700/60 grid grid-cols-3 gap-2 animate-in fade-in duration-150">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Stock Actual ({formData.unit || 'kg'})
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="Ej: 50"
+                        value={formData.stockQuantity !== undefined ? formData.stockQuantity : formData.stock}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setFormData({ ...formData, stockQuantity: val, stock: val });
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-bold placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Alerta Mínima
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        placeholder="Ej: 5"
+                        value={formData.stockMinAlert ?? 5}
+                        onChange={(e) => setFormData({ ...formData, stockMinAlert: Number(e.target.value) })}
+                        className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-amber-400 font-bold placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div className="flex flex-col justify-between">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Venta s/ stock
+                      </label>
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={formData.allowBackorder !== false}
+                          onChange={(e) => setFormData({ ...formData, allowBackorder: e.target.checked })}
+                          className="rounded text-emerald-500 focus:ring-0 bg-slate-800 border-slate-700"
+                        />
+                        <span>Permitir</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Imagen del Producto desde Galería WebP */}
+              <div className="p-3 bg-[#182229] border border-slate-700/60 rounded-2xl space-y-2">
+                <label className="block text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span>Foto del Producto (Galería WebP)</span>
+                  {formData.imageUrl && <span className="text-[10px] text-emerald-400 font-semibold">✓ Imagen vinculada</span>}
                 </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center relative shrink-0">
+                    {formData.imageUrl ? (
+                      <img src={formData.imageUrl} alt="preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon size={20} className="text-slate-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsMediaGalleryPickerOpen(true)}
+                        className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                      >
+                        <ImageIcon size={13} />
+                        <span>{formData.imageUrl ? 'Cambiar Imagen' : 'Elegir de Galería'}</span>
+                      </button>
+                      {formData.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, imageUrl: '' })}
+                          className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-xl transition"
+                          title="Quitar imagen"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="O pegar URL directa de imagen..."
+                      value={formData.imageUrl || ''}
+                      onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                      className="w-full px-2.5 py-1 bg-[#111b21] border border-slate-700 rounded-lg text-[11px] text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 truncate"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label htmlFor="isAvailable" className="text-xs font-bold text-white cursor-pointer flex items-center gap-1.5">
+                      <Smartphone size={13} className="text-emerald-400" />
+                      Habilitar en WhatsApp
+                    </label>
+                    <p className="text-[10px] text-slate-400">Si se desactiva, el asesor virtual no lo cotizará ni lo incluirá en ventas.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="isAvailable"
+                    checked={Boolean(formData.isAvailable)}
+                    onChange={(e) => setFormData({ ...formData, isAvailable: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 bg-[#202c33]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                  <div>
+                    <label htmlFor="isFeaturedWhatsApp" className="text-xs font-bold text-amber-300 cursor-pointer flex items-center gap-1.5">
+                      <Star size={13} className="text-amber-400" fill="currentColor" />
+                      Destacar en Menú Principal (Top 8)
+                    </label>
+                    <p className="text-[10px] text-slate-400">Aparecerá en la lista inicial de 8 ofertas que se le presentan al cliente.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="isFeaturedWhatsApp"
+                    checked={Boolean(formData.isFeaturedWhatsApp)}
+                    onChange={(e) => setFormData({ ...formData, isFeaturedWhatsApp: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-700 text-amber-500 focus:ring-amber-500 bg-[#202c33]"
+                  />
+                </div>
               </div>
 
               <div className="pt-3 border-t border-[#222e35] flex items-center justify-end gap-2">
@@ -622,6 +1392,254 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
           </div>
         </div>
       )}
+
+      {/* Modal de Importación Multi-Formato (Excel .xlsx / .xls / .csv) */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold">
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Importar Catálogo de Productos</h3>
+                  <p className="text-xs text-slate-400">Compatible con Excel (.xlsx, .xls) y CSV (Cod.;Producto;Precio)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Drop Zone / File Input Area */}
+            <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/80 rounded-2xl p-6 text-center space-y-3 bg-[#111b21]/60 transition group">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".xlsx,.xls,.csv,.tsv,.json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                className="hidden"
+              />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto group-hover:scale-110 transition">
+                <Upload size={24} />
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={syncing}
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition shadow-md shadow-emerald-500/20"
+                >
+                  {syncing ? 'Procesando archivo...' : 'Seleccionar Archivo Excel o CSV'}
+                </button>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Formatos soportados: <b>.xlsx</b>, <b>.xls</b>, <b>.csv</b>, <b>.tsv</b>, <b>.json</b>
+                </p>
+              </div>
+            </div>
+
+            {/* Options */}
+            <div className="bg-[#111b21] p-3.5 rounded-2xl border border-slate-800 space-y-2 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={importReplaceAll}
+                  onChange={(e) => setImportReplaceAll(e.target.checked)}
+                  className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 bg-[#202c33]"
+                />
+                <span className="text-slate-300 font-semibold">
+                  Reemplazar catálogo completo (borrar productos anteriores e importar nuevos)
+                </span>
+              </label>
+              <p className="text-[10px] text-slate-500 italic pl-6">
+                Si no se marca, los productos existentes se actualizarán y se agregarán los nuevos sin borrar nada.
+              </p>
+            </div>
+
+            {/* Format Hint */}
+            <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-[11px] text-purple-300 space-y-1">
+              <div className="font-bold flex items-center gap-1">
+                <span>📋 Formato de Columnas Aceptado:</span>
+              </div>
+              <p className="font-mono text-[10px] text-purple-200 bg-purple-950/40 p-1.5 rounded">
+                Cod.;Producto;Precio
+              </p>
+              <p className="text-[10px] text-purple-400">
+                Los códigos numéricos de hasta 5 dígitos se asignan automáticamente como <b>PLU</b>, los de 13 dígitos como <b>Código de Barras</b> y los alfanuméricos como <b>SKU</b>.
+              </p>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => handleExport('xlsx')}
+                className="text-[11px] text-slate-400 hover:text-emerald-400 flex items-center gap-1 transition"
+              >
+                <Download size={12} /> Descargar plantilla Excel (.xlsx)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-[#111b21] hover:bg-[#202c33] text-slate-300 text-xs font-semibold border border-slate-800"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Ajuste Rápido de Stock e Inventario */}
+      {isStockModalOpen && stockModalProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold">
+                  <Boxes size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Ajuste de Stock e Inventario</h3>
+                  <p className="text-xs text-slate-400">PLU {stockModalProduct.plu} — {stockModalProduct.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsStockModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStockAdjustment} className="space-y-4 text-xs">
+              {/* Switch de control de stock */}
+              <div className="p-3 bg-[#111b21] rounded-2xl border border-slate-700/80 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-white block">Control de Stock Activo</span>
+                  <span className="text-[10px] text-slate-400">Descuenta automáticamente en cada venta</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={stockModalControl}
+                    onChange={(e) => setStockModalControl(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+
+              {/* Cantidad de Stock Actual */}
+              <div className="space-y-1.5">
+                <label className="text-slate-300 font-semibold flex items-center justify-between">
+                  <span>Stock Actual Disponible:</span>
+                  <span className="text-emerald-400 font-mono font-bold">{stockModalProduct.unit || 'kg'}</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStockModalQuantity(prev => Math.max(0, Number((Number(prev) - 5).toFixed(1))))}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700"
+                  >
+                    -5
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockModalQuantity(prev => Math.max(0, Number((Number(prev) - 1).toFixed(1))))}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700"
+                  >
+                    -1
+                  </button>
+                  <input
+                    type="number"
+                    step="0.1"
+                    required
+                    value={stockModalQuantity}
+                    onChange={(e) => setStockModalQuantity(Number(e.target.value))}
+                    className="flex-1 text-center py-2 bg-[#111b21] border border-slate-700 rounded-xl text-white font-extrabold text-base focus:outline-none focus:border-sky-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setStockModalQuantity(prev => Number((Number(prev) + 1).toFixed(1)))}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700"
+                  >
+                    +1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStockModalQuantity(prev => Number((Number(prev) + 10).toFixed(1)))}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-700"
+                  >
+                    +10
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Alerta Mínima:</label>
+                  <input
+                    type="number"
+                    value={stockModalMinAlert}
+                    onChange={(e) => setStockModalMinAlert(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-amber-400 font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-semibold">Venta s/ stock:</label>
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={stockModalAllowBackorder}
+                        onChange={(e) => setStockModalAllowBackorder(e.target.checked)}
+                        className="rounded text-emerald-500 bg-slate-800 border-slate-700"
+                      />
+                      <span>Permitir venta</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsStockModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-[#111b21] text-slate-400 hover:text-white border border-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingStock}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold transition disabled:opacity-50"
+                >
+                  <Check size={14} />
+                  {isUpdatingStock ? 'Guardando...' : 'Guardar Ajuste'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Media Gallery Picker Modal */}
+      <MediaGalleryModal
+        isOpen={isMediaGalleryPickerOpen}
+        onClose={() => setIsMediaGalleryPickerOpen(false)}
+        onSelectImage={(url) => setFormData(prev => ({ ...prev, imageUrl: url }))}
+        selectedImageUrl={formData.imageUrl}
+      />
+
     </div>
   );
 }

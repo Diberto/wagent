@@ -26,7 +26,22 @@ import {
   AlertCircle,
   Trash2,
   CreditCard,
-  Copy
+  Copy,
+  Globe,
+  DollarSign,
+  MapPin,
+  User,
+  Store,
+  Filter,
+  Plus,
+  CheckSquare,
+  Layers,
+  AlertTriangle,
+  Phone,
+  Clock,
+  Compass,
+  SlidersHorizontal,
+  ArrowRight
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 
@@ -311,12 +326,138 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
+  // Filtros y Condiciones de Aceptación de Pedidos
+  const [orderFiltersConfig, setOrderFiltersConfig] = useState({
+    enabled: true,
+    mode: 'all',
+    rules: []
+  });
+  const [isLoadingFilters, setIsLoadingFilters] = useState(false);
+  const [isSavingFilters, setIsSavingFilters] = useState(false);
+  const [filterSaveSuccess, setFilterSaveSuccess] = useState(false);
+  const [testFilterForm, setTestFilterForm] = useState({
+    phone: '+5493516262475',
+    address: 'Av. Rafael Núñez 4500, Cerro de las Rosas, Córdoba',
+    amount: '25000',
+    distance: '6'
+  });
+  const [testFilterResult, setTestFilterResult] = useState(null);
+  const [isEvaluatingFilter, setIsEvaluatingFilter] = useState(false);
+  const [editingRuleIndex, setEditingRuleIndex] = useState(null);
+
+  const fetchOrderFilters = async () => {
+    setIsLoadingFilters(true);
+    try {
+      const res = await fetch('/api/order-filters');
+      if (res.ok) {
+        const data = await res.json();
+        setOrderFiltersConfig(data);
+      }
+    } catch (err) {
+      console.error('Error cargando filtros de pedidos:', err);
+    } finally {
+      setIsLoadingFilters(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'orderFilters' || isOpen) {
+      fetchOrderFilters();
+    }
+  }, [activeTab, isOpen]);
+
+  const handleSaveOrderFilters = async () => {
+    setIsSavingFilters(true);
+    setFilterSaveSuccess(false);
+    try {
+      const res = await fetch('/api/order-filters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderFiltersConfig)
+      });
+      if (res.ok) {
+        setFilterSaveSuccess(true);
+        setTimeout(() => setFilterSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error('Error guardando filtros de pedidos:', err);
+    } finally {
+      setIsSavingFilters(false);
+    }
+  };
+
+  const handleEvaluateFilter = async () => {
+    setIsEvaluatingFilter(true);
+    setTestFilterResult(null);
+    try {
+      const res = await fetch('/api/order-filters/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: testFilterForm.phone,
+          address: testFilterForm.address,
+          totalAmount: Number(testFilterForm.amount || 0),
+          distanceKm: Number(testFilterForm.distance || 0)
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTestFilterResult(data);
+      }
+    } catch (err) {
+      console.error('Error evaluando filtros:', err);
+    } finally {
+      setIsEvaluatingFilter(false);
+    }
+  };
+
+  const handleToggleRule = (ruleId) => {
+    setOrderFiltersConfig(prev => ({
+      ...prev,
+      rules: prev.rules.map(r => r.id === ruleId ? { ...r, enabled: !r.enabled } : r)
+    }));
+  };
+
+  const handleUpdateRule = (ruleId, updates) => {
+    setOrderFiltersConfig(prev => ({
+      ...prev,
+      rules: prev.rules.map(r => r.id === ruleId ? { ...r, ...updates } : r)
+    }));
+  };
+
+  const handleAddRule = () => {
+    const newRule = {
+      id: `rule_custom_${Date.now()}`,
+      name: 'Nueva Condición Personalizada',
+      type: 'location',
+      operator: 'contains',
+      value: 'Córdoba',
+      isPositive: true,
+      action: 'pickup_only',
+      customMessage: 'Por favor coordinar retiro por una de nuestras sucursales.',
+      enabled: true
+    };
+    setOrderFiltersConfig(prev => ({
+      ...prev,
+      rules: [...prev.rules, newRule]
+    }));
+    setEditingRuleIndex(orderFiltersConfig.rules.length);
+  };
+
+  const handleDeleteRule = (ruleId) => {
+    setOrderFiltersConfig(prev => ({
+      ...prev,
+      rules: prev.rules.filter(r => r.id !== ruleId)
+    }));
+  };
+
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
+    { id: 'orderFilters', label: 'Filtros de Pedidos', icon: Filter },
     { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
     { id: 'voice', label: 'Voz & Síntesis (TTS)', icon: Volume2 },
     { id: 'automation', label: 'Llamadas & Auto-Respuestas', icon: PhoneCall },
-    { id: 'prompt', label: 'Prompt del Agente', icon: Sliders },
+    { id: 'prompt', label: 'Prompt & Contexto Regional', icon: Sliders },
     { id: 'backups', label: 'Respaldos & Seguridad', icon: ShieldCheck },
     { id: 'updates', label: 'Actualizaciones GitHub', icon: RefreshCw },
   ];
@@ -581,6 +722,393 @@ export default function SettingsModal({ isOpen, onClose }) {
             </div>
           )}
 
+          {/* TAB: FILTROS Y CONDICIONES DE PEDIDOS */}
+          {activeTab === 'orderFilters' && (
+            <div className="space-y-4 animate-in fade-in">
+              {/* Header Card con Switch Maestro */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                      <Filter size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        Filtros y Condiciones de Aceptación de Pedidos
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                          {orderFiltersConfig.rules?.filter(r => r.enabled).length || 0} Reglas Activas
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Reglas combinables positivas (+) y negativas (-) por ubicación, distancia, prefijos de teléfono, montos y horarios.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(orderFiltersConfig.enabled)}
+                        onChange={(e) => setOrderFiltersConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-slate-300">
+                  <span className="text-[11px] text-slate-400">
+                    💡 Si el pedido no cumple las condiciones para delivery a domicilio, Carlos invitará amablemente al cliente a <b>retirar por una de las sucursales</b> o solicitará revisión de un operador humano.
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <button
+                      type="button"
+                      onClick={handleAddRule}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition flex items-center gap-1 shadow-sm"
+                    >
+                      <Plus size={13} />
+                      <span>Nueva Regla</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveOrderFilters}
+                      disabled={isSavingFilters}
+                      className="px-3 py-1.5 rounded-xl bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 text-emerald-400 text-xs font-bold transition flex items-center gap-1"
+                    >
+                      <Save size={13} />
+                      <span>{isSavingFilters ? 'Guardando...' : filterSaveSuccess ? '¡Guardado!' : 'Guardar Reglas'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista de Reglas Configuradas */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <SlidersHorizontal size={14} className="text-emerald-400" />
+                    Reglas y Restricciones ({orderFiltersConfig.rules?.length || 0})
+                  </span>
+                </div>
+
+                {orderFiltersConfig.rules?.map((rule, idx) => {
+                  const isExpanded = editingRuleIndex === idx;
+
+                  return (
+                    <div
+                      key={rule.id || idx}
+                      className={`p-3.5 rounded-2xl border transition-all ${
+                        rule.enabled
+                          ? 'bg-[#182229] border-slate-700/80 hover:border-slate-600'
+                          : 'bg-[#111b21]/70 border-slate-800/80 opacity-60'
+                      }`}
+                    >
+                      {/* Fila Principal de la Regla */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                          <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                            rule.type === 'location' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' :
+                            rule.type === 'distance' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' :
+                            rule.type === 'phone_prefix' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                            rule.type === 'min_amount' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                            'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                          }`}>
+                            {rule.type === 'location' && <MapPin size={15} />}
+                            {rule.type === 'distance' && <Compass size={15} />}
+                            {rule.type === 'phone_prefix' && <Phone size={15} />}
+                            {rule.type === 'min_amount' && <DollarSign size={15} />}
+                            {rule.type === 'business_hours' && <Clock size={15} />}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                              <span className="text-xs font-bold text-white truncate">{rule.name}</span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
+                                rule.isPositive
+                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                              }`}>
+                                {rule.isPositive ? '+ Positiva (Permite)' : '- Negativa (Restringe)'}
+                              </span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
+                                rule.action === 'pickup_only'
+                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                                  : rule.action === 'reject'
+                                  ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                                  : 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                              }`}>
+                                {rule.action === 'pickup_only' ? 'Ofrecer Retiro en Sucursal' :
+                                 rule.action === 'reject' ? 'Rechazar Pedido' : 'Revisión Humana'}
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] text-slate-400 line-clamp-1">
+                              <b className="text-slate-300 font-mono">{rule.operator}</b>: {String(rule.value)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botones de Acción de Regla */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setEditingRuleIndex(isExpanded ? null : idx)}
+                            className="px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-[11px] font-bold text-slate-300 transition"
+                          >
+                            {isExpanded ? 'Ocultar' : 'Editar'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRule(rule.id)}
+                            className={`p-1.5 rounded-lg border transition ${
+                              rule.enabled
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                : 'bg-slate-800 text-slate-500 border-slate-700'
+                            }`}
+                            title={rule.enabled ? 'Desactivar regla' : 'Activar regla'}
+                          >
+                            <CheckSquare size={13} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRule(rule.id)}
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition"
+                            title="Eliminar regla"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Panel de Edición Desplegable */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-3 text-xs animate-in fade-in">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">Nombre / Título de la Condición</label>
+                            <input
+                              type="text"
+                              value={rule.name}
+                              onChange={(e) => handleUpdateRule(rule.id, { name: e.target.value })}
+                              className="w-full px-3 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Tipo de Parámetro</label>
+                              <select
+                                value={rule.type}
+                                onChange={(e) => handleUpdateRule(rule.id, { type: e.target.value })}
+                                className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white focus:outline-none focus:border-emerald-500 text-xs"
+                              >
+                                <option value="phone_prefix">Prefijo Telefónico (Teléfono)</option>
+                                <option value="location">Ubicación / Barrio (Dirección)</option>
+                                <option value="distance">Distancia Máxima en Km</option>
+                                <option value="min_amount">Monto Mínimo de Pedido ($)</option>
+                                <option value="business_hours">Horario de Recepción</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Operador Lógico</label>
+                              <select
+                                value={rule.operator}
+                                onChange={(e) => handleUpdateRule(rule.id, { operator: e.target.value })}
+                                className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white focus:outline-none focus:border-emerald-500 text-xs font-mono"
+                              >
+                                <option value="contains">Contiene (contains)</option>
+                                <option value="not_contains">No contiene (not_contains)</option>
+                                <option value="starts_with">Empieza con (starts_with)</option>
+                                <option value="less_than_or_equal">Menor o igual que (≤)</option>
+                                <option value="greater_than_or_equal">Mayor o igual que (≥)</option>
+                                <option value="in_range">En rango (in_range)</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-300 mb-1">Acción al No Cumplir</label>
+                              <select
+                                value={rule.action}
+                                onChange={(e) => handleUpdateRule(rule.id, { action: e.target.value })}
+                                className="w-full px-2.5 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white focus:outline-none focus:border-emerald-500 text-xs"
+                              >
+                                <option value="pickup_only">Ofrecer Retiro en Sucursal</option>
+                                <option value="reject">Rechazar Pedido / Sin Entrega</option>
+                                <option value="require_human_review">Derivar a Operador Humano</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                                Valor de Referencia (Texto, Números o Lista separada por comas)
+                              </label>
+                              <input
+                                type="text"
+                                value={rule.value}
+                                onChange={(e) => handleUpdateRule(rule.id, { value: e.target.value })}
+                                placeholder="Ej: Cerro, Urca, Villa Belgrano o +54, 351 o 12"
+                                className="w-full px-3 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                                Comportamiento Condicional
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateRule(rule.id, { isPositive: true })}
+                                  className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition ${
+                                    rule.isPositive
+                                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                                      : 'bg-[#111b21] text-slate-400 border-slate-800'
+                                  }`}
+                                >
+                                  + Positiva (Permite)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateRule(rule.id, { isPositive: false })}
+                                  className={`py-1.5 px-2 rounded-xl text-xs font-bold border transition ${
+                                    !rule.isPositive
+                                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                                      : 'bg-[#111b21] text-slate-400 border-slate-800'
+                                  }`}
+                                >
+                                  - Negativa (Bloquea)
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                              Mensaje Personalizado de Respuesta al Cliente
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={rule.customMessage}
+                              onChange={(e) => handleUpdateRule(rule.id, { customMessage: e.target.value })}
+                              placeholder="Ej: Para tu zona te ofrecemos retiro inmediato en Sucursal Urca..."
+                              className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-emerald-500 resize-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 🧪 PROBADOR DE CONDICIONES EN VIVO */}
+              <div className="p-4 bg-[#182229] border border-slate-700/80 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🧪</span>
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Probador de Condiciones en Vivo
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Prueba cualquier combinación de teléfono, dirección y monto para verificar si el motor aprueba el pedido.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Teléfono WhatsApp</label>
+                    <input
+                      type="text"
+                      value={testFilterForm.phone}
+                      onChange={(e) => setTestFilterForm({ ...testFilterForm, phone: e.target.value })}
+                      placeholder="+54 9 351 626-2475"
+                      className="w-full px-3 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Dirección / Barrio</label>
+                    <input
+                      type="text"
+                      value={testFilterForm.address}
+                      onChange={(e) => setTestFilterForm({ ...testFilterForm, address: e.target.value })}
+                      placeholder="Av. Menéndez Pidal 3575, Urca, Córdoba"
+                      className="w-full px-3 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Monto Total ($)</label>
+                    <input
+                      type="number"
+                      value={testFilterForm.amount}
+                      onChange={(e) => setTestFilterForm({ ...testFilterForm, amount: e.target.value })}
+                      placeholder="39999"
+                      className="w-full px-3 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white font-bold text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Distancia Estimada (km)</label>
+                    <input
+                      type="number"
+                      value={testFilterForm.distance}
+                      onChange={(e) => setTestFilterForm({ ...testFilterForm, distance: e.target.value })}
+                      placeholder="6"
+                      className="w-full px-3 py-1.5 bg-[#111b21] border border-slate-700 rounded-xl text-white font-bold text-xs focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleEvaluateFilter}
+                  disabled={isEvaluatingFilter}
+                  className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition active:scale-95 disabled:opacity-50"
+                >
+                  <Sparkles size={14} className={isEvaluatingFilter ? 'animate-spin' : ''} />
+                  <span>{isEvaluatingFilter ? 'Evaluando Reglas...' : 'Evaluar Condiciones del Pedido'}</span>
+                </button>
+
+                {/* Resultado de la Prueba */}
+                {testFilterResult && (
+                  <div className={`p-3.5 rounded-2xl border text-xs space-y-2 animate-in fade-in ${
+                    testFilterResult.allowed
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : testFilterResult.action === 'pickup_only'
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  }`}>
+                    <div className="flex items-center justify-between font-bold text-sm">
+                      <span className="flex items-center gap-2">
+                        {testFilterResult.allowed ? '✅ PEDIDO APROBADO PARA DELIVERY' : `⚠️ CONDICIÓN APLICADA: ${testFilterResult.action?.toUpperCase()}`}
+                      </span>
+                      <span className="text-[11px] opacity-80 font-mono">
+                        {testFilterResult.ruleMatched ? `Regla: ${testFilterResult.ruleMatched}` : 'Todas las reglas cumplidas'}
+                      </span>
+                    </div>
+
+                    <div className="text-slate-200">
+                      <b>Mensaje que responderá Carlos:</b>
+                      <div className="mt-1 p-2 bg-[#111b21] rounded-xl border border-slate-800 text-slate-300 italic text-[11px]">
+                        "{testFilterResult.message}"
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* TAB MERCADO PAGO */}
           {activeTab === 'mercadopago' && (
             <div className="space-y-4 animate-in fade-in">
@@ -696,21 +1224,91 @@ export default function SettingsModal({ isOpen, onClose }) {
 
                 {/* Sandbox Test Cards Cheat Sheet */}
                 {settings.mercadopagoMode !== 'production' && (
-                  <div className="p-3 bg-[#111b21] border border-amber-500/30 rounded-2xl space-y-2 text-xs">
-                    <div className="flex items-center gap-1.5 text-amber-400 font-bold">
-                      <span>💳 Tarjetas de Prueba para Testear en Sandbox:</span>
+                  <div className="p-3 bg-[#111b21] border border-amber-500/30 rounded-2xl space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-amber-400 font-bold">
+                        💳 Tarjetas Oficiales de Prueba (Sandbox Argentina):
+                      </span>
+                      <a
+                        href="https://www.mercadopago.com.ar/developers/es/docs/your-integrations/test/cards"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#009ee3] hover:underline flex items-center gap-1"
+                      >
+                        Ver Documentación ↗
+                      </a>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
-                      <div className="p-2 rounded-xl bg-[#182229] border border-slate-800 space-y-0.5">
-                        <div className="text-slate-400 font-sans font-bold">Mastercard Aprobada:</div>
-                        <div className="text-emerald-400 font-bold select-all">5031 7557 3453 0451</div>
-                        <div className="text-slate-400">Vto: 11/27 • CVV: 123 • DNI: 12345678</div>
+                      <div className="p-2.5 rounded-xl bg-[#182229] border border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between font-sans">
+                          <span className="text-emerald-400 font-bold">Mastercard (Aprobado)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('5031755734530451');
+                              alert('Número copiado: 5031755734530451');
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold hover:bg-emerald-500/30"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                        <div className="text-white font-bold select-all">5031 7557 3453 0451</div>
+                        <div className="text-slate-400 text-[10px]">Titular: APRO • Vto: 11/28 • CVV: 123 • DNI: 12345678</div>
                       </div>
 
-                      <div className="p-2 rounded-xl bg-[#182229] border border-slate-800 space-y-0.5">
-                        <div className="text-slate-400 font-sans font-bold">Visa Aprobada:</div>
-                        <div className="text-sky-400 font-bold select-all">4024 0071 5200 0000</div>
-                        <div className="text-slate-400">Vto: 11/27 • CVV: 123 • DNI: 12345678</div>
+                      <div className="p-2.5 rounded-xl bg-[#182229] border border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between font-sans">
+                          <span className="text-sky-400 font-bold">Visa (Aprobado)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('4024007152000000');
+                              alert('Número copiado: 4024007152000000');
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 font-bold hover:bg-sky-500/30"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                        <div className="text-white font-bold select-all">4024 0071 5200 0000</div>
+                        <div className="text-slate-400 text-[10px]">Titular: APRO • Vto: 11/28 • CVV: 123 • DNI: 12345678</div>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-[#182229] border border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between font-sans">
+                          <span className="text-amber-400 font-bold">Visa (Fondos Insuficientes)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('4024007152000000');
+                              alert('Número copiado: 4024007152000000');
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold hover:bg-amber-500/30"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                        <div className="text-white font-bold select-all">4024 0071 5200 0000</div>
+                        <div className="text-slate-400 text-[10px]">Titular: FUND • Vto: 11/28 • CVV: 123 • DNI: 12345678</div>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-[#182229] border border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between font-sans">
+                          <span className="text-rose-400 font-bold">Visa (Rechazo Seguridad)</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('4024007152000000');
+                              alert('Número copiado: 4024007152000000');
+                            }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold hover:bg-rose-500/30"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                        <div className="text-white font-bold select-all">4024 0071 5200 0000</div>
+                        <div className="text-slate-400 text-[10px]">Titular: SECU • Vto: 11/28 • CVV: 123 • DNI: 12345678</div>
                       </div>
                     </div>
                   </div>
@@ -746,35 +1344,124 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              {/* Credenciales */}
-              <div className="space-y-3 p-4 rounded-2xl bg-[#182229] border border-slate-800">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Credenciales de la Aplicación</h4>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Access Token (Producción / Prueba)</label>
-                  <input
-                    type="password"
-                    placeholder="APP_USR-..."
-                    value={settings.mercadopagoAccessToken || ''}
-                    onChange={(e) => setSettings({ ...settings, mercadopagoAccessToken: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#009ee3]"
-                  />
+              {/* Credenciales Simultáneas: Producción y Sandbox */}
+              <div className="space-y-4 p-4 rounded-2xl bg-[#182229] border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <CreditCard size={14} className="text-[#009ee3]" />
+                    Credenciales Simultáneas de Mercado Pago
+                  </h4>
+                  <span className="text-[10px] text-slate-400">Guarda ambas credenciales y cambia de modo con un clic</span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Public Key</label>
-                  <input
-                    type="text"
-                    placeholder="APP_USR-..."
-                    value={settings.mercadopagoPublicKey || ''}
-                    onChange={(e) => setSettings({ ...settings, mercadopagoPublicKey: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-[#009ee3]"
-                  />
+                {/* 1. MODO PRODUCCIÓN */}
+                <div className="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      🚀 Credenciales de Producción (Cobros Reales)
+                    </span>
+                    {settings.mercadopagoMode === 'production' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/40">
+                        ACTIVO EN ESTE MOMENTO
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Production Access Token</label>
+                      <input
+                        type="password"
+                        placeholder="APP_USR-..."
+                        value={settings.mercadopagoAccessTokenProduction || settings.mercadopagoAccessToken || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSettings({
+                            ...settings,
+                            mercadopagoAccessTokenProduction: val,
+                            ...(settings.mercadopagoMode === 'production' ? { mercadopagoAccessToken: val } : {})
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Production Public Key</label>
+                      <input
+                        type="text"
+                        placeholder="APP_USR-..."
+                        value={settings.mercadopagoPublicKeyProduction || settings.mercadopagoPublicKey || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSettings({
+                            ...settings,
+                            mercadopagoPublicKeyProduction: val,
+                            ...(settings.mercadopagoMode === 'production' ? { mercadopagoPublicKey: val } : {})
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono"
+                      />
+                    </div>
+                  </div>
                 </div>
 
+                {/* 2. MODO SANDBOX */}
+                <div className="p-3 rounded-2xl bg-amber-950/20 border border-amber-500/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                      🧪 Credenciales de Sandbox (Modo Pruebas)
+                    </span>
+                    {settings.mercadopagoMode !== 'production' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold border border-amber-500/40">
+                        ACTIVO EN ESTE MOMENTO
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Sandbox Access Token</label>
+                      <input
+                        type="password"
+                        placeholder="TEST-..."
+                        value={settings.mercadopagoAccessTokenSandbox || (settings.mercadopagoMode === 'sandbox' ? settings.mercadopagoAccessToken : '') || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSettings({
+                            ...settings,
+                            mercadopagoAccessTokenSandbox: val,
+                            ...(settings.mercadopagoMode === 'sandbox' ? { mercadopagoAccessToken: val } : {})
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Sandbox Public Key</label>
+                      <input
+                        type="text"
+                        placeholder="TEST-..."
+                        value={settings.mercadopagoPublicKeySandbox || (settings.mercadopagoMode === 'sandbox' ? settings.mercadopagoPublicKey : '') || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSettings({
+                            ...settings,
+                            mercadopagoPublicKeySandbox: val,
+                            ...(settings.mercadopagoMode === 'sandbox' ? { mercadopagoPublicKey: val } : {})
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* IDs adicionales */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">N.° de Aplicación (App ID)</label>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">App ID</label>
                     <input
                       type="text"
                       placeholder="963262173359779"
@@ -808,29 +1495,76 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               </div>
 
-              {/* Webhook Info Box */}
-              <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl space-y-1.5 text-xs">
+              {/* Webhook & IPN Info Box */}
+              <div className="p-4 bg-[#111b21] border border-slate-800 rounded-2xl space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                  <span className="font-bold text-slate-200 flex items-center gap-1.5">
                     <CreditCard size={14} className="text-[#009ee3]" />
-                    URL de Webhook / Notificaciones IPN:
+                    Endpoints Oficiales de Webhook e IPN:
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/api/mercadopago/webhook`);
-                      alert('¡URL de Webhook copiada!');
-                    }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#202c33] text-slate-300 hover:text-white border border-slate-700 text-[11px]"
-                  >
-                    <Copy size={11} /> Copiar
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-[#009ee3] hover:underline"
+                    >
+                      Docs Webhooks ↗
+                    </a>
+                    <span className="text-slate-600">•</span>
+                    <a
+                      href="https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/ipn"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-[#009ee3] hover:underline"
+                    >
+                      Docs IPN ↗
+                    </a>
+                  </div>
                 </div>
-                <div className="p-2 rounded-xl bg-[#182229] font-mono text-[11px] text-[#009ee3] select-all truncate border border-slate-800">
-                  {window.location.origin}/api/mercadopago/webhook
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="p-2.5 rounded-xl bg-[#182229] border border-slate-800 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 font-semibold text-[11px]">Webhook URL:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/api/mercadopago/webhook`);
+                          alert('¡URL de Webhook copiada!');
+                        }}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#202c33] text-slate-300 hover:text-white border border-slate-700 text-[10px]"
+                      >
+                        <Copy size={10} /> Copiar
+                      </button>
+                    </div>
+                    <div className="font-mono text-[11px] text-[#009ee3] select-all truncate">
+                      {window.location.origin}/api/mercadopago/webhook
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#182229] border border-slate-800 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 font-semibold text-[11px]">IPN URL:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/api/mercadopago/ipn`);
+                          alert('¡URL de IPN copiada!');
+                        }}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#202c33] text-slate-300 hover:text-white border border-slate-700 text-[10px]"
+                      >
+                        <Copy size={10} /> Copiar
+                      </button>
+                    </div>
+                    <div className="font-mono text-[11px] text-emerald-400 select-all truncate">
+                      {window.location.origin}/api/mercadopago/ipn
+                    </div>
+                  </div>
                 </div>
+
                 <p className="text-[11px] text-slate-400">
-                  Al recibir un pago acreditado, WAgent actualizará automáticamente el estado del pedido a <b>En Preparación</b> y le enviará un WhatsApp de confirmación al cliente.
+                  Al recibir un pago acreditado desde Mercado Pago (vía Webhook o IPN), WAgent actualizará en tiempo real el pedido a <b>En Preparación</b> y le enviará automáticamente el mensaje de confirmación por WhatsApp al cliente.
                 </p>
               </div>
 
@@ -1207,19 +1941,172 @@ export default function SettingsModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* TAB 4: SYSTEM PROMPT */}
+          {/* TAB 4: SYSTEM PROMPT & CONTEXTO REGIONAL */}
           {activeTab === 'prompt' && (
             <div className="space-y-4">
+              
+              {/* Header & Preset Reset */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white">Contexto Regional, País & Reglas de Negocio</h4>
+                      <p className="text-[11px] text-slate-400">Personaliza la personalidad, modismos locales, moneda y país del agente</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettings({
+                        ...settings,
+                        agentName: 'Carlos',
+                        agentRole: 'Maestro Carnicero de República de la Carne',
+                        businessName: 'República de la Carne',
+                        country: 'Argentina',
+                        region: 'Córdoba Capital y Alrededores',
+                        currency: 'ARS ($)',
+                        slang: 'Cordobés / Argentino amigable y experto (¡De diez!, ¡De una!, asado, achuras, cortes del día)',
+                        businessRules: 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, pagos en efectivo, transferencia (republica.carne.mp) o Mercado Pago.',
+                        systemPrompt: `Eres Carlos, maestro carnicero y asesor comercial experto de "República de la Carne" en Córdoba, Argentina.
+Tu objetivo es asesorar a los clientes con calidez, recomendar los mejores cortes de novillito pesado y cerdo, y guiarlos fluidamente en el proceso de compra por WhatsApp.
+
+Contexto y Reglas de Negocio:
+1. País y Moneda: Argentina (Córdoba). Todos los precios son en Pesos Argentinos ($ ARS).
+2. Tono y Modismos: Amigable, cordial, experto carnicero cordobés ("¡De diez!", "¡De una!", "mostrador", "asadito", "parrilla", "ternura").
+3. Asesoramiento de Asado: Calcula 500g a 600g por persona (combinando cortes y achuras).
+4. Opciones de Entrega: Envío a Domicilio en el día o Retiro por cualquiera de nuestras 6 sucursales en Córdoba.
+5. Medios de Pago: Efectivo, Transferencia Bancaria (Alias: republica.carne.mp) o Mercado Pago (Link de pago).
+6. Desambiguación: Si el cliente pide un corte genérico con múltiples variedades (ej: cuadril, matambre, chorizos), ofrece amablemente las opciones numeradas con precios para que elija.
+7. Formato: Respuestas claras, con viñetas elegantes, listas numeradas (1️⃣, 2️⃣, 3️⃣) y precios exactos en negrita.`
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-200 border border-slate-700 transition active:scale-95"
+                    title="Restaurar valores predeterminados optimizados"
+                  >
+                    <RotateCcw size={12} className="text-emerald-400" />
+                    <span>Restaurar Predeterminado</span>
+                  </button>
+                </div>
+
+                {/* Campos de Configuración Regional */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                      <Globe size={13} className="text-emerald-400" />
+                      País & Ubicación
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.country || 'Argentina'}
+                      onChange={(e) => setSettings({ ...settings, country: e.target.value })}
+                      placeholder="ej: Argentina"
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                      <MapPin size={13} className="text-rose-400" />
+                      Región / Ciudad de Operación
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.region || 'Córdoba Capital y Alrededores'}
+                      onChange={(e) => setSettings({ ...settings, region: e.target.value })}
+                      placeholder="ej: Córdoba Capital"
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                      <DollarSign size={13} className="text-amber-400" />
+                      Moneda & Símbolo
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.currency || 'ARS ($)'}
+                      onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
+                      placeholder="ej: ARS ($) / Pesos Argentinos"
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                      <User size={13} className="text-sky-400" />
+                      Nombre del Asesor / Agente
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.agentName || 'Carlos'}
+                      onChange={(e) => setSettings({ ...settings, agentName: e.target.value })}
+                      placeholder="ej: Carlos"
+                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                    <Store size={13} className="text-purple-400" />
+                    Rol del Agente & Negocio
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.agentRole || 'Maestro Carnicero de República de la Carne'}
+                    onChange={(e) => setSettings({ ...settings, agentRole: e.target.value })}
+                    placeholder="ej: Maestro Carnicero de República de la Carne"
+                    className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    🗣️ Tono, Modismos Locales & Personalidad
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.slang || 'Cordobés / Argentino amigable y experto (¡De diez!, ¡De una!, asado, achuras, cortes del día)'}
+                    onChange={(e) => setSettings({ ...settings, slang: e.target.value })}
+                    placeholder="ej: Cordobés amigable y experto..."
+                    className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    📦 Reglas de Negocio, Envíos y Métodos de Pago
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.businessRules || 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, pagos en efectivo, transferencia (republica.carne.mp) o Mercado Pago.'}
+                    onChange={(e) => setSettings({ ...settings, businessRules: e.target.value })}
+                    placeholder="ej: Envíos en moto en el día, 6 sucursales, transferencias y MP..."
+                    className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* System Prompt Textarea */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Instrucciones del Sistema (System Prompt de Ventas y Atención)</label>
+                <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>Instrucciones del Sistema (System Prompt Avanzado)</span>
+                  <span className="text-[11px] text-emerald-400 font-mono">Inyectado en tiempo real</span>
+                </label>
                 <textarea
-                  rows="12"
+                  rows="8"
                   value={settings.systemPrompt || ''}
                   onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono leading-relaxed focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3.5 py-2.5 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono leading-relaxed focus:outline-none focus:border-emerald-500"
+                  placeholder="Escribe aquí las directivas, restricciones y reglas de atención..."
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">
-                  Define la personalidad del agente, tácticas de cierre, cómo saludar y cómo resolver dudas técnicas o comerciales.
+                  El agente respeta estas directivas junto al contexto del país, moneda y catálogo en cada respuesta.
                 </span>
               </div>
             </div>

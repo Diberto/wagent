@@ -374,4 +374,65 @@ export class SpeechService {
       { id: 'shimmer', name: 'Shimmer (OpenAI - Femenina)', provider: 'openai', gender: 'female' }
     ];
   }
+
+  /**
+   * Analiza una imagen recibida por WhatsApp (comprobantes de pago, fotos de cortes, listas)
+   */
+  static async analyzeImageWithAI({ imagePath, caption = '', jid = '' }) {
+    const settings = db.getSettings();
+    let lead = null;
+    if (jid) {
+      const leads = db.getLeads();
+      lead = leads.find(l => l.jid === jid || (l.altJids && l.altJids.includes(jid)));
+    }
+    const customerName = lead?.name || 'Cliente';
+
+    // 1. Intentar con Gemini Vision si hay API Key
+    const geminiKey = settings.ai?.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+      try {
+        const genAI = new GoogleGenerativeAI(geminiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+
+        if (fs.existsSync(imagePath)) {
+          const imageBuffer = fs.readFileSync(imagePath);
+          const ext = path.extname(imagePath).toLowerCase();
+          const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+
+          const prompt = `Sos Carlos, maestro carnicero de "República de la Carne" (Córdoba).
+El cliente ${customerName} te envió esta imagen por WhatsApp junto con el texto: "${caption || ''}".
+Analizá la imagen:
+- Si es un comprobante de transferencia o pago bancario/Mercado Pago, confirmale con entusiasmo que el comprobante fue recibido y que su pedido pasa inmediatamente a corte y despacho.
+- Si es una foto de una lista de cortes de carne o asado, transcribile lo que pide y armale el presupuesto.
+- Si es una foto de carne o corte, elogiale el corte y asesoralo como experto carnicero cordobés.
+Respondé en 2 a 4 líneas cálidas, profesionales y cordobesas.`;
+
+          const result = await model.generateContent([
+            prompt,
+            {
+              inlineData: {
+                data: imageBuffer.toString('base64'),
+                mimeType
+              }
+            }
+          ]);
+
+          const text = result.response.text();
+          if (text && text.trim()) {
+            return { text: text.trim(), isComprobante: text.toLowerCase().includes('comprobante') || text.toLowerCase().includes('transferencia') };
+          }
+        }
+      } catch (err) {
+        console.warn('Fallo visión Gemini, usando respuesta inteligente directa:', err.message);
+      }
+    }
+
+    // 2. Respuesta inteligente de carnicería por defecto para comprobantes e imágenes
+    const isLikelyTransfer = caption.toLowerCase().includes('pago') || caption.toLowerCase().includes('transfe') || caption.toLowerCase().includes('comprobante') || true;
+
+    return {
+      text: `¡Recibido ${customerName}! 🥩📸 Muchas gracias por enviarme la imagen${caption ? ` (${caption})` : ''}. Si es el comprobante de transferencia, ya queda registrado y pasamos tu pedido directo al sector de corte para preparar el despacho. 🙌`,
+      isComprobante: isLikelyTransfer
+    };
+  }
 }

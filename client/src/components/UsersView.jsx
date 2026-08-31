@@ -254,6 +254,8 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
 
   const getRoleBadge = (roleId) => {
     switch (roleId) {
+      case 'agente_ia_principal':
+        return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-gradient-to-r from-emerald-500/20 to-purple-500/20 text-emerald-300 border border-emerald-400/40 shadow-sm">🤖 Agente IA Principal (Central)</span>;
       case 'admin':
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-purple-500/15 text-purple-400 border border-purple-500/30">👑 Administrador Total</span>;
       case 'gerencia':
@@ -264,6 +266,8 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-amber-500/15 text-amber-400 border border-amber-500/30">💳 Cajero / POS</span>;
       case 'repartidor':
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-sky-500/15 text-sky-400 border border-sky-500/30">🛵 Repartidor</span>;
+      case 'cliente':
+        return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-lime-500/15 text-lime-400 border border-lime-500/30">🛒 Cliente</span>;
       default:
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-slate-700/30 text-slate-300 border border-slate-700">{roleId}</span>;
     }
@@ -305,13 +309,14 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
       </div>
 
       {/* Role Summary Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
         {[
           { role: 'admin', label: 'Admin', count: users.filter(u => u.role === 'admin').length, color: 'text-purple-400' },
           { role: 'gerencia', label: 'Gerencia', count: users.filter(u => u.role === 'gerencia').length, color: 'text-blue-400' },
           { role: 'encargado', label: 'Encargados', count: users.filter(u => u.role === 'encargado').length, color: 'text-emerald-400' },
           { role: 'cajero', label: 'Cajeros', count: users.filter(u => u.role === 'cajero').length, color: 'text-amber-400' },
           { role: 'repartidor', label: 'Repartidores', count: users.filter(u => u.role === 'repartidor').length, color: 'text-sky-400' },
+          { role: 'cliente', label: 'Clientes', count: users.filter(u => u.role === 'cliente').length, color: 'text-lime-400' },
         ].map(r => (
           <div key={r.role} className="bg-[#182229] border border-slate-800 rounded-2xl p-3 space-y-1">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{r.label}</div>
@@ -340,7 +345,8 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
             { id: 'gerencia', label: '📊 Gerencia' },
             { id: 'encargado', label: '🏪 Encargados' },
             { id: 'cajero', label: '💳 Cajeros' },
-            { id: 'repartidor', label: '🛵 Repartidores' }
+            { id: 'repartidor', label: '🛵 Repartidores' },
+            { id: 'cliente', label: '🛒 Clientes' }
           ].map(f => (
             <button
               key={f.id}
@@ -447,6 +453,19 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                         </span>
                       )}
                     </div>
+
+                    {/* Ver Lead link for clientes */}
+                    {user.linkedLeadId && (
+                      <div className="px-2.5 py-1.5 rounded-xl bg-lime-500/10 border border-lime-500/20 text-[11px] text-lime-300 flex items-center gap-1.5 font-semibold">
+                        <span>🔗</span>
+                        <span>Vinculado a Lead de WhatsApp</span>
+                      </div>
+                    )}
+                    {user.phone && (
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                        <span>📱</span> {user.phone}
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions Bar */}
@@ -497,6 +516,7 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
           </div>
         )}
       </div>
+
 
       {/* Create / Edit User Modal */}
       {userModal && (
@@ -609,7 +629,7 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                   >
                     {roles.map(r => (
                       <option key={r.id} value={r.id}>
-                        {r.id === 'admin' ? '👑' : r.id === 'gerente' ? '📊' : r.id === 'encargado' ? '🏪' : r.id === 'cajero' ? '💳' : '🛵'} {r.name}
+                        {r.id === 'admin' ? '👑' : r.id === 'gerencia' ? '📊' : r.id === 'encargado' ? '🏪' : r.id === 'cajero' ? '💳' : r.id === 'repartidor' ? '🛵' : r.id === 'cliente' ? '🛒' : '👤'} {r.name}
                       </option>
                     ))}
                   </select>
@@ -652,7 +672,34 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                 </div>
               </div>
 
-              {/* Tab Access Permissions */}
+              {/* Phone & JID for cliente / repartidor roles */}
+              {(userModal.data.role === 'cliente' || userModal.data.role === 'repartidor') && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">📱 Teléfono WhatsApp:</label>
+                    <input
+                      type="tel"
+                      placeholder="+54 9 351 123-4567"
+                      value={userModal.data.phone || ''}
+                      onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, phone: e.target.value } })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono focus:outline-none focus:border-purple-500"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-0.5">Permite vincular automáticamente con leads de WhatsApp</p>
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">🔗 Lead Vinculado (ID):</label>
+                    <input
+                      type="text"
+                      placeholder="lead-XXXXXXXX (opcional)"
+                      value={userModal.data.linkedLeadId || ''}
+                      onChange={(e) => setUserModal({ ...userModal, data: { ...userModal.data, linkedLeadId: e.target.value || null } })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono text-[11px] focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-slate-300 font-bold uppercase tracking-wider text-[11px]">

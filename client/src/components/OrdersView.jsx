@@ -35,9 +35,19 @@ import {
   Navigation,
   Compass,
   Flame,
-  ShoppingCart
+  ShoppingCart,
+  Eye,
+  Printer,
+  Share2,
+  ChevronRight,
+  Receipt,
+  Archive,
+  ArchiveRestore,
+  FolderArchive
 } from 'lucide-react';
 import ClientLocationMap from './ClientLocationMap.jsx';
+import TicketPrintModal from './TicketPrintModal.jsx';
+import SearchableCombobox from './ui/SearchableCombobox.jsx';
 
 const POS_CATEGORIES = [
   { id: 'all', label: '🔥 Todos' },
@@ -70,14 +80,152 @@ const DEFAULT_POS_ITEMS = [
   { id: 'prod-vino-howlmande', name: 'Vino Howlmande Malbec', category: 'almacen', price: 5500, unit: 'botella', icon: '🍷' }
 ];
 
-export default function OrdersView({ socket }) {
+export const parseOrderItems = (order) => {
+  if (!order) return [];
+
+  // 1. Si ya tiene productos estructurados
+  if (Array.isArray(order.products) && order.products.length > 0) {
+    return order.products.map((p, idx) => {
+      const qty = Number(p.quantity) || 1;
+      const unit = p.unit || 'kg';
+      const name = p.name || 'Corte Seleccionado';
+      let icon = p.icon || '🥩';
+      const lower = name.toLowerCase();
+      if (lower.includes('combo') || lower.includes('asadazo')) icon = '⭐';
+      else if (lower.includes('chori') || lower.includes('morcilla') || lower.includes('chinchu') || lower.includes('molleja')) icon = '🌭';
+      else if (lower.includes('cerdo') || lower.includes('pechito') || lower.includes('costeleta')) icon = '🐖';
+      else if (lower.includes('pollo') || lower.includes('milanesa')) icon = '🍽️';
+      else if (lower.includes('carbón') || lower.includes('carbon')) icon = '🔥';
+      else if (lower.includes('vino') || lower.includes('malbec')) icon = '🍷';
+
+      const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
+      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
+
+      return {
+        id: p.id || `prod-${idx}`,
+        name,
+        quantity: qty,
+        unit,
+        price: unitPrice,
+        total: lineSubtotal > 0 ? lineSubtotal : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.products.length)),
+        icon
+      };
+    });
+  }
+
+  // 2. Si tiene items en formato array de strings o string multilinea
+  const rawItems = Array.isArray(order.items)
+    ? order.items
+    : typeof order.items === 'string'
+    ? order.items.split('\n').map(s => s.trim()).filter(Boolean)
+    : [];
+
+  if (rawItems.length === 0) {
+    return [{
+      id: 'default-0',
+      name: 'Pedido de Carnicería (Cortes Seleccionados)',
+      quantity: 1,
+      unit: 'un',
+      price: Number(order.totalAmount) || 0,
+      total: Number(order.totalAmount) || 0,
+      icon: '🥩'
+    }];
+  }
+
+  return rawItems.map((itemStr, idx) => {
+    let cleanStr = String(itemStr).replace(/^[•\-\*\d\.\)\s]+/, '').trim();
+    let qty = 1;
+    let unit = 'un';
+    let lineSubtotal = 0;
+    let name = cleanStr;
+
+    // Detectar cantidad al inicio
+    const initialQtyMatch = cleanStr.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|combos|bolsa|bolsas|botella|botellas|promo|un|unidad|unidades|piezas?)?\s+/i);
+    if (initialQtyMatch) {
+      qty = parseFloat(initialQtyMatch[1].replace(',', '.')) || 1;
+      if (initialQtyMatch[2]) unit = initialQtyMatch[2].toLowerCase();
+      name = cleanStr.slice(initialQtyMatch[0].length).trim();
+    }
+
+    // Detectar precio/subtotal: "— $39.999", "($39.999)", "$39.999" o "$39999"
+    const priceMatch = name.match(/(?:—|\-|\()\s*\$?\s*([0-9.,]+)\s*\)?$/i);
+    if (priceMatch) {
+      lineSubtotal = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
+      name = name.replace(/(?:—|\-|\()\s*\$?\s*[0-9.,]+\s*\)?$/i, '').trim();
+    } else {
+      lineSubtotal = Math.round((Number(order.totalAmount) || 0) / Math.max(1, rawItems.length));
+    }
+
+    const unitPrice = (qty > 0 && lineSubtotal > 0) ? Math.round(lineSubtotal / qty) : lineSubtotal;
+
+    // Limpiar comillas sobrantes
+    name = name.replace(/^["'“]+|["'”]+$/g, '').trim();
+
+    let icon = '🥩';
+    const lower = name.toLowerCase();
+    if (lower.includes('combo') || lower.includes('asadazo')) icon = '⭐';
+    else if (lower.includes('chori') || lower.includes('morcilla') || lower.includes('chinchu') || lower.includes('molleja')) icon = '🌭';
+    else if (lower.includes('cerdo') || lower.includes('pechito') || lower.includes('costeleta')) icon = '🐖';
+    else if (lower.includes('pollo') || lower.includes('milanesa')) icon = '🍽️';
+    else if (lower.includes('carbón') || lower.includes('carbon')) icon = '🔥';
+    else if (lower.includes('vino') || lower.includes('malbec')) icon = '🍷';
+
+    return {
+      id: `item-${idx}`,
+      name: name || 'Corte Seleccionado',
+      quantity: qty,
+      unit,
+      price: unitPrice,
+      total: lineSubtotal > 0 ? lineSubtotal : (Number(order.totalAmount) || 0),
+      icon
+    };
+  });
+};
+
+export const getOrderChannelBadge = (order) => {
+  let ch = (order?.channel || order?.source || order?.origin || '').toUpperCase();
+  if (!ch) {
+    if (order?.notes?.includes('[POS') || order?.origin === 'pos' || order?.origin === 'POS') ch = 'POS';
+    else if (order?.origin === 'tienda_web' || order?.origin === 'tienda' || order?.origin === 'TIENDA' || order?.notes?.includes('[WooCommerce]')) ch = 'TIENDA';
+    else ch = 'WHATSAPP';
+  }
+
+  if (ch === 'POS') {
+    return {
+      channel: 'POS',
+      label: '🏪 POS Mostrador',
+      shortLabel: 'POS',
+      bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      icon: '🏪'
+    };
+  }
+  if (ch === 'TIENDA' || ch === 'TIENDA_WEB' || ch === 'STORE') {
+    return {
+      channel: 'TIENDA',
+      label: '🛒 Tienda Web',
+      shortLabel: 'TIENDA',
+      bg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+      icon: '🛒'
+    };
+  }
+  return {
+    channel: 'WHATSAPP',
+    label: '💬 WhatsApp Bot',
+    shortLabel: 'WHATSAPP',
+    bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    icon: '💬'
+  };
+};
+
+export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }) {
   const [orders, setOrders] = useState([]);
   const [branches, setBranches] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [catalogProducts, setCatalogProducts] = useState([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active'); // 'active' | 'all' | 'pending' | 'preparing' | 'ready' | 'in_transit' | 'delivered' | 'completed' | 'cancelled'
+  const [channelFilter, setChannelFilter] = useState('all'); // 'all' | 'WHATSAPP' | 'TIENDA' | 'POS'
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('orders_view_mode') || 'table');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -90,6 +238,9 @@ export default function OrdersView({ socket }) {
   // Real Map Modal State
   const [mapModal, setMapModal] = useState(null); // null | { address, customerName, onConfirm }
 
+  // Dedicated Detailed Order View Modal
+  const [detailModal, setDetailModal] = useState(null); // null | order object
+
   // Status Change Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState(null); // { order, targetStatus, message, isSubmitting }
 
@@ -100,11 +251,17 @@ export default function OrdersView({ socket }) {
   // Mercado Pago Payment Link Modal
   const [paymentModal, setPaymentModal] = useState(null); // null | { order, linkData, isGenerating, isSending, sendSuccess }
 
+  // Manual Payment Registration Modal
+  const [manualPaymentModal, setManualPaymentModal] = useState(null); // null | { order, paymentMethod, paymentStatus, paidAmount, transactionRef, notes, isSubmitting, success }
+
   // Branch Derivation Modal State
   const [deriveModal, setDeriveModal] = useState(null); // null | { order, branchId, notes, notifyClient, isDeriving, deriveSuccess }
 
   // Driver Assignment Modal State
   const [assignDriverModal, setAssignDriverModal] = useState(null); // null | { order, driverId, notes, notifyClient, isAssigning, assignSuccess }
+
+  // Thermal & Multi-format Ticket Print Modal
+  const [ticketPrintModal, setTicketPrintModal] = useState(null); // null | order object
 
   const fetchDrivers = async () => {
     try {
@@ -166,6 +323,13 @@ export default function OrdersView({ socket }) {
     fetchCustomers();
     fetchCatalogProducts();
 
+    // Auto-sincronización periódica y al recuperar el foco de la ventana
+    const handleFocus = () => fetchOrders();
+    window.addEventListener('focus', handleFocus);
+    const syncInterval = setInterval(() => {
+      fetchOrders();
+    }, 8000);
+
     if (socket) {
       socket.on('order:new', (newOrder) => {
         setOrders(prev => [newOrder, ...prev.filter(o => o.id !== newOrder.id)]);
@@ -179,18 +343,42 @@ export default function OrdersView({ socket }) {
         setOrders(prev => prev.filter(o => o.id !== deletedId));
       });
 
+      socket.on('orders:sync', (allOrders) => {
+        if (Array.isArray(allOrders) && allOrders.length > 0) {
+          setOrders(allOrders);
+        }
+      });
+
       socket.on('driver:update', () => fetchDrivers());
       socket.on('driver:new', () => fetchDrivers());
 
       return () => {
+        window.removeEventListener('focus', handleFocus);
+        clearInterval(syncInterval);
         socket.off('order:new');
         socket.off('order:update');
         socket.off('order:delete');
+        socket.off('orders:sync');
         socket.off('driver:update');
         socket.off('driver:new');
       };
     }
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(syncInterval);
+    };
   }, [socket]);
+
+  useEffect(() => {
+    if (targetOrderId) {
+      setSearch(String(targetOrderId));
+      const found = orders.find(o => String(o.id) === String(targetOrderId) || String(o.id).replace(/\D/g, '') === String(targetOrderId).replace(/\D/g, ''));
+      if (found) {
+        setDetailModal(found);
+      }
+    }
+  }, [targetOrderId, orders]);
 
   // Hardware Barcode Scanner Listener for Orders View (Escanear Ticket #ORD-XXXX)
   useEffect(() => {
@@ -302,16 +490,68 @@ export default function OrdersView({ socket }) {
     switch (targetStatus) {
       case 'preparing':
         return `¡Hola ${name}! 🥩 Te avisamos que tu pedido #${orderId} ya está en preparación con cortes frescos por nuestro equipo de carnicería. En breve te avisamos cuando salga el repartidor.`;
+      case 'ready':
+      case 'ready_for_pickup':
+        if (order.deliveryType === 'pickup' || order.branchName || order.branch) {
+          const branch = order.branchName || order.branch || 'nuestra sucursal';
+          return `¡Hola ${name}! ✨🥩 ¡Tu pedido #${orderId} YA ESTÁ LISTO y preparado en ${branch}! Podés pasar a retirarlo cuando gustes. ¡Te esperamos! 🙌`;
+        }
+        return `¡Hola ${name}! ✨🥩 Tu pedido #${orderId} YA ESTÁ LISTO y preparado en carnicería. Está empaquetado y listo para salir con el repartidor. 🛵`;
       case 'in_transit':
         return `¡Hola ${name}! 🚚 Tu pedido #${orderId} ya salió de sucursal y va en camino hacia ${address}. ¡Tené a mano el medio de pago acordado (${payment})! 🥩🔥`;
       case 'delivered':
         return `¡Hola ${name}! 🎉 Tu pedido #${orderId} ya figura entregado. ¡Esperamos que disfrutes de un excelente asado! Cualquier consulta o comentario sobre los cortes estamos a tu disposición. 🥩🙌`;
+      case 'completed':
+      case 'archived':
+        return `¡Hola ${name}! 🎉 Tu pedido #${orderId} ha sido finalizado y archivado con éxito. ¡Muchas gracias por elegir República de la Carne! 🥩🙌`;
       case 'cancelled':
         return `Hola ${name}. Te informamos que tu pedido #${orderId} ha sido cancelado. Si necesitás reprogramarlo o tenés alguna duda, avisanos por acá.`;
       case 'pending':
         return `¡Hola ${name}! Tu pedido #${orderId} se encuentra registrado y pendiente de preparación.`;
       default:
         return `¡Hola ${name}! Tu pedido #${orderId} ha actualizado su estado a: ${targetStatus}.`;
+    }
+  };
+
+  const handleTogglePrepared = async (order) => {
+    if (!order) return;
+    const nextVal = !Boolean(order.isPrepared);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/prepare`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPrepared: nextVal })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOrders(prev => prev.map(o => o.id === order.id ? data : o));
+        if (detailModal && detailModal.id === order.id) {
+          setDetailModal(data);
+        }
+      }
+    } catch (err) {
+      console.error('Error actualizando preparación:', err);
+    }
+  };
+
+  const handleToggleArchive = async (order) => {
+    if (!order) return;
+    const nextArchived = !Boolean(order.isArchived || order.status === 'completed' || order.status === 'archived');
+    try {
+      const res = await fetch(`/api/orders/${order.id}/archive`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isArchived: nextArchived })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOrders(prev => prev.map(o => o.id === order.id ? data : o));
+        if (detailModal && detailModal.id === order.id) {
+          setDetailModal(data);
+        }
+      }
+    } catch (err) {
+      console.error('Error archivando pedido:', err);
     }
   };
 
@@ -336,31 +576,51 @@ export default function OrdersView({ socket }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           status: targetStatus,
-          notifyCustomer: Boolean(notifyCustomer),
-          notificationMessage: notifyCustomer ? message : undefined
+          notify: notifyCustomer,
+          customMessage: message
         })
       });
+
+      const data = await res.json();
       if (res.ok) {
-        const updated = await res.json();
         setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: targetStatus } : o));
+        if (detailModal && detailModal.id === order.id) {
+          setDetailModal(prev => prev ? { ...prev, status: targetStatus } : null);
+        }
         setConfirmModal(null);
+      } else {
+        alert(data.error || 'Error al cambiar estado');
+        setConfirmModal(prev => ({ ...prev, isSubmitting: false }));
       }
     } catch (err) {
-      console.error('Error actualizando estado del pedido:', err);
+      console.error('Error:', err);
       setConfirmModal(prev => ({ ...prev, isSubmitting: false }));
     }
   };
 
-  const handleDuplicateOrder = async (orderId) => {
-    try {
-      const res = await fetch(`/api/orders/${orderId}/duplicate`, { method: 'POST' });
-      if (res.ok) {
-        const cloned = await res.json();
-        setOrders(prev => [cloned, ...prev]);
+  const handleDuplicateOrder = (orderId) => {
+    const original = orders.find(o => o.id === orderId);
+    if (!original) return;
+    const parsed = parseOrderItems(original);
+    setPosCart(parsed.map((p, idx) => ({ id: p.id || `item-${idx}`, name: p.name, price: p.price, quantity: p.quantity, unit: p.unit, icon: p.icon })));
+    setPosMode('pos');
+    setOrderModal({
+      mode: 'create',
+      data: {
+        customerName: `${original.customerName || 'Cliente'} (Copia)`,
+        phone: original.phone,
+        address: original.address,
+        branchId: original.branchId,
+        branchName: original.branchName,
+        deliveryType: original.deliveryType,
+        items: original.items,
+        totalAmount: original.totalAmount,
+        paymentMethod: original.paymentMethod,
+        status: 'pending',
+        notes: `Copia del pedido #${original.id}`
       }
-    } catch (err) {
-      console.error('Error duplicando pedido:', err);
-    }
+    });
+    setItemsInputText(Array.isArray(original.items) ? original.items.join('\n') : (original.items || ''));
   };
 
   const handleDeleteOrder = async (orderId) => {
@@ -369,6 +629,7 @@ export default function OrdersView({ socket }) {
       const res = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
       if (res.ok) {
         setOrders(prev => prev.filter(o => o.id !== orderId));
+        if (detailModal && detailModal.id === orderId) setDetailModal(null);
       }
     } catch (err) {
       console.error('Error eliminando pedido:', err);
@@ -396,15 +657,17 @@ export default function OrdersView({ socket }) {
   };
 
   const handleOpenEditOrder = (order) => {
-    const parsedCart = (Array.isArray(order.items) ? order.items : []).map((str, idx) => {
-      const match = str.match(/(?:([0-9.]+)\s*(?:x|kg|combo|bolsa|botella)?\s*)?(.+?)(?:\s*—|\s*\(\$?([0-9.]+)\))?$/i);
-      const qty = match && match[1] ? parseFloat(match[1]) : 1;
-      const name = match && match[2] ? match[2].trim() : str;
-      const price = match && match[3] ? parseFloat(match[3].replace(/\./g, '')) : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.items?.length || 1));
-      return { id: `item-${idx}`, name, price, quantity: qty, unit: 'un', icon: '🥩' };
-    });
+    const parsedItems = parseOrderItems(order);
+    const parsedCart = parsedItems.map((item, idx) => ({
+      id: item.id || `item-${idx}`,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      unit: item.unit || 'kg',
+      icon: item.icon || '🥩'
+    }));
 
-    setPosCart(parsedCart.length > 0 ? parsedCart : [{ id: 'item-0', name: 'Combo Asadazo', price: Number(order.totalAmount) || 0, quantity: 1, unit: 'un', icon: '⭐' }]);
+    setPosCart(parsedCart.length > 0 ? parsedCart : [{ id: 'item-0', name: 'Combo Asadazo', price: Number(order.totalAmount) || 0, quantity: 1, unit: 'combo', icon: '⭐' }]);
     setPosMode('pos');
     setOrderModal({
       mode: 'edit',
@@ -542,6 +805,72 @@ export default function OrdersView({ socket }) {
     }
   };
 
+  const handleVerifyPayment = async (orderId) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}/verify-payment`, { method: 'POST' });
+      const data = await res.json();
+      if (data.verified) {
+        alert(`¡Pago verificado con éxito en Mercado Pago! 🎉 Monto: $${Number(data.payment?.transaction_amount || 0).toLocaleString('es-AR')}`);
+        if (data.order) {
+          setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        }
+        if (paymentModal && paymentModal.order.id === orderId) {
+          setPaymentModal(null);
+        }
+      } else {
+        alert(data.message || 'No se encontró una transacción acreditada para este pedido en Mercado Pago.');
+      }
+    } catch (err) {
+      console.error('Error verificando pago:', err);
+      alert('Error al consultar estado en Mercado Pago');
+    }
+  };
+
+  const handleOpenManualPayment = (order) => {
+    setManualPaymentModal({
+      order,
+      paymentMethod: order.paymentMethod || 'Efectivo al Repartidor',
+      paymentStatus: 'paid',
+      paidAmount: order.totalAmount,
+      transactionRef: '',
+      notes: '',
+      isSubmitting: false,
+      success: false
+    });
+  };
+
+  const handleSaveManualPayment = async (e) => {
+    e.preventDefault();
+    if (!manualPaymentModal) return;
+
+    setManualPaymentModal(prev => ({ ...prev, isSubmitting: true }));
+    try {
+      const res = await fetch(`/api/orders/${manualPaymentModal.order.id}/payment`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod: manualPaymentModal.paymentMethod,
+          paymentStatus: manualPaymentModal.paymentStatus,
+          paidAmount: manualPaymentModal.paidAmount,
+          transactionRef: manualPaymentModal.transactionRef,
+          notes: manualPaymentModal.notes
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.order) {
+        setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        setManualPaymentModal(prev => ({ ...prev, isSubmitting: false, success: true }));
+        setTimeout(() => setManualPaymentModal(null), 1800);
+      } else {
+        alert(data.error || 'Error registrando pago manual');
+        setManualPaymentModal(prev => ({ ...prev, isSubmitting: false }));
+      }
+    } catch (err) {
+      console.error('Error registrando pago manual:', err);
+      setManualPaymentModal(prev => ({ ...prev, isSubmitting: false }));
+    }
+  };
+
   const handleOpenDeriveModal = (order) => {
     setDeriveModal({
       order,
@@ -627,8 +956,10 @@ export default function OrdersView({ socket }) {
   // Metrics
   const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
   const pendingCount = orders.filter(o => o.status === 'pending' || o.status === 'preparing').length;
+  const readyCount = orders.filter(o => o.status === 'ready' || o.status === 'ready_for_pickup' || o.isPrepared).length;
   const inTransitCount = orders.filter(o => o.status === 'in_transit').length;
   const deliveredCount = orders.filter(o => o.status === 'delivered').length;
+  const completedCount = orders.filter(o => o.status === 'completed' || o.status === 'archived' || o.isArchived).length;
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = 
@@ -637,8 +968,29 @@ export default function OrdersView({ socket }) {
       (order.address || '').toLowerCase().includes(search.toLowerCase()) ||
       (order.id || '').toLowerCase().includes(search.toLowerCase());
 
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const isOrderArchived = Boolean(order.isArchived) || order.status === 'completed' || order.status === 'archived';
+    let matchesStatus = true;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'active') {
+      matchesStatus = !isOrderArchived && order.status !== 'cancelled';
+    } else if (statusFilter === 'completed' || statusFilter === 'archived') {
+      matchesStatus = isOrderArchived;
+    } else if (statusFilter === 'ready') {
+      matchesStatus = (order.status === 'ready' || order.status === 'ready_for_pickup' || order.isPrepared) && !isOrderArchived;
+    } else {
+      matchesStatus = order.status === statusFilter;
+    }
+
+    let ch = (order.channel || order.source || order.origin || '').toUpperCase();
+    if (!ch) {
+      if (order.notes?.includes('[POS') || order.origin === 'pos' || order.origin === 'POS') ch = 'POS';
+      else if (order.origin === 'tienda_web' || order.origin === 'tienda' || order.origin === 'TIENDA' || order.notes?.includes('[WooCommerce]')) ch = 'TIENDA';
+      else ch = 'WHATSAPP';
+    }
+    const matchesChannel = channelFilter === 'all' || ch === channelFilter;
+
+    return matchesSearch && matchesStatus && matchesChannel;
   });
 
   const getStatusBadge = (status) => {
@@ -647,10 +999,16 @@ export default function OrdersView({ socket }) {
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Clock size={12} /> Pendiente</span>;
       case 'preparing':
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20"><Package size={12} /> En Preparación</span>;
+      case 'ready':
+      case 'ready_for_pickup':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 shadow-sm"><CheckCircle2 size={12} /> ✨ Listo</span>;
       case 'in_transit':
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20"><Truck size={12} /> En Camino</span>;
       case 'delivered':
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle2 size={12} /> Entregado</span>;
+      case 'completed':
+      case 'archived':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-700/40 text-slate-300 border border-slate-600/40"><FolderArchive size={12} /> 📦 Finalizado / Archivado</span>;
       case 'cancelled':
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20"><XCircle size={12} /> Cancelado</span>;
       default:
@@ -694,7 +1052,7 @@ export default function OrdersView({ socket }) {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
           <div className="bg-[#182229] border border-slate-800 rounded-2xl p-4 flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
               <DollarSign size={20} />
@@ -710,8 +1068,18 @@ export default function OrdersView({ socket }) {
               <Clock size={20} />
             </div>
             <div>
-              <div className="text-[11px] text-slate-400 font-semibold">Por Despachar</div>
+              <div className="text-[11px] text-slate-400 font-semibold">En Preparación</div>
               <div className="text-lg font-bold text-amber-400">{pendingCount} pedidos</div>
+            </div>
+          </div>
+
+          <div className="bg-[#182229] border border-slate-800 rounded-2xl p-4 flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center">
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <div className="text-[11px] text-slate-400 font-semibold">✨ Listos / Prep.</div>
+              <div className="text-lg font-bold text-teal-400">{readyCount} pedidos</div>
             </div>
           </div>
 
@@ -734,12 +1102,22 @@ export default function OrdersView({ socket }) {
               <div className="text-lg font-bold text-emerald-400">{deliveredCount} pedidos</div>
             </div>
           </div>
+
+          <div className="bg-[#182229] border border-slate-800 rounded-2xl p-4 flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-slate-700/30 text-slate-300 flex items-center justify-center">
+              <Archive size={20} />
+            </div>
+            <div>
+              <div className="text-[11px] text-slate-400 font-semibold">Archivados</div>
+              <div className="text-lg font-bold text-slate-300">{completedCount} pedidos</div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Filter, Search and View Mode Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-[#111b21] p-3 rounded-2xl border border-slate-800">
-        <div className="relative flex-1">
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 bg-[#111b21] p-3 rounded-2xl border border-slate-800">
+        <div className="relative flex-1 min-w-[200px]">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
@@ -750,14 +1128,41 @@ export default function OrdersView({ socket }) {
           />
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-2 overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2">
+          {/* Filtro por Canal de Origen */}
           <div className="flex items-center gap-1 bg-[#182229] p-1 rounded-xl border border-slate-800 shrink-0">
             {[
               { id: 'all', label: 'Todos' },
-              { id: 'pending', label: 'Pendientes' },
-              { id: 'preparing', label: 'Preparación' },
-              { id: 'in_transit', label: 'En Camino' },
-              { id: 'delivered', label: 'Entregados' }
+              { id: 'WHATSAPP', label: '💬 WhatsApp' },
+              { id: 'TIENDA', label: '🛒 Tienda' },
+              { id: 'POS', label: '🏪 POS' }
+            ].map(ch => (
+              <button
+                key={ch.id}
+                onClick={() => setChannelFilter(ch.id)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                  channelFilter === ch.id
+                    ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {ch.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Filtro por Estado */}
+          <div className="flex items-center gap-1 bg-[#182229] p-1 rounded-xl border border-slate-800 shrink-0 overflow-x-auto">
+            {[
+              { id: 'active', label: '🚀 Activos' },
+              { id: 'all', label: 'Todos' },
+              { id: 'pending', label: '⏳ Pendientes' },
+              { id: 'preparing', label: '🥩 Preparación' },
+              { id: 'ready', label: '✨ Listos' },
+              { id: 'in_transit', label: '🚚 En Camino' },
+              { id: 'delivered', label: '✅ Entregados' },
+              { id: 'completed', label: '📦 Finalizados / Archivados' },
+              { id: 'cancelled', label: '❌ Cancelados' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -818,7 +1223,7 @@ export default function OrdersView({ socket }) {
           <ShoppingBag size={36} className="mx-auto text-slate-600" />
           <div className="text-sm font-bold text-white">No hay pedidos registrados</div>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Cuando un cliente confirme su pedido por WhatsApp o hagas clic en "Nuevo Pedido", aparecerá aquí.
+            Cuando un cliente confirme su pedido por WhatsApp, Tienda Web o POS, aparecerá aquí.
           </p>
         </div>
       ) : viewMode === 'table' ? (
@@ -829,9 +1234,11 @@ export default function OrdersView({ socket }) {
               <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
                 <tr>
                   <th className="py-3 px-4">Pedido ID</th>
+                  <th className="py-3 px-4">Origen / Canal</th>
                   <th className="py-3 px-4">Fecha / Hora</th>
                   <th className="py-3 px-4">Cliente & Contacto</th>
                   <th className="py-3 px-4">Cortes / Ítems</th>
+                  <th className="py-3 px-4">Preparación</th>
                   <th className="py-3 px-4">Total</th>
                   <th className="py-3 px-4">Estado</th>
                   <th className="py-3 px-4">Entrega / Sucursal</th>
@@ -845,6 +1252,16 @@ export default function OrdersView({ socket }) {
                     <td className="py-3.5 px-4 font-mono font-bold text-emerald-400 whitespace-nowrap">
                       #{order.id}
                     </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {(() => {
+                        const b = getOrderChannelBadge(order);
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${b.bg}`}>
+                            {b.label}
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap text-[11px]">
                       {new Date(order.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}{' '}
                       {new Date(order.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
@@ -853,14 +1270,48 @@ export default function OrdersView({ socket }) {
                       <div className="font-bold text-white truncate">{order.customerName || 'Cliente'}</div>
                       <div className="text-slate-400 text-[11px] font-mono">{order.phone || 'Sin teléfono'}</div>
                     </td>
-                    <td className="py-3.5 px-4 max-w-xs">
-                      <div className="truncate text-slate-200" title={Array.isArray(order.items) ? order.items.join('\n') : order.items}>
-                        {Array.isArray(order.items) && order.items.length > 0 ? (
-                          order.items.join(', ')
-                        ) : (
-                          order.items || 'Combo Asadazo'
-                        )}
+                    <td className="py-3.5 px-4 min-w-[220px] max-w-sm">
+                      <div 
+                        onClick={() => setDetailModal(order)}
+                        className="cursor-pointer group flex flex-col gap-1"
+                        title="Haz clic para ver el detalle y desglose completo del pedido"
+                      >
+                        <div className="flex flex-wrap gap-1">
+                          {parseOrderItems(order).slice(0, 2).map((prod, idx) => (
+                            <span 
+                              key={idx} 
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#111b21] border border-slate-800 group-hover:border-emerald-500/50 text-slate-200 text-[11px] font-medium transition truncate max-w-[200px]"
+                            >
+                              <span>{prod.icon}</span>
+                              <span className="font-bold text-emerald-400 font-mono">{prod.quantity}{prod.unit !== 'un' ? prod.unit : 'x'}</span>
+                              <span className="truncate">{prod.name}</span>
+                            </span>
+                          ))}
+                          {parseOrderItems(order).length > 2 && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                              +{parseOrderItems(order).length - 2} más
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-500 group-hover:text-emerald-400 flex items-center gap-1 transition">
+                          <Eye size={10} /> Clic para abrir detalle
+                        </div>
                       </div>
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePrepared(order)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold transition border shadow-sm ${
+                          order.isPrepared || order.status === 'ready' || order.status === 'ready_for_pickup'
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                            : 'bg-amber-500/10 text-amber-300/90 border-amber-500/20 hover:bg-amber-500/20'
+                        }`}
+                        title={order.isPrepared ? `Preparado el ${new Date(order.preparedAt || order.updatedAt).toLocaleTimeString('es-AR')}. Clic para alternar.` : 'Pendiente de corte/pesado. Clic para marcar como preparado.'}
+                      >
+                        <Flame size={12} className={order.isPrepared || order.status === 'ready' ? 'text-emerald-400' : 'text-amber-400'} />
+                        <span>{order.isPrepared || order.status === 'ready' ? '🥩 Preparado' : '⏳ Sin Preparar'}</span>
+                      </button>
                     </td>
                     <td className="py-3.5 px-4 font-extrabold text-white whitespace-nowrap">
                       ${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}
@@ -873,8 +1324,10 @@ export default function OrdersView({ socket }) {
                       >
                         <option value="pending">⏳ Pendiente</option>
                         <option value="preparing">🥩 Preparación</option>
+                        <option value="ready">✨ Listo / Preparado</option>
                         <option value="in_transit">🚚 En Camino</option>
                         <option value="delivered">✅ Entregado</option>
+                        <option value="completed">📦 Finalizado / Archivado</option>
                         <option value="cancelled">❌ Cancelado</option>
                       </select>
                     </td>
@@ -909,6 +1362,20 @@ export default function OrdersView({ socket }) {
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
+                          onClick={() => setTicketPrintModal(order)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                          title="Imprimir Ticket Térmico / Comanda (80mm, 58mm, A4)"
+                        >
+                          <Printer size={13} />
+                        </button>
+                        <button
+                          onClick={() => setDetailModal(order)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                          title="Ver Detalle Completo del Pedido"
+                        >
+                          <Eye size={13} />
+                        </button>
+                        <button
                           onClick={() => handleOpenMap(order.address, order.customerName)}
                           className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
                           title="Ver Ubicación en Mapa de Córdoba"
@@ -932,9 +1399,16 @@ export default function OrdersView({ socket }) {
                         <button
                           onClick={() => handleOpenPaymentLink(order)}
                           className="p-1.5 rounded-lg bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-700/60 transition"
-                          title="Cobrar con Mercado Pago"
+                          title="Cobrar / Link Mercado Pago"
                         >
                           <CreditCard size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenManualPayment(order)}
+                          className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                          title="Registrar Pago Manual (Efectivo / Transferencia)"
+                        >
+                          <DollarSign size={13} />
                         </button>
                         <button
                           onClick={() => handleOpenEditOrder(order)}
@@ -949,6 +1423,17 @@ export default function OrdersView({ socket }) {
                           title="Duplicar pedido"
                         >
                           <Copy size={13} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleArchive(order)}
+                          className={`p-1.5 rounded-lg border transition ${
+                            order.isArchived || order.status === 'completed'
+                              ? 'bg-slate-700/50 hover:bg-slate-600/50 text-emerald-400 border-slate-600'
+                              : 'bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/60'
+                          }`}
+                          title={order.isArchived || order.status === 'completed' ? 'Desarchivar pedido' : 'Finalizar y Archivar pedido'}
+                        >
+                          {order.isArchived || order.status === 'completed' ? <ArchiveRestore size={13} /> : <Archive size={13} />}
                         </button>
                         <button
                           onClick={() => handleDeleteOrder(order.id)}
@@ -975,11 +1460,34 @@ export default function OrdersView({ socket }) {
             >
               {/* Card Header */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-xs font-extrabold text-emerald-400 font-mono">
                     #{order.id}
                   </span>
-                  {getStatusBadge(order.status)}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(() => {
+                      const b = getOrderChannelBadge(order);
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${b.bg}`}>
+                          {b.label}
+                        </span>
+                      );
+                    })()}
+                    {getStatusBadge(order.status)}
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePrepared(order)}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition ${
+                        order.isPrepared || order.status === 'ready' || order.status === 'ready_for_pickup'
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                          : 'bg-amber-500/10 text-amber-300/80 border-amber-500/20 hover:bg-amber-500/20'
+                      }`}
+                      title={order.isPrepared ? 'Preparado en carnicería. Clic para alternar.' : 'Sin preparar. Clic para marcar preparado.'}
+                    >
+                      <Flame size={10} className={order.isPrepared || order.status === 'ready' ? 'text-emerald-400' : 'text-amber-400'} />
+                      {order.isPrepared || order.status === 'ready' ? '🥩 Preparado' : '⏳ Sin Preparar'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1006,16 +1514,32 @@ export default function OrdersView({ socket }) {
               </div>
 
               {/* Items List */}
-              <div className="space-y-1">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Detalle de Cortes:</div>
-                <div className="bg-[#111b21] rounded-xl p-2.5 border border-slate-800 text-xs text-slate-300 space-y-1 max-h-24 overflow-y-auto font-mono text-[11px]">
-                  {Array.isArray(order.items) && order.items.length > 0 ? (
-                    order.items.map((item, idx) => (
-                      <div key={idx} className="truncate">{item}</div>
-                    ))
-                  ) : (
-                    <div className="text-slate-500">{order.items || '1x Combo Asadazo ($39.999)'}</div>
-                  )}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                  <span>Detalle de Cortes & Productos:</span>
+                  <button
+                    type="button"
+                    onClick={() => setDetailModal(order)}
+                    className="text-emerald-400 hover:text-emerald-300 normal-case font-semibold text-[11px] flex items-center gap-0.5"
+                  >
+                    <Eye size={11} /> Ver Desglose
+                  </button>
+                </div>
+                <div className="bg-[#111b21] rounded-xl p-2 border border-slate-800 text-xs text-slate-300 space-y-1 max-h-32 overflow-y-auto divide-y divide-slate-800/40">
+                  {parseOrderItems(order).map((prod, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2 pt-1 first:pt-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs shrink-0">{prod.icon}</span>
+                        <span className="font-semibold text-slate-200 text-[11px] truncate">{prod.name}</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-bold text-[10px] shrink-0 font-mono">
+                          {prod.quantity} {prod.unit}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-emerald-400 text-[11px] shrink-0">
+                        ${prod.total.toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1073,10 +1597,28 @@ export default function OrdersView({ socket }) {
                   >
                     <option value="pending">⏳ Pendiente</option>
                     <option value="preparing">🥩 En Preparación</option>
+                    <option value="ready">✨ Listo / Preparado</option>
                     <option value="in_transit">🚚 En Camino</option>
                     <option value="delivered">✅ Entregado</option>
+                    <option value="completed">📦 Finalizado / Archivado</option>
                     <option value="cancelled">❌ Cancelado</option>
                   </select>
+
+                  <button
+                    onClick={() => setTicketPrintModal(order)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                    title="Imprimir Ticket Térmico / Comanda (80mm, 58mm, A4)"
+                  >
+                    <Printer size={14} />
+                  </button>
+
+                  <button
+                    onClick={() => setDetailModal(order)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                    title="Ver Detalle Completo del Pedido"
+                  >
+                    <Eye size={14} />
+                  </button>
 
                   <button
                     onClick={() => handleOpenMap(order.address, order.customerName)}
@@ -1105,9 +1647,17 @@ export default function OrdersView({ socket }) {
                   <button
                     onClick={() => handleOpenPaymentLink(order)}
                     className="p-2 rounded-xl bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-700/60 transition"
-                    title="Cobrar con Mercado Pago"
+                    title="Cobrar / Link Mercado Pago"
                   >
                     <CreditCard size={14} />
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenManualPayment(order)}
+                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
+                    title="Registrar Pago Manual (Efectivo / Transferencia)"
+                  >
+                    <DollarSign size={14} />
                   </button>
 
                   <button
@@ -1127,6 +1677,18 @@ export default function OrdersView({ socket }) {
                   </button>
 
                   <button
+                    onClick={() => handleToggleArchive(order)}
+                    className={`p-2 rounded-xl border transition ${
+                      order.isArchived || order.status === 'completed'
+                        ? 'bg-slate-700/50 hover:bg-slate-600/50 text-emerald-400 border-slate-600'
+                        : 'bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/60'
+                    }`}
+                    title={order.isArchived || order.status === 'completed' ? 'Desarchivar pedido' : 'Finalizar y Archivar pedido'}
+                  >
+                    {order.isArchived || order.status === 'completed' ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                  </button>
+
+                  <button
                     onClick={() => handleDeleteOrder(order.id)}
                     className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
                     title="Eliminar pedido"
@@ -1138,6 +1700,344 @@ export default function OrdersView({ socket }) {
 
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* DEDICATED FULL ORDER DETAILS MODAL (PRODUCTOS & DESGLOSE COMPLETO) */}
+      {/* ========================================================================= */}
+      {detailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-5 sm:p-6 w-full max-w-3xl shadow-2xl space-y-5 my-auto max-h-[95vh] flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
+                  <ShoppingBag size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                      Pedido #{detailModal.id}
+                    </h3>
+                    {(() => {
+                      const b = getOrderChannelBadge(detailModal);
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${b.bg}`}>
+                          {b.label}
+                        </span>
+                      );
+                    })()}
+                    {getStatusBadge(detailModal.status)}
+                  </div>
+                  <p className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                    <span>📅 {new Date(detailModal.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })} a las {new Date(detailModal.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>•</span>
+                    <span className="text-slate-300 font-medium">Cliente: <strong>{detailModal.customerName || 'Cliente'}</strong></span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailModal(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-[#202c33] transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+              
+              {/* Product Breakdown Table */}
+              <div className="bg-[#111b21] rounded-2xl border border-slate-800 overflow-hidden">
+                <div className="px-4 py-2.5 bg-[#141e24] border-b border-slate-800 flex items-center justify-between">
+                  <span className="font-bold text-white text-xs flex items-center gap-2">
+                    <Package size={14} className="text-emerald-400" />
+                    Cortes & Productos del Pedido
+                  </span>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold">
+                    {parseOrderItems(detailModal).length} {parseOrderItems(detailModal).length === 1 ? 'producto' : 'productos'}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#111b21] text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800/80">
+                      <tr>
+                        <th className="py-2.5 px-4">Producto / Corte</th>
+                        <th className="py-2.5 px-4 text-center">Cantidad</th>
+                        <th className="py-2.5 px-4 text-right">Precio Unit.</th>
+                        <th className="py-2.5 px-4 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/50">
+                      {parseOrderItems(detailModal).map((prod, idx) => (
+                        <tr key={idx} className="hover:bg-[#182229]/60 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-lg shrink-0">{prod.icon}</span>
+                              <div>
+                                <div className="font-bold text-white text-xs">{prod.name}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">Unidad: {prod.unit}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="px-2.5 py-1 rounded-xl bg-[#182229] border border-slate-700 text-emerald-400 font-mono font-bold text-xs">
+                              {prod.quantity} {prod.unit}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-300 font-medium">
+                            ${(Number(prod.price) || 0).toLocaleString('es-AR')}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-400">
+                            ${(Number(prod.total) || 0).toLocaleString('es-AR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-[#141e24] border-t-2 border-slate-700/80">
+                      <tr>
+                        <td colSpan="3" className="py-3 px-4 text-right text-xs font-bold text-slate-300 uppercase">
+                          Total a Abonar:
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-base font-black text-emerald-400">
+                          ${(Number(detailModal.totalAmount) || 0).toLocaleString('es-AR')}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Customer, Logistic & Preparation Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Customer Data */}
+                <div className="bg-[#111b21] p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 border-b border-slate-800 pb-1.5">
+                    <Users size={13} className="text-emerald-400" />
+                    <span>Datos del Cliente</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Nombre:</span>
+                      <span className="font-bold text-white">{detailModal.customerName || 'Cliente'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Teléfono:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-slate-200">{detailModal.phone || 'Sin registrar'}</span>
+                        {detailModal.phone && (
+                          <a
+                            href={`https://wa.me/${detailModal.phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-bold transition flex items-center gap-1"
+                            title="Abrir WhatsApp con el cliente"
+                          >
+                            <MessageSquare size={11} /> Chat
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-start justify-between gap-2 pt-1 border-t border-slate-800/60">
+                      <span className="text-slate-400 shrink-0">Dirección:</span>
+                      <div className="text-right">
+                        <div className="text-slate-200 font-medium">{detailModal.address || 'A coordinar'}</div>
+                        {detailModal.address && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMap(detailModal.address, detailModal.customerName)}
+                            className="text-[10px] text-emerald-400 hover:underline flex items-center gap-0.5 justify-end mt-0.5"
+                          >
+                            <MapPin size={10} /> Ver en Mapa
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Logistic & Payment Info */}
+                <div className="bg-[#111b21] p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 border-b border-slate-800 pb-1.5">
+                    <Truck size={13} className="text-sky-400" />
+                    <span>Logística & Pago</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Modalidad:</span>
+                      <span className="font-bold text-slate-200">
+                        {detailModal.deliveryType === 'pickup' ? '🏪 Retiro en Sucursal' : '🛵 Envío a Domicilio'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Sucursal:</span>
+                      <span className="font-medium text-emerald-400 truncate max-w-[160px]">
+                        {detailModal.branchName || 'URCA CENTRAL'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Repartidor:</span>
+                      <span className="font-medium text-sky-400 truncate max-w-[160px]">
+                        {detailModal.driverName || 'Sin asignar'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                      <span className="text-slate-400">Medio de Pago:</span>
+                      <div className="text-right">
+                        <span className="font-bold text-white">{detailModal.paymentMethod || 'Efectivo'}</span>
+                        {detailModal.paymentStatus === 'paid' ? (
+                          <span className="block text-[10px] text-emerald-400 font-bold">✅ Cobrado / Pagado</span>
+                        ) : (
+                          <span className="block text-[10px] text-amber-400 font-semibold">⏳ Pendiente de Pago</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preparation in Butchery */}
+                <div className="bg-[#111b21] p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="flex items-center gap-1.5 text-amber-400">
+                      <Flame size={13} /> Preparación
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePrepared(detailModal)}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition ${
+                        detailModal.isPrepared || detailModal.status === 'ready' || detailModal.status === 'ready_for_pickup'
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                          : 'bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20'
+                      }`}
+                    >
+                      {detailModal.isPrepared || detailModal.status === 'ready' ? '✅ Marcar No Listo' : '🥩 Marcar Preparado'}
+                    </button>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Corte / Pesado:</span>
+                      <span className={`font-bold ${detailModal.isPrepared || detailModal.status === 'ready' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {detailModal.isPrepared || detailModal.status === 'ready' ? '🥩 Preparado y envasado' : '⏳ Pendiente de corte'}
+                      </span>
+                    </div>
+                    {detailModal.preparedAt && (
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Preparado el:</span>
+                        <span className="font-mono text-slate-300">
+                          {new Date(detailModal.preparedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+                      <span>Estado Global:</span>
+                      <span className="font-bold">{getStatusBadge(detailModal.status)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+                      <span>Ciclo de Vida:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleArchive(detailModal)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition ${
+                          detailModal.isArchived || detailModal.status === 'completed'
+                            ? 'bg-slate-700/50 hover:bg-slate-600/50 text-emerald-400 border-slate-600'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                        }`}
+                      >
+                        {detailModal.isArchived || detailModal.status === 'completed' ? (
+                          <>
+                            <ArchiveRestore size={11} /> <span>Desarchivar Pedido</span>
+                          </>
+                        ) : (
+                          <>
+                            <Archive size={11} /> <span>Finalizar y Archivar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const orderToEdit = detailModal;
+                    setDetailModal(null);
+                    handleOpenEditOrder(orderToEdit);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md transition"
+                >
+                  <Edit3 size={13} />
+                  <span>Editar en POS</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const orderForNotice = detailModal;
+                    setDetailModal(null);
+                    handleRequestStatusChange(orderForNotice, orderForNotice.status);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#202c33] hover:bg-[#2a3942] text-slate-200 border border-slate-700 font-semibold text-xs transition"
+                >
+                  <MessageSquare size={13} />
+                  <span>Notificar WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleArchive(detailModal)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border font-bold text-xs transition ${
+                    detailModal.isArchived || detailModal.status === 'completed'
+                      ? 'bg-slate-700/50 hover:bg-slate-600/50 text-emerald-400 border-slate-600'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                  }`}
+                  title={detailModal.isArchived || detailModal.status === 'completed' ? 'Desarchivar pedido' : 'Finalizar y Archivar pedido'}
+                >
+                  {detailModal.isArchived || detailModal.status === 'completed' ? (
+                    <>
+                      <ArchiveRestore size={13} />
+                      <span>Desarchivar</span>
+                    </>
+                  ) : (
+                    <>
+                      <Archive size={13} />
+                      <span>Archivar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTicketPrintModal(detailModal)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/40 font-bold text-xs transition"
+                  title="Abrir Centro de Impresión de Tickets (80mm, 58mm, A4)"
+                >
+                  <Printer size={13} />
+                  <span>Imprimir Ticket</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDetailModal(null)}
+                  className="px-4 py-2 rounded-xl bg-[#111b21] hover:bg-[#182229] text-slate-300 border border-slate-800 font-bold text-xs transition"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+
+          </div>
         </div>
       )}
 
@@ -1607,8 +2507,8 @@ export default function OrdersView({ socket }) {
                 </div>
               </div>
 
-              {/* Payment Method, Branch and Driver Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Payment Method & Payment Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-slate-300 font-semibold">Medio de Pago:</label>
                   <select
@@ -1628,53 +2528,72 @@ export default function OrdersView({ socket }) {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-semibold">Sucursal Asignada:</label>
+                  <label className="text-slate-300 font-semibold">Estado del Pago:</label>
                   <select
-                    value={orderModal.data.branchId || ''}
-                    onChange={(e) => {
-                      const selected = branches.find(b => b.id === e.target.value);
-                      setOrderModal({
-                        ...orderModal,
-                        data: {
-                          ...orderModal.data,
-                          branchId: e.target.value,
-                          branchName: selected ? selected.name : ''
-                        }
-                      });
-                    }}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                    value={orderModal.data.paymentStatus || 'pending'}
+                    onChange={(e) => setOrderModal({
+                      ...orderModal,
+                      data: { ...orderModal.data, paymentStatus: e.target.value }
+                    })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500 text-xs"
                   >
-                    <option value="">🏢 Central / General</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>📍 {b.name} ({b.address})</option>
-                    ))}
+                    <option value="pending">⏳ Pago Pendiente</option>
+                    <option value="paid">✅ Pagado / Acreditado</option>
+                    <option value="refunded">↩️ Reembolsado</option>
                   </select>
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="text-slate-300 font-semibold">Repartidor Asignado:</label>
-                  <select
-                    value={orderModal.data.driverId || ''}
-                    onChange={(e) => {
-                      const selected = drivers.find(d => d.id === e.target.value);
+              {/* Branch and Driver Row with SearchableCombobox */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <SearchableCombobox
+                    label="Sucursal Asignada"
+                    options={[
+                      { id: '', label: '🏢 Central / General', subtitle: 'Sin sucursal fija' },
+                      ...branches.map(b => ({ id: b.id, label: b.name, subtitle: b.address || b.phone }))
+                    ]}
+                    value={orderModal.data.branchId || ''}
+                    onChange={(val) => {
+                      const selected = branches.find(b => b.id === val);
                       setOrderModal({
                         ...orderModal,
                         data: {
                           ...orderModal.data,
-                          driverId: e.target.value,
-                          driverName: selected ? selected.name : ''
+                          branchId: val,
+                          branchName: selected ? selected.name : val
                         }
                       });
                     }}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 text-xs"
-                  >
-                    <option value="">🛵 Sin Repartidor Asignado</option>
-                    {drivers.map(d => (
-                      <option key={d.id} value={d.id}>
-                        {d.vehicle === 'Auto' ? '🚗' : '🛵'} {d.name} ({d.vehicle}) - {d.status === 'busy' ? 'Ocupado' : 'Disponible'}
-                      </option>
-                    ))}
-                  </select>
+                    allowCustom={true}
+                    placeholder="Elegir o buscar sucursal..."
+                    icon={Store}
+                  />
+                </div>
+
+                <div>
+                  <SearchableCombobox
+                    label="Repartidor Asignado"
+                    options={[
+                      { id: '', label: '🛵 Sin Repartidor Asignado', subtitle: 'Pendiente de cadete' },
+                      ...drivers.map(d => ({ id: d.id, label: `${d.name} (${d.vehicle || 'Moto'})`, subtitle: `${d.phone || ''} • ${d.status === 'busy' ? 'En ruta' : 'Libre'}` }))
+                    ]}
+                    value={orderModal.data.driverId || ''}
+                    onChange={(val) => {
+                      const selected = drivers.find(d => d.id === val);
+                      setOrderModal({
+                        ...orderModal,
+                        data: {
+                          ...orderModal.data,
+                          driverId: val,
+                          driverName: selected ? selected.name : val
+                        }
+                      });
+                    }}
+                    allowCustom={true}
+                    placeholder="Elegir o buscar repartidor..."
+                    icon={Bike}
+                  />
                 </div>
               </div>
 
@@ -1819,17 +2738,27 @@ export default function OrdersView({ socket }) {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-slate-800">
-                  <div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyPayment(paymentModal.order.id)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 text-xs font-bold transition"
+                      title="Consultar API de Mercado Pago para verificar si ya fue pagado"
+                    >
+                      <CheckCircle2 size={13} />
+                      <span>Verificar en MP</span>
+                    </button>
+
                     {paymentModal.linkData.isSandbox && (
                       <button
                         type="button"
                         onClick={handleSimulatePayment}
                         disabled={paymentModal.isSimulating}
-                        className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition disabled:opacity-50"
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition disabled:opacity-50"
                         title="Simular aprobación inmediata de pago sin abrir Mercado Pago"
                       >
                         <RefreshCw size={13} className={paymentModal.isSimulating ? 'animate-spin' : ''} />
-                        {paymentModal.isSimulating ? 'Simulando...' : '🧪 Simular Pago Aprobado'}
+                        {paymentModal.isSimulating ? 'Simulando...' : '🧪 Simular Pago'}
                       </button>
                     )}
                   </div>
@@ -1857,6 +2786,128 @@ export default function OrdersView({ socket }) {
 
               </div>
             ) : null}
+
+          </div>
+        </div>
+      )}
+
+      {/* Manual Payment Registration Modal */}
+      {manualPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                  <DollarSign size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Registrar / Asignar Pago</h3>
+                  <p className="text-xs text-slate-400">Pedido #{manualPaymentModal.order.id} — {manualPaymentModal.order.customerName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setManualPaymentModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {manualPaymentModal.success ? (
+              <div className="py-6 text-center space-y-2">
+                <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
+                <div className="text-sm font-bold text-white">¡Pago Registrado con Éxito!</div>
+                <p className="text-xs text-slate-400">
+                  El estado del pedido y el medio de pago se han actualizado correctamente en el sistema.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveManualPayment} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Medio de Pago:</label>
+                  <select
+                    required
+                    value={manualPaymentModal.paymentMethod}
+                    onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="Efectivo al Repartidor">💵 Efectivo al Repartidor</option>
+                    <option value="Transferencia Bancaria (Alias)">📱 Transferencia Bancaria (Alias MP)</option>
+                    <option value="Mercado Pago (Manual / POS)">💳 Mercado Pago (Manual / POS)</option>
+                    <option value="Tarjeta Débito en Sucursal">💳 Tarjeta Débito en Sucursal</option>
+                    <option value="Tarjeta Crédito en Sucursal">💳 Tarjeta Crédito en Sucursal</option>
+                    <option value="Cuenta Corriente">📑 Cuenta Corriente / A Convenir</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Estado de Pago:</label>
+                    <select
+                      value={manualPaymentModal.paymentStatus}
+                      onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, paymentStatus: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="paid">✅ Pagado / Acreditado</option>
+                      <option value="pending">⏳ Pendiente</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Monto Pagado ($):</label>
+                    <input
+                      type="number"
+                      required
+                      value={manualPaymentModal.paidAmount}
+                      onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, paidAmount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">N.° de Comprobante / Referencia (Opcional):</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: TRANSF-9382173 / Recibo #102"
+                    value={manualPaymentModal.transactionRef}
+                    onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, transactionRef: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Notas / Observaciones de Pago:</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ej: Abonó con $50.000, vuelto $10.000 / Comprobante verificado por WhatsApp"
+                    value={manualPaymentModal.notes}
+                    onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, notes: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setManualPaymentModal(null)}
+                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={manualPaymentModal.isSubmitting}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Check size={14} />
+                    <span>{manualPaymentModal.isSubmitting ? 'Guardando...' : 'Asignar Pago'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
 
           </div>
         </div>
@@ -1896,20 +2947,20 @@ export default function OrdersView({ socket }) {
             ) : (
               <form onSubmit={handleExecuteDerive} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Seleccionar Sucursal Destino:</label>
-                  <select
-                    required
+                  <SearchableCombobox
+                    label="Seleccionar Sucursal Destino:"
+                    required={true}
+                    options={branches.map(b => ({
+                      id: b.id,
+                      label: b.name,
+                      subtitle: `${b.address || ''} • ${b.phone || ''}`
+                    }))}
                     value={deriveModal.branchId}
-                    onChange={(e) => setDeriveModal({ ...deriveModal, branchId: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="">Selecciona una sucursal...</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} — ({b.phone || 'Sin tel'}) {b.address ? `• ${b.address}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setDeriveModal({ ...deriveModal, branchId: val })}
+                    placeholder="Elegir o escribir sucursal..."
+                    allowCustom={true}
+                    icon={Store}
+                  />
                 </div>
 
                 <div>
@@ -1995,20 +3046,20 @@ export default function OrdersView({ socket }) {
             ) : (
               <form onSubmit={handleExecuteAssignDriver} className="space-y-3.5 text-xs">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Seleccionar Repartidor:</label>
-                  <select
-                    required
+                  <SearchableCombobox
+                    label="Seleccionar Repartidor:"
+                    required={true}
+                    options={drivers.map(d => ({
+                      id: d.id,
+                      label: `${d.name} (${d.vehicle || 'Moto'})`,
+                      subtitle: `${d.phone || 'Sin tel'} • ${d.status === 'busy' ? 'En ruta' : 'Libre'}`
+                    }))}
                     value={assignDriverModal.driverId}
-                    onChange={(e) => setAssignDriverModal({ ...assignDriverModal, driverId: e.target.value })}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="">Selecciona un repartidor...</option>
-                    {drivers.map(d => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} — {d.vehicle || 'Moto'} ({d.phone || 'Sin tel'}) • {d.status === 'available' ? '🟢 Libre' : '🛵 En ruta'}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setAssignDriverModal({ ...assignDriverModal, driverId: val })}
+                    placeholder="Elegir o escribir repartidor..."
+                    allowCustom={true}
+                    icon={Bike}
+                  />
                 </div>
 
                 <div>
@@ -2067,6 +3118,14 @@ export default function OrdersView({ socket }) {
           customerName={mapModal.customerName}
           onConfirmLocation={mapModal.onConfirm}
           onClose={() => setMapModal(null)}
+        />
+      )}
+
+      {/* Complete Thermal & Multi-format Ticket Print Modal */}
+      {ticketPrintModal && (
+        <TicketPrintModal
+          order={ticketPrintModal}
+          onClose={() => setTicketPrintModal(null)}
         />
       )}
 

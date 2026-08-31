@@ -69,7 +69,9 @@ export default function CallCenter({
       };
 
       recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          console.warn('Speech recognition notice:', event.error);
+        }
         setIsLiveSpeaking(false);
         setIsProcessingVoice(false);
       };
