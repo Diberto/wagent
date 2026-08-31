@@ -153,10 +153,11 @@ ${divider}${fiscalBlock}
 📍 *ENTREGA:* ${isDelivery ? `Domicilio: ${currentOrder.address || 'Córdoba'}` : `Retiro en Sucursal: ${currentOrder.branchName || currentOrder.branch || 'Urca Central'}`}
 💳 *MEDIO DE PAGO:* ${currentOrder.paymentMethod || 'Efectivo'}
 ${divider}
-*DETALLE DE CORTES Y PRODUCTOS:*
+*DETALLE DE CORTES Y PRODUCTOS (precios por kilo según corte):*
 ${itemsText}
 ${divider}
-${invoice && invoice.isFiscal && invoice.tipoCbte === 1 ? `*Neto Gravado:* $${Number(invoice.importeNeto).toLocaleString('es-AR')}\n*IVA (21%):* $${Number(invoice.importeIva).toLocaleString('es-AR')}\n` : ''}💰 *TOTAL: $${Number(currentOrder.totalAmount || 0).toLocaleString('es-AR')}*
+${invoice && invoice.isFiscal && invoice.tipoCbte === 1 ? `*Neto Gravado:* $${Number(invoice.importeNeto).toLocaleString('es-AR')}\n*IVA (21%):* $${Number(invoice.importeIva).toLocaleString('es-AR')}\n` : ''}💰 *TOTAL ESTIMADO: $${Number(currentOrder.totalAmount || 0).toLocaleString('es-AR')}*
+*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*
 ${divider}
 ¡Muchas gracias por su compra!
 República de la Carne - Selección Premium`;
@@ -548,7 +549,7 @@ República de la Carne - Selección Premium`;
                 <div className="border-t border-dashed border-black my-2"></div>
 
                 {/* Detalle de Cortes */}
-                <div className="font-bold text-[11px] pb-1">DETALLE DE CORTES Y PRODUCTOS:</div>
+                <div className="font-bold text-[11px] pb-1">DETALLE DE CORTES (precios x kg/unidad):</div>
                 
                 <table className="w-full text-left text-[11px]">
                   <thead>
@@ -591,6 +592,9 @@ República de la Carne - Selección Premium`;
                   <div className="flex justify-between text-sm font-black">
                     <span>TOTAL A PAGAR:</span>
                     <span>${Number(currentOrder.totalAmount || 0).toLocaleString('es-AR')}</span>
+                  </div>
+                  <div className="text-[9px] text-slate-600 italic leading-tight">
+                    * Los precios de cortes son por kilo. El importe final puede variar según el pesaje exacto en balanza.
                   </div>
                   <div className="flex justify-between text-[11px]">
                     <span>Forma de Pago:</span>

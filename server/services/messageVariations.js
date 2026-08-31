@@ -6,6 +6,11 @@ import { db } from './database.js';
  * manteniendo rigurosidad absoluta en precios, cortes, direcciones y datos de negocio.
  */
 
+/**
+ * Nota reglamentaria sobre precios por kilo y pesaje variable en balanza
+ */
+export const WEIGHT_VARIATION_NOTE = '*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*';
+
 const GREETING_OPENERS = [
   (name) => name ? `¡Hola ${name}! ¿Cómo estás?` : `¡Hola! ¿Cómo estás?`,
   (name) => name ? `¡Qué tal ${name}! Un gusto saludarte.` : `¡Qué tal! Un gusto saludarte.`,

@@ -347,11 +347,12 @@ export default function StorefrontView({ onBackToAdmin = null }) {
 🧾 ${fiscalInfo}
 💳 *Medio de Pago:* ${paymentMethod}
 
-🥩 *Detalle de Cortes:*
+🥩 *Detalle de Cortes (precios por kilo según corte):*
 ${itemsListFormatted}
 
-💰 *Total a Abonar:* $${totalCartAmount.toLocaleString('es-AR')}
-${orderNotes.trim() ? `📝 *Aclaraciones:* ${orderNotes.trim()}\n` : ''}
+💰 *Total Estimado a Abonar:* $${totalCartAmount.toLocaleString('es-AR')}
+*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*
+${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 🔗 *Seguimiento en Vivo:* ${trackingUrl}
 
 ¿Me confirmás el pedido para comenzar la preparación? ¡Muchas gracias! 🙌`;
@@ -961,10 +962,15 @@ ${orderNotes.trim() ? `📝 *Aclaraciones:* ${orderNotes.trim()}\n` : ''}
                   </div>
 
                   {/* Total y Botón de Envío a WhatsApp */}
-                  <div className="pt-2">
-                    <div className="flex items-center justify-between text-base font-black text-white mb-3">
+                  <div className="pt-2 space-y-2">
+                    <div className="flex items-center justify-between text-base font-black text-white">
                       <span>Total Estimado:</span>
                       <span className="text-xl text-red-400">${totalCartAmount.toLocaleString('es-AR')}</span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2 leading-tight">
+                      <span className="text-sm">⚖️</span>
+                      <span><strong>Nota de pesaje:</strong> Los precios de los cortes son por kilo. El valor final se ajustará según el pesaje exacto en balanza al momento del corte.</span>
                     </div>
 
                     <button
@@ -975,7 +981,7 @@ ${orderNotes.trim() ? `📝 *Aclaraciones:* ${orderNotes.trim()}\n` : ''}
                       <MessageCircle className="w-5 h-5 fill-white" />
                       <span>{isSubmittingOrder ? 'Procesando pedido...' : 'Finalizar Pedido por WhatsApp'}</span>
                     </button>
-                    <p className="text-[11px] text-gray-500 text-center mt-2">
+                    <p className="text-[11px] text-gray-500 text-center">
                       Al presionar, se abrirá WhatsApp con el detalle de tu pedido listo para enviar a Carlos.
                     </p>
                   </div>

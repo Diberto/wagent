@@ -559,6 +559,63 @@ export function searchCatalogProducts(query, catalog = null, limit = 8) {
 }
 
 /**
+ * Encuentra productos sustitutos o similares recomendados cuando un corte no está disponible o no existe en catálogo
+ */
+export function findSimilarProductOrAlternative(requestedText, catalog = null) {
+  const currentCatalog = (Array.isArray(catalog) && catalog.length > 0) ? catalog : (db.getProducts() || MASTER_CATALOG);
+  const availableList = currentCatalog.filter(p => p.isAvailable !== false && Number(p.price) > 0);
+  const t = (requestedText || '').toLowerCase().trim();
+
+  // Mapeo experto de cortes cárnicos similares / sustitutos ideales
+  const SIMILARITY_RULES = [
+    { pattern: /\b(?:lomo|bife de lomo|solomillo|filet mignon|filet)\b/i, targetKeywords: ['bife de chorizo', 'tapa de cuadril', 'colita de cuadril'] },
+    { pattern: /\b(?:ojo de bife|bife ancho|t-bone|tbone|ribeye|tomahawk|bife angosto)\b/i, targetKeywords: ['bife de chorizo', 'costillar', 'asado de tira'] },
+    { pattern: /\b(?:picanha|picaña|colita de cuadril|colita)\b/i, targetKeywords: ['tapa de cuadril', 'bife de chorizo'] },
+    { pattern: /\b(?:tapa de asado|falda|asado con cuero|pecho|marucha)\b/i, targetKeywords: ['costillar', 'asado de tira', 'vacio'] },
+    { pattern: /\b(?:entraña|entrana)\b/i, targetKeywords: ['vacio', 'matambrito de cerdo', 'bife de chorizo'] },
+    { pattern: /\b(?:matambre vacuno|matambre de vaca)\b/i, targetKeywords: ['matambrito de cerdo', 'vacio'] },
+    { pattern: /\b(?:matambre de cerdo|matambrito)\b/i, targetKeywords: ['matambre vacuno', 'bondiola de cerdo', 'costeletas de cerdo'] },
+    { pattern: /\b(?:bondiola|carre|pechito de cerdo)\b/i, targetKeywords: ['matambrito de cerdo', 'costeletas de cerdo'] },
+    { pattern: /\b(?:osobuco|garrón|peceto|roast beef|palomita|paleta)\b/i, targetKeywords: ['carne molida', 'matambre vacuno', 'tapa de cuadril'] },
+    { pattern: /\b(?:suprema|pechuga|milanesas de pollo)\b/i, targetKeywords: ['milanesas de ternera', 'pata muslo'] },
+    { pattern: /\b(?:molleja|chinchulin|riñon|chinchulines|chunchullo)\b/i, targetKeywords: ['chorizo criollo', 'morcilla bombón', 'matambrito de cerdo'] },
+    { pattern: /\b(?:morcilla|chori)\b/i, targetKeywords: ['chorizo criollo', 'morcilla bombón'] }
+  ];
+
+  for (const rule of SIMILARITY_RULES) {
+    if (rule.pattern.test(t)) {
+      for (const kw of rule.targetKeywords) {
+        const found = availableList.find(p => p.name.toLowerCase().includes(kw));
+        if (found) return found;
+      }
+    }
+  }
+
+  // Si existe en catálogo un producto con ese nombre pero no disponible o sin stock
+  const unavailableMatch = currentCatalog.find(p => 
+    (p.isAvailable === false || Number(p.stock) === 0) &&
+    (p.name.toLowerCase().includes(t) || t.includes(p.name.toLowerCase()))
+  );
+
+  if (unavailableMatch) {
+    const sameCategory = availableList.filter(p => p.category === unavailableMatch.category && p.id !== unavailableMatch.id);
+    if (sameCategory.length > 0) return sameCategory[0];
+  }
+
+  // Búsqueda por palabras coincidentes
+  for (const p of availableList) {
+    const words = p.name.toLowerCase().split(/\s+/);
+    for (const w of words) {
+      if (w.length >= 4 && t.includes(w)) {
+        return p;
+      }
+    }
+  }
+
+  return availableList[0] || null;
+}
+
+/**
  * Limpia y divide un mensaje con múltiples productos de forma inteligente,
  * corrigiendo errores tipográficos comunes y separando límites numéricos.
  */
@@ -974,19 +1031,44 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
   const isSameProductOrCut = (p1, p2) => {
     if (!p1 || !p2) return false;
     if (p1.id && p2.id && p1.id === p2.id) return true;
-    const n1 = (p1.name || '').toLowerCase();
-    const n2 = (p2.name || '').toLowerCase();
-    if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
-    
+    if (p1.plu && p2.plu && p1.plu === p2.plu) return true;
+    const n1 = (p1.name || '').toLowerCase().trim();
+    const n2 = (p2.name || '').toLowerCase().trim();
+    if (n1 === n2) return true;
+
+    // Distinguir explícitamente Bife de Chorizo de Chorizo criollo/embutido
+    const isBife1 = /bife\s+de\s+chorizo/i.test(n1);
+    const isBife2 = /bife\s+de\s+chorizo/i.test(n2);
+    if (isBife1 !== isBife2) return false;
+
+    // Distinguir Costillar de Costeletas
+    const isCosteleta1 = /costeleta/i.test(n1);
+    const isCosteleta2 = /costeleta/i.test(n2);
+    if (isCosteleta1 !== isCosteleta2) return false;
+
+    // Distinguir Bola de Lomo de Lomo
+    const isBolaLomo1 = /bola\s+de\s+lomo/i.test(n1);
+    const isBolaLomo2 = /bola\s+de\s+lomo/i.test(n2);
+    if (isBolaLomo1 !== isBolaLomo2) return false;
+
+    // Distinguir Matambrito de cerdo vs Matambre vacuno
+    const isMatambreCerdo1 = /matambr(?:o|ito)?\s+de\s+cerdo/i.test(n1);
+    const isMatambreCerdo2 = /matambr(?:o|ito)?\s+de\s+cerdo/i.test(n2);
+    if (isMatambreCerdo1 !== isMatambreCerdo2) return false;
+
+    if (n1.includes(n2) || n2.includes(n1)) return true;
+
     const cutFamilies = [
-      /chori/i,
+      /chorizo(?!\s*de\s*bife)/i,
       /morcill/i,
       /vac[ií]o/i,
-      /costill|costelet/i,
-      /matambre/i,
-      /cuadril/i,
+      /costillar|asado\s+de\s+tira/i,
+      /costelet/i,
+      /bife\s+de\s+chorizo/i,
+      /matambre\s+vacuno/i,
+      /matambrito\s+de\s+cerdo/i,
+      /tapa\s+de\s+cuadril|picanha/i,
       /entra[ñn]a/i,
-      /lomo/i,
       /peceto/i,
       /nalga/i,
       /bola\s+de\s+lomo/i,
@@ -1167,6 +1249,59 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     const isMsgReset = /est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrá todo|armar un nuevo|cancelar el pedido|cancela el pedido|pedir otra cosa/i.test(msg);
     if (isMsgReset) {
       activeItemsMap.clear();
+      continue;
+    }
+
+    // Detección de aceptación de propuesta de sustitución (bot ofreció alternativa disponible ante corte no disponible)
+    const isSubOfferInPrev = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(prevAgentMsg);
+    if (isSubOfferInPrev) {
+      const isAffirmativeSub = /^(?:s[ií]|dale|bueno|perfecto|joya|de diez|si dale|dale si|si quiero|ese me sirve|quiero ese|si por favor|si claro|avanza|anotamelo|anótamelo|pasame ese|cambiame por ese|si ese|ese est[aá] bien|me sirve ese|dale pasame|si preparame|preparame ese)$/i.test(cleanMsg) ||
+        /(?:si quiero|dale si|si dale|pasame ese|quiero ese|cambiame por ese|anotame ese|anótame ese|prepárame ese|preparame ese|si dale, preparame|preparame \d+)/i.test(cleanMsg);
+      const isNegativeSub = /^(?:no|no gracias|no dej[aá]|no deja|dejalo as[ií]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)$/i.test(cleanMsg);
+
+      // Eliminar de activeItemsMap cualquier corte no disponible previo
+      for (const [key] of activeItemsMap.entries()) {
+        const lowerKey = key.toLowerCase();
+        if (/lomo|ojo de bife|bife ancho|t-bone|picanha|colita de cuadril|osobuco|molleja/i.test(lowerKey)) {
+          activeItemsMap.delete(key);
+        }
+      }
+
+      if (isAffirmativeSub || /(?:\d|medio)/.test(cleanMsg)) {
+        const offeredProd = matchBestProduct(prevAgentMsg, catalog);
+        if (offeredProd) {
+          let parsedQty = parseQuantityAndMode(cleanMsg, offeredProd);
+          if ((!parsedQty.quantity || parsedQty.quantity === 1) && !/(?:\d|medio)/.test(cleanMsg)) {
+            const prevUserMsg = msgIdx > 0 ? userMessagesWithContext[msgIdx - 1].content : '';
+            const prevParsed = parseQuantityAndMode(prevUserMsg, offeredProd);
+            if (prevParsed && prevParsed.quantity > 0) parsedQty = prevParsed;
+          }
+
+          for (const key of Array.from(activeItemsMap.keys())) {
+            if (key !== offeredProd.name && (/bife de chorizo/i.test(key) && /bife de chorizo/i.test(offeredProd.name))) {
+              activeItemsMap.delete(key);
+            }
+          }
+
+          activeItemsMap.set(offeredProd.name, {
+            prod: offeredProd,
+            quantity: parsedQty.quantity || 1,
+            isUnitMode: parsedQty.isUnitMode,
+            unitCount: parsedQty.unitCount || 0,
+            unitsPerKg: parsedQty.unitsPerKg || 1,
+            label: parsedQty.label || `${parsedQty.quantity || 1} kg`
+          });
+          continue;
+        }
+      } else if (isNegativeSub) {
+        continue;
+      }
+    }
+
+    // Si el mensaje es una consulta o pedido inicial de un corte fuera de catálogo / no disponible
+    const isUnavailableInquiry = /^(?:hola|buenas|que tal|buen d[ií]a)?\s*(?:ten[eé]s|hay|tenes|tenés|vendes|vend[eé]s)?\s*(?:\d+\s*(?:kg|kilos?)?\s+de\s+)?(?:lomo|ojo de bife|bife ancho|t-bone|picanha|colita de cuadril|osobuco|molleja)\??$/i.test(cleanMsg) ||
+      (/(?:lomo|ojo de bife|bife ancho|t-bone|picanha|colita de cuadril|osobuco|molleja)/i.test(cleanMsg) && /(?:ten[eé]s|vendes|vend[eé]s|hay|cuanto|precio|sale|cuesta)\b/i.test(cleanMsg));
+    if (isUnavailableInquiry) {
       continue;
     }
 
@@ -1618,6 +1753,8 @@ Catálogo Oficial de Cortes y Precios Vigentes:
 ${activeProducts}
 
 Reglas de Oro:
+- Aclaración de Precios por Kilo y Pesaje Variable: En todo detalle de pedido o resumen de compra, aclara al inicio que los precios son por kilo ("📋 Detalle de tu pedido (precios por kilo según corte):") e incluye obligatoriamente luego del monto final la nota: "*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*".
+- Sustitución de Cortes Agotados o Fuera de Catálogo: Si el cliente solicita un producto o corte que no está disponible o no se encuentra en el catálogo (ej: lomo, ojo de bife, t-bone, picanha, etc.), avísale amablemente que no contamos con ese corte específico en este momento, ofrécele de inmediato una alternativa similar disponible del catálogo con su precio por kilo y consúltale si le gustaría llevar ese corte en su reemplazo y qué cantidad prefiere (en kilos o unidades). Mantén siempre la memoria y coherencia de los demás productos ya agregados y permite cambios en tiempo real al vuelo.
 - Desambiguación: Si el cliente pide un corte general o ambiguo (ej: cuadril, matambre, chorizo, milanesas) con múltiples variedades, ofrece opciones numeradas con precios claros para que elija.
 - Fraccionamiento por Unidades: Cuando el cliente pida productos que se pueden vender por unidad (como chorizos, morcillas, costeletas, milanesas) indicando unidades (ej: "6 chorizos", "4 costeletas"), en el detalle del pedido SIEMPRE debes mostrar "X Unidades de [Nombre]" y NUNCA mostrar "kg". Solo muestra kilos si el cliente pidió explícitamente por peso.
 - Consulta de Pago Previa al Cierre: Antes de cerrar o dar por confirmado el pedido final, debes verificar si ya se abonó o consultar cómo pagará, ofreciendo las 3 opciones (1️⃣ Efectivo contraentrega, 2️⃣ Transferencia Alias: republica.carne.mp, 3️⃣ Link de Mercado Pago).
@@ -1828,9 +1965,10 @@ export class AIService {
       /Tu pedido \*\*#ORD-.* ya está confirmado|Opciones:\s*\n?1️⃣\s*Modificar algún dato o cortes|¿Precisás algo de tu pedido\?|Tenés un pedido activo en curso|¿Querés consultar el estado \/ modificarlo/i.test(lastAgentMessage)
     );
     const wasAsadoProposalOffered = /1️⃣\s*[*_]*Opción Clásica|[*_]*Te\s+arm[eé]\s+3\s+opciones|¿Con cu[aá]l opci[oó]n|Opción Combo|Opción Parrillera/i.test(lastAgentMessage);
+    const wasSubstitutionOffered = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(lastAgentMessage);
     const wasPaymentMethodOffered = /(?:c[oó]mo prefer[ií]s abonar|1️⃣\s*\*?Efectivo|2️⃣\s*\*?Transferencia|3️⃣\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oó]mo prefer[ií]s abonar)/i.test(lastAgentMessage);
     const wasReadyToDispatchQuestion = /(?:lo dejamos listo para despachar|lo dejamos listo|dejamos listo para despachar|¿Precisás realizar algún otro cambio)/i.test(lastAgentMessage);
-    const wasMenuOffered = !wasAsadoProposalOffered && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
+    const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
       !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered;
 
     // 0.0001 RESPUESTAS AL MENÚ DE BIENVENIDA / OPCIONES RÁPIDAS
@@ -1869,6 +2007,119 @@ export class AIService {
           `6️⃣ **COUNTRY SAN ISIDRO:** Av. Padre Luchesse km 2 (📞 +54 9 3518 769099)\n` +
           `   *Lunes a Miércoles:* 07:00 a 00:00 hs | *Jueves a Sábado:* 07:00 a 01:00 hs\n\n` +
           `🛵 *También hacemos envíos directos a domicilio en el día a todo Córdoba.* ¿Querés que te preparemos un pedido? 🙌 [[STAGE:proposal]]`;
+      }
+    }
+
+    // 0.00012 RESPUESTAS A PROPUESTAS DE SUSTITUCIÓN / CORTE SIMILAR
+    if (wasSubstitutionOffered) {
+      const isAffirmative = /^(?:s[ií]|dale|bueno|perfecto|joya|de diez|si dale|dale si|si quiero|ese me sirve|quiero ese|si por favor|si claro|avanza|anotamelo|anótamelo|pasame ese|cambiame por ese|si ese|ese est[aá] bien|me sirve ese|dale pasame|si preparame)$/i.test(cleanConfirmText) ||
+        /(?:si quiero|dale si|si dale|pasame ese|quiero ese|cambiame por ese|anotame ese|anótame ese|prepárame ese|preparame ese)/i.test(t);
+      const isNegative = /^(?:no|no gracias|no dej[aá]|no deja|dejalo as[ií]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)$/i.test(cleanConfirmText);
+      const hasQtyExplicit = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?)|medio\s+kilo|1\/2\s*kg)/i.test(t);
+
+      if (isAffirmative || hasQtyExplicit) {
+        // Encontrar el producto que se ofreció como sustituto en lastAgentMessage
+        const offeredProd = matchBestProduct(lastAgentMessage, products);
+        if (offeredProd) {
+          let parsedQty = parseQuantityAndMode(rawText, offeredProd);
+          // Si el usuario dijo solo "sí" sin número, buscar si en el mensaje anterior del usuario o en lastAgentMessage había una cantidad propuesta
+          if ((!parsedQty.quantity || parsedQty.quantity === 1) && !/(?:\d|medio)/.test(t)) {
+            const rawUserPrev = (history || []).slice().reverse().find(m => m.sender === 'user')?.content || '';
+            const prevUserQty = parseQuantityAndMode(rawUserPrev, offeredProd);
+            if (prevUserQty && prevUserQty.quantity > 0) {
+              parsedQty = prevUserQty;
+            }
+          }
+
+          let finalItems = [], finalTotal = 0, finalProducts = [];
+          if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
+            const modRes = applyItemModificationToOrder(currentActiveOrder, `agrega ${parsedQty.quantity} ${parsedQty.isUnitMode ? `${parsedQty.unitCount} unidades de` : (offeredProd.unit || 'kg')} ${offeredProd.name}`, products, lead);
+            finalItems = modRes.items;
+            finalTotal = modRes.total;
+            finalProducts = modRes.products;
+            db.updateOrder(currentActiveOrder.id, {
+              items: finalItems,
+              products: finalProducts,
+              totalAmount: finalTotal > 0 ? finalTotal : currentActiveOrder.totalAmount
+            });
+          } else {
+            const extRes = extractItemsFromHistoryAndText(history, `agrega ${parsedQty.quantity} ${parsedQty.isUnitMode ? `${parsedQty.unitCount} unidades de` : (offeredProd.unit || 'kg')} ${offeredProd.name}`, products, lead);
+            finalItems = extRes.items;
+            finalTotal = extRes.total;
+            finalProducts = extRes.products;
+            if (finalItems.length > 0) {
+              currentActiveOrder = db.createOrder({
+                jid: lead.jid || lead.id,
+                customerName: clientName,
+                phone: lead.phone || (lead.jid ? `+${lead.jid.split('@')[0]}` : ''),
+                items: finalItems,
+                products: finalProducts,
+                totalAmount: finalTotal,
+                status: 'pending',
+                source: 'whatsapp',
+                deliveryType: lead.deliveryType || 'pickup',
+                address: lead.address || '',
+                branch: lead.preferredBranch || ''
+              });
+            }
+          }
+
+          const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
+          const formattedTotal = `$${Number(finalTotal > 0 ? finalTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}`;
+
+          return `¡De diez ${clientName}! 🥩 Sumamos *${offeredProd.name}* a tu pedido:\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
+            `${finalItems.join('\n')}\n\n` +
+            `💰 *Subtotal acumulado:* **${formattedTotal}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `👉 *¿Cómo seguimos con tu pedido?*\n` +
+            `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+            `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+            `3️⃣ Sumar más cortes o complementos (chorizos, carbón, vino) 🥩\n\n` +
+            `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌 [[STAGE:proposal]]`;
+        }
+      } else if (isNegative) {
+        const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
+        if (historyItems.length > 0) {
+          const formattedTotal = `$${Number(historyTotal).toLocaleString('es-AR')}`;
+          return `¡Entendido ${clientName}! 👍 Mantenemos tu pedido con los cortes seleccionados:\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
+            `${historyItems.join('\n')}\n\n` +
+            `💰 *Subtotal acumulado:* **${formattedTotal}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `👉 *¿Cómo seguimos con tu pedido?*\n` +
+            `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+            `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+            `3️⃣ Sumar otros cortes o complementos 🥩\n\n` +
+            `👉 *Respondé 1, 2 o 3.* 🙌 [[STAGE:proposal]]`;
+        }
+        return `¡De diez ${clientName}! ¿Qué otro corte te gustaría que te preparemos o consultamos del catálogo? 🥩`;
+      }
+    }
+
+    // 0.00014 DETECCIÓN DE PRODUCTO SOLICITADO NO DISPONIBLE O FUERA DE CATÁLOGO + SUGERENCIA DE REEMPLAZO SIMILAR
+    const outOfCatalogCuts = [
+      { pattern: /\b(?:lomo|bife de lomo|solomillo|filet mignon|filet)\b/i, name: 'Lomo' },
+      { pattern: /\b(?:ojo de bife|bife ancho|t-bone|tbone|ribeye|tomahawk|bife angosto)\b/i, name: 'Ojo de Bife / Bife Ancho' },
+      { pattern: /\b(?:picanha|picaña)\b/i, name: 'Picanha' },
+      { pattern: /\b(?:tapa de asado|falda|asado con cuero|pecho|marucha)\b/i, name: 'Tapa de Asado / Falda' },
+      { pattern: /\b(?:colita de cuadril)\b/i, name: 'Colita de Cuadril' },
+      { pattern: /\b(?:osobuco|garrón|peceto)\b/i, name: 'Osobuco / Peceto' },
+      { pattern: /\b(?:molleja|chinchulin|chinchulines|chunchullo)\b/i, name: 'Achuras (Molleja/Chinchulín)' }
+    ];
+
+    const requestedUnavailable = outOfCatalogCuts.find(c => c.pattern.test(t));
+    const isExplicitCutsOrOrderAsk = /(?:ten[eé]s|vendes|vend[eé]s|hay|quiero|mandame|mandámelo|traeme|armame|separame|preparame|cuanto|precio|sale|cuesta|kilos?|kg)\b/i.test(t) || requestedUnavailable;
+
+    if (requestedUnavailable && isExplicitCutsOrOrderAsk && !wasAsadoProposalOffered && !wasSubstitutionOffered) {
+      const similarProd = findSimilarProductOrAlternative(t, products);
+      if (similarProd) {
+        const hasQty = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?)|medio\s+kilo|1\/2\s*kg)/i.test(t);
+        const qtyMatch = t.match(/(\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?)|medio\s+kilo|1\/2\s*kg)/i);
+        const qtyText = qtyMatch ? qtyMatch[1] : '';
+
+        return `¡Hola ${clientName}! 🥩 Disculpá, en este momento no tenemos **${requestedUnavailable.name}**, pero te podemos ofrecer **${similarProd.name}** a **$${Number(similarProd.price).toLocaleString('es-AR')}/${similarProd.unit || 'kg'}** que está excelente y recién ingresado de cámara.\n\n` +
+          `👉 *¿Te gustaría llevar ${similarProd.name} en su reemplazo?* ${hasQty ? `¿Te preparamos los **${qtyText}**?` : 'Contame qué cantidad te preparamos (kilos o unidades) y te lo sumo a tu pedido.'} 🙌 [[STAGE:proposal]]`;
       }
     }
 
@@ -1989,9 +2240,10 @@ export class AIService {
         const itemsDisplay = finalItems.join('\n');
         const modNotice = modificationText ? ' con tu modificación' : '';
         return `¡De diez ${clientName}! 🥩 Ya tengo anotada la **${optionTitle}**${modNotice}:\n\n` +
-          `📋 *Detalle de tu pedido:*\n` +
-          `${itemsDisplay}\n` +
-          `💰 *Total:* **$${Number(finalTotal).toLocaleString('es-AR')}**\n\n` +
+          `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
+          `${itemsDisplay}\n\n` +
+          `💰 *Total estimado:* **$${Number(finalTotal).toLocaleString('es-AR')}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
           `👉 *¿Cómo seguimos con tu pedido?*\n` +
           `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
           `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
@@ -2082,9 +2334,10 @@ export class AIService {
           const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
 
           return `¡Espectacular ${clientName}! 🥩 Dejamos anotada tu elección:\n\n` +
-            `📋 *Detalle de tu pedido${orderNotice}:*\n` +
-            `${updatedItems.join('\n')}\n` +
-            `💰 *Subtotal acumulado:* *${formattedTotal}*\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
+            `${updatedItems.join('\n')}\n\n` +
+            `💰 *Subtotal acumulado:* *${formattedTotal}*\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
             `👉 *¿Cómo seguimos con tu pedido?*\n` +
             `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
             `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
@@ -2409,8 +2662,9 @@ export class AIService {
 
       return `¡Excelente ${clientName}! 🏪 Registramos tu sucursal de retiro para tu pedido${orderRef} en:\n` +
         `👉 **${selectedBranch.name}** (📍 ${selectedBranch.address}).\n\n` +
-        `📋 *Detalle de tu pedido:*\n${itemsList}\n` +
-        `💰 *Total a abonar:* **${totalFormatted}**\n\n` +
+        `📋 *Detalle de tu pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total estimado a abonar:* **${totalFormatted}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `💳 *Paso final — ¿Cómo preferís abonar?*\n` +
         `1️⃣ *Efectivo* (al retirar en sucursal)\n` +
         `2️⃣ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
@@ -2436,8 +2690,9 @@ export class AIService {
       const orderIdTag = targetOrder ? ` **#${targetOrder.id}**` : '';
 
       return `¡De diez ${clientName}! 🥩💳 Dejamos listo tu pedido${orderIdTag} por **${totalFormatted}** con entrega/retiro en **${dest}**:\n\n` +
-        `📋 *Detalle del pedido:*\n${itemsList}\n` +
-        `💰 *Total a abonar:* **${totalFormatted}**\n\n` +
+        `📋 *Detalle del pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total estimado a abonar:* **${totalFormatted}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `💳 *¿Cómo preferís abonar?*\n` +
         `1️⃣ *Efectivo* (en sucursal o al repartidor)\n` +
         `2️⃣ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
@@ -2494,18 +2749,37 @@ export class AIService {
     );
 
     if (isQuantityOrCutModification) {
-      const { items: updatedItems, total: newTotal } = extractItemsFromHistoryAndText(history, rawText, products, lead);
-      if (updatedItems.length > 0) {
-        if (currentActiveOrder) {
+      let updatedItems = [], newTotal = 0, updatedProducts = [];
+      if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status) && currentActiveOrder.items && currentActiveOrder.items.length > 0) {
+        const modRes = applyItemModificationToOrder(currentActiveOrder, rawText, products, lead);
+        updatedItems = modRes.items;
+        newTotal = modRes.total;
+        updatedProducts = modRes.products;
+        db.updateOrder(currentActiveOrder.id, {
+          items: updatedItems,
+          products: updatedProducts,
+          totalAmount: newTotal > 0 ? newTotal : currentActiveOrder.totalAmount
+        });
+      } else {
+        const extRes = extractItemsFromHistoryAndText(history, rawText, products, lead);
+        updatedItems = extRes.items;
+        newTotal = extRes.total;
+        updatedProducts = extRes.products;
+        if (updatedItems.length > 0 && currentActiveOrder) {
           db.updateOrder(currentActiveOrder.id, {
             items: updatedItems,
+            products: updatedProducts,
             totalAmount: newTotal > 0 ? newTotal : currentActiveOrder.totalAmount
           });
         }
+      }
+
+      if (updatedItems.length > 0) {
         return `¡Anotado ${clientName}! 🥩 Actualizamos tu pedido:\n\n` +
-          `📋 *Detalle de tu pedido:*\n` +
-          `${updatedItems.join('\n')}\n` +
-          `💰 *Subtotal acumulado:* **$${Number(newTotal > 0 ? newTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}**\n\n` +
+          `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
+          `${updatedItems.join('\n')}\n\n` +
+          `💰 *Subtotal acumulado:* **$${Number(newTotal > 0 ? newTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
           `👉 *¿Cómo seguimos con tu pedido?*\n` +
           `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
           `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
@@ -2582,9 +2856,10 @@ export class AIService {
           });
 
           return `¡De diez ${clientName}! 🥩 Modificación registrada con éxito en tu pedido **#${currentActiveOrder.id}**:\n\n` +
-            `📋 *Detalle actualizado de tu pedido:*\n` +
+            `📋 *Detalle actualizado de tu pedido (precios por kilo según corte):*\n` +
             `${updatedItems.join('\n')}\n\n` +
-            `💰 *Nuevo Total a abonar:* **$${Number(newTotal > 0 ? newTotal : currentActiveOrder.totalAmount).toLocaleString('es-AR')}**\n` +
+            `💰 *Nuevo Total estimado a abonar:* **$${Number(newTotal > 0 ? newTotal : currentActiveOrder.totalAmount).toLocaleString('es-AR')}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
             `📍 *Destino:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n` +
             `💳 *Medio de pago:* ${currentActiveOrder.paymentMethod || 'Efectivo / Transferencia'}\n\n` +
             `👉 *Opciones:*\n` +
@@ -2729,9 +3004,10 @@ export class AIService {
       const delivQ = getVariedDeliveryQuestion();
 
       return `${orderIntro}\n\n` +
-        `📋 *Detalle de tu pedido:*\n` +
-        `${itemText}\n` +
-        `💰 *Subtotal acumulado:* **$${subtotalAmount.toLocaleString('es-AR')}**\n\n` +
+        `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
+        `${itemText}\n\n` +
+        `💰 *Subtotal acumulado:* **$${subtotalAmount.toLocaleString('es-AR')}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `${delivQ} [[STAGE:proposal]]`;
     }
 
@@ -2855,8 +3131,9 @@ export class AIService {
       }
 
       return `¡Mil disculpas ${clientName}! 🥩 Tenés toda la razón, se me había desfasado el resumen. Te dejo asentado el pedido completo con todos tus cortes:\n\n` +
-        `📋 *Detalle corregido de tu pedido:*\n${itemsList}\n` +
-        `💰 *Total correcto a abonar:* **${formattedTotal}**\n\n` +
+        `📋 *Detalle corregido de tu pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total correcto estimado a abonar:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `📍 *Dirección de entrega:* ${lead.address || 'Locelso 7100'}\n\n` +
         `👉 ¿Confirmamos con este total correcto para despacharte en el día? (Respondé *SÍ* para finalizar) 🙌 [[STAGE:confirming_data]]`;
     }
@@ -2930,8 +3207,9 @@ export class AIService {
         `🆔 *N° de Pedido:* #${orderObj.id}\n` +
         `👤 *Cliente:* ${clientName} (N.° ${customerNum})\n` +
         `📱 *Teléfono:* ${clientPhone}\n` +
-        `📋 *RESUMEN DE TU PEDIDO:*\n${finalItems.join('\n')}\n` +
-        `💰 *Total a abonar:* **${formattedTotal}**\n\n` +
+        `📋 *RESUMEN DE TU PEDIDO (precios por kilo según corte):*\n${finalItems.join('\n')}\n\n` +
+        `💰 *Total estimado a abonar:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `📍 *Destino de Entrega:* ${addressDest}\n` +
         `🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n` +
         `💳 *Paso 4 de 4 — ¿Cómo preferís abonar?*\n` +
@@ -3073,8 +3351,9 @@ export class AIService {
         `👤 *Destinatario / Cliente:* **${finalClientName}**\n` +
         `📱 *Teléfono de Contacto:* **${clientPhone}**\n` +
         `📍 *Dirección de Entrega:* **${cleanAddress}**\n` +
-        `🥩 *Detalle del Pedido:*\n${itemsList.join('\n')}\n` +
-        `💰 *Total a abonar:* **${formattedTotal}**\n\n` +
+        `🥩 *Detalle del Pedido (precios por kilo según corte):*\n${itemsList.join('\n')}\n\n` +
+        `💰 *Total estimado a abonar:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n` +
         `1️⃣ Confirmar datos y pasar al pago\n` +
         `2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n` +
@@ -3100,8 +3379,9 @@ export class AIService {
           `👤 *Destinatario / Cliente:* **${clientName}**\n` +
           `📱 *Teléfono de Contacto:* **${clientPhone}**\n` +
           `📍 *Dirección de Entrega:* **${lead.address}**\n` +
-          `🥩 *Detalle del Pedido:*\n${finalItems.join('\n')}\n` +
-          `💰 *Total a abonar:* **${formattedTotal}**\n\n` +
+          `🥩 *Detalle del Pedido (precios por kilo según corte):*\n${finalItems.join('\n')}\n\n` +
+          `💰 *Total estimado a abonar:* **${formattedTotal}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
           `👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n` +
           `1️⃣ Confirmar datos y pasar al pago\n` +
           `2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n` +
@@ -3117,8 +3397,9 @@ export class AIService {
       const formattedTotal = `$${(historyTotal || 39999).toLocaleString('es-AR')}`;
 
       return `¡De diez ${clientName}! 🥩🚚 Cerramos con tu pedido confirmado:\n\n` +
-        `📋 *Detalle de tu pedido:*\n${itemsList}\n` +
-        `💰 *Total:* **${formattedTotal}**\n\n` +
+        `📋 *Detalle de tu pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total estimado:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `👉 *Paso 3 de 4 — ¿Cómo preferís recibir tu pedido?*\n` +
         `1️⃣ *Envío a Domicilio* (te lo llevamos en el día)\n` +
         `2️⃣ *Retiro en Sucursal* (en cualquiera de nuestras 6 sedes en Córdoba)\n\n` +
@@ -3218,9 +3499,10 @@ export class AIService {
         const crossSellingSection = crossSelling ? `${crossSelling}\n\n` : '';
 
         return `${prefixGreeting}\n\n` +
-          `📋 *Detalle de tu pedido${orderNotice}:*\n` +
-          `${detectedItems.join('\n')}\n` +
-          `💰 *Total acumulado:* *${formattedTotal}*\n\n` +
+          `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
+          `${detectedItems.join('\n')}\n\n` +
+          `💰 *Total acumulado estimado:* **${formattedTotal}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
           crossSellingSection +
           (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)
             ? `📍 *Entrega:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n\n¿Precisás realizar algún otro cambio o lo dejamos listo para despachar? 🙌 [[STAGE:proposal]]`
