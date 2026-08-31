@@ -10452,6 +10452,196 @@
   ],
   "leads": [
     {
+      "id": "test_mod_1788199750636@s.whatsapp.net",
+      "customerNumber": "CLI-9152",
+      "jid": "test_mod_1788199750636@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 975-0636",
+      "name": "Gonzalo Morales",
+      "pushName": "Gonzalo Morales",
+      "email": "",
+      "address": "Av. Menéndez Pidal 3800 barrio Urca",
+      "preferredBranch": "",
+      "deliveryType": "delivery",
+      "customFields": {},
+      "stage": "closed_won",
+      "value": 0,
+      "tags": [
+        "WhatsApp",
+        "Cliente Comprador",
+        "Cliente VIP"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 8,
+      "linkedUserId": null,
+      "preferences": {
+        "favoriteCuts": [
+          "Combo “Asadazo”",
+          "kg VACIO",
+          "bolsa Carbón Quebracho Blanco"
+        ],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": "",
+        "budget": "Económico / Busca promociones y combos"
+      },
+      "createdAt": "2026-08-31T18:09:10.639Z",
+      "updatedAt": "2026-08-31T18:09:12.135Z",
+      "lastMessage": "¡Qué gran noticia Gonzalo Morales! 🎉🥩 Marcamos tu pedido **#ORD-9139** como **✅ Entregado con éxito**.\n\n¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposición. ¡Muchas gracias por elegir República de la Carne! 🙌",
+      "lastMessageAt": "2026-08-31T18:09:12.135Z",
+      "learnedNotes": [
+        "Prioriza combos y opciones de máximo rendimiento económico."
+      ],
+      "totalOrders": 1,
+      "totalSpent": 67198,
+      "lastOrderAt": "2026-08-31T18:09:10.755Z",
+      "lastOrderId": "ORD-9139",
+      "isRegistered": true,
+      "isVerified": true,
+      "registeredAt": "2026-08-31T18:09:11.475Z",
+      "notes": "Cliente agendado y registrado. Dirección: Av. Menéndez Pidal 3800 barrio Urca | Tel: +54 9 351 975-0636"
+    },
+    {
+      "id": "test_mod_1788199718408@s.whatsapp.net",
+      "customerNumber": "CLI-6833",
+      "jid": "test_mod_1788199718408@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 971-8408",
+      "name": "Gonzalo Morales",
+      "pushName": "Contacto WhatsApp",
+      "email": "",
+      "address": "Av. Menéndez Pidal 3800 barrio Urca",
+      "preferredBranch": "",
+      "deliveryType": "delivery",
+      "customFields": {},
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 1,
+      "linkedUserId": null,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": "",
+        "budget": "Económico / Busca promociones y combos"
+      },
+      "createdAt": "2026-08-31T18:08:38.415Z",
+      "updatedAt": "2026-08-31T18:08:38.456Z",
+      "lastMessage": "Hola quiero 1 combo asadazo, 1kg de vacio y 1 bolsa de carbon",
+      "lastMessageAt": "2026-08-31T18:08:38.431Z",
+      "learnedNotes": [
+        "Prioriza combos y opciones de máximo rendimiento económico."
+      ]
+    },
+    {
+      "id": "test_mod_1788199634986@s.whatsapp.net",
+      "customerNumber": "CLI-9931",
+      "jid": "test_mod_1788199634986@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 963-4986",
+      "name": "Gonzalo Morales",
+      "pushName": "Gonzalo Morales",
+      "email": "",
+      "address": "Av. Menéndez Pidal 3800 barrio Urca",
+      "preferredBranch": "",
+      "deliveryType": "delivery",
+      "customFields": {},
+      "stage": "closed_won",
+      "value": 0,
+      "tags": [
+        "WhatsApp",
+        "Cliente Comprador",
+        "Cliente VIP"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 8,
+      "linkedUserId": null,
+      "preferences": {
+        "favoriteCuts": [
+          "Combo “Asadazo”",
+          "kg VACIO",
+          "bolsa Carbón Quebracho Blanco"
+        ],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": "",
+        "budget": "Económico / Busca promociones y combos"
+      },
+      "createdAt": "2026-08-31T18:07:14.989Z",
+      "updatedAt": "2026-08-31T18:07:17.084Z",
+      "lastMessage": "¡Qué gran noticia Gonzalo Morales! 🎉🥩 Marcamos tu pedido **#ORD-6184** como **✅ Entregado con éxito**.\n\n¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposición. ¡Muchas gracias por elegir República de la Carne! 🙌",
+      "lastMessageAt": "2026-08-31T18:07:17.084Z",
+      "learnedNotes": [
+        "Prioriza combos y opciones de máximo rendimiento económico."
+      ],
+      "totalOrders": 1,
+      "totalSpent": 67198,
+      "lastOrderAt": "2026-08-31T18:07:15.086Z",
+      "lastOrderId": "ORD-6184",
+      "isRegistered": true,
+      "isVerified": true,
+      "registeredAt": "2026-08-31T18:07:16.520Z",
+      "notes": "Cliente agendado y registrado. Dirección: Av. Menéndez Pidal 3800 barrio Urca | Tel: +54 9 351 963-4986"
+    },
+    {
+      "id": "test_mod_1788199539398@s.whatsapp.net",
+      "customerNumber": "CLI-5938",
+      "jid": "test_mod_1788199539398@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 953-9398",
+      "name": "Gonzalo Morales",
+      "pushName": "Gonzalo Morales",
+      "email": "",
+      "address": "Av. Menéndez Pidal 3800 barrio Urca",
+      "preferredBranch": "",
+      "deliveryType": "delivery",
+      "customFields": {},
+      "stage": "closed_won",
+      "value": 0,
+      "tags": [
+        "WhatsApp",
+        "Cliente Comprador",
+        "Cliente VIP"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 8,
+      "linkedUserId": null,
+      "preferences": {
+        "favoriteCuts": [
+          "Combo “Asadazo”",
+          "kg VACIO",
+          "bolsa Carbón Quebracho Blanco"
+        ],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": "",
+        "budget": "Económico / Busca promociones y combos"
+      },
+      "createdAt": "2026-08-31T18:05:39.400Z",
+      "updatedAt": "2026-08-31T18:05:41.375Z",
+      "lastMessage": "¡Qué gran noticia Gonzalo Morales! 🎉🥩 Marcamos tu pedido **#ORD-9432** como **✅ Entregado con éxito**.\n\n¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposición. ¡Muchas gracias por elegir República de la Carne! 🙌",
+      "lastMessageAt": "2026-08-31T18:05:41.375Z",
+      "learnedNotes": [
+        "Prioriza combos y opciones de máximo rendimiento económico."
+      ],
+      "totalOrders": 1,
+      "totalSpent": 67198,
+      "lastOrderAt": "2026-08-31T18:05:39.495Z",
+      "lastOrderId": "ORD-9432",
+      "isRegistered": true,
+      "isVerified": true,
+      "registeredAt": "2026-08-31T18:05:40.662Z",
+      "notes": "Cliente agendado y registrado. Dirección: Av. Menéndez Pidal 3800 barrio Urca | Tel: +54 9 351 953-9398"
+    },
+    {
       "id": "lead-1788190664913-pa0z2",
       "customerNumber": "CLI-1502",
       "jid": "153051277086768@lid",
@@ -10491,7 +10681,7 @@
         "notes": ""
       },
       "createdAt": "2026-08-31T15:37:44.913Z",
-      "updatedAt": "2026-08-31T17:07:41.449Z",
+      "updatedAt": "2026-08-31T18:09:22.273Z",
       "lastMessage": "¡Hola Don Juan! ✨🥩 ¡Tu pedido #ORD-4230 YA ESTÁ LISTO y preparado en URCA CENTRAL! Podés pasar a retirarlo cuando gustes. ¡Te esperamos! 🙌",
       "lastMessageAt": "2026-08-31T15:47:00.416Z",
       "avatar": "https://pps.whatsapp.net/v/t61.24694-24/505921264_1636280273726009_810259708632007770_n.jpg?ccb=11-4&oh=01_Q5Aa5QH_xkevOYcj4Z2vsPGDU-fSCy1xYChJQ4tVVHx3-Zu0NA&oe=6AA2AC4D&_nc_sid=5e03e0&_nc_cat=106",
@@ -10499,9 +10689,9 @@
         "Suele organizar comidas para 4 personas.",
         "Suele organizar comidas para 6 personas."
       ],
-      "totalOrders": 5,
-      "totalSpent": 212178,
-      "lastOrderAt": "2026-08-31T17:07:39.315Z",
+      "totalOrders": 12,
+      "totalSpent": 467118,
+      "lastOrderAt": "2026-08-31T18:09:22.272Z",
       "lastOrderId": "ORD-3330",
       "notes": "Cliente agendado y registrado. Dirección: ROque funes 1704 | Tel: +54 9 351 626-2475",
       "isRegistered": true,
@@ -12004,6 +12194,398 @@
       "sender": "agent",
       "type": "text",
       "content": "¡Hola Don Juan! ✨🥩 ¡Tu pedido #ORD-4230 YA ESTÁ LISTO y preparado en URCA CENTRAL! Podés pasar a retirarlo cuando gustes. ¡Te esperamos! 🙌"
+    },
+    {
+      "id": "msg-1788199539408-70cfxd",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:39.408Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "Hola quiero 1 combo asadazo, 1kg de vacio y 1 bolsa de carbon"
+    },
+    {
+      "id": "msg-1788199539509-mq6cz2",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:39.509Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Actualizado Gonzalo Morales! 🥩 Modificamos y dejamos asentado tu pedido **#ORD-9432**:\n\n📋 *Detalle de tu pedido (Pedido #ORD-9432):*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 1 kg VACIO — $24.999\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n💰 *Total acumulado:* *$67.198*\n\n📍 *Entrega:* Av. Menéndez Pidal 3800 barrio Urca\n\n¿Precisás realizar algún otro cambio o lo dejamos listo para despachar? 🙌"
+    },
+    {
+      "id": "msg-1788199539516-y92tdk",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:39.516Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "cambiame el vacio por 2kg de costillar"
+    },
+    {
+      "id": "msg-1788199539588-1lv84d",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:39.588Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡De diez Gonzalo Morales! 🥩 Modificación registrada con éxito en tu pedido **#ORD-9432**:\n\n📋 *Detalle actualizado de tu pedido:*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n• 2 kg COSTILLA — $49.998\n\n💰 *Nuevo Total a abonar:* **$92.197**\n📍 *Destino:* Av. Menéndez Pidal 3800 barrio Urca\n💳 *Medio de pago:* Efectivo / Transferencia\n\n👉 *Opciones:*\n1️⃣ Confirmar pedido y continuar (o respondé \"1\" / \"confirmar\")\n2️⃣ Sumar más cortes (o indicá qué corte querés)\n3️⃣ Cancelar pedido (o respondé \"3\" / \"cancelar\") 🙌"
+    },
+    {
+      "id": "msg-1788199539593-7gpl5o",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:39.593Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "sacale el carbon"
+    },
+    {
+      "id": "msg-1788199539638-1q211a",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:39.638Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Genial Gonzalo Morales! 🪵 Sumamos *Carbón Quebracho Blanco (Bolsa Grande)* [PLU 2020] ($2.200 / bolsa).\n\n👉 *¿Cuántas bolsas te gustaría que te agreguemos?* (ej: *1*, *2*, *3*).\n\n¡Avisame la cantidad para sumarlo a tu pedido! 🙌"
+    },
+    {
+      "id": "msg-1788199539643-c4h3b3",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:39.643Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "listo mandamelo a mi direccion"
+    },
+    {
+      "id": "msg-1788199540618-pr2atr",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.618Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n👤 *Destinatario / Cliente:* **Gonzalo Morales**\n📱 *Teléfono de Contacto:* **+54 9 351 953-9398**\n📍 *Dirección de Entrega:* **Av. Menéndez Pidal 3800 barrio Urca**\n🥩 *Detalle del Pedido:*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 2 kg COSTILLA — $49.998\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n💰 *Total a abonar:* **$92.197**\n\n👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n1️⃣ Confirmar datos y pasar al pago\n2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n3️⃣ Cancelar pedido\n\n👉 Respondé *1*, *2* o *3* (o escribí *SÍ* para confirmar). 🥩🚚"
+    },
+    {
+      "id": "msg-1788199540624-lewf3c",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.624Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "1"
+    },
+    {
+      "id": "msg-1788199540683-uwz0v9",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.683Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente Gonzalo Morales! 🎉 Datos confirmados y agendados con éxito. Ya generamos tu orden de compra:\n\n🆔 *N° de Pedido:* #ORD-9432\n👤 *Cliente:* Gonzalo Morales (N.° CLI-5938)\n📱 *Teléfono:* +54 9 351 953-9398\n📋 *RESUMEN DE TU PEDIDO:*\n• 2 kg COSTILLA — $49.998\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n💰 *Total a abonar:* **$52.198**\n\n📍 *Destino de Entrega:* Av. Menéndez Pidal 3800 barrio Urca\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *Paso 4 de 4 — ¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: `republica.carne.mp`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n👉 Respondé *1*, *2* o *3*. 🥩"
+    },
+    {
+      "id": "msg-1788199540690-urxi4j",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.690Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "1"
+    },
+    {
+      "id": "msg-1788199540738-7tvis6",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.738Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente elección Gonzalo Morales! 🥩💵 Marcamos tu pedido **#ORD-9432** como **Efectivo al repartidor** (Total: **$52.198**).\n\n🛵 Te lo llevamos a domicilio a **Av. Menéndez Pidal 3800 barrio Urca** en el día (dentro de las 24 hs). ¡Podés abonar en efectivo directo al repartidor al recibir tu pedido! 🙌"
+    },
+    {
+      "id": "msg-1788199540747-gtfl99",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.747Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "hola ya transferí el total"
+    },
+    {
+      "id": "msg-1788199540799-4ke64e",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.799Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente Gonzalo Morales! 💳 Registramos tu aviso y confirmación de pago para tu pedido **#ORD-9432** por **$52.198**.\n\nTus cortes se encuentran **🥩 En preparación en carnicería** listos para su entrega. ¡Muchas gracias por tu compra! 🙌"
+    },
+    {
+      "id": "msg-1788199540807-q04ee6",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:40.807Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "muchas gracias ya me llegó el pedido todo de diez"
+    },
+    {
+      "id": "msg-1788199541375-3f5sbs",
+      "chatId": "test_mod_1788199539398@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:05:41.375Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Qué gran noticia Gonzalo Morales! 🎉🥩 Marcamos tu pedido **#ORD-9432** como **✅ Entregado con éxito**.\n\n¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposición. ¡Muchas gracias por elegir República de la Carne! 🙌"
+    },
+    {
+      "id": "msg-1788199635001-5fyeqf",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:15.001Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "Hola quiero 1 combo asadazo, 1kg de vacio y 1 bolsa de carbon"
+    },
+    {
+      "id": "msg-1788199635101-4o5mxi",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:15.101Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Actualizado Gonzalo Morales! 🥩 Modificamos y dejamos asentado tu pedido **#ORD-6184**:\n\n📋 *Detalle de tu pedido (Pedido #ORD-6184):*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 1 kg VACIO — $24.999\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n💰 *Total acumulado:* *$67.198*\n\n📍 *Entrega:* Av. Menéndez Pidal 3800 barrio Urca\n\n¿Precisás realizar algún otro cambio o lo dejamos listo para despachar? 🙌"
+    },
+    {
+      "id": "msg-1788199635107-doqju5",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:15.107Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "cambiame el vacio por 2kg de costillar"
+    },
+    {
+      "id": "msg-1788199635167-h06xm5",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:15.167Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡De diez Gonzalo Morales! 🥩 Modificación registrada con éxito en tu pedido **#ORD-6184**:\n\n📋 *Detalle actualizado de tu pedido:*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n• 2 kg COSTILLA — $49.998\n\n💰 *Nuevo Total a abonar:* **$92.197**\n📍 *Destino:* Av. Menéndez Pidal 3800 barrio Urca\n💳 *Medio de pago:* Efectivo / Transferencia\n\n👉 *Opciones:*\n1️⃣ Confirmar pedido y continuar (o respondé \"1\" / \"confirmar\")\n2️⃣ Sumar más cortes (o indicá qué corte querés)\n3️⃣ Cancelar pedido (o respondé \"3\" / \"cancelar\") 🙌"
+    },
+    {
+      "id": "msg-1788199635173-nau6n5",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:15.173Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "sacale el carbon"
+    },
+    {
+      "id": "msg-1788199635231-nceqy4",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:15.231Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Genial Gonzalo Morales! 🪵 Sumamos *Carbón Quebracho Blanco (Bolsa Grande)* [PLU 2020] ($2.200 / bolsa).\n\n👉 *¿Cuántas bolsas te gustaría que te agreguemos?* (ej: *1*, *2*, *3*).\n\n¡Avisame la cantidad para sumarlo a tu pedido! 🙌"
+    },
+    {
+      "id": "msg-1788199635237-cjarn7",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:15.238Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "listo mandamelo a mi direccion"
+    },
+    {
+      "id": "msg-1788199636453-ojvlzg",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.453Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n👤 *Destinatario / Cliente:* **Gonzalo Morales**\n📱 *Teléfono de Contacto:* **+54 9 351 963-4986**\n📍 *Dirección de Entrega:* **Av. Menéndez Pidal 3800 barrio Urca**\n🥩 *Detalle del Pedido:*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 2 kg COSTILLA — $49.998\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n💰 *Total a abonar:* **$92.197**\n\n👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n1️⃣ Confirmar datos y pasar al pago\n2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n3️⃣ Cancelar pedido\n\n👉 Respondé *1*, *2* o *3* (o escribí *SÍ* para confirmar). 🥩🚚"
+    },
+    {
+      "id": "msg-1788199636461-esu5vg",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.461Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "1"
+    },
+    {
+      "id": "msg-1788199636549-zzenpr",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.549Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente Gonzalo Morales! 🎉 Datos confirmados y agendados con éxito. Ya generamos tu orden de compra:\n\n🆔 *N° de Pedido:* #ORD-6184\n👤 *Cliente:* Gonzalo Morales (N.° CLI-9931)\n📱 *Teléfono:* +54 9 351 963-4986\n📋 *RESUMEN DE TU PEDIDO:*\n• 2 kg COSTILLA — $49.998\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n💰 *Total a abonar:* **$52.198**\n\n📍 *Destino de Entrega:* Av. Menéndez Pidal 3800 barrio Urca\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *Paso 4 de 4 — ¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: `republica.carne.mp`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n👉 Respondé *1*, *2* o *3*. 🥩"
+    },
+    {
+      "id": "msg-1788199636555-u1yagz",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.555Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "1"
+    },
+    {
+      "id": "msg-1788199636615-hs76j0",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.615Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente elección Gonzalo Morales! 🥩💵 Marcamos tu pedido **#ORD-6184** como **Efectivo al repartidor** (Total: **$52.198**).\n\n🛵 Te lo llevamos a domicilio a **Av. Menéndez Pidal 3800 barrio Urca** en el día (dentro de las 24 hs). ¡Podés abonar en efectivo directo al repartidor al recibir tu pedido! 🙌"
+    },
+    {
+      "id": "msg-1788199636626-95t5d8",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.626Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "hola ya transferí el total"
+    },
+    {
+      "id": "msg-1788199636696-rqry51",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.696Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente Gonzalo Morales! 💳 Registramos tu aviso y confirmación de pago para tu pedido **#ORD-6184** por **$52.198**.\n\nTus cortes se encuentran **🥩 En preparación en carnicería** listos para su entrega. ¡Muchas gracias por tu compra! 🙌"
+    },
+    {
+      "id": "msg-1788199636708-uns5kl",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:16.708Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "muchas gracias ya me llegó el pedido todo de diez"
+    },
+    {
+      "id": "msg-1788199637084-1g9gaa",
+      "chatId": "test_mod_1788199634986@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:07:17.084Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Qué gran noticia Gonzalo Morales! 🎉🥩 Marcamos tu pedido **#ORD-6184** como **✅ Entregado con éxito**.\n\n¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposición. ¡Muchas gracias por elegir República de la Carne! 🙌"
+    },
+    {
+      "id": "msg-1788199718431-fhikea",
+      "chatId": "test_mod_1788199718408@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:08:38.431Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "Hola quiero 1 combo asadazo, 1kg de vacio y 1 bolsa de carbon"
+    },
+    {
+      "id": "msg-1788199750652-vk8wko",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:10.652Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "Hola quiero 1 combo asadazo, 1kg de vacio y 1 bolsa de carbon"
+    },
+    {
+      "id": "msg-1788199750772-rcw2kz",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:10.772Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Actualizado Gonzalo Morales! 🥩 Modificamos y dejamos asentado tu pedido **#ORD-9139**:\n\n📋 *Detalle de tu pedido (Pedido #ORD-9139):*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 1 kg VACIO — $24.999\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n💰 *Total acumulado:* *$67.198*\n\n📍 *Entrega:* Av. Menéndez Pidal 3800 barrio Urca\n\n¿Precisás realizar algún otro cambio o lo dejamos listo para despachar? 🙌"
+    },
+    {
+      "id": "msg-1788199750779-z5yh9b",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:10.779Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "cambiame el vacio por 2kg de costillar"
+    },
+    {
+      "id": "msg-1788199750845-xhd9rh",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:10.845Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡De diez Gonzalo Morales! 🥩 Modificación registrada con éxito en tu pedido **#ORD-9139**:\n\n📋 *Detalle actualizado de tu pedido:*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200\n• 2 kg COSTILLA — $49.998\n\n💰 *Nuevo Total a abonar:* **$92.197**\n📍 *Destino:* Av. Menéndez Pidal 3800 barrio Urca\n💳 *Medio de pago:* Efectivo / Transferencia\n\n👉 *Opciones:*\n1️⃣ Confirmar pedido y continuar (o respondé \"1\" / \"confirmar\")\n2️⃣ Sumar más cortes (o indicá qué corte querés)\n3️⃣ Cancelar pedido (o respondé \"3\" / \"cancelar\") 🙌"
+    },
+    {
+      "id": "msg-1788199750852-zz3go4",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:10.853Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "sacale el carbon"
+    },
+    {
+      "id": "msg-1788199750917-bvpejd",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:10.917Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡De diez Gonzalo Morales! 🥩 Modificación registrada con éxito en tu pedido **#ORD-9139**:\n\n📋 *Detalle actualizado de tu pedido:*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 2 kg COSTILLA — $49.998\n\n💰 *Nuevo Total a abonar:* **$89.997**\n📍 *Destino:* Av. Menéndez Pidal 3800 barrio Urca\n💳 *Medio de pago:* Efectivo / Transferencia\n\n👉 *Opciones:*\n1️⃣ Confirmar pedido y continuar (o respondé \"1\" / \"confirmar\")\n2️⃣ Sumar más cortes (o indicá qué corte querés)\n3️⃣ Cancelar pedido (o respondé \"3\" / \"cancelar\") 🙌"
+    },
+    {
+      "id": "msg-1788199750924-pdrdzu",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:10.924Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "listo mandamelo a mi direccion"
+    },
+    {
+      "id": "msg-1788199751415-bzn950",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.415Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n👤 *Destinatario / Cliente:* **Gonzalo Morales**\n📱 *Teléfono de Contacto:* **+54 9 351 975-0636**\n📍 *Dirección de Entrega:* **Av. Menéndez Pidal 3800 barrio Urca**\n🥩 *Detalle del Pedido:*\n• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999\n• 2 kg COSTILLA — $49.998\n💰 *Total a abonar:* **$89.997**\n\n👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n1️⃣ Confirmar datos y pasar al pago\n2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n3️⃣ Cancelar pedido\n\n👉 Respondé *1*, *2* o *3* (o escribí *SÍ* para confirmar). 🥩🚚"
+    },
+    {
+      "id": "msg-1788199751422-njiwo4",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.422Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "1"
+    },
+    {
+      "id": "msg-1788199751498-6wiepx",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.498Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente Gonzalo Morales! 🎉 Datos confirmados y agendados con éxito. Ya generamos tu orden de compra:\n\n🆔 *N° de Pedido:* #ORD-9139\n👤 *Cliente:* Gonzalo Morales (N.° CLI-9152)\n📱 *Teléfono:* +54 9 351 975-0636\n📋 *RESUMEN DE TU PEDIDO:*\n• 2 kg COSTILLA — $49.998\n💰 *Total a abonar:* **$49.998**\n\n📍 *Destino de Entrega:* Av. Menéndez Pidal 3800 barrio Urca\n🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n💳 *Paso 4 de 4 — ¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: `republica.carne.mp`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n👉 Respondé *1*, *2* o *3*. 🥩"
+    },
+    {
+      "id": "msg-1788199751505-kcugft",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.505Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "1"
+    },
+    {
+      "id": "msg-1788199751567-3ipg2c",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.567Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente elección Gonzalo Morales! 🥩💵 Marcamos tu pedido **#ORD-9139** como **Efectivo al repartidor** (Total: **$49.998**).\n\n🛵 Te lo llevamos a domicilio a **Av. Menéndez Pidal 3800 barrio Urca** en el día (dentro de las 24 hs). ¡Podés abonar en efectivo directo al repartidor al recibir tu pedido! 🙌"
+    },
+    {
+      "id": "msg-1788199751580-dc8bb4",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.580Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "hola ya transferí el total"
+    },
+    {
+      "id": "msg-1788199751654-isif84",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.654Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Excelente Gonzalo Morales! 💳 Registramos tu aviso y confirmación de pago para tu pedido **#ORD-9139** por **$49.998**.\n\nTus cortes se encuentran **🥩 En preparación en carnicería** listos para su entrega. ¡Muchas gracias por tu compra! 🙌"
+    },
+    {
+      "id": "msg-1788199751666-3ssict",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:11.666Z",
+      "status": "sent",
+      "sender": "user",
+      "content": "muchas gracias ya me llegó el pedido todo de diez"
+    },
+    {
+      "id": "msg-1788199752135-a35sof",
+      "chatId": "test_mod_1788199750636@s.whatsapp.net",
+      "timestamp": "2026-08-31T18:09:12.135Z",
+      "status": "sent",
+      "sender": "agent",
+      "content": "¡Qué gran noticia Gonzalo Morales! 🎉🥩 Marcamos tu pedido **#ORD-9139** como **✅ Entregado con éxito**.\n\n¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposición. ¡Muchas gracias por elegir República de la Carne! 🙌"
     }
   ],
   "calls": [
@@ -12145,24 +12727,27 @@
   "orders": [
     {
       "id": "ORD-3330",
-      "jid": "153051277086768@lid",
+      "jid": "5493516262475@s.whatsapp.net",
       "phone": "+54 9 351 626-2475",
       "customerName": "Don Juan",
       "address": "ROque funes 1704",
-      "branch": "",
-      "branchName": "URCA 2 – ALTO TEJEDA",
-      "branchId": "branch_urca_2",
+      "branch": "URCA CENTRAL",
+      "branchName": "URCA CENTRAL",
+      "branchId": "branch_urca_1",
       "deliveryType": "delivery",
       "items": [
         "• 1 kg MATAMBRE CERDO — $23.150",
-        "• 6 Unidades de CHORIZO DE CERDO — $11.070",
+        "• 8 Unidades de CHORIZO DE CERDO — $14.760",
         "• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200"
       ],
       "products": [
         {
           "id": "prod-111",
+          "plu": "",
+          "barcode": "",
           "name": "MATAMBRE CERDO",
           "price": 23150,
+          "unitPrice": 23150,
           "quantity": 1,
           "unit": "kg",
           "isUnitMode": false,
@@ -12171,13 +12756,114 @@
         },
         {
           "id": "prod-184",
+          "plu": "",
+          "barcode": "",
           "name": "CHORIZO DE CERDO",
           "price": 14760,
-          "quantity": 0.75,
+          "unitPrice": 14760,
+          "quantity": 1,
           "unit": "kg",
           "isUnitMode": true,
-          "unitCount": 6,
-          "subtotal": 11070
+          "unitCount": 8,
+          "subtotal": 14760
+        },
+        {
+          "id": "prod_carbon",
+          "plu": "",
+          "barcode": "",
+          "name": "Carbón Quebracho Blanco (Bolsa Grande)",
+          "price": 2200,
+          "unitPrice": 2200,
+          "quantity": 1,
+          "unit": "bolsa",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 2200
+        }
+      ],
+      "totalAmount": 40110,
+      "paymentMethod": "Efectivo al repartidor",
+      "paymentLink": null,
+      "status": "preparing",
+      "isPrepared": false,
+      "preparedAt": null,
+      "preparedBy": null,
+      "channel": "WHATSAPP",
+      "source": "WHATSAPP",
+      "origin": "WHATSAPP",
+      "notes": "",
+      "createdAt": "2026-08-31T18:09:22.272Z",
+      "updatedAt": "2026-08-31T18:09:24.286Z"
+    },
+    {
+      "id": "ORD-9139",
+      "jid": "test_mod_1788199750636@s.whatsapp.net",
+      "phone": "+54 9 351 975-0636",
+      "customerName": "Gonzalo Morales",
+      "address": "Av. Menéndez Pidal 3800 barrio Urca",
+      "branch": "",
+      "branchName": "URCA CENTRAL",
+      "branchId": "branch_urca_1",
+      "deliveryType": "delivery",
+      "items": [
+        "• 2 kg COSTILLA — $49.998"
+      ],
+      "products": [
+        {
+          "id": "prod-14",
+          "name": "COSTILLA",
+          "price": 24999,
+          "quantity": 2,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 49998
+        }
+      ],
+      "totalAmount": 49998,
+      "paymentMethod": "Efectivo al repartidor",
+      "paymentLink": null,
+      "status": "completed",
+      "isPrepared": false,
+      "preparedAt": null,
+      "preparedBy": null,
+      "channel": "WHATSAPP",
+      "source": "WHATSAPP",
+      "origin": "WHATSAPP",
+      "notes": "[Pago informado y confirmado por cliente]",
+      "createdAt": "2026-08-31T18:09:10.755Z",
+      "updatedAt": "2026-08-31T18:09:12.116Z",
+      "paymentStatus": "paid",
+      "autoArchive": true,
+      "deliveredAt": "2026-08-31T18:09:12.113Z",
+      "isArchived": true,
+      "completedAt": "2026-08-31T18:09:12.113Z",
+      "archivedAt": "2026-08-31T18:09:12.113Z"
+    },
+    {
+      "id": "ORD-6184",
+      "jid": "test_mod_1788199634986@s.whatsapp.net",
+      "phone": "+54 9 351 963-4986",
+      "customerName": "Gonzalo Morales",
+      "address": "Av. Menéndez Pidal 3800 barrio Urca",
+      "branch": "",
+      "branchName": "URCA CENTRAL",
+      "branchId": "branch_urca_1",
+      "deliveryType": "delivery",
+      "items": [
+        "• 2 kg COSTILLA — $49.998",
+        "• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200"
+      ],
+      "products": [
+        {
+          "id": "prod-14",
+          "name": "COSTILLA",
+          "price": 24999,
+          "quantity": 2,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 49998
         },
         {
           "id": "prod_carbon",
@@ -12190,19 +12876,81 @@
           "subtotal": 2200
         }
       ],
-      "totalAmount": 36420,
+      "totalAmount": 52198,
       "paymentMethod": "Efectivo al repartidor",
       "paymentLink": null,
-      "status": "preparing",
+      "status": "completed",
       "isPrepared": false,
       "preparedAt": null,
       "preparedBy": null,
       "channel": "WHATSAPP",
       "source": "WHATSAPP",
       "origin": "WHATSAPP",
-      "notes": "",
-      "createdAt": "2026-08-31T17:07:39.315Z",
-      "updatedAt": "2026-08-31T17:07:41.441Z"
+      "notes": "[Pago informado y confirmado por cliente]",
+      "createdAt": "2026-08-31T18:07:15.086Z",
+      "updatedAt": "2026-08-31T18:07:17.064Z",
+      "paymentStatus": "paid",
+      "autoArchive": true,
+      "deliveredAt": "2026-08-31T18:07:17.058Z",
+      "isArchived": true,
+      "completedAt": "2026-08-31T18:07:17.058Z",
+      "archivedAt": "2026-08-31T18:07:17.058Z"
+    },
+    {
+      "id": "ORD-9432",
+      "jid": "test_mod_1788199539398@s.whatsapp.net",
+      "phone": "+54 9 351 953-9398",
+      "customerName": "Gonzalo Morales",
+      "address": "Av. Menéndez Pidal 3800 barrio Urca",
+      "branch": "",
+      "branchName": "URCA CENTRAL",
+      "branchId": "branch_urca_1",
+      "deliveryType": "delivery",
+      "items": [
+        "• 2 kg COSTILLA — $49.998",
+        "• 1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200"
+      ],
+      "products": [
+        {
+          "id": "prod-14",
+          "name": "COSTILLA",
+          "price": 24999,
+          "quantity": 2,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 49998
+        },
+        {
+          "id": "prod_carbon",
+          "name": "Carbón Quebracho Blanco (Bolsa Grande)",
+          "price": 2200,
+          "quantity": 1,
+          "unit": "bolsa",
+          "isUnitMode": true,
+          "unitCount": 1,
+          "subtotal": 2200
+        }
+      ],
+      "totalAmount": 52198,
+      "paymentMethod": "Efectivo al repartidor",
+      "paymentLink": null,
+      "status": "completed",
+      "isPrepared": false,
+      "preparedAt": null,
+      "preparedBy": null,
+      "channel": "WHATSAPP",
+      "source": "WHATSAPP",
+      "origin": "WHATSAPP",
+      "notes": "[Pago informado y confirmado por cliente]",
+      "createdAt": "2026-08-31T18:05:39.495Z",
+      "updatedAt": "2026-08-31T18:05:41.294Z",
+      "paymentStatus": "paid",
+      "autoArchive": true,
+      "deliveredAt": "2026-08-31T18:05:41.291Z",
+      "isArchived": true,
+      "completedAt": "2026-08-31T18:05:41.291Z",
+      "archivedAt": "2026-08-31T18:05:41.291Z"
     }
   ],
   "branches": [

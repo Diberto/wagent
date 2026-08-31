@@ -1574,7 +1574,8 @@ class DatabaseService {
         const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
         const qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
         const rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
-        const namePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
+        const rawNamePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
+        const namePart = rawNamePart.replace(/^de\s+/i, '').trim();
 
         const matched = allProducts.find(p => 
           p.name.toLowerCase() === namePart.toLowerCase() ||
@@ -1584,6 +1585,8 @@ class DatabaseService {
 
         const unitPrice = matched ? Number(matched.price) : (qty > 0 && subtotal > 0 ? Math.round(subtotal / qty) : 0);
         const isUnit = /un|unidades?|botellas?|bolsas?|combo/i.test(rawUnit) || (matched && matched.unit !== 'kg');
+        const unitsPerKg = matched?.unitsPerKg || 8;
+        const finalQty = (isUnit && matched?.unit === 'kg') ? Number((qty / unitsPerKg).toFixed(3)) : qty;
 
         parsedProducts.push({
           id: matched?.id || `prod-${idx}`,
@@ -1592,10 +1595,11 @@ class DatabaseService {
           name: matched?.name || namePart,
           price: unitPrice,
           unitPrice: unitPrice,
-          quantity: qty,
+          quantity: finalQty,
           unit: matched?.unit || rawUnit,
           isUnitMode: isUnit,
-          subtotal: subtotal || Math.round(unitPrice * qty)
+          unitCount: isUnit ? qty : 0,
+          subtotal: subtotal || Math.round(unitPrice * finalQty)
         });
       });
 
@@ -1745,7 +1749,8 @@ class DatabaseService {
         const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
         const qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
         const rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
-        const namePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
+        const rawNamePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
+        const namePart = rawNamePart.replace(/^de\s+/i, '').trim();
 
         const lower = namePart.toLowerCase();
         const matchedProd = allProducts.find(p => 
@@ -1755,7 +1760,10 @@ class DatabaseService {
         );
         
         const unitPrice = matchedProd ? Number(matchedProd.price) : (subtotal > 0 && qty > 0 ? Math.round(subtotal / qty) : subtotal);
-        const lineTotal = subtotal > 0 ? subtotal : Math.round(unitPrice * qty);
+        const isUnit = /un|unidades?|botellas?|bolsas?|combo/i.test(rawUnit) || (matchedProd && matchedProd.unit !== 'kg');
+        const unitsPerKg = matchedProd?.unitsPerKg || 8;
+        const finalQty = (isUnit && matchedProd?.unit === 'kg') ? Number((qty / unitsPerKg).toFixed(3)) : qty;
+        const lineTotal = subtotal > 0 ? subtotal : Math.round(unitPrice * finalQty);
 
         products.push({
           id: matchedProd?.id || `prod-${idx}`,
@@ -1764,8 +1772,10 @@ class DatabaseService {
           name: matchedProd?.name || namePart,
           price: unitPrice,
           unitPrice: unitPrice,
-          quantity: qty,
+          quantity: finalQty,
           unit: matchedProd?.unit || rawUnit,
+          isUnitMode: isUnit,
+          unitCount: isUnit ? qty : 0,
           subtotal: lineTotal
         });
       });
@@ -1783,6 +1793,8 @@ class DatabaseService {
           unitPrice: unitPrice,
           quantity: qty,
           unit: p.unit || 'kg',
+          isUnitMode: Boolean(p.isUnitMode),
+          unitCount: p.unitCount !== undefined ? Number(p.unitCount) : (p.isUnitMode ? Math.round(qty * 8) : 0),
           subtotal: subtotal
         };
       });

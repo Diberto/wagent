@@ -885,6 +885,171 @@ export function extractCleanAddress(rawText) {
 }
 
 /**
+ * Parsea y reconstruye productos estructurados a partir de strings formateados de items
+ */
+export function parseProductsFromItems(items, catalog = null) {
+  const catList = (catalog && catalog.length > 0) ? catalog : (db.getProducts() || MASTER_CATALOG);
+  const prods = [];
+  if (!Array.isArray(items)) return prods;
+
+  for (const item of items) {
+    if (!item || typeof item !== 'string') continue;
+    const unitMatch = item.match(/•\s+(\d+(?:[\.,]\d+)?)\s+(?:Unidades\s+de\s+|unidades?\s+de\s+)(.+?)\s+—\s+\$?([0-9\.]+)/i);
+    if (unitMatch) {
+      const unitCount = parseFloat(unitMatch[1].replace(',', '.'));
+      const name = unitMatch[2].trim();
+      const subtotal = parseInt(unitMatch[3].replace(/\./g, ''), 10);
+      const catProd = matchBestProduct(name, catList) || { name, price: Math.round(subtotal / (unitCount * 0.125)), unit: 'kg' };
+      const unitsPerKg = catProd.unitsPerKg || 8;
+      const quantity = unitCount / unitsPerKg;
+      prods.push({
+        id: catProd.id || `prod-${name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: catProd.name || name,
+        price: catProd.price || Math.round(subtotal / quantity),
+        quantity,
+        unit: catProd.unit || 'kg',
+        isUnitMode: true,
+        unitCount,
+        subtotal
+      });
+      continue;
+    }
+
+    const kgMatch = item.match(/•\s+(\d+(?:[\.,]\d+)?)\s+(?:kg|kilos?)\s+(.+?)\s+—\s+\$?([0-9\.]+)/i);
+    if (kgMatch) {
+      const quantity = parseFloat(kgMatch[1].replace(',', '.'));
+      const name = kgMatch[2].trim();
+      const subtotal = parseInt(kgMatch[3].replace(/\./g, ''), 10);
+      const catProd = matchBestProduct(name, catList) || { name, price: Math.round(subtotal / quantity), unit: 'kg' };
+      prods.push({
+        id: catProd.id || `prod-${name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: catProd.name || name,
+        price: catProd.price || Math.round(subtotal / quantity),
+        quantity,
+        unit: 'kg',
+        isUnitMode: false,
+        unitCount: 0,
+        subtotal
+      });
+      continue;
+    }
+
+    const genericMatch = item.match(/•\s+(\d+(?:[\.,]\d+)?)\s+([a-záéíóúñ]+)\s+(.+?)\s+—\s+\$?([0-9\.]+)/i);
+    if (genericMatch) {
+      const quantity = parseFloat(genericMatch[1].replace(',', '.'));
+      const unit = genericMatch[2].trim();
+      const name = genericMatch[3].trim();
+      const subtotal = parseInt(genericMatch[4].replace(/\./g, ''), 10);
+      const catProd = matchBestProduct(name, catList) || { name, price: Math.round(subtotal / quantity), unit };
+      prods.push({
+        id: catProd.id || `prod-${name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: catProd.name || name,
+        price: catProd.price || Math.round(subtotal / quantity),
+        quantity,
+        unit,
+        isUnitMode: false,
+        unitCount: 0,
+        subtotal
+      });
+    }
+  }
+  return prods;
+}
+
+/**
+ * Modifica atómicamente los cortes de un pedido existente preservando los cortes previos,
+ * incrementando cantidades en caso de suma o quitando/reemplazando según la solicitud.
+ */
+export function applyItemModificationToOrder(existingOrder, rawText, catalog = null, lead = null) {
+  const catList = (catalog && catalog.length > 0) ? catalog : (db.getProducts() || MASTER_CATALOG);
+  const currentProds = (existingOrder.products && existingOrder.products.length > 0)
+    ? JSON.parse(JSON.stringify(existingOrder.products))
+    : parseProductsFromItems(existingOrder.items || [], catList);
+
+  const t = (rawText || '').toLowerCase().trim();
+  const isAddition = /(?:agrega|agreg[aá]|agregar|agregame|agregale|suma|sum[aá]|sumar|sumale|sumame|ponele|pon[eé]|sumar\s+\d+|mas\s+\d+|más\s+\d+|sumar\s+\d+\s+chorizo|mas\s+chorizo|más\s+chorizo)/i.test(t);
+  const isRemoval = /(?:sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin\s+|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.test(t);
+  const isReplacement = /(?:cambi[aá](?:me|le|lo)?|en\s+vez\s+de|reemplaz[aá](?:me|le|lo)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(t);
+
+  if (isAddition) {
+    const extracted = extractItemsFromHistoryAndText([], rawText, catList, lead);
+    for (const np of extracted.products) {
+      const existing = currentProds.find(p => 
+        p.id === np.id || 
+        p.name.toLowerCase() === np.name.toLowerCase() || 
+        p.name.toLowerCase().includes(np.name.toLowerCase()) || 
+        np.name.toLowerCase().includes(p.name.toLowerCase())
+      );
+
+      if (existing) {
+        if (np.isUnitMode || existing.isUnitMode) {
+          const prevUnitCount = existing.unitCount || Math.round((existing.quantity || 0) * (existing.unitsPerKg || 8));
+          const newUnitCount = np.unitCount || Math.round((np.quantity || 0) * (np.unitsPerKg || 8));
+          existing.isUnitMode = true;
+          existing.unitCount = prevUnitCount + newUnitCount;
+          existing.quantity = (existing.quantity || 0) + (np.quantity || 0);
+          existing.subtotal = Math.round(existing.price * existing.quantity);
+        } else {
+          existing.quantity = (existing.quantity || 0) + (np.quantity || 0);
+          existing.subtotal = Math.round(existing.price * existing.quantity);
+        }
+      } else {
+        currentProds.push(np);
+      }
+    }
+  } else if (isRemoval) {
+    const removeQuery = t.replace(/(?:sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin\s+|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?/i, '').trim();
+    const prodToRemove = matchBestProduct(removeQuery, currentProds.length > 0 ? currentProds : catList);
+    if (prodToRemove) {
+      const idx = currentProds.findIndex(p => p.name.toLowerCase() === prodToRemove.name.toLowerCase() || p.id === prodToRemove.id);
+      if (idx >= 0) currentProds.splice(idx, 1);
+    }
+  } else if (isReplacement) {
+    const oldQuery = isReplacement[1].trim();
+    const newQuery = isReplacement[2].trim();
+    const oldProd = matchBestProduct(oldQuery, currentProds.length > 0 ? currentProds : catList);
+    if (oldProd) {
+      const idx = currentProds.findIndex(p => p.name.toLowerCase() === oldProd.name.toLowerCase() || p.id === oldProd.id);
+      if (idx >= 0) currentProds.splice(idx, 1);
+    }
+    const extracted = extractItemsFromHistoryAndText([], newQuery, catList, lead);
+    for (const np of extracted.products) {
+      currentProds.push(np);
+    }
+  } else {
+    // Corrección o reemplazo directo
+    const extracted = extractItemsFromHistoryAndText([], rawText, catList, lead);
+    if (extracted.products.length > 0) {
+      return {
+        items: extracted.items,
+        products: extracted.products,
+        total: extracted.total
+      };
+    }
+  }
+
+  // Reconstruir items y total
+  const items = [];
+  let total = 0;
+  for (const prod of currentProds) {
+    const sub = prod.subtotal || Math.round((prod.price || 0) * (prod.quantity || 1));
+    if (prod.unit === 'kg' && prod.isUnitMode && prod.unitCount > 0) {
+      items.push(`• ${prod.unitCount} Unidades de ${prod.name} — $${sub.toLocaleString('es-AR')}`);
+    } else if (prod.unit !== 'kg') {
+      const cleanProdName = prod.name.toLowerCase().startsWith(prod.unit.toLowerCase()) 
+        ? prod.name 
+        : `${prod.unit} ${prod.name}`;
+      items.push(`• ${prod.quantity} ${cleanProdName} — $${sub.toLocaleString('es-AR')}`);
+    } else {
+      items.push(`• ${prod.quantity} kg ${prod.name} — $${sub.toLocaleString('es-AR')}`);
+    }
+    total += sub;
+  }
+
+  return { items, products: currentProds, total };
+}
+
+/**
  * Extrae con precisión los cortes y cantidades pedidos a lo largo de la conversación actual, sin duplicar
  */
 export function extractItemsFromHistoryAndText(history, text, products, lead = null) {
@@ -1443,7 +1608,7 @@ export class AIService {
 
     const settings = db.getSettings();
     if (!lead) {
-      lead = (typeof param2 === 'object' && param2 !== null && !('jid' in param1)) ? param2 : (db.getLead(jid) || { name: 'Cliente', stage: 'new_lead', tags: [] });
+      lead = (typeof param2 === 'object' && param2 !== null) ? param2 : (db.getLead(jid) || { name: 'Cliente', stage: 'new_lead', tags: [] });
     }
     if (!history || history.length === 0) {
       history = (Array.isArray(param3) && param3.length > 0) ? param3 : db.getMessages(jid, 8);
@@ -1620,12 +1785,14 @@ export class AIService {
     const wasDeliveryTypeOffered = /1️⃣ \*?Env[ií]o a Domicilio\*?|1️⃣.*Coordinar \*Envío a Domicilio\*|¿Cómo preferís recibir tu pedido|¿Cómo seguimos con tu pedido\?|¿Preferís que te lo enviemos a domicilio|¿Te lo mandamos a tu casa/i.test(lastAgentMessage);
     const wasInTransitChoiceOffered = /1️⃣ Cancelar el pedido|Opciones disponibles:[\s\S]*1️⃣ Cancelar/i.test(lastAgentMessage);
     const wasDataConfirmOffered = /FICHA DE REGISTRO|¿Confirmamos estos datos para agendarte|1️⃣ Confirmar datos/i.test(lastAgentMessage);
-    const wasActiveOrderHelpOffered = !wasDataConfirmOffered && (/Tu pedido \*\*#ORD-.* ya está confirmado|Opciones:\s*\n?1️⃣\s*Modificar algún dato o cortes|¿Precisás algo de tu pedido\?/i.test(lastAgentMessage));
+    const wasActiveOrderHelpOffered = !wasDataConfirmOffered && (
+      /Tu pedido \*\*#ORD-.* ya está confirmado|Opciones:\s*\n?1️⃣\s*Modificar algún dato o cortes|¿Precisás algo de tu pedido\?|Tenés un pedido activo en curso|¿Querés consultar el estado \/ modificarlo/i.test(lastAgentMessage)
+    );
     const wasAsadoProposalOffered = /1️⃣\s*[*_]*Opción Clásica|[*_]*Te\s+arm[eé]\s+3\s+opciones|¿Con cu[aá]l opci[oó]n|Opción Combo|Opción Parrillera/i.test(lastAgentMessage);
     const wasPaymentMethodOffered = /(?:c[oó]mo prefer[ií]s abonar|1️⃣\s*\*?Efectivo|2️⃣\s*\*?Transferencia|3️⃣\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oó]mo prefer[ií]s abonar)/i.test(lastAgentMessage);
     const wasReadyToDispatchQuestion = /(?:lo dejamos listo para despachar|lo dejamos listo|dejamos listo para despachar|¿Precisás realizar algún otro cambio)/i.test(lastAgentMessage);
     const wasMenuOffered = !wasAsadoProposalOffered && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
-      !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered;
+      !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered;
 
     // 0.0001 RESPUESTAS AL MENÚ DE BIENVENIDA / OPCIONES RÁPIDAS
     if (wasWelcomeMenuOffered) {
@@ -1759,7 +1926,8 @@ export class AIService {
 
     // 0.00022 RESPUESTAS A SELECCIÓN DE OPCIONES DE DESAMBIGUACIÓN Y CATÁLOGO
     const wasAmbiguousOffered = /En mostrador tenemos varias opciones de|¿Cuál de estas opciones preferís que te preparemos y cuántos kilos o unidades/i.test(lastAgentMessage);
-    const wasMenuOrAmbiguousOffered = wasAmbiguousOffered || (wasMenuOffered && !wasWelcomeMenuOffered);
+    const isRemovalOrReplacement = /(?:sac[aá]|quit[aá]|sin\s+|elimin[aá]|borr[aá]|cambi[aá]|reemplaz[aá]|en\s+vez\s+de)/i.test(t);
+    const wasMenuOrAmbiguousOffered = (wasAmbiguousOffered || (wasMenuOffered && !wasWelcomeMenuOffered)) && !isRemovalOrReplacement;
     if (wasMenuOrAmbiguousOffered) {
       const isOptionNum = /^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|la\s+[1-9]|el\s+[1-9]|opci[oó]n\s+[1-9])$/i.test(cleanConfirmText);
       const isNamedOption = /(?:chorizo|chori|cuadril|matambre|milanesa|costilla|colorado|cheddar|criollo|dubai|tapa|colita|vacio|vacío|asado|bife|entraña|molida|pollo|carbon|carbón|vino)/i.test(t);
@@ -1795,23 +1963,33 @@ export class AIService {
         }
 
         // Si el cliente seleccionó la opción pero NO especificó cantidad (ej: dijo solo "7", "1", "el 3" o "matambre")
-        if (chosenProduct && !hasExplicitQty && !/combo asadazo/i.test(chosenProduct.name || '')) {
+        if (chosenProduct && !hasExplicitQty && !/combo asadazo/i.test(chosenProduct.name || '') && !isRemovalOrReplacement) {
           return formatProductQuantityPrompt(chosenProduct, clientName);
         }
 
-        const { items: updatedItems, total: updatedTotal } = extractItemsFromHistoryAndText(history, rawText, products, lead);
-        if (updatedItems.length > 0) {
-          if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
-            db.updateOrder(currentActiveOrder.id, {
-              items: updatedItems,
-              totalAmount: updatedTotal
-            });
-          } else {
+        let updatedItems = [], updatedTotal = 0, updatedProducts = [];
+        if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
+          const modRes = applyItemModificationToOrder(currentActiveOrder, rawText, products, lead);
+          updatedItems = modRes.items;
+          updatedTotal = modRes.total;
+          updatedProducts = modRes.products;
+          db.updateOrder(currentActiveOrder.id, {
+            items: updatedItems,
+            products: updatedProducts,
+            totalAmount: updatedTotal > 0 ? updatedTotal : currentActiveOrder.totalAmount
+          });
+        } else {
+          const extRes = extractItemsFromHistoryAndText(history, rawText, products, lead);
+          updatedItems = extRes.items;
+          updatedTotal = extRes.total;
+          updatedProducts = extRes.products;
+          if (updatedItems.length > 0) {
             const newOrder = db.createOrder({
               jid: lead.jid || lead.id,
               customerName: clientName,
               phone: lead.phone || (lead.jid ? `+${lead.jid.split('@')[0]}` : ''),
               items: updatedItems,
+              products: updatedProducts,
               totalAmount: updatedTotal,
               status: 'pending',
               source: 'whatsapp',
@@ -1821,7 +1999,9 @@ export class AIService {
             });
             currentActiveOrder = newOrder;
           }
+        }
 
+        if (updatedItems.length > 0) {
           const formattedTotal = `$${updatedTotal.toLocaleString('es-AR')}`;
           const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
 
@@ -2010,9 +2190,11 @@ export class AIService {
       }
     }
 
-    // 0.005 CONSULTA DE ESTADO DE PEDIDO ACTIVO O DETALLE
-    const isStatusCheck = /estado|como viene|cómo viene|donde est[aá]|cu[aá]ndo llega|seguimiento|consultar el estado|consultar estado|detalle.*ped|ver.*ped|que ped[ií]|mis cortes|resumen.*ped|detalle|que pedi|ya est[aá] listo|est[aá] listo|ya lo prepararon|est[aá] preparado|est[aá] lista/i.test(t) ||
-      (wasActiveOrderHelpOffered && /^(?:2|2️⃣|opci[oó]n 2|la 2|el 2|estado|detalle)$/i.test(t.trim()));
+    // 0.005 CONSULTA DE ESTADO DE PEDIDO ACTIVO O DETALLE DE ORDEN COMPLETA
+    const isStatusCheck = /estado|como viene|cómo viene|donde est[aá]|dónde est[aá]|cu[aá]ndo llega|seguimiento|status|consultar el estado|consultar estado|detalle.*ped|ver.*ped|ver.*orden|orden completa|ver la orden|ver mi orden|ver orden completa|resumen completo|qu[eé]\s+ped[ií]|que ped[ií]|que pedi|mis cortes|resumen.*ped|detalle|ya est[aá] listo|est[aá] listo|ya lo prepararon|est[aá] preparado|est[aá] lista/i.test(t) ||
+      /(?:ver|mostrar|mostrame|consultar|pasame|cual es|cuál es|cómo es|como es|dame|decime)\s+(?:la\s+|el\s+|mi\s+)?(?:orden|pedido|resumen|detalle)(?:\s+completo|\s+completa)?/i.test(t) ||
+      /^(?:ver\s+pedido|ver\s+orden|ver\s+detalle|detalle\s+del\s+pedido|qu[eé]\s+ped[ií]|orden\s+completa|resumen)$/i.test(cleanConfirmText) ||
+      (wasActiveOrderHelpOffered && /^(?:2|2️⃣|opci[oó]n 2|la 2|el 2|dos|estado|detalle|ver orden|orden completa)$/i.test(t.trim()));
 
     if (isStatusCheck && currentActiveOrder) {
       const statusLabel = getOrderStatusLabel(currentActiveOrder.status);
@@ -2021,6 +2203,9 @@ export class AIService {
         ? `🔪 *Preparación:* ✅ *Cortes cortados y preparados* en carnicería`
         : `🔪 *Preparación:* ⏳ *En cola de corte y pesado*`;
       const itemsText = Array.isArray(currentActiveOrder.items) ? currentActiveOrder.items.join('\n') : currentActiveOrder.items;
+      const destination = currentActiveOrder.deliveryType === 'delivery'
+        ? `Domicilio (${currentActiveOrder.address || lead.address || 'A coordinar'})`
+        : `Sucursal (${currentActiveOrder.branch || lead.preferredBranch || 'A coordinar'})`;
       
       let readyNote = '';
       if (currentActiveOrder.status === 'ready' || currentActiveOrder.status === 'ready_for_pickup' || isPrep) {
@@ -2036,7 +2221,7 @@ export class AIService {
         `${prepText}\n\n` +
         `📋 *Cortes y Productos:* \n${itemsText}\n\n` +
         `💰 *Total:* **$${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}**\n` +
-        `📍 *Destino:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n` +
+        `📍 *Destino:* ${destination}\n` +
         `💳 *Medio de pago:* ${currentActiveOrder.paymentMethod || 'Efectivo / Transferencia'}\n` +
         `🚚 *Entrega:* ${currentActiveOrder.status === 'ready' ? 'Listo en mostrador / En despacho' : 'Programado en el día (dentro de las 24 hs)'}\n` +
         readyNote +
@@ -2309,12 +2494,14 @@ export class AIService {
 
     // 0.051 MODIFICACIÓN DIRECTA DE CORTES EN PEDIDO ACTIVO (Sumar, reemplazar o quitar)
     if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
-      const isItemModification = /(?:cambiame|cambia|cambiá|reemplaza|reemplazá|sacale|sacá|saca|quita|quitar|quitalo|agrega|agregá|suma|sumá|sumar|ponele|poné|agregale)\s+(?:el\s+|la\s+|un\s+|una\s+|los\s+|las\s+)?([a-záéíóúñ0-9\s]+)/i.test(t);
+      const isItemModification = /(?:cambiame|cambia|cambiá|reemplaza|reemplazá|sacale|sacá|saca|quita|quitar|quitalo|agrega|agregá|suma|sumá|sumar|ponele|poné|agregale)\s+(?:el\s+|la\s+|un\s+|una\s+|los\s+|las\s+)?([a-záéíóúñ0-9\s]+)/i.test(t) ||
+        /(?:quiero|mandame|traeme|sumar|agregar)\s+(?:sumar|agregar|mas|más|\d+)\s+([a-záéíóúñ0-9\s]+)/i.test(t);
       if (isItemModification) {
-        const { items: updatedItems, total: newTotal } = extractItemsFromHistoryAndText(history, rawText, products, lead);
+        const { items: updatedItems, products: updatedProducts, total: newTotal } = applyItemModificationToOrder(currentActiveOrder, rawText, products, lead);
         if (updatedItems.length > 0) {
           db.updateOrder(currentActiveOrder.id, {
             items: updatedItems,
+            products: updatedProducts,
             totalAmount: newTotal > 0 ? newTotal : currentActiveOrder.totalAmount
           });
 
@@ -2331,6 +2518,8 @@ export class AIService {
         }
       }
     }
+
+
 
     // 0.06 GESTIÓN DE CLIENTES CON PEDIDO EN PREPARACIÓN / CAMINO (CONSULTAS GENERALES)
     if (currentActiveOrder && ['preparing', 'in_transit', 'ready_for_pickup'].includes(currentActiveOrder.status)) {
@@ -2874,7 +3063,7 @@ export class AIService {
     // 4. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y ADICIONES / CORRECCIONES
     // =========================================================================
     const isAdditionOrder = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2/i.test(t);
-    const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de/i.test(t);
+    const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de|sacale|sacá|saca|quita|quitar|quitalo|quitame|cambiame|cambia|cambiá|reemplaza|reemplazá/i.test(t);
     const hasOrderVerb = /(?:quiero|mandame|mandámelo|mandamelo|enviame|envíame|traeme|traéme|armame|armáme|anotame|anótame|dame|separame|sepárame|preparame|prepárame|haceme|llevame|llevale|tenes|tenés|vendes|vendés)/i.test(t);
     const hasQuantityExplicit = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|combo|bolsa|botella|bifes?|tiras?|piezas?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b\d+\s+(?:de\s+)?(?:kilos?|kg|unidades?))/i.test(t);
     const isQuestionOrInquiry = /^(?:qu[eé]|cu[aá]l|cu[aá]les|mostrame|pasame|decime)\s+(?:opciones|cortes|tipos|variedades|precios|promo|ofertas?|de\s+)/i.test(t) || 

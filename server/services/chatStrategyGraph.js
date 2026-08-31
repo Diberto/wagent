@@ -251,6 +251,18 @@ export class ChatStrategyGraphService {
     }
 
     if (activeOrder) {
+      const itemsText = Array.isArray(activeOrder.items) ? activeOrder.items.join('\n') : (activeOrder.items || 'Cortes seleccionados');
+      const isDetailQuery = /ver|mostrar|mostrame|detalle|orden|pedido|resumen|corte|qu[eé]\s+ped[ií]/i.test(t);
+      if (isDetailQuery) {
+        return `¡Hola ${clientName}! 📋 Acá tenés el detalle completo de tu pedido **#${activeOrder.id}**:\n\n` +
+          `🥩 *Cortes seleccionados:*\n` +
+          `${itemsText}\n\n` +
+          `💰 *Total:* **$${Number(activeOrder.totalAmount).toLocaleString('es-AR')}**\n` +
+          `📍 *Destino:* ${activeOrder.address || lead.address || activeOrder.branch || 'A coordinar'}\n` +
+          `💳 *Medio de pago:* ${activeOrder.paymentMethod || 'Efectivo / Transferencia'}\n\n` +
+          `¿Precisás hacer algún cambio o está todo listo para despachar? 🙌`;
+      }
+
       return `${smalltalkAck}\n\n` +
         `Te recuerdo que tenemos en curso tu pedido **#${activeOrder.id}** por **$${Number(activeOrder.totalAmount).toLocaleString('es-AR')}**.\n\n` +
         `👉 *¿Precisás algo de tu pedido?*\n` +
