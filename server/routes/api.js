@@ -18,8 +18,8 @@ import { ImageService } from '../services/imageService.js';
 import { ChatStrategyGraphService } from '../services/chatStrategyGraph.js';
 import { parseProductFile, exportCatalog } from '../services/catalogImporter.js';
 import { OFFICIAL_MASTER_CATALOG } from '../services/masterCatalogData.js';
-import { OrderFilterEngine } from '../services/orderFilterEngine.js';
 import { arcaService } from '../services/arca.js';
+import { SpeechService } from '../services/speech.js';
 import * as XLSX from 'xlsx';
 import { CONFIG } from '../config/index.js';
 
@@ -2061,16 +2061,30 @@ export function createApiRouter(whatsappService, io) {
 
   // --- 6. Settings & Voice Testing ---
   router.get('/settings', (req, res) => {
-    res.json({
-      settings: db.getSettings(),
-      availableVoices: SpeechService.getAvailableVoices()
-    });
+    try {
+      const settings = db.getSettings();
+      const availableVoices = (typeof SpeechService !== 'undefined' && SpeechService.getAvailableVoices)
+        ? SpeechService.getAvailableVoices()
+        : [];
+      res.json({
+        settings,
+        availableVoices
+      });
+    } catch (err) {
+      console.error('Error en GET /api/settings:', err);
+      res.status(500).json({ error: err.message, settings: {}, availableVoices: [] });
+    }
   });
 
   router.put('/settings', (req, res) => {
-    const updated = db.updateSettings(req.body);
-    io.emit('settings:update', updated);
-    res.json(updated);
+    try {
+      const updated = db.updateSettings(req.body);
+      io.emit('settings:update', updated);
+      res.json(updated);
+    } catch (err) {
+      console.error('Error en PUT /api/settings:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Obtener voces personalizadas de la cuenta de ElevenLabs
