@@ -473,6 +473,40 @@ export default function CallModal({
     setPhoneNumber(prev => prev.slice(0, -1));
   };
 
+  const handleStartElevenLabsPhoneCall = async (e) => {
+    e?.preventDefault();
+    if (!phoneNumber.trim()) return;
+
+    setIsCalling(true);
+    setCallSuccessMessage(null);
+
+    try {
+      const res = await fetch('/api/elevenlabs/agent/outbound-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber.trim(),
+          customerName: contactName.trim() || 'Cliente',
+          customMessage: customVoiceMessage.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCallSuccessMessage(data.message || '¡Llamada con Agente ElevenLabs iniciada con éxito!');
+        setTimeout(() => {
+          setCallSuccessMessage(null);
+          onClose();
+        }, 3000);
+      } else {
+        alert(data.error || 'No se pudo iniciar la llamada telefónica');
+      }
+    } catch (err) {
+      console.error('Error iniciando llamada con ElevenLabs:', err);
+    } finally {
+      setIsCalling(false);
+    }
+  };
+
   const handleStartOutboundCall = async (e) => {
     e?.preventDefault();
     if (!phoneNumber.trim()) return;
@@ -852,17 +886,18 @@ export default function CallModal({
                 className="flex items-center justify-center gap-2 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg shadow-purple-600/20 transition-all active:scale-95"
               >
                 <Sparkles size={16} />
-                🎙️ Hablar con Agente ElevenLabs (Eleven Agents)
+                🎙️ Hablar con Agente ElevenLabs en Vivo (Eleven Agents)
               </button>
 
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setMode('in_call')}
-                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-bold transition-all"
+                  onClick={handleStartElevenLabsPhoneCall}
+                  disabled={isCalling || !phoneNumber.trim()}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
                 >
-                  <Radio size={14} />
-                  Llamada en Vivo Web
+                  <PhoneCall size={14} />
+                  {isCalling ? 'Llamando...' : 'Llamar Teléfono'}
                 </button>
 
                 <button
@@ -875,6 +910,15 @@ export default function CallModal({
                   {isCalling ? 'Enviando...' : 'Llamar WhatsApp'}
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setMode('in_call')}
+                className="flex items-center justify-center gap-2 py-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[11px] font-semibold transition-all"
+              >
+                <Radio size={13} />
+                Simulador de Llamada por Micrófono Local
+              </button>
             </div>
           </div>
         )}

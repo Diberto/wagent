@@ -273,8 +273,15 @@
       "category": "Achuras",
       "description": "Chinchulines seleccionados y limpios",
       "stock": 90,
-      "isAvailable": true,
-      "sku": "PLU-2015"
+      "isAvailable": false,
+      "sku": "PLU-2015",
+      "imageUrl": "",
+      "stockQuantity": 90,
+      "stockControl": false,
+      "stockMinAlert": 5,
+      "allowBackorder": true,
+      "isFeaturedWhatsApp": false,
+      "updatedAt": "2026-09-01T00:11:42.259Z"
     },
     {
       "id": "prod_mollejas",
@@ -3052,7 +3059,7 @@
     {
       "id": "prod-16",
       "plu": "16",
-      "barcode": "",
+      "barcode": "7790016000001",
       "sku": "16",
       "name": "COSTILLA ENVASADA AL VACIO",
       "category": "Parrilla y Vacuno",
@@ -3061,8 +3068,17 @@
       "description": "Parrilla y Vacuno - Calidad seleccionada República de la Carne",
       "stock": 100,
       "imageUrl": "",
-      "isAvailable": true,
-      "updatedAt": "2026-08-31T06:13:54.679Z"
+      "isAvailable": false,
+      "updatedAt": "2026-09-01T00:10:35.062Z",
+      "stockQuantity": 100,
+      "stockControl": false,
+      "stockMinAlert": 5,
+      "allowBackorder": true,
+      "isFeaturedWhatsApp": false,
+      "saleMode": "kilo",
+      "unitsPerKg": null,
+      "unitWeightGrams": null,
+      "unitPrice": null
     },
     {
       "id": "prod-6589",
@@ -11119,8 +11135,17 @@
       "description": "ACHURAS - Calidad seleccionada República de la Carne",
       "stock": 100,
       "imageUrl": "",
-      "isAvailable": true,
-      "updatedAt": "2026-08-31T19:37:57.659Z"
+      "isAvailable": false,
+      "updatedAt": "2026-09-01T00:11:32.028Z",
+      "stockQuantity": 100,
+      "stockControl": false,
+      "stockMinAlert": 5,
+      "allowBackorder": true,
+      "isFeaturedWhatsApp": false,
+      "saleMode": "kilo",
+      "unitsPerKg": null,
+      "unitWeightGrams": null,
+      "unitPrice": null
     },
     {
       "id": "prod-899000",
@@ -13973,9 +13998,109 @@
       "updatedAt": "2026-08-31T19:37:57.659Z"
     }
   ],
-  "leads": [],
-  "messages": [],
-  "calls": [],
+  "leads": [
+    {
+      "id": "lead-1788221697271-r55f2",
+      "customerNumber": "CLI-4990",
+      "jid": "5493512300023@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 230-0023",
+      "name": "+5493512300023",
+      "pushName": "+5493512300023",
+      "email": "",
+      "address": "",
+      "preferredBranch": "",
+      "deliveryType": "delivery",
+      "customFields": {},
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "linkedUserId": null,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-09-01T00:14:57.271Z",
+      "updatedAt": "2026-09-01T00:14:57.271Z"
+    },
+    {
+      "id": "lead-1788221685118-wqbhp",
+      "customerNumber": "CLI-1744",
+      "jid": "5493511203183@s.whatsapp.net",
+      "altJids": [],
+      "phone": "+54 9 351 120-3183",
+      "name": "+5493511203183",
+      "pushName": "+5493511203183",
+      "email": "",
+      "address": "",
+      "preferredBranch": "",
+      "deliveryType": "delivery",
+      "customFields": {},
+      "stage": "new_lead",
+      "value": 0,
+      "tags": [
+        "WhatsApp"
+      ],
+      "aiEnabled": true,
+      "unreadCount": 0,
+      "linkedUserId": null,
+      "preferences": {
+        "favoriteCuts": [],
+        "cookingPreference": "Parrilla",
+        "preferredPayment": "Efectivo / Transferencia",
+        "groupSize": "4 personas",
+        "notes": ""
+      },
+      "createdAt": "2026-09-01T00:14:45.118Z",
+      "updatedAt": "2026-09-01T00:14:45.118Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-1788221746906-u1exdt",
+      "chatId": "5493512363215@s.whatsapp.net",
+      "timestamp": "2026-09-01T00:15:46.904Z",
+      "status": "sent",
+      "sender": "agent",
+      "type": "audio",
+      "content": "¡Hola! He visto que intentaste llamarnos. En este momento todas nuestras líneas están atendiendo clientes, pero soy tu asistente virtual inteligente. ¿En qué puedo ayudarte el día de hoy?",
+      "mediaUrl": "/media/tts_raw_1788221744910_foypo.mp3",
+      "audioDuration": 12
+    }
+  ],
+  "calls": [
+    {
+      "id": "call-1788221685129-5nomb",
+      "timestamp": "2026-09-01T00:14:45.126Z",
+      "direction": "incoming",
+      "status": "ringing",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "5493511203183@s.whatsapp.net",
+      "callerNumber": "+54 9 351 120-3183",
+      "callerName": "+5493511203183",
+      "notes": "Llamada de voz de WhatsApp (offer) - AutoAtención: elevenlabs"
+    },
+    {
+      "id": "call-1788221697284-ald2b",
+      "timestamp": "2026-09-01T00:14:57.281Z",
+      "direction": "incoming",
+      "status": "ringing",
+      "duration": 0,
+      "aiFollowUpSent": false,
+      "chatId": "5493512300023@s.whatsapp.net",
+      "callerNumber": "+54 9 351 230-0023",
+      "callerName": "+5493512300023",
+      "notes": "Llamada de voz de WhatsApp (offer) - AutoAtención: elevenlabs"
+    }
+  ],
   "orders": [],
   "branches": [
     {

@@ -643,7 +643,7 @@ export function createApiRouter(whatsappService, io) {
 
   // Realizar Llamada de Voz Saliente / Despacho de Voz IA
   router.post('/calls/make', async (req, res) => {
-    const { jid, phone, name = 'Cliente', customMessage, voice } = req.body;
+    const { jid, phone, name = 'Cliente', customMessage, voice, callType = 'auto' } = req.body;
 
     if (!jid && !phone) {
       return res.status(400).json({ error: 'Se requiere JID o número de teléfono' });
@@ -651,6 +651,7 @@ export function createApiRouter(whatsappService, io) {
 
     const cleanNumber = (phone || jid).replace(/[^0-9]/g, '');
     const targetJid = jid || `${cleanNumber}@s.whatsapp.net`;
+    const formattedPhone = phone ? (phone.startsWith('+') ? phone : `+${cleanNumber}`) : `+${cleanNumber}`;
 
     // Registrar o actualizar Lead
     let lead = db.getLead(targetJid);
@@ -658,44 +659,56 @@ export function createApiRouter(whatsappService, io) {
       lead = db.saveOrUpdateLead({
         jid: targetJid,
         name: name || `+${cleanNumber}`,
-        phone: `+${cleanNumber}`,
+        phone: formattedPhone,
         pushName: name || `+${cleanNumber}`
       });
     }
 
     try {
       const settings = db.getSettings();
-      const messageText = customMessage || `Hola ${name}, te llamamos de ${settings.businessName || 'nuestra empresa'} para darte seguimiento a tu consulta sobre nuestros servicios. ¿Cómo podemos ayudarte?`;
+      const clientName = lead.name && !lead.name.startsWith('+') ? lead.name : name;
+      const messageText = customMessage || `¡Hola ${clientName}! 🥩 Te llamamos de ${settings.businessName || 'República de la Carne'} para asesorarte con tu pedido y pasarte nuestras mejores promos en cortes premium y combos para el asado. ¿Cómo podemos ayudarte hoy?`;
 
-      // Sintetizar voz neural
-      const speech = await SpeechService.textToSpeech(messageText, voice);
-
-      // Si WhatsApp está conectado, enviar como nota de voz PTT
-      if (whatsappService.status === 'connected') {
-        await whatsappService.sendVoiceNote(targetJid, speech.oggPath);
+      // 1. Si se solicita llamada telefónica directa ElevenLabs ConvAI o modo automático con API Key
+      let elevenPhoneResult = null;
+      if (settings.elevenlabsApiKey && (callType === 'elevenlabs_phone' || callType === 'phone')) {
+        elevenPhoneResult = await ElevenLabsAgentService.initiateOutboundPhoneCall({
+          phoneNumber: formattedPhone,
+          customerName: clientName,
+          customMessage: messageText
+        });
       }
 
-      // Guardar registro de llamada saliente
+      // 2. Sintetizar voz neural ultra-realista
+      const speech = await SpeechService.textToSpeech(messageText, voice);
+
+      // 3. Si WhatsApp está conectado, enviar nota de voz PTT oficial
+      if (whatsappService.status === 'connected' && speech.oggPath && fs.existsSync(speech.oggPath)) {
+        await whatsappService.sendVoiceNote(targetJid, speech.oggPath);
+        await whatsappService.sendTextMessage(targetJid, `🎙️ *[Llamada de Voz Saliente - Asistente Virtual]*\n${messageText}`);
+      }
+
+      // 4. Guardar registro de llamada saliente
       const callRecord = db.saveCall({
         chatId: targetJid,
-        callerNumber: lead.phone || `+${cleanNumber}`,
+        callerNumber: lead.phone || formattedPhone,
         callerName: lead.name || name,
         direction: 'outgoing',
         status: 'completed',
-        duration: speech.durationSeconds || 5,
+        duration: speech.durationSeconds || 10,
         timestamp: new Date().toISOString(),
-        notes: `Llamada / Audio de voz saliente enviado: "${messageText.substring(0, 60)}..."`,
+        notes: `Llamada saliente enviada a ${formattedPhone}: "${messageText.substring(0, 70)}..."`,
         aiFollowUpSent: true
       });
 
-      // Guardar mensaje en el chat
+      // 5. Guardar mensaje en el chat
       const savedMsg = db.saveMessage({
         chatId: targetJid,
         sender: 'agent',
         type: 'audio',
         content: messageText,
-        mediaUrl: `/media/${path.basename(speech.mp3Path)}`,
-        audioDuration: speech.durationSeconds,
+        mediaUrl: speech.mp3Path ? `/media/${path.basename(speech.mp3Path)}` : null,
+        audioDuration: speech.durationSeconds || 10,
         timestamp: new Date().toISOString(),
         status: 'sent'
       });
@@ -707,7 +720,8 @@ export function createApiRouter(whatsappService, io) {
         success: true,
         call: callRecord,
         message: savedMsg,
-        audioUrl: `/media/${path.basename(speech.mp3Path)}`
+        audioUrl: speech.mp3Path ? `/media/${path.basename(speech.mp3Path)}` : null,
+        elevenPhoneResult
       });
     } catch (err) {
       console.error('Error realizando llamada saliente:', err);
@@ -717,33 +731,42 @@ export function createApiRouter(whatsappService, io) {
 
   // Atender llamada entrante con Agente de Voz IA
   router.post('/calls/answer-ai', async (req, res) => {
-    const { callId, jid } = req.body;
+    const { callId, jid, callerNumber } = req.body;
     const settings = db.getSettings();
 
+    const targetJid = jid || (callerNumber ? `${callerNumber.replace(/[^0-9]/g, '')}@s.whatsapp.net` : null);
+
     try {
-      const speech = await SpeechService.textToSpeech(settings.callFollowUpMessage);
+      const lead = targetJid ? db.getLead(targetJid) : null;
+      const clientName = lead?.name && !lead.name.startsWith('+') ? lead.name : (lead?.pushName && !lead.pushName.startsWith('+') ? lead.pushName : 'amigo');
+
+      const messageText = settings.callFollowUpMessage ||
+        `¡Hola ${clientName}! 🥩 Gracias por comunicarte con República de la Carne. Recibí tu llamada. ¿Qué cortes o combos te preparamos para hoy? Te paso precios y disponibilidad al instante. 🙌`;
+
+      const speech = await SpeechService.textToSpeech(messageText);
       
-      if (whatsappService.status === 'connected' && jid) {
-        await whatsappService.sendVoiceNote(jid, speech.oggPath);
+      if (whatsappService.status === 'connected' && targetJid && speech.oggPath && fs.existsSync(speech.oggPath)) {
+        await whatsappService.sendVoiceNote(targetJid, speech.oggPath);
+        await whatsappService.sendTextMessage(targetJid, `🎙️ *[Asistente de Voz República de la Carne]*\n${messageText}`);
       }
 
       if (callId) {
         db.updateCall(callId, { status: 'completed', aiFollowUpSent: true });
       }
 
-      if (jid) {
+      if (targetJid) {
         const savedMsg = db.saveMessage({
-          chatId: jid,
+          chatId: targetJid,
           sender: 'agent',
           type: 'audio',
-          content: settings.callFollowUpMessage,
-          mediaUrl: `/media/${path.basename(speech.mp3Path)}`,
-          audioDuration: speech.durationSeconds,
+          content: messageText,
+          mediaUrl: speech.mp3Path ? `/media/${path.basename(speech.mp3Path)}` : null,
+          audioDuration: speech.durationSeconds || 10,
           timestamp: new Date().toISOString(),
           status: 'sent'
         });
 
-        io.emit('chat:message', { message: savedMsg, lead: db.getLead(jid) });
+        io.emit('chat:message', { message: savedMsg, lead: db.getLead(targetJid) });
       }
 
       io.emit('whatsapp:call:updated', { callId, status: 'completed' });
@@ -2989,6 +3012,29 @@ export function createApiRouter(whatsappService, io) {
     const { agentId } = req.body;
     const result = await ElevenLabsAgentService.testAgentConnection(agentId);
     res.json(result);
+  });
+
+  router.post('/elevenlabs/agent/outbound-call', async (req, res) => {
+    try {
+      const { phoneNumber, phone, customerName, customMessage, agentId, extraVariables } = req.body;
+      const targetPhone = phoneNumber || phone;
+      if (!targetPhone) {
+        return res.status(400).json({ error: 'phoneNumber o phone es requerido' });
+      }
+
+      const result = await ElevenLabsAgentService.initiateOutboundPhoneCall({
+        phoneNumber: targetPhone,
+        customerName,
+        customMessage,
+        agentId,
+        extraVariables
+      });
+
+      res.json(result);
+    } catch (err) {
+      console.error('Error en /elevenlabs/agent/outbound-call:', err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // --- Herramientas del Sistema para el Agente (Webhooks / Function Calling) ---
