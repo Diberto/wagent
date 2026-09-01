@@ -281,6 +281,59 @@ export async function runConversationTestSuite() {
     }
   );
 
+  // 10. Selección de Opciones de Menú/Asado con Modificaciones Combinadas
+  await runTest(
+    'test-10-option-customization-accuracy',
+    'Selección de Opciones con Personalización Combinada',
+    'Verifica que al elegir una opción numerada con agregados/quitas (ej: "opción 1 pero suma 2 chorizos"), el agente asiente exactamente la opción elegida sin duplicados ni cortes fantasmas.',
+    'Inteligencia Conversacional',
+    async () => {
+      const lead = { id: 'lead_t10_opt', name: 'Don Juan', phone: '+54 9 351 626-2475', jid: '5493516262475_t10@s.whatsapp.net', customFields: {} };
+      const asadoProposalMsg = `¡Qué lindo asado Don Juan! 🔥🥩 Para 6 personas calculamos un promedio de 3.5 kg en total (~500g por comensal bien servido).
+
+👉 *Te armé 3 opciones ideales para que elijas:*
+
+1️⃣ **Opción Clásica Equilibrada (3.5 kg):**
+• 1.5 kg de Vacío Especial
+• 1.5 kg de Costillar / Asado de Tira
+• 6 Chorizos Criollos Puro Cerdo
+• 1 Bolsa de Carbón Quebracho
+
+2️⃣ **Opción Combo “Asadazo” + Agregados:**
+• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999
+
+3️⃣ **Opción Parrillera Gourmet:**
+• 2 kg Tapa de Cuadril
+• 1 kg Matambre
+
+👉 ¿Con cuál opción te gustaría avanzar (*1*, *2* o *3*)? 🙌`;
+
+      const history = [
+        { sender: 'user', content: 'Asado para 6 personas' },
+        { sender: 'bot', content: asadoProposalMsg }
+      ];
+
+      const reply = await AIService.generateSalesResponse({
+        rawText: 'quiero la opcion 1 pero suma 2 chorizos de cerdo',
+        lead,
+        history,
+        settings: db.getSettings()
+      });
+
+      if (!reply.includes('VACIO') || !reply.includes('COSTILLA')) {
+        throw new Error('No incluyó los cortes base de la Opción 1 (Vacío y Costilla).');
+      }
+
+      if (reply.includes('ASADAZO') || reply.includes('Asadazo') || reply.includes('LOCRO')) {
+        throw new Error('Incluyó erróneamente combos no solicitados al elegir la Opción 1.');
+      }
+
+      if (!reply.includes('CHORIZO') && !reply.includes('Chorizo')) {
+        throw new Error('No incluyó los chorizos solicitados en la personalización.');
+      }
+    }
+  );
+
   const passedCount = results.filter(r => r.passed).length;
   const failedCount = results.filter(r => !r.passed).length;
   const total = results.length;

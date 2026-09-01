@@ -215,11 +215,12 @@ export function formatBranchMenu() {
  * Parsea dinámicamente la opción de asesoramiento de asado recomendada (Opción 1, 2 o 3)
  * desde el mensaje previo del agente, extrayendo los cortes, cantidades exactas y total.
  */
-export function parseAsadoOptionFromMessage(msg, optNum) {
+export function parseAsadoOptionFromMessage(msg, optNum, catalog = null) {
   if (!msg || typeof msg !== 'string') return null;
   const parts = msg.split(/(?:1️⃣|2️⃣|3️⃣)/);
   if (parts.length <= optNum) return null;
 
+  const catList = (catalog && catalog.length > 0) ? catalog : (db?.getProducts?.() || MASTER_CATALOG);
   const rawBlock = parts[optNum];
   const lines = rawBlock.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -247,6 +248,13 @@ export function parseAsadoOptionFromMessage(msg, optNum) {
       const priceParens = clean.match(/\(\s*\$([\d.,]+)\s*\)/);
       if (priceParens) {
         formatted = clean.replace(/\s*\(\s*\$([\d.,]+)\s*\)/, (m, p1) => ` — $${p1}`);
+      } else if (!/(?:—|-|:)\s*\$?[\d.,]+/i.test(clean)) {
+        const prod = matchBestProduct(clean, catList);
+        if (prod) {
+          const parsed = parseQuantityAndMode(clean, prod);
+          const sub = Math.round((prod.price || 0) * (parsed.quantity || 1));
+          formatted = `${clean} — $${sub.toLocaleString('es-AR')}`;
+        }
       }
       items.push(`• ${formatted}`);
     }
@@ -796,7 +804,9 @@ function findLastMentionedProduct(history) {
  * Parsea cantidades tanto en kilos como en unidades calculadas (ej: 6 chorizos = 0.75 kg aprox)
  */
 export function parseQuantityAndMode(str, prod = null) {
-  const s = (str || '').toLowerCase();
+  const rawS = (str || '').toLowerCase();
+  // Limpiar precios y notas explicativas entre paréntesis (ej: "(~0.75 kg - $3.750)", "($17.250)")
+  const s = rawS.replace(/\([^\)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
   
   // Detección explícita de kilos vs unidades
   const hasKgMention = /(?:kilo|kilos|kg|kgs|grs|gramos)\b/i.test(s);
@@ -1037,6 +1047,25 @@ export function parseProductsFromItems(items, catalog = null) {
         unitCount: /unidad/i.test(unit) ? quantity : 0,
         subtotal
       });
+      continue;
+    }
+
+    // 5. Formato sin precio explícito (ej: "1.5 kg de Vacío Especial", "6 Chorizos Criollos", "1 Bolsa de Carbón")
+    const catProd = matchBestProduct(cleanItem, catList);
+    if (catProd) {
+      const parsed = parseQuantityAndMode(cleanItem, catProd);
+      const subtotal = Math.round((catProd.price || 0) * (parsed.quantity || 1));
+      prods.push({
+        id: catProd.id || `prod-${catProd.name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: catProd.name,
+        price: catProd.price || 0,
+        quantity: parsed.quantity || 1,
+        unit: catProd.unit || 'kg',
+        isUnitMode: parsed.isUnitMode || false,
+        unitCount: parsed.unitCount || 0,
+        unitsPerKg: parsed.unitsPerKg || 1,
+        subtotal
+      });
     }
   }
   return prods;
@@ -1054,7 +1083,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
 
   const t = (rawText || '').toLowerCase().trim();
   const isAddition = /(?:agrega|agreg[aá]|agregar|agregame|agregale|suma|sum[aá]|sumar|sumale|sumame|ponele|pon[eé]|sumar\s+\d+|mas\s+\d+|más\s+\d+|sumar\s+\d+\s+chorizo|mas\s+chorizo|más\s+chorizo|sumale\s+también)/i.test(t);
-  const isRemoval = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin\s+|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?|tach[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.test(t);
+  const isRemoval = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?|tach[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.test(t);
 
   // Detección exhaustiva de reemplazos
   let oldQuery = null;
@@ -1198,7 +1227,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
       }
     }
   } else if (isRemoval) {
-    const removeQuery = t.replace(/(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin\s+|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?|tach[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?/i, '').trim();
+    const removeQuery = t.replace(/(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?|tach[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?/i, '').trim();
     const cleanRemove = removeQuery.toLowerCase();
     let idx = currentProds.findIndex(p => {
       const pn = (p.name || '').toLowerCase();
@@ -1267,6 +1296,76 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
   }
 
   return { items, products: currentProds, total };
+}
+
+/**
+ * Extrae los productos y cantidades definidos dentro de una opción numerada del mensaje previo del bot
+ */
+export function extractOptionItemsFromAgentMessage(optionNum, agentMessage, catalog) {
+  if (!agentMessage || !optionNum) return [];
+  const lines = agentMessage.split('\n');
+  const optEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][optionNum - 1] || `${optionNum}️⃣`;
+  const optHeaderRegex = new RegExp(`(?:${optEmoji}|\\b${optionNum}[\\.\\)\\:\\-]|\\bOpci[oó]n\\s+${optionNum}\\b)`, 'i');
+  
+  let inOptionBlock = false;
+  let optionLines = [];
+
+  for (const line of lines) {
+    const isHeaderOfThisOption = optHeaderRegex.test(line);
+    const isHeaderOfOtherOption = /(?:[1-9]|1[0-9])️⃣|\b(?:[1-9]|1[0-9])[\\.\\)\\:\\-]\s+\*|\bOpci[oó]n\s+[1-9]\b/i.test(line) && !isHeaderOfThisOption;
+    const isClosingOrTotal = /💰|\bTotal:|\bSubtotal:|\b¿Con cu[aá]l\b|\b¿Por d[oó]nde\b|\b¿C[oó]mo prefer[ií]s\b/i.test(line);
+
+    if (isHeaderOfThisOption) {
+      inOptionBlock = true;
+      optionLines.push(line);
+      continue;
+    }
+
+    if (inOptionBlock) {
+      if (isHeaderOfOtherOption || isClosingOrTotal) {
+        break;
+      }
+      optionLines.push(line);
+    }
+  }
+
+  const items = [];
+  // 1. Extraer ítems con viñetas dentro del bloque de esta opción
+  for (const line of optionLines) {
+    const cleanLine = line.replace(/^[•\-\*\s]+/, '').trim();
+    if (!cleanLine) continue;
+    const prod = matchBestProduct(cleanLine, catalog);
+    if (prod && !items.some(it => it.prod.id === prod.id || it.prod.name.toLowerCase() === prod.name.toLowerCase())) {
+      const parsed = parseQuantityAndMode(cleanLine, prod);
+      items.push({
+        prod,
+        quantity: parsed.quantity || 1,
+        isUnitMode: parsed.isUnitMode,
+        unitCount: parsed.unitCount || 0,
+        unitsPerKg: parsed.unitsPerKg || 1,
+        label: parsed.label || `${parsed.quantity || 1} ${prod.unit || 'kg'}`
+      });
+    }
+  }
+
+  // 2. Si no había viñetas internas pero el encabezado contenía un producto (ej: 1️⃣ [PLU 4] Costillar...)
+  if (items.length === 0 && optionLines.length > 0) {
+    const headerLine = optionLines[0].replace(/^(?:[1-9]️⃣|\b[1-9][\.\)\:\-]\s*|\bOpci[oó]n\s+[1-9]\b)/i, '').trim();
+    const prod = matchBestProduct(headerLine, catalog);
+    if (prod) {
+      const parsed = parseQuantityAndMode(headerLine, prod);
+      items.push({
+        prod,
+        quantity: parsed.quantity || 1,
+        isUnitMode: parsed.isUnitMode,
+        unitCount: parsed.unitCount || 0,
+        unitsPerKg: parsed.unitsPerKg || 1,
+        label: parsed.label || `${parsed.quantity || 1} ${prod.unit || 'kg'}`
+      });
+    }
+  }
+
+  return items;
 }
 
 /**
@@ -1462,27 +1561,116 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       continue;
     }
 
-    // Detección de selección de opciones de Asado / Menú Recomendado
-    const isAsadoProposalInPrev = /1️⃣.*Opción Clásica|Te armé 3 opciones|¿Con cuál opción te gustaría avanzar/i.test(prevAgentMsg);
-    if (isAsadoProposalInPrev && /^(?:1|2|3|1️⃣|2️⃣|3️⃣|la 1|el 1|opcion 1|opción 1|la 2|el 2|opcion 2|opción 2|la 3|el 3|opcion 3|opción 3|clasica|clásica|combo|asadazo|gourmet)$/i.test(cleanMsg)) {
-      activeItemsMap.clear();
-      if (/1|1️⃣|clasica|clásica/i.test(cleanMsg)) {
-        const vacioProd = catalog.find(p => p.name.toLowerCase().includes('vacío') || p.name.toLowerCase().includes('vacio')) || MASTER_CATALOG[2];
-        const choriProd = catalog.find(p => p.name.toLowerCase().includes('chorizo')) || MASTER_CATALOG[11];
-        activeItemsMap.set(vacioProd.name, { prod: vacioProd, quantity: 1, isUnitMode: false, unitCount: 0, unitsPerKg: 1, label: '1 kg' });
-        activeItemsMap.set(choriProd.name, { prod: choriProd, quantity: 1, isUnitMode: false, unitCount: 0, unitsPerKg: 8, label: '1 kg' });
+    // Detección de selección de opciones de Asado / Menú Recomendado / Catálogo numerado
+    const optionSelectionMatch = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-9]|1[0-9]|20)\b|^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|la\s+[1-9]|el\s+[1-9]|clasica|clásica|combo|asadazo|gourmet)$/i.exec(cleanMsg);
+    const isOptionsOfferedInPrev = /1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|Mirá las opciones|Te armé 3 opciones|¿Con cuál opción/i.test(prevAgentMsg);
+
+    if (optionSelectionMatch && isOptionsOfferedInPrev) {
+      let selectedOptionNum = 1;
+      if (optionSelectionMatch[1]) {
+        selectedOptionNum = parseInt(optionSelectionMatch[1], 10);
       } else if (/2|2️⃣|combo|asadazo/i.test(cleanMsg)) {
-        const comboProd = catalog.find(p => p.name.toLowerCase().includes('asadazo')) || MASTER_CATALOG[0];
-        activeItemsMap.set(comboProd.name, { prod: comboProd, quantity: 1, isUnitMode: false, unitCount: 0, unitsPerKg: 1, label: '1 combo' });
+        selectedOptionNum = 2;
       } else if (/3|3️⃣|gourmet/i.test(cleanMsg)) {
-        const tapaProd = catalog.find(p => p.name.toLowerCase().includes('tapa')) || MASTER_CATALOG[1];
-        const matambreProd = catalog.find(p => p.name.toLowerCase().includes('matambre')) || MASTER_CATALOG[7];
-        const choriProd = catalog.find(p => p.name.toLowerCase().includes('chorizo')) || MASTER_CATALOG[11];
-        activeItemsMap.set(tapaProd.name, { prod: tapaProd, quantity: 1, isUnitMode: false, unitCount: 0, unitsPerKg: 1, label: '1 kg' });
-        activeItemsMap.set(matambreProd.name, { prod: matambreProd, quantity: 1, isUnitMode: false, unitCount: 0, unitsPerKg: 1, label: '1 kg' });
-        activeItemsMap.set(choriProd.name, { prod: choriProd, quantity: 1, isUnitMode: false, unitCount: 0, unitsPerKg: 8, label: '1 kg' });
+        selectedOptionNum = 3;
+      } else {
+        const numMatch = cleanMsg.match(/([1-9]|1[0-9]|20)/);
+        selectedOptionNum = numMatch ? parseInt(numMatch[0], 10) : 1;
       }
-      continue;
+
+      const optionItems = extractOptionItemsFromAgentMessage(selectedOptionNum, prevAgentMsg, catalog);
+      if (optionItems && optionItems.length > 0) {
+        activeItemsMap.clear();
+        for (const itm of optionItems) {
+          activeItemsMap.set(itm.prod.name, itm);
+        }
+
+        // ¿El mensaje tiene instrucciones adicionales de suma, resta o modificación combinada?
+        // Ejemplo: "quiero la opcion 1 pero suma 2 chorizos de cerdo", "la 1 y sacale el carbon", "la 1 pero en vez de vacío poneme matambre"
+        const hasExtraClause = /(?:pero\s+|y\s+|mas\s+|más\s+|con\s+|ademas\s+|además\s+|sin\s+|en\s+vez|cambia)/i.test(cleanMsg);
+        if (hasExtraClause) {
+          // 1. Detección de reemplazo en la misma frase (ej: "en vez de vacio poneme 2 kg de matambre", "cambia el vacio por matambre")
+          const replaceSubMatch = /(?:pero\s+|y\s+)?(?:en\s+vez\s+(?:de|del)?|cambia(?:me)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(cleanMsg);
+          if (replaceSubMatch) {
+            const oldQ = replaceSubMatch[1].trim().toLowerCase().replace(/^(?:el|la|los|las)\s+/, '').trim();
+            const newQ = replaceSubMatch[2].trim();
+            const oldProd = matchBestProduct(oldQ, catalog);
+            for (const key of Array.from(activeItemsMap.keys())) {
+              const lowerKey = key.toLowerCase();
+              if ((oldProd && (key === oldProd.name || lowerKey.includes(oldProd.name.toLowerCase()) || oldProd.name.toLowerCase().includes(lowerKey))) ||
+                  lowerKey.includes(oldQ) || oldQ.includes(lowerKey) ||
+                  (/vacio|vacío/i.test(oldQ) && /vacio|vacío/i.test(lowerKey)) ||
+                  (/costilla|asado/i.test(oldQ) && /costilla|asado/i.test(lowerKey)) ||
+                  (/chorizo/i.test(oldQ) && /chorizo/i.test(lowerKey)) ||
+                  (/carbon|carbón/i.test(oldQ) && /carbon|carbón/i.test(lowerKey))) {
+                activeItemsMap.delete(key);
+              }
+            }
+
+            const newProd = matchBestProduct(newQ, catalog);
+            if (newProd) {
+              const parsedNew = parseQuantityAndMode(newQ, newProd);
+              activeItemsMap.set(newProd.name, {
+                prod: newProd,
+                quantity: parsedNew.quantity,
+                isUnitMode: parsedNew.isUnitMode,
+                unitCount: parsedNew.unitCount || 0,
+                unitsPerKg: parsedNew.unitsPerKg || 1,
+                label: parsedNew.label
+              });
+            }
+          }
+
+          // 2. Detección de remoción adicional en la misma frase (ej: "pero sin carbón", "sacale los chorizos")
+          const removeSubMatch = /(?:pero\s+|y\s+)?(?:sacale|sacame|sin|quitar|quita|quitale|quitame|no\s+le\s+pongas|no\s+quiero)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.exec(cleanMsg);
+          if (removeSubMatch) {
+            const cutToRemove = removeSubMatch[1].trim().toLowerCase();
+            for (const key of Array.from(activeItemsMap.keys())) {
+              const lowerKey = key.toLowerCase();
+              if (lowerKey.includes(cutToRemove) || cutToRemove.includes(lowerKey) ||
+                  (/carbon|carbón/i.test(cutToRemove) && /carbon|carbón/i.test(lowerKey)) ||
+                  (/chorizo/i.test(cutToRemove) && !/bife/i.test(cutToRemove) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
+                  (/vacio|vacío/i.test(cutToRemove) && /vacio|vacío/i.test(lowerKey))) {
+                activeItemsMap.delete(key);
+              }
+            }
+          }
+
+          // 3. Detección de suma/adición en la misma frase (ej: "pero suma 2 chorizos de cerdo", "y agregale 1 bolsa de carbón")
+          const addSubMatch = /(?:pero\s+|y\s+|con\s+|ademas\s+|además\s+)?(?:suma|sumale|sumame|sumar|agrega|agregale|agregame|agregar|ponele|poneme|mas|más)\s+(.+)/i.exec(cleanMsg);
+          if (addSubMatch) {
+            const addQuery = addSubMatch[1].trim();
+            const addedProd = matchBestProduct(addQuery, catalog);
+            if (addedProd) {
+              const parsedAdd = parseQuantityAndMode(addQuery, addedProd);
+              if (activeItemsMap.has(addedProd.name)) {
+                const existing = activeItemsMap.get(addedProd.name);
+                if (existing.isUnitMode && parsedAdd.isUnitMode) {
+                  existing.unitCount += (parsedAdd.unitCount || 0);
+                  existing.quantity = existing.unitsPerKg ? Number((existing.unitCount / existing.unitsPerKg).toFixed(2)) : existing.unitCount;
+                  existing.label = `${existing.unitCount} Unidades`;
+                } else if (!existing.isUnitMode && !parsedAdd.isUnitMode) {
+                  existing.quantity += parsedAdd.quantity;
+                  existing.label = `${existing.quantity} kg`;
+                } else {
+                  existing.quantity += parsedAdd.quantity;
+                }
+              } else {
+                activeItemsMap.set(addedProd.name, {
+                  prod: addedProd,
+                  quantity: parsedAdd.quantity,
+                  isUnitMode: parsedAdd.isUnitMode,
+                  unitCount: parsedAdd.unitCount || 0,
+                  unitsPerKg: parsedAdd.unitsPerKg || 1,
+                  label: parsedAdd.label
+                });
+              }
+            }
+          }
+        }
+
+        continue;
+      }
     }
 
     // Detección de respuesta directa a consulta previa de cantidad de un producto
@@ -2499,7 +2687,7 @@ export class AIService {
 
       if (selectedOptNum !== null) {
         const optNum = selectedOptNum;
-        const parsedOpt = parseAsadoOptionFromMessage(lastAgentMessage, optNum);
+        const parsedOpt = parseAsadoOptionFromMessage(lastAgentMessage, optNum, products);
         
         let optionTitle = optNum === 1 ? 'Opción 1 (Clásica Equilibrada)' : optNum === 2 ? 'Opción 2 (Combo Asadazo + Agregados)' : 'Opción 3 (Parrillera Gourmet)';
         let optionItems = [];
@@ -3220,7 +3408,10 @@ export class AIService {
     }
 
     // 0.051 MODIFICACIÓN DIRECTA DE CORTES EN PEDIDO ACTIVO (Sumar, reemplazar o quitar)
-    if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
+    const isOptionsOfferedInPrevGlobal = /1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|Mirá las opciones|Te armé 3 opciones|¿Con cuál opción/i.test(lastAgentMessage?.content || '');
+    const isOptionSelectionDirect = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-9]|1[0-9]|20)\b|^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟)$/i.test(t);
+
+    if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status) && !(isOptionSelectionDirect && isOptionsOfferedInPrevGlobal)) {
       const isItemModification = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sin\s+|cambiame|cambia|cambiá|reemplaza|reemplazá|sacale|sacá|saca|quita|quitar|quitalo|quitame|elimina|eliminame|borra|borrame|agrega|agregá|suma|sumá|sumar|ponele|poné|agregale)\s+(?:el\s+|la\s+|un\s+|una\s+|los\s+|las\s+)?([a-záéíóúñ0-9\s]+)/i.test(t) ||
         /(?:quiero|mandame|traeme|sumar|agregar)\s+(?:sumar|agregar|mas|más|\d+)\s+([a-záéíóúñ0-9\s]+)/i.test(t);
       if (isItemModification) {
