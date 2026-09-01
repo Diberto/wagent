@@ -21,3 +21,4 @@ Thumbs.db
 .agents/secrets/
 credentials.json
 token.json
+.codebase-memory/

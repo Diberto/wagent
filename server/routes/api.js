@@ -1928,15 +1928,17 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
-  // --- Asignación / Registro Manual de Pago (Efectivo, Transferencia, Mercado Pago) ---
+  // --- Asignación / Registro Manual de Pago (Efectivo, Transferencia, POS, Mercado Pago) ---
   router.put('/orders/:id/payment', (req, res) => {
     try {
       const orderId = req.params.id;
-      const { paymentMethod, paymentStatus, paidAmount, transactionRef, notes } = req.body;
+      const { paymentMethod, paymentStatus, paidAmount, cashReceived, changeAmount, transactionRef, notes } = req.body;
       const updated = mercadoPagoService.updateOrderPaymentManual(orderId, {
         paymentMethod,
         paymentStatus,
         paidAmount,
+        cashReceived,
+        changeAmount,
         transactionRef,
         notes
       });
@@ -1944,6 +1946,7 @@ export function createApiRouter(whatsappService, io) {
       if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
 
       io.emit('order:update', updated);
+      io.emit('orders:sync', db.getOrders());
       res.json({ success: true, order: updated });
     } catch (err) {
       console.error(`Error actualizando pago manual para orden ${req.params.id}:`, err);

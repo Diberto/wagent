@@ -449,20 +449,26 @@ export class MercadoPagoService {
   }
 
   /**
-   * Asignación y registro manual de pago (Efectivo, Transferencia o Mercado Pago manual)
+   * Asignación y registro manual de pago (Efectivo, Transferencia, POS o Mercado Pago manual)
    */
-  updateOrderPaymentManual(orderId, { paymentMethod = 'cash', paymentStatus = 'paid', paidAmount = null, transactionRef = '', notes = '' }) {
+  updateOrderPaymentManual(orderId, { paymentMethod = 'cash', paymentStatus = 'paid', paidAmount = null, cashReceived = null, changeAmount = null, transactionRef = '', notes = '' }) {
     const order = db.getOrder(orderId);
     if (!order) return null;
 
-    const amount = paidAmount !== null ? Number(paidAmount) : Number(order.totalAmount);
+    const total = Number(order.totalAmount) || 0;
+    const amount = paidAmount !== null ? Number(paidAmount) : total;
+    const received = cashReceived !== null && cashReceived !== '' ? Number(cashReceived) : (paymentMethod?.toLowerCase().includes('efectivo') ? amount : null);
+    const change = changeAmount !== null && changeAmount !== '' ? Number(changeAmount) : (received !== null ? Math.max(0, received - amount) : 0);
+
     const updates = {
       paymentMethod,
       paymentStatus,
       paidAmount: amount,
+      cashReceived: received,
+      changeAmount: change,
       paymentReference: transactionRef,
       paymentNotes: notes,
-      paidAt: paymentStatus === 'paid' ? new Date().toISOString() : null
+      paidAt: paymentStatus === 'paid' ? (order.paidAt || new Date().toISOString()) : null
     };
 
     if (paymentStatus === 'paid' && order.status === 'pending') {

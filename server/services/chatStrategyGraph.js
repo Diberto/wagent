@@ -114,13 +114,22 @@ export class ChatStrategyGraphService {
     const pataMuslo = findProd(/pata muslo/i, 'Pata Muslo Fresca de Pollo', 4660);
     const carbon = findProd(/carbón|carbon/i, 'Bolsa de Carbón Quebracho', 3500);
 
+    // 0. Si el cliente ya detalló cortes o productos específicos con cantidades o listas de pedido, NO interceptar con propuestas genéricas
+    const hasSpecificCutsWithQty = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b(?:una|un|dos|tres|cuatro|cinco|seis)\s+bolsas?)\s+(?:de\s+)?(?:costillar|costilla|vacio|vacío|matambre|chorizo|chori|morcilla|milanesa|cuadril|tapa|lomo|bife|molida|pollo|carbon|carbón|cerdo|novillito)/i.test(t) ||
+      (/(?:quiero|dame|mandame|anotame|separame|preparame)\s+(?:\d+|medio|un|una)\s*(?:kg|kilo|unidades?|bolsa|botella|paquete|tira|bife|de)/i.test(t) && /(?:costilla|matambre|chorizo|vacio|carbon|cuadril|milanesa|bife)/i.test(t));
+
+    if (hasSpecificCutsWithQty) {
+      return null;
+    }
+
     // 1. Detección de Asados por número de personas / comensales
     const peopleMatch = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asadito\s+para|asado\s+para|un\s+asado\s+para|un\s+asadito\s+para)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
       t.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos|peronas)/i);
 
-    const isAsadoIntent = /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|parrillita|fuego|brasas)/i.test(t);
+    const isAsadoConsultation = /(?:asesorame|asesoramiento|qu[eé]\s+me\s+recomendas|recomendas\s+para\s+asado|recomendás\s+para\s+asado|opciones\s+para\s+asado|cuanto\s+calculo|cuánto\s+calculo|calcular\s+asado|asado\s+para\s+\d+|para\s+\d+\s+personas|somos\s+\d+)/i.test(t) ||
+      (peopleMatch && /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|fuego|brasas|comer|cena|almuerzo)/i.test(t));
 
-    if (peopleMatch || isAsadoIntent) {
+    if (peopleMatch || isAsadoConsultation) {
       let peopleCount = peopleMatch ? parseInt(peopleMatch[1], 10) : 4;
       if (peopleCount <= 0) peopleCount = 4;
       if (peopleCount > 100) peopleCount = 100;

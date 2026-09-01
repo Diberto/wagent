@@ -43,7 +43,11 @@ import {
   Receipt,
   Archive,
   ArchiveRestore,
-  FolderArchive
+  FolderArchive,
+  Banknote,
+  Coins,
+  ChevronDown,
+  Wallet
 } from 'lucide-react';
 import ClientLocationMap from './ClientLocationMap.jsx';
 import TicketPrintModal from './TicketPrintModal.jsx';
@@ -936,21 +940,94 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   };
 
   const handleOpenManualPayment = (order) => {
+    const total = Number(order.totalAmount) || 0;
+    const defaultReceived = order.cashReceived !== undefined && order.cashReceived !== null ? order.cashReceived : total;
+    const defaultPaid = order.paidAmount !== undefined && order.paidAmount !== null ? order.paidAmount : total;
+    const defaultChange = order.changeAmount !== undefined && order.changeAmount !== null ? order.changeAmount : Math.max(0, defaultReceived - defaultPaid);
+
     setManualPaymentModal({
       order,
       paymentMethod: order.paymentMethod || 'Efectivo al Repartidor',
-      paymentStatus: 'paid',
-      paidAmount: order.totalAmount,
-      transactionRef: '',
-      notes: '',
+      paymentStatus: order.paymentStatus || 'paid',
+      paidAmount: defaultPaid,
+      cashReceived: defaultReceived,
+      changeAmount: defaultChange,
+      transactionRef: order.paymentReference || '',
+      notes: order.paymentNotes || '',
+      printTicketAfter: false,
       isSubmitting: false,
       success: false
     });
   };
 
+  const handleQuickUpdatePaymentStatus = async (orderId, newStatus) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const total = Number(order.totalAmount) || 0;
+      const paid = newStatus === 'paid' ? total : (newStatus === 'pending' ? 0 : (order.paidAmount || total));
+      const received = order.cashReceived !== undefined && order.cashReceived !== null ? order.cashReceived : paid;
+      const change = Math.max(0, received - paid);
+
+      const res = await fetch(`/api/orders/${orderId}/payment`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod: order.paymentMethod || 'Efectivo al Repartidor',
+          paymentStatus: newStatus,
+          paidAmount: paid,
+          cashReceived: received,
+          changeAmount: change,
+          transactionRef: order.paymentReference || '',
+          notes: order.paymentNotes || ''
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.order) {
+        setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+      }
+    } catch (err) {
+      console.error('Error actualizando estado de pago:', err);
+    }
+  };
+
+  const handleQuickUpdatePaymentMethod = async (orderId, newMethod) => {
+    try {
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      const total = Number(order.totalAmount) || 0;
+      const res = await fetch(`/api/orders/${orderId}/payment`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod: newMethod,
+          paymentStatus: order.paymentStatus || 'pending',
+          paidAmount: order.paidAmount !== undefined && order.paidAmount !== null ? order.paidAmount : total,
+          cashReceived: order.cashReceived || null,
+          changeAmount: order.changeAmount || 0,
+          transactionRef: order.paymentReference || '',
+          notes: order.paymentNotes || ''
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.order) {
+        setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+      }
+    } catch (err) {
+      console.error('Error actualizando medio de pago:', err);
+    }
+  };
+
   const handleSaveManualPayment = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!manualPaymentModal) return;
+
+    const total = Number(manualPaymentModal.order.totalAmount) || 0;
+    const paid = Number(manualPaymentModal.paidAmount) || total;
+    const received = manualPaymentModal.cashReceived !== '' && manualPaymentModal.cashReceived !== null ? Number(manualPaymentModal.cashReceived) : paid;
+    const change = Math.max(0, received - paid);
 
     setManualPaymentModal(prev => ({ ...prev, isSubmitting: true }));
     try {
@@ -960,7 +1037,9 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         body: JSON.stringify({
           paymentMethod: manualPaymentModal.paymentMethod,
           paymentStatus: manualPaymentModal.paymentStatus,
-          paidAmount: manualPaymentModal.paidAmount,
+          paidAmount: paid,
+          cashReceived: received,
+          changeAmount: change,
           transactionRef: manualPaymentModal.transactionRef,
           notes: manualPaymentModal.notes
         })
@@ -969,7 +1048,14 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       if (res.ok && data.order) {
         setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
         setManualPaymentModal(prev => ({ ...prev, isSubmitting: false, success: true }));
-        setTimeout(() => setManualPaymentModal(null), 1800);
+        const orderSaved = data.order;
+        const shouldPrint = manualPaymentModal.printTicketAfter;
+        setTimeout(() => {
+          setManualPaymentModal(null);
+          if (shouldPrint) {
+            setTicketPrintModal(orderSaved);
+          }
+        }, 1200);
       } else {
         alert(data.error || 'Error registrando pago manual');
         setManualPaymentModal(prev => ({ ...prev, isSubmitting: false }));
@@ -1789,9 +1875,58 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 </div>
               </div>
 
-              {/* Status Selector & Compact Actions Bar (Zero Overflow) */}
+              {/* Quick Payment Method & Status Assignment Inline Row */}
+              <div className="p-2 rounded-xl bg-[#111b21] border border-slate-800/80 hover:border-emerald-500/50 flex items-center justify-between text-xs transition gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <Wallet size={13} className="text-emerald-400 shrink-0" />
+                  <select
+                    value={order.paymentMethod || 'Efectivo al Repartidor'}
+                    onChange={(e) => handleQuickUpdatePaymentMethod(order.id, e.target.value)}
+                    className="w-full bg-transparent text-slate-200 font-semibold text-xs focus:outline-none cursor-pointer truncate appearance-none"
+                    title="Cambiar medio de pago acordado (clic para seleccionar)"
+                  >
+                    <option value="Efectivo al Repartidor" className="bg-[#111b21] text-slate-200">💵 Efectivo al Repartidor</option>
+                    <option value="Transferencia Bancaria (Alias)" className="bg-[#111b21] text-slate-200">📱 Transferencia MP / Bancaria</option>
+                    <option value="Mercado Pago (Manual / POS)" className="bg-[#111b21] text-slate-200">💳 Mercado Pago (QR / Link)</option>
+                    <option value="Tarjeta Débito en Sucursal" className="bg-[#111b21] text-slate-200">💳 Tarjeta Débito</option>
+                    <option value="Tarjeta Crédito en Sucursal" className="bg-[#111b21] text-slate-200">💳 Tarjeta Crédito</option>
+                    <option value="Cuenta Corriente" className="bg-[#111b21] text-slate-200">📑 Cuenta Corriente</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickUpdatePaymentStatus(order.id, order.paymentStatus === 'paid' ? 'pending' : 'paid')}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition ${
+                      order.paymentStatus === 'paid'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                        : order.paymentStatus === 'partial'
+                        ? 'bg-sky-500/15 text-sky-300 border-sky-500/30 hover:bg-sky-500/25'
+                        : 'bg-amber-500/10 text-amber-300 border-amber-500/20 hover:bg-amber-500/20'
+                    }`}
+                    title="Clic para cambiar estado de pago rápido"
+                  >
+                    {order.paymentStatus === 'paid' ? '✅ Pagado' : order.paymentStatus === 'partial' ? '🌓 Parcial' : '⏳ Pendiente'}
+                  </button>
+                  {Number(order.changeAmount) > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-amber-300 font-mono font-bold" title="Vuelto registrado">
+                      💵 ${Number(order.changeAmount).toLocaleString('es-AR')}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualPayment(order)}
+                    className="p-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 transition"
+                    title="Abrir calculadora de cobro y vuelto"
+                  >
+                    <DollarSign size={12} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Selector & Redesigned Actions Bar (Zero Overflow) */}
               <div className="pt-2.5 border-t border-slate-800/80 space-y-2">
-                {/* Full-width Status Selector */}
+                {/* Full-width Order Status Selector */}
                 <select
                   value={order.status}
                   onChange={(e) => handleRequestStatusChange(order, e.target.value)}
@@ -1806,105 +1941,117 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                   <option value="cancelled">❌ Cancelado</option>
                 </select>
 
-                {/* Responsive Non-overflowing Actions Toolbar */}
-                <div className="flex items-center flex-wrap justify-between gap-1.5 max-w-full">
-                  {/* Left Operational Tools */}
-                  <div className="flex items-center flex-wrap gap-1">
-                    <button
-                      onClick={() => setTicketPrintModal(order)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
-                      title="Imprimir Ticket Térmico / Comanda"
-                    >
-                      <Printer size={13} />
-                    </button>
+                {/* Primary High-Impact Actions Grid */}
+                <div className="grid grid-cols-4 gap-1.5 w-full">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualPayment(order)}
+                    className="flex items-center justify-center gap-1 py-2 px-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] shadow-sm shadow-emerald-500/20 transition"
+                    title="Cobrar / Registrar Pago con Vuelto"
+                  >
+                    <DollarSign size={13} className="shrink-0" />
+                    <span className="truncate">Cobrar</span>
+                  </button>
 
-                    <button
-                      onClick={() => setDetailModal(order)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
-                      title="Ver Detalle Completo"
-                    >
-                      <Eye size={13} />
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => setTicketPrintModal(order)}
+                    className="flex items-center justify-center gap-1 py-2 px-1 rounded-xl bg-[#182229] hover:bg-[#202c33] text-slate-200 border border-slate-700 font-bold text-[11px] transition"
+                    title="Imprimir Ticket Térmico / Comanda"
+                  >
+                    <Printer size={13} className="shrink-0 text-slate-400" />
+                    <span className="truncate">Ticket</span>
+                  </button>
 
-                    <button
-                      onClick={() => handleOpenMap(order.address, order.customerName)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
-                      title="Ver Ubicación en Mapa de Córdoba"
-                    >
-                      <MapPin size={13} />
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailModal(order)}
+                    className="flex items-center justify-center gap-1 py-2 px-1 rounded-xl bg-[#182229] hover:bg-[#202c33] text-slate-200 border border-slate-700 font-bold text-[11px] transition"
+                    title="Ver Desglose y Detalles del Pedido"
+                  >
+                    <Eye size={13} className="shrink-0 text-slate-400" />
+                    <span className="truncate">Desglose</span>
+                  </button>
 
-                    <button
-                      onClick={() => handleOpenAssignDriverModal(order)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition shrink-0"
-                      title="Asignar Repartidor y Despachar"
-                    >
-                      <Bike size={13} />
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditOrder(order)}
+                    className="flex items-center justify-center gap-1 py-2 px-1 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 font-bold text-[11px] transition"
+                    title="Editar Cortes en Punto de Venta (POS)"
+                  >
+                    <Edit3 size={13} className="shrink-0 text-sky-400" />
+                    <span className="truncate">POS</span>
+                  </button>
+                </div>
 
-                    <button
-                      onClick={() => handleOpenDeriveModal(order)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
-                      title="Derivar a Sucursal"
-                    >
-                      <Store size={13} />
-                    </button>
+                {/* Secondary Tools Row (7 Uniform Width Buttons Grid - Zero Overflow) */}
+                <div className="grid grid-cols-7 gap-1 w-full pt-1.5 border-t border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenMap(order.address, order.customerName)}
+                    className="p-1.5 rounded-lg bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-emerald-400 border border-slate-800 flex items-center justify-center transition"
+                    title="Ver Ubicación en Mapa de Córdoba"
+                  >
+                    <MapPin size={13} />
+                  </button>
 
-                    <button
-                      onClick={() => handleOpenPaymentLink(order)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-700/60 transition shrink-0"
-                      title="Cobrar / Link Mercado Pago"
-                    >
-                      <CreditCard size={13} />
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAssignDriverModal(order)}
+                    className="p-1.5 rounded-lg bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-sky-400 border border-slate-800 flex items-center justify-center transition"
+                    title="Asignar Repartidor y Despachar"
+                  >
+                    <Bike size={13} />
+                  </button>
 
-                    <button
-                      onClick={() => handleOpenManualPayment(order)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
-                      title="Registrar Pago Manual (Efectivo / Transferencia)"
-                    >
-                      <DollarSign size={13} />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDeriveModal(order)}
+                    className="p-1.5 rounded-lg bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-800 flex items-center justify-center transition"
+                    title="Derivar Pedido a Sucursal"
+                  >
+                    <Store size={13} />
+                  </button>
 
-                  {/* Right Management Tools */}
-                  <div className="flex items-center gap-1 shrink-0 ml-auto">
-                    <button
-                      onClick={() => handleOpenEditOrder(order)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
-                      title="Editar pedido con POS"
-                    >
-                      <Edit3 size={13} />
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPaymentLink(order)}
+                    className="p-1.5 rounded-lg bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-800 flex items-center justify-center transition"
+                    title="Generar Link de Pago Mercado Pago"
+                  >
+                    <CreditCard size={13} />
+                  </button>
 
-                    <button
-                      onClick={() => handleDuplicateOrder(order.id)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition shrink-0"
-                      title="Duplicar pedido"
-                    >
-                      <Copy size={13} />
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateOrder(order.id)}
+                    className="p-1.5 rounded-lg bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-purple-400 border border-slate-800 flex items-center justify-center transition"
+                    title="Duplicar / Clonar Pedido"
+                  >
+                    <Copy size={13} />
+                  </button>
 
-                    <button
-                      onClick={() => handleToggleArchive(order)}
-                      className={`p-1.5 rounded-lg border transition shrink-0 ${
-                        order.isArchived || order.status === 'completed'
-                          ? 'bg-slate-700/50 hover:bg-slate-600/50 text-emerald-400 border-slate-600'
-                          : 'bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/60'
-                      }`}
-                      title={order.isArchived || order.status === 'completed' ? 'Desarchivar pedido' : 'Finalizar y Archivar pedido'}
-                    >
-                      {order.isArchived || order.status === 'completed' ? <ArchiveRestore size={13} /> : <Archive size={13} />}
-                    </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleArchive(order)}
+                    className={`p-1.5 rounded-lg border flex items-center justify-center transition ${
+                      order.isArchived || order.status === 'completed'
+                        ? 'bg-slate-700/50 hover:bg-slate-600 text-emerald-400 border-slate-600'
+                        : 'bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-white border-slate-800'
+                    }`}
+                    title={order.isArchived || order.status === 'completed' ? 'Desarchivar pedido' : 'Finalizar y Archivar pedido'}
+                  >
+                    {order.isArchived || order.status === 'completed' ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                  </button>
 
-                    <button
-                      onClick={() => handleDeleteOrder(order.id)}
-                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition shrink-0"
-                      title="Eliminar pedido"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteOrder(order.id)}
+                    className="p-1.5 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-800 flex items-center justify-center transition"
+                    title="Eliminar Pedido"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               </div>
 
@@ -3095,127 +3242,278 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         </div>
       )}
 
-      {/* Manual Payment Registration Modal */}
-      {manualPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
-            
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-                  <DollarSign size={20} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">Registrar / Asignar Pago</h3>
-                  <p className="text-xs text-slate-400">Pedido #{manualPaymentModal.order.id} — {manualPaymentModal.order.customerName}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setManualPaymentModal(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
-              >
-                <X size={18} />
-              </button>
-            </div>
+      {/* Unified POS-Integrated Payment & Change Modal */}
+      {manualPaymentModal && (() => {
+        const orderTotal = Number(manualPaymentModal.order.totalAmount) || 0;
+        const currentPaid = Number(manualPaymentModal.paidAmount) || orderTotal;
+        const currentReceived = manualPaymentModal.cashReceived !== '' && manualPaymentModal.cashReceived !== null ? Number(manualPaymentModal.cashReceived) : currentPaid;
+        const calculatedChange = Math.max(0, currentReceived - currentPaid);
+        const pendingBalance = Math.max(0, currentPaid - currentReceived);
 
-            {manualPaymentModal.success ? (
-              <div className="py-6 text-center space-y-2">
-                <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
-                <div className="text-sm font-bold text-white">¡Pago Registrado con Éxito!</div>
-                <p className="text-xs text-slate-400">
-                  El estado del pedido y el medio de pago se han actualizado correctamente en el sistema.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSaveManualPayment} className="space-y-3.5 text-xs">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Medio de Pago:</label>
-                  <select
-                    required
-                    value={manualPaymentModal.paymentMethod}
-                    onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, paymentMethod: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="Efectivo al Repartidor">💵 Efectivo al Repartidor</option>
-                    <option value="Transferencia Bancaria (Alias)">📱 Transferencia Bancaria (Alias MP)</option>
-                    <option value="Mercado Pago (Manual / POS)">💳 Mercado Pago (Manual / POS)</option>
-                    <option value="Tarjeta Débito en Sucursal">💳 Tarjeta Débito en Sucursal</option>
-                    <option value="Tarjeta Crédito en Sucursal">💳 Tarjeta Crédito en Sucursal</option>
-                    <option value="Cuenta Corriente">📑 Cuenta Corriente / A Convenir</option>
-                  </select>
-                </div>
+        // Montos rápidos sugeridos
+        const suggestedBills = [];
+        suggestedBills.push({ label: `Exacto ($${orderTotal.toLocaleString('es-AR')})`, val: orderTotal });
+        const nextTenThousand = Math.ceil(orderTotal / 10000) * 10000;
+        if (nextTenThousand > orderTotal) suggestedBills.push({ label: `$${nextTenThousand.toLocaleString('es-AR')}`, val: nextTenThousand });
+        if (nextTenThousand + 10000 > orderTotal) suggestedBills.push({ label: `$${(nextTenThousand + 10000).toLocaleString('es-AR')}`, val: nextTenThousand + 10000 });
+        if (nextTenThousand + 20000 > orderTotal && !suggestedBills.some(b => b.val === nextTenThousand + 20000)) suggestedBills.push({ label: `$${(nextTenThousand + 20000).toLocaleString('es-AR')}`, val: nextTenThousand + 20000 });
+        const roundFifty = Math.ceil(orderTotal / 50000) * 50000;
+        if (roundFifty > orderTotal && !suggestedBills.some(b => b.val === roundFifty)) suggestedBills.push({ label: `$${roundFifty.toLocaleString('es-AR')}`, val: roundFifty });
+        const roundHundred = Math.ceil(orderTotal / 100000) * 100000;
+        if (roundHundred > orderTotal && !suggestedBills.some(b => b.val === roundHundred)) suggestedBills.push({ label: `$${roundHundred.toLocaleString('es-AR')}`, val: roundHundred });
 
-                <div className="grid grid-cols-2 gap-3">
+        const paymentOptions = [
+          { id: 'Efectivo al Repartidor', label: '💵 Efectivo', icon: '💵' },
+          { id: 'Transferencia Bancaria (Alias)', label: '📱 Transferencia MP', icon: '📱' },
+          { id: 'Mercado Pago (Manual / POS)', label: '💳 Mercado Pago', icon: '💳' },
+          { id: 'Tarjeta Débito en Sucursal', label: '💳 Tarjeta Débito', icon: '💳' },
+          { id: 'Tarjeta Crédito en Sucursal', label: '💳 Tarjeta Crédito', icon: '💳' },
+          { id: 'Cuenta Corriente', label: '📑 Cta Corriente', icon: '📑' }
+        ];
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+            <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl space-y-4 my-auto max-h-[95vh] flex flex-col">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <DollarSign size={22} />
+                  </div>
                   <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Estado de Pago:</label>
-                    <select
-                      value={manualPaymentModal.paymentStatus}
-                      onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, paymentStatus: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="paid">✅ Pagado / Acreditado</option>
-                      <option value="pending">⏳ Pendiente</option>
-                    </select>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      Registrar / Cobrar Pedido #{manualPaymentModal.order.id}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {manualPaymentModal.order.customerName} • {manualPaymentModal.order.phone || 'Sin tel'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setManualPaymentModal(null)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {manualPaymentModal.success ? (
+                <div className="py-8 text-center space-y-3">
+                  <CheckCircle2 size={44} className="text-emerald-400 mx-auto" />
+                  <div className="text-base font-bold text-white">¡Pago y Vuelto Registrados con Éxito!</div>
+                  <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                    El estado de pago y el vuelto se sincronizaron con el pedido en todo el sistema.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveManualPayment} className="space-y-4 text-xs overflow-y-auto pr-1">
+                  
+                  {/* Total Banner */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#111b21] border border-slate-800">
+                    <div>
+                      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total a Cobrar:</div>
+                      <div className="text-2xl font-black text-emerald-400 font-mono">
+                        ${orderTotal.toLocaleString('es-AR')}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Modalidad:</div>
+                      <div className="text-slate-200 font-bold">
+                        {manualPaymentModal.order.deliveryType === 'pickup' ? '🏪 Retiro en Sucursal' : '🛵 Envío a Domicilio'}
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-slate-300 font-semibold mb-1">Monto Pagado ($):</label>
+                  {/* Payment Method Selector Grid (Like POS) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-slate-300 font-semibold text-[11px] uppercase tracking-wide">
+                      Seleccionar Medio de Pago:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {paymentOptions.map(opt => {
+                        const isSelected = manualPaymentModal.paymentMethod === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setManualPaymentModal({ ...manualPaymentModal, paymentMethod: opt.id })}
+                            className={`py-2 px-2 rounded-xl text-xs font-bold text-center border transition flex items-center justify-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20'
+                                : 'bg-[#111b21] text-slate-300 hover:text-white border-slate-700 hover:border-slate-600'
+                            }`}
+                          >
+                            <span>{opt.icon}</span>
+                            <span className="truncate">{opt.label.replace(/^.*? /, '')}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Payment Status & Amount Imputed Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-slate-300 font-semibold">Estado del Pago:</label>
+                      <select
+                        value={manualPaymentModal.paymentStatus}
+                        onChange={(e) => {
+                          const newSt = e.target.value;
+                          setManualPaymentModal({
+                            ...manualPaymentModal,
+                            paymentStatus: newSt,
+                            paidAmount: newSt === 'pending' ? 0 : (newSt === 'paid' ? orderTotal : manualPaymentModal.paidAmount)
+                          });
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-semibold focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="paid">✅ Pagado / Acreditado</option>
+                        <option value="pending">⏳ Pago Pendiente</option>
+                        <option value="partial">🌓 Pago Parcial / Seña</option>
+                        <option value="refunded">↩️ Reembolsado</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-slate-300 font-semibold">Monto Imputado / Abonado ($):</label>
+                      <input
+                        type="number"
+                        required
+                        value={manualPaymentModal.paidAmount}
+                        onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, paidAmount: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-bold font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Change Calculator (Unified with POS) */}
+                  <div className="bg-[#111b21] p-3.5 rounded-2xl border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                      <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                        <Banknote size={14} className="text-emerald-400" />
+                        <span>Calculadora de Vuelto (Efectivo / Caja)</span>
+                      </span>
+                      {calculatedChange > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold font-mono">
+                          Vuelto: ${calculatedChange.toLocaleString('es-AR')}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] text-slate-400 block mb-1 font-semibold">Paga con / Monto Recibido ($):</label>
+                        <input
+                          type="number"
+                          placeholder="Monto entregado por cliente"
+                          value={manualPaymentModal.cashReceived}
+                          onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, cashReceived: e.target.value })}
+                          className="w-full bg-[#182229] border border-slate-700 rounded-xl px-3 py-2 text-white font-mono font-black text-sm focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="flex flex-col justify-end">
+                        <label className="text-[11px] text-slate-400 block mb-1 font-semibold">
+                          {currentReceived >= currentPaid ? 'Vuelto a Entregar:' : 'Saldo Pendiente / Falta:'}
+                        </label>
+                        <div className={`p-2 rounded-xl border font-mono font-black text-lg text-center ${
+                          currentReceived >= currentPaid
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                        }`}>
+                          ${(currentReceived >= currentPaid ? calculatedChange : pendingBalance).toLocaleString('es-AR')}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Suggested Bills / Fast Amounts */}
+                    <div className="space-y-1 pt-1">
+                      <div className="text-[10px] text-slate-500 uppercase font-bold">Billetes / Montos Rápidos:</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {suggestedBills.map((b, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setManualPaymentModal({ ...manualPaymentModal, cashReceived: b.val })}
+                            className="px-2 py-1 rounded-lg bg-[#182229] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-mono font-bold transition"
+                          >
+                            {b.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Transaction Reference & Notes */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">N.° de Comprobante / Ref. (Opcional):</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: TRANSF-9382173 / Recibo #102"
+                        value={manualPaymentModal.transactionRef}
+                        onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, transactionRef: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Notas / Observaciones:</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Abonó con $50.000, vuelto $10.000"
+                        value={manualPaymentModal.notes}
+                        onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, notes: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Print Ticket Toggle */}
+                  <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Printer size={16} className="text-emerald-400" />
+                      <div>
+                        <div className="text-xs font-bold text-white">Imprimir Comanda / Ticket Térmico</div>
+                        <div className="text-[10px] text-slate-400">Abrir modal de impresión automática al guardar el pago</div>
+                      </div>
+                    </div>
                     <input
-                      type="number"
-                      required
-                      value={manualPaymentModal.paidAmount}
-                      onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, paidAmount: Number(e.target.value) })}
-                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-bold"
+                      type="checkbox"
+                      checked={manualPaymentModal.printTicketAfter}
+                      onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, printTicketAfter: e.target.checked })}
+                      className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">N.° de Comprobante / Referencia (Opcional):</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: TRANSF-9382173 / Recibo #102"
-                    value={manualPaymentModal.transactionRef}
-                    onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, transactionRef: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-mono"
-                  />
-                </div>
+                  {/* Actions Footer */}
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setManualPaymentModal(null)}
+                      className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800 text-xs font-semibold"
+                    >
+                      Cancelar
+                    </button>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Notas / Observaciones de Pago:</label>
-                  <textarea
-                    rows={2}
-                    placeholder="Ej: Abonó con $50.000, vuelto $10.000 / Comprobante verificado por WhatsApp"
-                    value={manualPaymentModal.notes}
-                    onChange={(e) => setManualPaymentModal({ ...manualPaymentModal, notes: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 resize-none"
-                  />
-                </div>
+                    <button
+                      type="submit"
+                      disabled={manualPaymentModal.isSubmitting}
+                      className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                    >
+                      <Check size={14} />
+                      <span>{manualPaymentModal.isSubmitting ? 'Guardando Pago...' : '✅ Asignar y Guardar Pago'}</span>
+                    </button>
+                  </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setManualPaymentModal(null)}
-                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
-                  >
-                    Cancelar
-                  </button>
+                </form>
+              )}
 
-                  <button
-                    type="submit"
-                    disabled={manualPaymentModal.isSubmitting}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <Check size={14} />
-                    <span>{manualPaymentModal.isSubmitting ? 'Guardando...' : 'Asignar Pago'}</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Branch Derivation Modal */}
       {deriveModal && (
