@@ -13,6 +13,8 @@ import {
   getContextualGreeting,
   getVariedPromoIntro, 
   getVariedOrderIntro, 
+  getVariedModificationIntro,
+  getVariedCancellationMessage,
   getVariedDeliveryQuestion, 
   getVariedClosing, 
   formatNumberedCatalog, 
@@ -1354,7 +1356,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     if (isSubOfferInPrev) {
       const isAffirmativeSub = /^(?:s[ií]|dale|bueno|perfecto|joya|de diez|si dale|dale si|si quiero|ese me sirve|quiero ese|si por favor|si claro|avanza|anotamelo|anótamelo|pasame ese|cambiame por ese|si ese|ese est[aá] bien|me sirve ese|dale pasame|si preparame|preparame ese)$/i.test(cleanMsg) ||
         /(?:si quiero|dale si|si dale|pasame ese|quiero ese|cambiame por ese|anotame ese|anótame ese|prepárame ese|preparame ese|si dale, preparame|preparame \d+)/i.test(cleanMsg);
-      const isNegativeSub = /^(?:no|no gracias|no dej[aá]|no deja|dejalo as[ií]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)$/i.test(cleanMsg);
+      const isNegativeSub = /^(?:no|no gracias|no dej[aá]|no deja|dejalo as[ií]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)\b/i.test(cleanMsg);
 
       // Eliminar de activeItemsMap cualquier corte no disponible previo
       for (const [key] of activeItemsMap.entries()) {
@@ -1364,33 +1366,33 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
         }
       }
 
-      if (isAffirmativeSub || /(?:\d|medio)/.test(cleanMsg)) {
-        const offeredProd = matchBestProduct(prevAgentMsg, catalog);
-        if (offeredProd) {
-          let parsedQty = parseQuantityAndMode(cleanMsg, offeredProd);
-          if ((!parsedQty.quantity || parsedQty.quantity === 1) && !/(?:\d|medio)/.test(cleanMsg)) {
-            const prevUserMsg = msgIdx > 0 ? userMessagesWithContext[msgIdx - 1].content : '';
-            const prevParsed = parseQuantityAndMode(prevUserMsg, offeredProd);
-            if (prevParsed && prevParsed.quantity > 0) parsedQty = prevParsed;
-          }
+      const mentionedDifferentProd = matchBestProduct(cleanMsg, catalog);
+      const offeredProd = matchBestProduct(prevAgentMsg, catalog);
+      const isAcceptingOffered = !isNegativeSub && (isAffirmativeSub || (/^(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|tiras?)|medio\s+kilo|1\/2\s*kg)$/i.test(cleanMsg))) &&
+        (!mentionedDifferentProd || (offeredProd && (mentionedDifferentProd.name === offeredProd.name || mentionedDifferentProd.id === offeredProd.id)));
 
-          for (const key of Array.from(activeItemsMap.keys())) {
-            if (key !== offeredProd.name && (/bife de chorizo/i.test(key) && /bife de chorizo/i.test(offeredProd.name))) {
-              activeItemsMap.delete(key);
-            }
-          }
-
-          activeItemsMap.set(offeredProd.name, {
-            prod: offeredProd,
-            quantity: parsedQty.quantity || 1,
-            isUnitMode: parsedQty.isUnitMode,
-            unitCount: parsedQty.unitCount || 0,
-            unitsPerKg: parsedQty.unitsPerKg || 1,
-            label: parsedQty.label || `${parsedQty.quantity || 1} kg`
-          });
-          continue;
+      if (isAcceptingOffered && offeredProd) {
+        let parsedQty = parseQuantityAndMode(cleanMsg, offeredProd);
+        if ((!parsedQty.quantity || parsedQty.quantity === 1) && !/(?:\d|medio)/.test(cleanMsg)) {
+          const prevUserMsg = msgIdx > 0 ? userMessagesWithContext[msgIdx - 1].content : '';
+          const prevParsed = parseQuantityAndMode(prevUserMsg, offeredProd);
+          if (prevParsed && prevParsed.quantity > 0) parsedQty = prevParsed;
         }
-      } else if (isNegativeSub) {
+
+        for (const key of Array.from(activeItemsMap.keys())) {
+          if (key !== offeredProd.name && (/bife de chorizo/i.test(key) && /bife de chorizo/i.test(offeredProd.name))) {
+            activeItemsMap.delete(key);
+          }
+        }
+
+        activeItemsMap.set(offeredProd.name, {
+          prod: offeredProd,
+          quantity: parsedQty.quantity || 1,
+          isUnitMode: parsedQty.isUnitMode,
+          unitCount: parsedQty.unitCount || 0,
+          unitsPerKg: parsedQty.unitsPerKg || 1,
+          label: parsedQty.label || `${parsedQty.quantity || 1} kg`
+        });
         continue;
       }
     }
@@ -1403,18 +1405,28 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     }
 
     // Detección de reemplazo de ítems (ej: "cambiame el asado por 2 kg de vacío", "en vez de chorizos poneme morcillas")
-    const isReplaceMatch = /(?:cambi[aá](?:me)?|en\s+vez\s+de)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(cleanMsg);
+    const isReplaceMatch = /(?:cambi[aá](?:me)?|en\s+vez\s+(?:de|del)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(cleanMsg);
     if (isReplaceMatch) {
-      const oldQuery = isReplaceMatch[1].trim();
+      const oldQuery = isReplaceMatch[1].trim().toLowerCase().replace(/^(?:el|la|los|las)\s+/, '').trim();
       const newQuery = isReplaceMatch[2].trim();
       const oldProd = matchBestProduct(oldQuery, catalog);
-      if (oldProd) {
-        for (const key of Array.from(activeItemsMap.keys())) {
-          if (key === oldProd.name || key.toLowerCase().includes(oldProd.name.toLowerCase()) || oldProd.name.toLowerCase().includes(key.toLowerCase())) {
-            activeItemsMap.delete(key);
-          }
+      
+      for (const key of Array.from(activeItemsMap.keys())) {
+        const lowerKey = key.toLowerCase();
+        if (
+          (oldProd && (key === oldProd.name || lowerKey.includes(oldProd.name.toLowerCase()) || oldProd.name.toLowerCase().includes(lowerKey))) ||
+          lowerKey.includes(oldQuery) ||
+          oldQuery.includes(lowerKey) ||
+          (/matambre/i.test(oldQuery) && /matambre/i.test(lowerKey)) ||
+          (/costilla|costillar|asado/i.test(oldQuery) && /costilla|costillar|asado/i.test(lowerKey)) ||
+          (/chorizo/i.test(oldQuery) && !/bife/i.test(oldQuery) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
+          (/vacio|vacío/i.test(oldQuery) && /vacio|vacío/i.test(lowerKey)) ||
+          (/carbon|carbón/i.test(oldQuery) && /carbon|carbón/i.test(lowerKey))
+        ) {
+          activeItemsMap.delete(key);
         }
       }
+
       const newProd = matchBestProduct(newQuery, catalog);
       if (newProd) {
         const parsedNew = parseQuantityAndMode(newQuery, newProd);
@@ -1692,23 +1704,59 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
           }
         }
       } else if (isChunkReplacement) {
-        if (chunk.includes(' en vez de ')) {
-          const parts = chunk.split(/ en vez de /i);
-          const newProd = matchBestProduct(parts[0], catalog);
-          const oldProd = matchBestProduct(parts[1], catalog);
-          if (oldProd && activeItemsMap.has(oldProd.name)) activeItemsMap.delete(oldProd.name);
+        if (chunk.includes(' en vez de ') || chunk.includes(' en vez del ') || chunk.includes('en vez de ') || chunk.includes('en vez del ')) {
+          const parts = chunk.split(/\s*en\s+vez\s+(?:de|del)\s*/i);
+          const newQuery = (parts[0] || '').trim();
+          const oldQuery = (parts[1] || '').trim().toLowerCase().replace(/^(?:el|la|los|las)\s+/, '').trim();
+          const newProd = matchBestProduct(newQuery, catalog);
+          const oldProd = matchBestProduct(oldQuery, catalog);
+
+          for (const key of Array.from(activeItemsMap.keys())) {
+            const lowerKey = key.toLowerCase();
+            if (
+              (oldProd && (key === oldProd.name || lowerKey.includes(oldProd.name.toLowerCase()) || oldProd.name.toLowerCase().includes(lowerKey))) ||
+              lowerKey.includes(oldQuery) ||
+              oldQuery.includes(lowerKey) ||
+              (/matambre/i.test(oldQuery) && /matambre/i.test(lowerKey)) ||
+              (/costilla|costillar|asado/i.test(oldQuery) && /costilla|costillar|asado/i.test(lowerKey)) ||
+              (/chorizo/i.test(oldQuery) && !/bife/i.test(oldQuery) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
+              (/vacio|vacío/i.test(oldQuery) && /vacio|vacío/i.test(lowerKey)) ||
+              (/carbon|carbón/i.test(oldQuery) && /carbon|carbón/i.test(lowerKey))
+            ) {
+              activeItemsMap.delete(key);
+            }
+          }
+
           if (newProd) {
-            const parsed = parseQuantityAndMode(parts[0], newProd);
+            const parsed = parseQuantityAndMode(newQuery, newProd);
             activeItemsMap.set(newProd.name, { prod: newProd, ...parsed });
           }
         } else {
           const porMatch = chunk.match(/(?:cambia(?:me)?|reemplaza(?:me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+por\s+(.+)/i);
           if (porMatch) {
-            const oldProd = matchBestProduct(porMatch[1], catalog);
-            const newProd = matchBestProduct(porMatch[2], catalog);
-            if (oldProd && activeItemsMap.has(oldProd.name)) activeItemsMap.delete(oldProd.name);
+            const oldQuery = porMatch[1].trim().toLowerCase().replace(/^(?:el|la|los|las)\s+/, '').trim();
+            const newQuery = porMatch[2].trim();
+            const oldProd = matchBestProduct(oldQuery, catalog);
+            const newProd = matchBestProduct(newQuery, catalog);
+
+            for (const key of Array.from(activeItemsMap.keys())) {
+              const lowerKey = key.toLowerCase();
+              if (
+                (oldProd && (key === oldProd.name || lowerKey.includes(oldProd.name.toLowerCase()) || oldProd.name.toLowerCase().includes(lowerKey))) ||
+                lowerKey.includes(oldQuery) ||
+                oldQuery.includes(lowerKey) ||
+                (/matambre/i.test(oldQuery) && /matambre/i.test(lowerKey)) ||
+                (/costilla|costillar|asado/i.test(oldQuery) && /costilla|costillar|asado/i.test(lowerKey)) ||
+                (/chorizo/i.test(oldQuery) && !/bife/i.test(oldQuery) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
+                (/vacio|vacío/i.test(oldQuery) && /vacio|vacío/i.test(lowerKey)) ||
+                (/carbon|carbón/i.test(oldQuery) && /carbon|carbón/i.test(lowerKey))
+              ) {
+                activeItemsMap.delete(key);
+              }
+            }
+
             if (newProd) {
-              const parsed = parseQuantityAndMode(porMatch[2], newProd);
+              const parsed = parseQuantityAndMode(newQuery, newProd);
               activeItemsMap.set(newProd.name, { prod: newProd, ...parsed });
             }
           } else if (prod) {
@@ -1820,6 +1868,71 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
 }
 
 /**
+ * Obtiene el Carrito Canónico del Grafo de Memoria (Working Memory Cart State)
+ * Garantiza coherencia absoluta entre turnos sin alucinaciones ni productos fantasma.
+ */
+export function getCanonicalCart(lead, history = [], rawText = '', products = null) {
+  const catList = (products && products.length > 0) ? products : (db.getProducts() || MASTER_CATALOG);
+  
+  const tClean = (rawText || '').toLowerCase();
+  const isCancel = /(?:cancelar|cancelo|cancela|cancelame|anular|anula|anulame|no quiero nada|cancelar el pedido|cancelar mi pedido|cancelo el pedido|ya no quiero el pedido)/i.test(tClean) ||
+    (/(?:cancelar el pedido|cancelo el pedido|ya no quiero el pedido)/i.test((history && history.length > 0 ? (history[history.length - 1]?.content || '') : '')) && !/(?:1|2|si|sí|confirmar|volver|no|dale)/i.test(tClean));
+
+  if (isCancel) {
+    if (lead) {
+      lead.draftCart = null;
+      lead.currentOrder = null;
+    }
+    return { items: [], total: 0, products: [], addedItems: [] };
+  }
+
+  // 1. Extraer del turno actual y del historial
+  let { items, total, products: structuredProducts, addedItems } = extractItemsFromHistoryAndText(history, rawText, catList, lead);
+
+  // 2. Si la extracción del turno no encontró nada (ej: el usuario solo envió su dirección o dijo "sí"),
+  // recurrir al estado guardado en el nodo de memoria del lead o al pedido activo
+  if ((!items || items.length === 0) && lead) {
+    if (lead.draftCart && Array.isArray(lead.draftCart.items) && lead.draftCart.items.length > 0) {
+      items = lead.draftCart.items;
+      total = lead.draftCart.total || 0;
+      structuredProducts = lead.draftCart.products || [];
+    } else if (lead.currentOrder && Array.isArray(lead.currentOrder.items) && lead.currentOrder.items.length > 0) {
+      items = lead.currentOrder.items;
+      total = lead.currentOrder.totalAmount || lead.currentOrder.total || 0;
+      structuredProducts = lead.currentOrder.products || [];
+    } else {
+      // Intentar buscar pedido activo en DB
+      const dbOrder = (db.getOrders() || []).find(o => 
+        (o.jid === lead.jid || o.phone === lead.phone) && 
+        ['pending', 'preparing'].includes(o.status)
+      );
+      if (dbOrder && Array.isArray(dbOrder.items) && dbOrder.items.length > 0) {
+        items = dbOrder.items;
+        total = dbOrder.totalAmount || 0;
+        structuredProducts = dbOrder.products || [];
+      }
+    }
+  }
+
+  // 3. Si tenemos ítems válidos, persistir en el nodo del lead para los siguientes pasos
+  if (items && items.length > 0 && lead) {
+    lead.draftCart = {
+      items,
+      total,
+      products: structuredProducts,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  return {
+    items: items || [],
+    total: total || 0,
+    products: structuredProducts || [],
+    addedItems: addedItems || []
+  };
+}
+
+/**
  * Construye el prompt completo del sistema combinando instrucciones generales, contexto regional,
  * modismos locales, reglas de negocio y cortes vigentes del catálogo.
  */
@@ -1865,6 +1978,15 @@ Reglas de Oro:
 }
 
 export class AIService {
+  static async generateSalesResponse({ rawText, text, lead, history, settings, knowledgeBase, products } = {}) {
+    const incomingText = rawText || text || '';
+    const activeLead = lead || { name: 'Cliente', stage: 'new_lead', tags: [] };
+    const activeSettings = settings || db.getSettings();
+    const activeHistory = Array.isArray(history) ? history : [];
+    const activeKb = knowledgeBase || [];
+    return await this.generateDynamicReply(incomingText, activeLead, activeKb, activeSettings, activeHistory);
+  }
+
   static async generateReply(param1, param2, param3, param4) {
     let jid = '';
     let incomingText = '';
@@ -2073,6 +2195,25 @@ export class AIService {
     const wasReadyToDispatchQuestion = /(?:lo dejamos listo para despachar|lo dejamos listo|dejamos listo para despachar|¿Precisás realizar algún otro cambio)/i.test(lastAgentMessage);
     const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasQuantityPrompt && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
       !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered;
+
+    // 0.00001 CANCELACIÓN GENERAL DE PEDIDO / PROCESO
+    const isCancelIntent = /(?:cancelar|cancelo|cancela|cancelame|anular|anula|anulame|no quiero nada|no quiero comprar nada|cancelar el pedido|cancelar mi pedido|cancelo el pedido|ya no quiero el pedido|no voy a querer|no quiero nada gracias)/i.test(t) ||
+      (wasDataConfirmOffered && /^(?:3|3️⃣|cancelar|cancelo)$/i.test(t.trim())) ||
+      (wasInTransitChoiceOffered && /^(?:1|1️⃣|cancelar)$/i.test(t.trim()));
+
+    if (isCancelIntent) {
+      if (currentActiveOrder) {
+        db.updateOrder(currentActiveOrder.id, { status: 'cancelled' });
+      }
+      if (lead) {
+        lead.draftCart = null;
+        lead.currentOrder = null;
+        if (lead.jid || lead.id) {
+          db.updateLead(lead.jid || lead.id, { draftCart: null, currentOrder: null });
+        }
+      }
+      return getVariedCancellationMessage(clientName);
+    }
 
     // 0.0001 RESPUESTAS AL MENÚ DE BIENVENIDA / OPCIONES RÁPIDAS
     if (wasWelcomeMenuOffered) {
@@ -3553,12 +3694,9 @@ export class AIService {
           `👉 *Respondé con el número (1 al 6) de tu sede preferida para dejártelo listo.* 🥩🙌 [[STAGE:proposal]]`;
       }
 
-      const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, rawText, products, lead);
-      const itemsList = parsedItems.length > 0 ? parsedItems : [
-        '• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999',
-        '• 2 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $10.000'
-      ];
-      const finalTotal = parsedTotal > 0 ? parsedTotal : 49999;
+      const canonical = getCanonicalCart(lead, history, rawText, products);
+      const itemsList = canonical.items.length > 0 ? canonical.items : ['• 1 kg Vacío Especial Seleccionado — $11.500'];
+      const finalTotal = canonical.total > 0 ? canonical.total : 11500;
       const formattedTotal = `$${finalTotal.toLocaleString('es-AR')}`;
 
       return `📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n` +
@@ -3584,9 +3722,9 @@ export class AIService {
 
     if (isDeliveryIntentWithoutAddress || (isDeclineComplements && /domicilio|envio|envío|evio/i.test(t))) {
       if (lead.address && lead.address.length >= 5 && !isGarbageAddress(lead.address)) {
-        const { items: parsedItems, total: parsedTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
-        const finalItems = parsedItems.length > 0 ? parsedItems : ['• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999'];
-        const formattedTotal = `$${(parsedTotal || 39999).toLocaleString('es-AR')}`;
+        const canonical = getCanonicalCart(lead, history, '', products);
+        const finalItems = canonical.items.length > 0 ? canonical.items : ['• 1 kg Vacío Especial Seleccionado — $11.500'];
+        const formattedTotal = `$${(canonical.total || 11500).toLocaleString('es-AR')}`;
         const clientPhone = lead.phone || (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351');
 
         return `📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n` +
@@ -3606,9 +3744,9 @@ export class AIService {
     }
 
     if (isDeclineComplements) {
-      const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
-      const itemsList = historyItems.length > 0 ? historyItems.join('\n') : '• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999';
-      const formattedTotal = `$${(historyTotal || 39999).toLocaleString('es-AR')}`;
+      const canonical = getCanonicalCart(lead, history, '', products);
+      const itemsList = canonical.items.length > 0 ? canonical.items.join('\n') : '• 1 kg Vacío Especial Seleccionado — $11.500';
+      const formattedTotal = `$${(canonical.total || 11500).toLocaleString('es-AR')}`;
 
       return `¡De diez ${clientName}! 🥩🚚 Cerramos con tu pedido confirmado:\n\n` +
         `📋 *Detalle de tu pedido (precios por kilo según corte):*\n${itemsList}\n\n` +

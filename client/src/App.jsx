@@ -13,6 +13,7 @@ import CustomersView from './components/CustomersView';
 import BranchesView from './components/BranchesView';
 import DriversView from './components/DriversView';
 import UsersView from './components/UsersView';
+import AgentsView from './components/AgentsView';
 import POSView from './components/POSView';
 import WooCommerceView from './components/WooCommerceView';
 import AutomationRulesView from './components/AutomationRulesView';
@@ -495,6 +496,10 @@ export default function App() {
             }}
             leads={leads}
           />
+        )}
+
+        {currentTab === 'agents' && (
+          <AgentsView socket={socket} currentUser={currentUser} />
         )}
 
         {currentTab === 'neural-memory' && (

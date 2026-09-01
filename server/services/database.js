@@ -189,6 +189,16 @@ class DatabaseService {
     this.io = io;
   }
 
+  emitChange(event, data) {
+    if (this.io && typeof this.io.emit === 'function') {
+      try {
+        this.io.emit(event, data);
+      } catch (err) {
+        console.warn('Error emitting change event:', err.message);
+      }
+    }
+  }
+
   readDb() {
     try {
       const data = fs.readFileSync(this.dbFile, 'utf8');
@@ -3630,6 +3640,232 @@ class DatabaseService {
     this.writeDb(db);
     return deletedCount;
   }
+
+  // --- Módulo Multi-Agentes IA Personalizados ---
+  static DEFAULT_AGENTS = [
+    {
+      id: 'agent_carlos',
+      name: 'Carlos - Maestro Carnicero',
+      role: 'vendedor',
+      roleLabel: 'Maestro Carnicero & Asesor de Ventas',
+      avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&auto=format&fit=crop&q=80',
+      backstory: 'Carlos cuenta con más de 20 años de experiencia frente al fuego y en los mejores mostradores de carne de Córdoba. Conoce el punto de maduración de cada corte de novillito y cerdo, la preparación ideal para parrilla, horno u olla, y atiende a cada cliente con calidez cordobesa y precisión de oficio.',
+      personality: 'Cálido, cordobés amigable ("¡De diez!", "¡De una!"), experto en cortes y fuegos, apasionado por el buen asado y sumamente atento a las preferencias del cliente.',
+      promptInstructions: 'Sos Carlos, maestro carnicero de República de la Carne. Hablás con modismos cordobeses de forma natural, sugerís cortes precisos, calculás asados y cuidás el bolsillo del cliente sin presionar.',
+      firstMessage: '¡Hola! 👋 Soy Carlos, tu maestro carnicero de República de la Carne. 🥩 Estoy acá para asesorarte con los mejores cortes del día, promos y armar tu pedido. ¿Qué estás buscando hoy?',
+      ttsProvider: 'elevenlabs',
+      voiceId: 'ErXwobaYiN019PkySvjV',
+      assignedBranches: ['all'],
+      isActive: true,
+      isDefault: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'agent_valeria',
+      name: 'Valeria - Logística & Despacho',
+      role: 'logistica',
+      roleLabel: 'Encargada de Logística & Envíos',
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
+      backstory: 'Valeria coordina toda la flota de cadetes y despachos en el día dentro de Córdoba Capital y Sierras Chicas. Su misión es asegurar que cada pedido salga perfectamente envasado, refrigerado y llegue puntual a la puerta del cliente.',
+      personality: 'Ágil, hiper-organizada, enfocada en direcciones exactas, franjas horarias y confirmación de recepción impecable.',
+      promptInstructions: 'Sos Valeria, encargada de logística de República de la Carne. Tu prioridad es confirmar la dirección exacta, calcular tiempos de entrega en el día y asegurar que el cliente reciba su pedido en perfectas condiciones.',
+      firstMessage: '¡Hola! 👋 Soy Valeria del área de Logística y Envíos de República de la Carne. 🛵 Estoy para coordinar tu entrega a domicilio o retiro por sucursal en el día. ¿A qué zona enviamos tu pedido?',
+      ttsProvider: 'edge',
+      voiceId: 'es-AR-ElenaNeural',
+      assignedBranches: ['all'],
+      isActive: true,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'agent_martin',
+      name: 'Martín - Cortes Premium & Eventos',
+      role: 'vendedor',
+      roleLabel: 'Especialista en Cortes Premium & Asados Masivos',
+      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&auto=format&fit=crop&q=80',
+      backstory: 'Martín es sommelier parrillero y especialista en grandes eventos, asados corporativos y cortes premium (entraña, bife de chorizo, vacío seleccionado). Sabe maridar cada corte con vinos reserva y guarniciones de autor.',
+      personality: 'Enérgico, comercial, gourmet y detallista.',
+      promptInstructions: 'Sos Martín, especialista en cortes premium y combos para asados grandes. Ayudás a calcular cantidades exactas para muchos comensales y recomendás maridajes perfectos.',
+      firstMessage: '¡Buenas! 🔥 Soy Martín de República de la Carne. Especialista en cortes premium, combos parrilleros y eventos. ¿Para cuántas personas estamos preparando el fuego hoy?',
+      ttsProvider: 'elevenlabs',
+      voiceId: 'ErXwobaYiN019PkySvjV',
+      assignedBranches: ['all'],
+      isActive: true,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'agent_roberto',
+      name: 'Roberto - Administrador & Gerencia',
+      role: 'administrador',
+      roleLabel: 'Gerente de Calidad & Administración',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
+      backstory: 'Roberto supervisa las 6 sucursales de República de la Carne, compras mayoristas, cuentas corrientes corporativas y garantiza el cumplimiento estricto del lema: "La calidad nos hace diferentes".',
+      personality: 'Profesional, formal, resolutivo y ejecutivo.',
+      promptInstructions: 'Sos Roberto, gerente de República de la Carne. Atendés consultas institucionales, cuentas corrientes, facturación y requerimientos especiales con máxima seriedad y vocación de servicio.',
+      firstMessage: 'Estimado cliente, le saluda Roberto de la Gerencia de República de la Carne. ¿En qué podemos colaborar con su gestión comercial o requerimiento hoy?',
+      ttsProvider: 'edge',
+      voiceId: 'es-AR-TomasNeural',
+      assignedBranches: ['all'],
+      isActive: true,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    },
+    {
+      id: 'agent_lucia',
+      name: 'Lucía - Mostrador & Sucursal Urca',
+      role: 'encargado',
+      roleLabel: 'Encargada de Sucursal & Mostrador',
+      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
+      backstory: 'Lucía atiende en el mostrador de nuestra casa central de Urca. Conoce a los clientes habituales por su nombre, les reserva sus cortes preferidos y coordina los retiros express.',
+      personality: 'Súper simpática, atenta, rápida y detallista.',
+      promptInstructions: 'Sos Lucía, encargada de mostrador de República de la Carne. Coordinás retiros en sucursal con rapidez y amabilidad.',
+      firstMessage: '¡Hola! 👋 Soy Lucía de mostrador de República de la Carne. ¿Venís a retirar por alguna de nuestras 6 sucursales o querés que te preparemos una reserva?',
+      ttsProvider: 'edge',
+      voiceId: 'es-AR-ElenaNeural',
+      assignedBranches: ['branch_urca_1'],
+      isActive: true,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+  ];
+
+  getAgents() {
+    const db = this.readDb();
+    if (!Array.isArray(db.agents) || db.agents.length === 0) {
+      db.agents = JSON.parse(JSON.stringify(DatabaseService.DEFAULT_AGENTS));
+      this.writeDb(db);
+    }
+    return db.agents;
+  }
+
+  getAgent(id) {
+    const agents = this.getAgents();
+    return agents.find(a => a.id === id) || null;
+  }
+
+  getActiveAgent() {
+    const agents = this.getAgents();
+    return agents.find(a => a.isDefault && a.isActive) || agents.find(a => a.isActive) || agents[0] || DatabaseService.DEFAULT_AGENTS[0];
+  }
+
+  createAgent(agentData) {
+    const db = this.readDb();
+    if (!Array.isArray(db.agents)) db.agents = [];
+
+    const newAgent = {
+      id: agentData.id || `agent_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      name: agentData.name || 'Nuevo Agente IA',
+      role: agentData.role || 'vendedor',
+      roleLabel: agentData.roleLabel || 'Asesor Comercial',
+      avatar: agentData.avatar || 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&auto=format&fit=crop&q=80',
+      backstory: agentData.backstory || '',
+      personality: agentData.personality || 'Amable, profesional y servicial.',
+      promptInstructions: agentData.promptInstructions || '',
+      firstMessage: agentData.firstMessage || '¡Hola! ¿En qué puedo ayudarte hoy?',
+      ttsProvider: agentData.ttsProvider || 'elevenlabs',
+      voiceId: agentData.voiceId || 'ErXwobaYiN019PkySvjV',
+      assignedBranches: Array.isArray(agentData.assignedBranches) ? agentData.assignedBranches : ['all'],
+      isActive: agentData.isActive !== false,
+      isDefault: !!agentData.isDefault,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (newAgent.isDefault) {
+      db.agents.forEach(a => { a.isDefault = false; });
+    }
+
+    db.agents.push(newAgent);
+    this.writeDb(db);
+    this.emitChange('agent:create', newAgent);
+    return newAgent;
+  }
+
+  updateAgent(id, updates = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(db.agents)) db.agents = [];
+
+    const idx = db.agents.findIndex(a => a.id === id);
+    if (idx === -1) return null;
+
+    if (updates.isDefault) {
+      db.agents.forEach(a => { a.isDefault = false; });
+    }
+
+    const updated = {
+      ...db.agents[idx],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    db.agents[idx] = updated;
+
+    // Si este agente es el activo/default, sincronizar con settings.agentName y settings.agentRole
+    if (updated.isDefault) {
+      if (db.settings) {
+        db.settings.agentName = updated.name;
+        db.settings.agentRole = updated.roleLabel;
+        if (updated.voiceId) db.settings.elevenlabsVoiceId = updated.voiceId;
+        if (updated.firstMessage) db.settings.elevenlabsFirstMessage = updated.firstMessage;
+      }
+    }
+
+    this.writeDb(db);
+    this.emitChange('agent:update', updated);
+    return updated;
+  }
+
+  deleteAgent(id) {
+    const db = this.readDb();
+    if (!Array.isArray(db.agents)) return false;
+
+    const initialLen = db.agents.length;
+    db.agents = db.agents.filter(a => a.id !== id);
+
+    if (db.agents.length < initialLen) {
+      // Si eliminamos el default, asignar el primero restante como default
+      if (db.agents.length > 0 && !db.agents.some(a => a.isDefault)) {
+        db.agents[0].isDefault = true;
+      }
+      this.writeDb(db);
+      this.emitChange('agent:delete', { id });
+      return true;
+    }
+    return false;
+  }
+
+  setActiveAgent(id) {
+    const db = this.readDb();
+    if (!Array.isArray(db.agents)) return null;
+
+    let targetAgent = null;
+    db.agents.forEach(a => {
+      if (a.id === id) {
+        a.isDefault = true;
+        a.isActive = true;
+        targetAgent = a;
+      } else {
+        a.isDefault = false;
+      }
+    });
+
+    if (targetAgent && db.settings) {
+      db.settings.agentName = targetAgent.name;
+      db.settings.agentRole = targetAgent.roleLabel;
+      if (targetAgent.voiceId) db.settings.elevenlabsVoiceId = targetAgent.voiceId;
+      if (targetAgent.firstMessage) db.settings.elevenlabsFirstMessage = targetAgent.firstMessage;
+    }
+
+    this.writeDb(db);
+    this.emitChange('agents:sync', db.agents);
+    return targetAgent;
+  }
 }
 
 export const db = new DatabaseService();
@@ -3650,5 +3886,13 @@ export const bulkUpdateLeads = (ids, u) => db.bulkUpdateLeads(ids, u);
 export const bulkDeleteLeads = (ids) => db.bulkDeleteLeads(ids);
 export const bulkUpdateUsers = (ids, u) => db.bulkUpdateUsers(ids, u);
 export const bulkDeleteUsers = (ids) => db.bulkDeleteUsers(ids);
+export const getAgents = () => db.getAgents();
+export const getAgent = (id) => db.getAgent(id);
+export const getActiveAgent = () => db.getActiveAgent();
+export const createAgent = (data) => db.createAgent(data);
+export const updateAgent = (id, u) => db.updateAgent(id, u);
+export const deleteAgent = (id) => db.deleteAgent(id);
+export const setActiveAgent = (id) => db.setActiveAgent(id);
+
 
 

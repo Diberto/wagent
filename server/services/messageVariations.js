@@ -73,54 +73,58 @@ export function getVariedGreeting(name) {
 }
 
 /**
- * Genera un saludo contextual y variado adaptado a lo que el cliente escribió (buen día, buenas tardes, noches, holis, etc.)
+ * Genera un saludo contextual y variado adaptado a lo que el cliente escribió y al agente activo
  */
-export function getContextualGreeting(incomingText = '', name = '') {
+export function getContextualGreeting(incomingText = '', name = '', agent = null) {
   const t = (incomingText || '').toLowerCase().trim();
   const n = name ? ` ${name}` : '';
+  
+  const activeAgent = agent || (db.getActiveAgent ? db.getActiveAgent() : null);
+  const agentName = activeAgent?.name?.split('-')[0]?.trim() || 'Carlos';
+  const roleLabel = activeAgent?.roleLabel || 'maestro carnicero';
 
   if (/(?:buen\s+d[ií]a|buenos\s+d[ií]as)/i.test(t)) {
     const morningOptions = [
-      `¡Muy buenos días${n}! 👋 ¿Cómo estás? Te saluda Carlos, maestro carnicero de **República de la Carne**. 🥩`,
-      `¡Buenos días${n}! 👋 Qué lindo saludarte. Carlos por acá de **República de la Carne**. 🥩`,
-      `¡Muy buen día${n}! 👋 ¿Todo bien? Carlos de **República de la Carne** a tu entera disposición. 🥩`,
-      `¡Buen día${n}! 👋 Carlos por acá, maestro carnicero. ¡Espero que tengas una excelente mañana! 🥩`
+      `¡Muy buenos días${n}! 👋 ¿Cómo estás? Te saluda ${agentName}, ${roleLabel} de **República de la Carne**. 🥩`,
+      `¡Buenos días${n}! 👋 Qué lindo saludarte. ${agentName} por acá de **República de la Carne**. 🥩`,
+      `¡Muy buen día${n}! 👋 ¿Todo bien? ${agentName} de **República de la Carne** a tu entera disposición. 🥩`,
+      `¡Buen día${n}! 👋 ${agentName} por acá. ¡Espero que tengas una excelente mañana! 🥩`
     ];
     return pickRandom(morningOptions);
   }
 
   if (/(?:buenas\s+tardes)/i.test(t)) {
     const afternoonOptions = [
-      `¡Muy buenas tardes${n}! 👋 ¿Cómo estás? Carlos por acá, maestro carnicero de **República de la Carne**. 🥩`,
-      `¡Buenas tardes${n}! 👋 Un gusto saludarte. Te saluda Carlos de **República de la Carne**. 🥩`,
-      `¡Buenas tardes${n}! 👋 ¿Todo bien? Carlos de **República de la Carne** a tu disposición. 🥩`
+      `¡Muy buenas tardes${n}! 👋 ¿Cómo estás? ${agentName} por acá, ${roleLabel} de **República de la Carne**. 🥩`,
+      `¡Buenas tardes${n}! 👋 Un gusto saludarte. Te saluda ${agentName} de **República de la Carne**. 🥩`,
+      `¡Buenas tardes${n}! 👋 ¿Todo bien? ${agentName} de **República de la Carne** a tu disposición. 🥩`
     ];
     return pickRandom(afternoonOptions);
   }
 
   if (/(?:buenas\s+noches)/i.test(t)) {
     const eveningOptions = [
-      `¡Muy buenas noches${n}! 👋 ¿Cómo andás? Carlos por acá, maestro carnicero de **República de la Carne**. 🥩`,
-      `¡Buenas noches${n}! 👋 Un gusto saludarte. Te saluda Carlos de **República de la Carne**. 🥩`
+      `¡Muy buenas noches${n}! 👋 ¿Cómo andás? ${agentName} por acá, ${roleLabel} de **República de la Carne**. 🥩`,
+      `¡Buenas noches${n}! 👋 Un gusto saludarte. Te saluda ${agentName} de **República de la Carne**. 🥩`
     ];
     return pickRandom(eveningOptions);
   }
 
   if (/(?:holis|hola\s+amigo|hola\s+maestro|hola\s+carlos|que\s+tal|qu[eé]\s+onda|c[oó]mo\s+va|c[oó]mo\s+est[aá]s)/i.test(t)) {
     const informalOptions = [
-      `¡Hola${n}! 👋 ¿Cómo andás? Te saluda Carlos, maestro carnicero de **República de la Carne**. 🥩`,
-      `¡Qué tal${n}! 👋 Un gustazo saludarte. Carlos de **República de la Carne** por acá. 🥩`,
-      `¡Buenas${n}! 👋 ¿Todo en orden? Carlos de **República de la Carne** a tu disposición. 🥩`,
-      `¡Hola${n}, qué hacés! 👋 Carlos por acá, maestro carnicero. ¿Cómo te trata el día? 🥩`
+      `¡Hola${n}! 👋 ¿Cómo andás? Te saluda ${agentName} de **República de la Carne**. 🥩`,
+      `¡Qué tal${n}! 👋 Un gustazo saludarte. ${agentName} de **República de la Carne** por acá. 🥩`,
+      `¡Buenas${n}! 👋 ¿Todo en orden? ${agentName} de **República de la Carne** a tu disposición. 🥩`,
+      `¡Hola${n}, qué hacés! 👋 ${agentName} por acá. ¿Cómo te trata el día? 🥩`
     ];
     return pickRandom(informalOptions);
   }
 
   const generalOptions = [
-    `¡Hola${n}! 👋 ¿Cómo estás? Te saluda Carlos, maestro carnicero de **República de la Carne**. 🥩`,
-    `¡Qué tal${n}! 👋 Un gusto saludarte. Carlos por acá de **República de la Carne**. 🥩`,
-    `¡Buenas${n}! 👋 ¿Todo bien? Carlos de **República de la Carne** a tu disposición. 🥩`,
-    `¡Hola${n}! 👋 Carlos por acá, maestro carnicero de **República de la Carne**. ¡Qué lindo saludarte! 🥩`
+    `¡Hola${n}! 👋 ¿Cómo estás? Te saluda ${agentName}, ${roleLabel} de **República de la Carne**. 🥩`,
+    `¡Qué tal${n}! 👋 Un gusto saludarte. ${agentName} por acá de **República de la Carne**. 🥩`,
+    `¡Buenas${n}! 👋 ¿Todo bien? ${agentName} de **República de la Carne** a tu disposición. 🥩`,
+    `¡Hola${n}! 👋 ${agentName} por acá de **República de la Carne**. ¡Qué lindo saludarte! 🥩`
   ];
   return pickRandom(generalOptions);
 }
@@ -142,9 +146,39 @@ export function getVariedOrderIntro(name = '') {
     `¡Excelente elección${n}! 🥩 Te paso el resumen detallado:`,
     `¡Perfecto${n}! 🥩 Ya te voy reservando estos cortes:`,
     `¡Buenísimo${n}! 🥩 Acá te dejo el detalle de lo que te preparamos:`,
-    `¡Espectacular${n}! 🥩 Mirá cómo queda tu pedido:`
+    `¡Espectacular${n}! 🥩 Mirá cómo queda tu pedido:`,
+    `¡Anotadísimo${n}! 🥩 Mirá el detalle de tu compra:`,
+    `¡Listo${n}! 🥩 Te dejamos separados estos cortes:`
   ];
   return pickRandom(intros);
+}
+
+/**
+ * Genera un mensaje variado ante modificación exitosa de cortes
+ */
+export function getVariedModificationIntro(name = '') {
+  const n = name ? ` ${name}` : '';
+  const intros = [
+    `¡Actualizado${n}! 🥩 Modificamos tu pedido con los cambios solicitados:`,
+    `¡Corregido${n}! 👍 Dejamos asentado tu pedido actualizado:`,
+    `¡De diez${n}! 🥩 Aplicamos los cambios a tus cortes:`,
+    `¡Ajustado${n}! 🥩 Mirá cómo quedó ahora tu pedido:`,
+    `¡Perfecto${n}! 👍 Tomamos nota de la modificación:`
+  ];
+  return pickRandom(intros);
+}
+
+/**
+ * Genera un mensaje de cancelación cordial y humano
+ */
+export function getVariedCancellationMessage(name = '') {
+  const n = name ? ` ${name}` : '';
+  const cancels = [
+    `¡Entendido${n}! 👍 Hemos cancelado el pedido y liberamos la reserva de los cortes. Cuando gustes volver a armar algo rico para el fuego o la cocina, acá estamos a tu disposición. ¡Muchas gracias por avisarnos! 🥩🙌`,
+    `¡Listo${n}! Cancelamos el pedido sin ningún problema. Si más tarde querés pedir otros cortes o consultar promociones, escribinos cuando quieras. ¡Que tengas un excelente día! 🥩🙌`,
+    `¡De diez${n}! Cancelamos la orden. No te preocupes, cualquier cosa que necesites para la parrilla o la semana, acá estamos al pie del cañón. ¡Un saludo grande! 🥩`
+  ];
+  return pickRandom(cancels);
 }
 
 /**

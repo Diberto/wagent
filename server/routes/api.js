@@ -3,8 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { db } from '../services/database.js';
-import { SpeechService } from '../services/speech.js';
-import { AIService } from '../services/ai.js';
+import { AIService, getCanonicalCart } from '../services/ai.js';
+import { runConversationTestSuite } from '../services/conversationTester.js';
 import { AudioConverter } from '../services/audioConverter.js';
 import { UpdateService } from '../services/updater.js';
 import { BackupService } from '../services/backup.js';
@@ -2137,6 +2137,163 @@ export function createApiRouter(whatsappService, io) {
         duration: speech.durationSeconds
       });
     } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Módulo Multi-Agentes IA Personalizados ---
+  router.get('/agents', (req, res) => {
+    try {
+      const agents = db.getAgents();
+      res.json(agents);
+    } catch (err) {
+      console.error('Error listando agentes:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/agents/active', (req, res) => {
+    try {
+      const active = db.getActiveAgent();
+      res.json(active);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/agents/:id', (req, res) => {
+    try {
+      const agent = db.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ error: 'Agente no encontrado' });
+      res.json(agent);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/agents', (req, res) => {
+    try {
+      const newAgent = db.createAgent(req.body);
+      io.emit('agents:sync', db.getAgents());
+      res.status(201).json(newAgent);
+    } catch (err) {
+      console.error('Error creando agente:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.put('/agents/:id', (req, res) => {
+    try {
+      const updated = db.updateAgent(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ error: 'Agente no encontrado' });
+      io.emit('agents:sync', db.getAgents());
+      res.json(updated);
+    } catch (err) {
+      console.error('Error actualizando agente:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/agents/:id', (req, res) => {
+    try {
+      const success = db.deleteAgent(req.params.id);
+      if (!success) return res.status(404).json({ error: 'Agente no encontrado o no se pudo eliminar' });
+      io.emit('agents:sync', db.getAgents());
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error eliminando agente:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/agents/:id/set-default', (req, res) => {
+    try {
+      const active = db.setActiveAgent(req.params.id);
+      if (!active) return res.status(404).json({ error: 'Agente no encontrado' });
+      io.emit('agents:sync', db.getAgents());
+      io.emit('settings:update', db.getSettings());
+      res.json({ success: true, activeAgent: active });
+    } catch (err) {
+      console.error('Error activando agente:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Ejecución de la Batería Exhaustiva de Tests de Conversación & Entrenamiento
+  router.post('/agents/run-test-suite', async (req, res) => {
+    try {
+      const suiteResults = await runConversationTestSuite();
+      res.json({
+        success: true,
+        ...suiteResults
+      });
+    } catch (err) {
+      console.error('Error ejecutando suite de tests:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Simulación interactiva de respuesta con la personalidad, historial y rol específico de un agente
+  router.post('/agents/:id/test-reply', async (req, res) => {
+    try {
+      const agent = db.getAgent(req.params.id) || db.getActiveAgent() || {
+        id: 'agent_carlos',
+        name: 'Carlos',
+        roleLabel: 'Maestro Carnicero',
+        backstory: '30 años de oficio en cortes cordobeses',
+        personality: 'Cálido, cordobés amigable y experto parrillero.',
+        promptInstructions: ''
+      };
+
+      const {
+        userMessage = 'Hola, ¿qué cortes me recomendás para un asado de 4 personas?',
+        history = [],
+        leadName = 'Cliente Simulación',
+        leadPhone = '+54 9 351 123-4567'
+      } = req.body;
+
+      const dummyLead = {
+        id: `sim-${Date.now()}`,
+        name: leadName,
+        phone: leadPhone,
+        stage: 'lead',
+        customFields: {}
+      };
+
+      const customSettings = {
+        ...db.getSettings(),
+        agentName: agent.name,
+        agentRole: agent.roleLabel,
+        systemPrompt: `${agent.promptInstructions || ''}\n\nBiografía e Historia: ${agent.backstory || ''}\nPersonalidad: ${agent.personality || ''}`
+      };
+
+      // Formatear historial si viene del cliente
+      const formattedHistory = Array.isArray(history) && history.length > 0
+        ? history.map(h => ({
+            sender: (h.sender === 'user' || h.sender === 'client') ? 'user' : 'bot',
+            content: h.text || h.content || ''
+          }))
+        : [{ sender: 'user', content: userMessage }];
+
+      const reply = await AIService.generateSalesResponse({
+        rawText: userMessage,
+        lead: dummyLead,
+        history: formattedHistory,
+        settings: customSettings
+      });
+
+      // Obtener el estado canónico del carrito tras este turno
+      const canonicalCart = getCanonicalCart(dummyLead, formattedHistory, userMessage, db.getProducts());
+
+      res.json({
+        success: true,
+        agent: { id: agent.id, name: agent.name, role: agent.role, avatar: agent.avatar },
+        userMessage,
+        reply,
+        canonicalCart
+      });
+    } catch (err) {
+      console.error('Error simulando respuesta de agente:', err);
       res.status(500).json({ error: err.message });
     }
   });

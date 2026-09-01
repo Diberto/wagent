@@ -83,6 +83,7 @@ export default function Navbar({
       label: 'IA & Módulos',
       icon: Sparkles,
       items: [
+        { id: 'agents', label: 'Agentes IA Personalizados', icon: Bot, desc: 'Perfiles, historias, roles, personalidades y avatares' },
         { id: 'neural-memory', label: 'Red Neuronal & Grafo', icon: Brain, desc: 'Grafo cognitivo y aprendizaje continuo' },
         { id: 'campaigns', label: 'Difusiones & Campañas', icon: Send, desc: 'Envíos masivos y ofertas' },
         { id: 'callcenter', label: 'Centro de Voz (ElevenLabs)', icon: PhoneCall, desc: 'Llamadas y agente de voz telefónico' },
