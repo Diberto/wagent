@@ -10,19 +10,33 @@ export class MercadoPagoService {
    */
   getCredentials() {
     const settings = db.getSettings() || {};
-    const mode = settings.mercadopagoMode || 'sandbox'; // 'sandbox' | 'production'
-    const isSandbox = mode === 'sandbox';
-
+    
     // Sandbox Credentials
-    const sandboxAccessToken = settings.mercadopagoAccessTokenSandbox || settings.mercadopagoSandboxAccessToken || settings.mercadopagoAccessToken;
-    const sandboxPublicKey = settings.mercadopagoPublicKeySandbox || settings.mercadopagoPublicKey;
+    const sandboxAccessToken = settings.mercadopagoAccessTokenSandbox || settings.mercadopagoSandboxAccessToken;
+    const sandboxPublicKey = settings.mercadopagoPublicKeySandbox;
 
     // Production Credentials
     const prodAccessToken = settings.mercadopagoAccessTokenProduction || settings.mercadopagoAccessToken;
     const prodPublicKey = settings.mercadopagoPublicKeyProduction || settings.mercadopagoPublicKey;
 
-    const activeAccessToken = isSandbox ? sandboxAccessToken : prodAccessToken;
-    const activePublicKey = isSandbox ? sandboxPublicKey : prodPublicKey;
+    let mode = settings.mercadopagoMode;
+    // Si no está explícito o es sandbox pero el token es APP_USR-, auto-ajustar a producción
+    if (!mode) {
+      if (prodAccessToken?.startsWith('APP_USR-')) {
+        mode = 'production';
+      } else if (sandboxAccessToken?.startsWith('TEST-') || prodAccessToken?.startsWith('TEST-')) {
+        mode = 'sandbox';
+      } else {
+        mode = 'production';
+      }
+    } else if (mode === 'sandbox' && prodAccessToken?.startsWith('APP_USR-') && !sandboxAccessToken?.startsWith('TEST-')) {
+      // Si configuró APP_USR pero el modo decía sandbox, priorizar producción real porque APP_USR falla en sandbox
+      mode = 'production';
+    }
+
+    const isSandbox = mode === 'sandbox';
+    const activeAccessToken = isSandbox ? (sandboxAccessToken || prodAccessToken) : (prodAccessToken || sandboxAccessToken);
+    const activePublicKey = isSandbox ? (sandboxPublicKey || prodPublicKey) : (prodPublicKey || sandboxPublicKey);
 
     return {
       mode,
@@ -221,10 +235,11 @@ export class MercadoPagoService {
 
       const preference = await response.json();
 
-      // En modo sandbox se debe entregar el link de Sandbox para testing con tarjetas de prueba
-      const checkoutUrl = (creds.isSandbox && preference.sandbox_init_point)
+      // Si el token es de producción (APP_USR-), SIEMPRE entregar preference.init_point para evitar error de sandbox
+      const isRealProd = creds.accessToken?.startsWith('APP_USR-');
+      const checkoutUrl = (!isRealProd && creds.isSandbox && preference.sandbox_init_point)
         ? preference.sandbox_init_point 
-        : preference.init_point;
+        : (preference.init_point || preference.sandbox_init_point);
 
       // Actualizar el pedido en la base de datos con el link generado y modo
       db.updateOrder(orderId, {
