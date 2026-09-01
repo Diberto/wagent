@@ -95,6 +95,13 @@ if (fs.existsSync(clientDist)) {
     immutable: true
   }));
 
+  // Auto-recuperación para bundles viejos solicitados por navegadores con caché persistente
+  app.get('/assets/*.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send("console.log('🔄 Actualizando bundle desactualizado a la última versión...'); window.location.reload(true);");
+  });
+
   // Servir el resto de archivos estáticos evitando caché en archivos HTML
   app.use(express.static(clientDist, {
     maxAge: '1d',
