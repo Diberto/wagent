@@ -469,7 +469,7 @@ export default function App() {
         )}
 
         {currentTab === 'catalog' && (
-          <ProductCatalog />
+          <ProductCatalog socket={socket} />
         )}
 
         {currentTab === 'kanban' && (

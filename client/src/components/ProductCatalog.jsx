@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import MediaGalleryModal from './MediaGalleryModal';
 
-export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' }) {
+export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,7 +27,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
-    category: 'Parrilla',
+    category: 'Parrilla y Vacuno',
     price: '',
     unit: 'kg',
     description: '',
@@ -59,27 +59,36 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
   const [stockModalAllowBackorder, setStockModalAllowBackorder] = useState(true);
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
 
+  // Extraer categorías dinámicas únicas de los productos
   const categories = [
     'all',
-    'Combos en Oferta',
-    'Parrilla',
-    'Parrilla y Horno',
-    'Cortes Premium',
-    'Cerdo',
-    'Cerdo y Parrilla',
-    'Cortes Tradicionales',
-    'Embutidos',
-    'Achuras',
-    'Diario y Preparados',
-    'Pollo',
-    'Almacén Parrillero',
-    'Bebidas',
-    'General'
+    ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))
   ];
 
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleProductsUpdate = (data) => {
+      if (Array.isArray(data)) {
+        setProducts(data);
+      } else if (data && Array.isArray(data.products)) {
+        setProducts(data.products);
+      } else {
+        fetchProducts();
+      }
+    };
+
+    socket.on('products:updated', handleProductsUpdate);
+    socket.on('catalog:updated', handleProductsUpdate);
+
+    return () => {
+      socket.off('products:updated', handleProductsUpdate);
+      socket.off('catalog:updated', handleProductsUpdate);
+    };
+  }, [socket]);
 
   const fetchProducts = async () => {
     try {
@@ -87,7 +96,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       const res = await fetch(`${apiBaseUrl}/api/products`);
       if (res.ok) {
         const data = await res.json();
-        setProducts(Array.isArray(data) ? data : []);
+        const prods = Array.isArray(data) ? data : (Array.isArray(data.products) ? data.products : []);
+        setProducts(prods);
       }
     } catch (err) {
       console.error('Error fetching products:', err);
