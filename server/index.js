@@ -89,20 +89,29 @@ io.on('connection', (socket) => {
 // Servir frontend en producción con optimización de caché
 const clientDist = path.join(CONFIG.ROOT_DIR, 'client/dist');
 if (fs.existsSync(clientDist)) {
-  // Caché inmutable para archivos estáticos con hash
+  // Caché inmutable para assets con hash (JS/CSS)
   app.use('/assets', express.static(path.join(clientDist, 'assets'), {
     maxAge: '1y',
     immutable: true
   }));
 
-  // Servir el resto de archivos estáticos
+  // Servir el resto de archivos estáticos evitando caché en archivos HTML
   app.use(express.static(clientDist, {
-    maxAge: '1h'
+    maxAge: '1d',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
   }));
 
-  // SPA fallback
+  // SPA fallback garantizando index.html fresco
   app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(clientDist, 'index.html'));
   });
 }
