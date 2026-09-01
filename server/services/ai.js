@@ -949,10 +949,14 @@ export function parseProductsFromItems(items, catalog = null) {
   const prods = [];
   if (!Array.isArray(items)) return prods;
 
-  for (const item of items) {
-    if (!item || typeof item !== 'string') continue;
-    const unitMatch = item.match(/•\s+(\d+(?:[\.,]\d+)?)\s+(?:Unidades\s+de\s+|unidades?\s+de\s+)(.+?)\s+—\s+\$?([0-9\.]+)/i);
-    if (unitMatch) {
+  for (const rawItem of items) {
+    if (!rawItem || typeof rawItem !== 'string') continue;
+    const cleanItem = rawItem.replace(/^(?:[•*\-\s]+|(?:\d+\.\s*))/, '').trim();
+    if (!cleanItem) continue;
+
+    // 1. Unidades (ej: "4 Unidades de CHORIZO DE CERDO — $7.380" o "6 chorizos — $3.000")
+    const unitMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:Unidades\s+de\s+|unidades?\s+de\s+|un\s+de\s+|unidades?\s+|un\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
+    if (unitMatch && /(?:Unidades|unidades|un\b)/i.test(cleanItem.slice(0, 20))) {
       const unitCount = parseFloat(unitMatch[1].replace(',', '.'));
       const name = unitMatch[2].trim();
       const subtotal = parseInt(unitMatch[3].replace(/\./g, ''), 10);
@@ -972,7 +976,8 @@ export function parseProductsFromItems(items, catalog = null) {
       continue;
     }
 
-    const kgMatch = item.match(/•\s+(\d+(?:[\.,]\d+)?)\s+(?:kg|kilos?)\s+(.+?)\s+—\s+\$?([0-9\.]+)/i);
+    // 2. Kilos (ej: "1 kg Vacío Especial Seleccionado — $11.500" o "1.5 kilos de asado — $15.000")
+    const kgMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:kg|kilos?|kilo)\s+(?:de\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
     if (kgMatch) {
       const quantity = parseFloat(kgMatch[1].replace(',', '.'));
       const name = kgMatch[2].trim();
@@ -991,10 +996,11 @@ export function parseProductsFromItems(items, catalog = null) {
       continue;
     }
 
-    const genericMatch = item.match(/•\s+(\d+(?:[\.,]\d+)?)\s+([a-záéíóúñ]+)\s+(.+?)\s+—\s+\$?([0-9\.]+)/i);
+    // 3. Genérico / Combos / Bolsas / Botellas (ej: "1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200", "1 combo Asadazo — $39.999")
+    const genericMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:([a-záéíóúñ]+)\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
     if (genericMatch) {
       const quantity = parseFloat(genericMatch[1].replace(',', '.'));
-      const unit = genericMatch[2].trim();
+      const unit = (genericMatch[2] || 'unidad').trim();
       const name = genericMatch[3].trim();
       const subtotal = parseInt(genericMatch[4].replace(/\./g, ''), 10);
       const catProd = matchBestProduct(name, catList) || { name, price: Math.round(subtotal / quantity), unit };
@@ -1003,9 +1009,30 @@ export function parseProductsFromItems(items, catalog = null) {
         name: catProd.name || name,
         price: catProd.price || Math.round(subtotal / quantity),
         quantity,
-        unit,
+        unit: catProd.unit || unit,
         isUnitMode: false,
         unitCount: 0,
+        subtotal
+      });
+      continue;
+    }
+
+    // 4. Formato con precio entre paréntesis: (ej: "1 kg de Vacío Especial Seleccionado ($11.500)")
+    const parenMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s*(?:(kg|kilos?|unidades?|bolsas?|combos?)\s+(?:de\s+)?)?(.+?)\s*\(\s*\$?([0-9\.]+)\s*\)/i);
+    if (parenMatch) {
+      const quantity = parseFloat(parenMatch[1].replace(',', '.'));
+      const unit = (parenMatch[2] || 'kg').trim();
+      const name = parenMatch[3].trim();
+      const subtotal = parseInt(parenMatch[4].replace(/\./g, ''), 10);
+      const catProd = matchBestProduct(name, catList) || { name, price: Math.round(subtotal / quantity), unit };
+      prods.push({
+        id: catProd.id || `prod-${name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: catProd.name || name,
+        price: catProd.price || Math.round(subtotal / quantity),
+        quantity,
+        unit: catProd.unit || unit,
+        isUnitMode: /unidad/i.test(unit),
+        unitCount: /unidad/i.test(unit) ? quantity : 0,
         subtotal
       });
     }
@@ -1026,7 +1053,32 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
   const t = (rawText || '').toLowerCase().trim();
   const isAddition = /(?:agrega|agreg[aá]|agregar|agregame|agregale|suma|sum[aá]|sumar|sumale|sumame|ponele|pon[eé]|sumar\s+\d+|mas\s+\d+|más\s+\d+|sumar\s+\d+\s+chorizo|mas\s+chorizo|más\s+chorizo|sumale\s+también)/i.test(t);
   const isRemoval = /(?:sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin\s+|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.test(t);
-  const isReplacement = /(?:cambi[aá](?:me|le|lo)?|en\s+vez\s+de|reemplaz[aá](?:me|le|lo)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(t);
+
+  // Detección exhaustiva de reemplazos
+  let oldQuery = null;
+  let newQuery = null;
+
+  const replacePattern1 = t.match(/(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:cambi[aá](?:me|le|lo)?|reemplaz[aá](?:me|le|lo)?)\s+(?:por|poneme|quiero)\s+(.+)/i);
+  const replacePattern2 = t.match(/(?:cambi[aá](?:me|le|lo)?|reemplaz[aá](?:me|le|lo)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i);
+  const replacePattern3 = t.match(/en\s+vez\s+de\s+(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:poneme|quiero|dame|ponele|por)\s+(.+)/i);
+  const replacePattern4 = t.match(/(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:quiero\s+que\s+sea|que\s+sea)\s+(?:de\s+)?(.+)/i);
+  const replacePattern5 = t.match(/(?:cambialo|reemplazalo)\s+por\s+(.+)/i);
+
+  if (replacePattern1 && replacePattern1[1].length > 1 && replacePattern1[2].length > 1 && !/^(?:cambia|cambiame)$/i.test(replacePattern1[1])) {
+    oldQuery = replacePattern1[1].trim();
+    newQuery = replacePattern1[2].trim();
+  } else if (replacePattern2 && replacePattern2[1].length > 1 && replacePattern2[2].length > 1) {
+    oldQuery = replacePattern2[1].trim();
+    newQuery = replacePattern2[2].trim();
+  } else if (replacePattern3 && replacePattern3[1].length > 1 && replacePattern3[2].length > 1) {
+    oldQuery = replacePattern3[1].trim();
+    newQuery = replacePattern3[2].trim();
+  } else if (replacePattern4 && replacePattern4[1].length > 1 && replacePattern4[2].length > 1 && !/^(?:hola|si|no|quiero|el|la)$/i.test(replacePattern4[1])) {
+    oldQuery = replacePattern4[1].trim();
+    newQuery = replacePattern4[2].trim();
+  } else if (replacePattern5 && replacePattern5[1].length > 1) {
+    newQuery = replacePattern5[1].trim();
+  }
 
   const isSameProductOrCut = (p1, p2) => {
     if (!p1 || !p2) return false;
@@ -1083,7 +1135,46 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     return false;
   };
 
-  if (isAddition) {
+  if (newQuery) {
+    // Caso Reemplazo específico (preservando el resto de los productos intactos)
+    let oldProd = null;
+    let oldIdx = -1;
+
+    if (oldQuery) {
+      oldProd = matchBestProduct(oldQuery, currentProds.length > 0 ? currentProds : catList);
+      if (oldProd) {
+        oldIdx = currentProds.findIndex(p => isSameProductOrCut(p, oldProd));
+      }
+    } else {
+      // Reemplazo sin especificar antiguo (reemplazar producto de categoría similar o primer corte)
+      const targetNewProd = matchBestProduct(newQuery, catList);
+      if (targetNewProd) {
+        oldIdx = currentProds.findIndex(p => isSameProductOrCut(p, targetNewProd));
+        if (oldIdx < 0 && currentProds.length > 0) oldIdx = 0;
+        if (oldIdx >= 0) oldProd = currentProds[oldIdx];
+      }
+    }
+
+    const extractedNew = extractItemsFromHistoryAndText([], newQuery, catList, lead);
+    if (extractedNew.products.length > 0) {
+      const newProdToAdd = extractedNew.products[0];
+
+      // Si el cliente no indicó cantidad para el nuevo corte, heredar la cantidad del corte anterior
+      const hasExplicitQtyInNewQuery = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?)|medio\s+kilo|1\/2\s*kg)/i.test(newQuery);
+      if (oldProd && !hasExplicitQtyInNewQuery) {
+        newProdToAdd.quantity = oldProd.quantity || 1;
+        newProdToAdd.isUnitMode = Boolean(oldProd.isUnitMode);
+        newProdToAdd.unitCount = oldProd.unitCount || 0;
+        newProdToAdd.subtotal = Math.round((newProdToAdd.price || 0) * newProdToAdd.quantity);
+      }
+
+      if (oldIdx >= 0) {
+        currentProds[oldIdx] = newProdToAdd;
+      } else {
+        currentProds.push(newProdToAdd);
+      }
+    }
+  } else if (isAddition) {
     const extracted = extractItemsFromHistoryAndText([], rawText, catList, lead);
     for (const np of extracted.products) {
       const existing = currentProds.find(p => isSameProductOrCut(p, np));
@@ -1110,18 +1201,6 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     if (prodToRemove) {
       const idx = currentProds.findIndex(p => isSameProductOrCut(p, prodToRemove));
       if (idx >= 0) currentProds.splice(idx, 1);
-    }
-  } else if (isReplacement) {
-    const oldQuery = isReplacement[1].trim();
-    const newQuery = isReplacement[2].trim();
-    const oldProd = matchBestProduct(oldQuery, currentProds.length > 0 ? currentProds : catList);
-    if (oldProd) {
-      const idx = currentProds.findIndex(p => isSameProductOrCut(p, oldProd));
-      if (idx >= 0) currentProds.splice(idx, 1);
-    }
-    const extracted = extractItemsFromHistoryAndText([], newQuery, catList, lead);
-    for (const np of extracted.products) {
-      currentProds.push(np);
     }
   } else {
     // Ajuste de producto existente o reemplazo específico
@@ -1966,9 +2045,10 @@ export class AIService {
     );
     const wasAsadoProposalOffered = /1️⃣\s*[*_]*Opción Clásica|[*_]*Te\s+arm[eé]\s+3\s+opciones|¿Con cu[aá]l opci[oó]n|Opción Combo|Opción Parrillera/i.test(lastAgentMessage);
     const wasSubstitutionOffered = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(lastAgentMessage);
+    const wasQuantityPrompt = /¿Qué cantidad|¿Cuántos kilos|¿Cuántas unidades|¿Qué cantidad te preparamos|¿Cuántas bolsas|¿Cuántas botellas|¿Qué cantidad de combos|Por Unidades:.*Por Kilos/i.test(lastAgentMessage);
     const wasPaymentMethodOffered = /(?:c[oó]mo prefer[ií]s abonar|1️⃣\s*\*?Efectivo|2️⃣\s*\*?Transferencia|3️⃣\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oó]mo prefer[ií]s abonar)/i.test(lastAgentMessage);
     const wasReadyToDispatchQuestion = /(?:lo dejamos listo para despachar|lo dejamos listo|dejamos listo para despachar|¿Precisás realizar algún otro cambio)/i.test(lastAgentMessage);
-    const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
+    const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasQuantityPrompt && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
       !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered;
 
     // 0.0001 RESPUESTAS AL MENÚ DE BIENVENIDA / OPCIONES RÁPIDAS
@@ -2097,6 +2177,64 @@ export class AIService {
       }
     }
 
+    // 0.00013 RESPUESTAS DIRECTAS A CONSULTAS DE CANTIDAD O PESO DE UN PRODUCTO
+    if (wasQuantityPrompt) {
+      const hasQtyInText = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b(?:uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+)\b)/i.test(t);
+      if (hasQtyInText && !/(?:cancelar|anular|estado|donde est[aá]|dónde est[aá]|cambiar sucursal)/i.test(t)) {
+        const targetProd = matchBestProduct(lastAgentMessage, products);
+        if (targetProd) {
+          const parsedQty = parseQuantityAndMode(rawText, targetProd);
+          let finalItems = [], finalTotal = 0, finalProducts = [];
+
+          if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
+            const modRes = applyItemModificationToOrder(currentActiveOrder, `${parsedQty.quantity} ${parsedQty.isUnitMode ? `${parsedQty.unitCount} unidades de` : (targetProd.unit || 'kg')} ${targetProd.name}`, products, lead);
+            finalItems = modRes.items;
+            finalTotal = modRes.total;
+            finalProducts = modRes.products;
+            db.updateOrder(currentActiveOrder.id, {
+              items: finalItems,
+              products: finalProducts,
+              totalAmount: finalTotal > 0 ? finalTotal : currentActiveOrder.totalAmount
+            });
+          } else {
+            const extRes = extractItemsFromHistoryAndText(history, `${parsedQty.quantity} ${parsedQty.isUnitMode ? `${parsedQty.unitCount} unidades de` : (targetProd.unit || 'kg')} ${targetProd.name}`, products, lead);
+            finalItems = extRes.items;
+            finalTotal = extRes.total;
+            finalProducts = extRes.products;
+            if (finalItems.length > 0) {
+              currentActiveOrder = db.createOrder({
+                jid: lead.jid || lead.id,
+                customerName: clientName,
+                phone: lead.phone || (lead.jid ? `+${lead.jid.split('@')[0]}` : ''),
+                items: finalItems,
+                products: finalProducts,
+                totalAmount: finalTotal,
+                status: 'pending',
+                source: 'whatsapp',
+                deliveryType: lead.deliveryType || 'pickup',
+                address: lead.address || '',
+                branch: lead.preferredBranch || ''
+              });
+            }
+          }
+
+          const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
+          const formattedTotal = `$${Number(finalTotal > 0 ? finalTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}`;
+
+          return `¡Anotado ${clientName}! 🥩 Actualizamos tu pedido:\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
+            `${finalItems.join('\n')}\n\n` +
+            `💰 *Subtotal acumulado:* **${formattedTotal}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `👉 *¿Cómo seguimos con tu pedido?*\n` +
+            `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+            `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+            `3️⃣ Sumar más cortes o complementos (chorizos, carbón, vino) 🥩\n\n` +
+            `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌 [[STAGE:proposal]]`;
+        }
+      }
+    }
+
     // 0.00014 DETECCIÓN DE PRODUCTO SOLICITADO NO DISPONIBLE O FUERA DE CATÁLOGO + SUGERENCIA DE REEMPLAZO SIMILAR
     const outOfCatalogCuts = [
       { pattern: /\b(?:lomo|bife de lomo|solomillo|filet mignon|filet)\b/i, name: 'Lomo' },
@@ -2146,25 +2284,24 @@ export class AIService {
       let selectedOptNum = null;
       let modificationText = '';
 
-      // 1. Detectar opción explícita (1, 2 o 3) sola o en frase
-      const optMatch = t.match(/(?:opci[oó]n|la|el|voy con|me quedo con|dame|elegimos|quiero(?:\s+la)?)\s*(?:opci[oó]n\s*)?([1-3]|uno|dos|tres|1️⃣|2️⃣|3️⃣)/i);
-      if (optMatch) {
-        const rawNum = optMatch[1].toLowerCase();
+      // 1. Detectar opción explícita (1, 2 o 3) sola, con prefijos o con modificaciones posteriores
+      const optLeadMatch = t.match(/^(?:era\s+(?:la\s+)?)?(?:opci[oó]n\s*|la\s+|el\s+|elegimos\s+|voy\s+con\s+|me\s+quedo\s+con\s+|dame\s+(?:la\s+)?|quiero(?:\s+la)?\s*)?([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b(.*)$/i);
+      const namedOptMatch = t.match(/(?:clasica|clásica|combo|asadazo|gourmet)/i);
+
+      if (optLeadMatch) {
+        const rawNum = optLeadMatch[1].toLowerCase();
         if (rawNum === '1' || rawNum === 'uno' || rawNum === '1️⃣') selectedOptNum = 1;
         else if (rawNum === '2' || rawNum === 'dos' || rawNum === '2️⃣') selectedOptNum = 2;
         else if (rawNum === '3' || rawNum === 'tres' || rawNum === '3️⃣') selectedOptNum = 3;
 
-        // Extraer si hay texto de modificación posterior (ej: "pero con 2 kilos de chorizo", "y sumale carbon")
-        const afterMatch = t.slice(optMatch.index + optMatch[0].length).trim();
-        if (afterMatch && /(?:pero|con|mas|más|y\s+|sumale|agregale|cambiame|sacale|sin|en\s+vez\s+de)/i.test(afterMatch)) {
-          modificationText = afterMatch.replace(/^(?:pero|y)\s+/i, '').trim();
+        const restText = (optLeadMatch[2] || '').trim();
+        if (restText && /(?:pero|con|mas|más|y\s+|sumale|agregale|cambiame|sacale|sin|en\s+vez\s+de|suma|agrega|ponele|\+)/i.test(restText)) {
+          modificationText = restText.replace(/^(?:pero|y|\+)\s+/i, '').trim();
         }
-      } else if (/^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|clasica|clásica)$/i.test(t.trim())) {
-        selectedOptNum = 1;
-      } else if (/^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|combo|asadazo)$/i.test(t.trim())) {
-        selectedOptNum = 2;
-      } else if (/^(?:3|3️⃣|tres|el 3|la 3|opci[oó]n 3|gourmet)$/i.test(t.trim())) {
-        selectedOptNum = 3;
+      } else if (namedOptMatch) {
+        if (/clasica|clásica/i.test(namedOptMatch[0])) selectedOptNum = 1;
+        else if (/combo|asadazo/i.test(namedOptMatch[0])) selectedOptNum = 2;
+        else if (/gourmet/i.test(namedOptMatch[0])) selectedOptNum = 3;
       }
 
       if (selectedOptNum !== null) {

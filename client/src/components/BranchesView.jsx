@@ -23,7 +23,8 @@ import {
   Save,
   MessageSquare,
   List,
-  LayoutGrid
+  LayoutGrid,
+  Receipt
 } from 'lucide-react';
 import UserPicker from './ui/UserPicker.jsx';
 

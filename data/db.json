@@ -14101,7 +14101,75 @@
       "notes": "Llamada de voz de WhatsApp (offer) - AutoAtención: elevenlabs"
     }
   ],
-  "orders": [],
+  "orders": [
+    {
+      "id": "ORD-4433",
+      "jid": "5493516262475@s.whatsapp.net",
+      "phone": "+5493516262475",
+      "customerName": "Don Juan",
+      "address": "",
+      "branch": "URCA 2 – ALTO TEJEDA",
+      "branchName": "URCA 2 – ALTO TEJEDA",
+      "branchId": "branch_urca_2",
+      "deliveryType": "pickup",
+      "deliverySlot": "morning",
+      "deliverySlotName": "Franja Mañana",
+      "estimatedDelivery": "Mañana en Franja Mañana (09:00 a 13:00 hs, máx 24h)",
+      "shippingCost": 0,
+      "isFreeShipping": true,
+      "isExpress": false,
+      "items": [
+        "• 1 kg de Tapa de Cuadril Seleccionada — $29.048",
+        "• 1 kg de Matambre Vacuno — $9.500",
+        "• 1 kg de Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $5.000"
+      ],
+      "products": [
+        {
+          "id": "prod_tapa_cuadril",
+          "name": "Tapa de Cuadril Seleccionada",
+          "price": 29048,
+          "quantity": 1,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 29048
+        },
+        {
+          "id": "prod-29",
+          "name": "MATAMBRE Vacuno",
+          "price": 22590,
+          "quantity": 1,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 9500
+        },
+        {
+          "id": "prod_chorizo",
+          "name": "Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)",
+          "price": 5000,
+          "quantity": 1,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 5000
+        }
+      ],
+      "totalAmount": 43548,
+      "paymentMethod": "Efectivo / Transferencia",
+      "paymentLink": null,
+      "status": "pending",
+      "isPrepared": false,
+      "preparedAt": null,
+      "preparedBy": null,
+      "channel": "WHATSAPP",
+      "source": "WHATSAPP",
+      "origin": "WHATSAPP",
+      "notes": "[Elegida Opción Parrillera Gourmet con modificación: \"suma una bolsa de carbón\"]\n[Elegida Opción Parrillera Gourmet]\n[Elegida Opción Parrillera Gourmet con modificación: \"suma una bolsa de carbón\"]\n[Elegida Opción Parrillera Gourmet]",
+      "createdAt": "2026-09-01T01:34:27.932Z",
+      "updatedAt": "2026-09-01T01:35:07.684Z"
+    }
+  ],
   "branches": [
     {
       "id": "br-1",

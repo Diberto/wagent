@@ -44,7 +44,8 @@ import {
   ArrowRight,
   Receipt,
   FileText,
-  QrCode
+  QrCode,
+  Bike
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 
