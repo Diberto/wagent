@@ -1,0 +1,9 @@
+{
+  "version": "1.2.0",
+  "name": "WAgent CRM",
+  "build": "1.2.0.20260901",
+  "releaseDate": "2026-09-01",
+  "tag": "v1.2.0",
+  "author": "Diberto",
+  "repository": "https://github.com/Diberto/wagent"
+}

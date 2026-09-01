@@ -7,16 +7,44 @@ import { BackupService } from './backup.js';
 
 const execAsync = promisify(exec);
 
+const getAppVersion = () => {
+  try {
+    const pkgPath = path.join(CONFIG.ROOT_DIR, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      return data.version || '1.2.0';
+    }
+  } catch (e) {}
+  return '1.2.0';
+};
+
+const getGitEnv = () => {
+  const gitPaths = [
+    'C:\\Program Files\\Git\\cmd',
+    'C:\\Program Files\\Git\\bin',
+    'C:\\Program Files\\Git\\mingw64\\bin'
+  ];
+  return {
+    ...process.env,
+    PATH: `${gitPaths.join(';')};${process.env.PATH || ''}`
+  };
+};
+
 export class UpdateService {
   static GITHUB_REPO = 'Diberto/wagent';
-  static CURRENT_VERSION = '1.0.0';
+  static get CURRENT_VERSION() {
+    return getAppVersion();
+  }
 
   /**
    * Obtiene el commit hash local actual
    */
   static async getLocalCommit() {
     try {
-      const { stdout } = await execAsync('git rev-parse HEAD', { cwd: CONFIG.ROOT_DIR });
+      const { stdout } = await execAsync('git rev-parse HEAD', { 
+        cwd: CONFIG.ROOT_DIR,
+        env: getGitEnv()
+      });
       return stdout.trim();
     } catch (e) {
       return null;
