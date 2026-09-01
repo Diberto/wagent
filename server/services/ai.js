@@ -2237,16 +2237,14 @@ export class AIService {
 
     // 0.00014 DETECCIÓN DE PRODUCTO SOLICITADO NO DISPONIBLE O FUERA DE CATÁLOGO + SUGERENCIA DE REEMPLAZO SIMILAR
     const outOfCatalogCuts = [
-      { pattern: /\b(?:lomo|bife de lomo|solomillo|filet mignon|filet)\b/i, name: 'Lomo' },
-      { pattern: /\b(?:ojo de bife|bife ancho|t-bone|tbone|ribeye|tomahawk|bife angosto)\b/i, name: 'Ojo de Bife / Bife Ancho' },
+      { pattern: /\b(?:ojo de bife|bife ancho|t-bone|tbone|ribeye|bife angosto)\b/i, name: 'Ojo de Bife / Ribeye' },
       { pattern: /\b(?:picanha|picaña)\b/i, name: 'Picanha' },
-      { pattern: /\b(?:tapa de asado|falda|asado con cuero|pecho|marucha)\b/i, name: 'Tapa de Asado / Falda' },
-      { pattern: /\b(?:colita de cuadril)\b/i, name: 'Colita de Cuadril' },
-      { pattern: /\b(?:osobuco|garrón|peceto)\b/i, name: 'Osobuco / Peceto' },
-      { pattern: /\b(?:molleja|chinchulin|chinchulines|chunchullo)\b/i, name: 'Achuras (Molleja/Chinchulín)' }
+      { pattern: /\b(?:asado con cuero|pecho)\b/i, name: 'Asado con Cuero' },
+      { pattern: /\b(?:garrón)\b/i, name: 'Garrón' },
+      { pattern: /\b(?:chunchullo)\b/i, name: 'Chunchullo' }
     ];
 
-    const requestedUnavailable = outOfCatalogCuts.find(c => c.pattern.test(t));
+    const requestedUnavailable = outOfCatalogCuts.find(c => c.pattern.test(t) && !products.some(p => c.pattern.test(p.name) && p.price > 0));
     const isExplicitCutsOrOrderAsk = /(?:ten[eé]s|vendes|vend[eé]s|hay|quiero|mandame|mandámelo|traeme|armame|separame|preparame|cuanto|precio|sale|cuesta|kilos?|kg)\b/i.test(t) || requestedUnavailable;
 
     if (requestedUnavailable && isExplicitCutsOrOrderAsk && !wasAsadoProposalOffered && !wasSubstitutionOffered) {

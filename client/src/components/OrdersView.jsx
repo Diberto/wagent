@@ -80,14 +80,27 @@ const DEFAULT_POS_ITEMS = [
   { id: 'prod-vino-howlmande', name: 'Vino Howlmande Malbec', category: 'almacen', price: 5500, unit: 'botella', icon: '🍷' }
 ];
 
+export const formatItemQuantity = (quantity, unit) => {
+  const q = Number(quantity) || 0;
+  const u = (unit || 'kg').toLowerCase();
+  if (u === 'kg' || u === 'kilo' || u === 'kilos') {
+    if (q < 1 && q > 0) {
+      const grams = Math.round(q * 1000);
+      return `${grams} g (${q} kg)`;
+    }
+    return `${q} kg`;
+  }
+  return `${q} ${u}`;
+};
+
 export const parseOrderItems = (order) => {
   if (!order) return [];
 
   // 1. Si ya tiene productos estructurados
   if (Array.isArray(order.products) && order.products.length > 0) {
     return order.products.map((p, idx) => {
-      const qty = Number(p.quantity) || 1;
-      const unit = p.unit || 'kg';
+      let qty = Number(p.quantity) || 1;
+      let unit = p.unit || 'kg';
       const name = p.name || 'Corte Seleccionado';
       let icon = p.icon || '🥩';
       const lower = name.toLowerCase();
@@ -139,12 +152,23 @@ export const parseOrderItems = (order) => {
     let lineSubtotal = 0;
     let name = cleanStr;
 
-    // Detectar cantidad al inicio
-    const initialQtyMatch = cleanStr.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|combos|bolsa|bolsas|botella|botellas|promo|un|unidad|unidades|piezas?)?\s+/i);
-    if (initialQtyMatch) {
-      qty = parseFloat(initialQtyMatch[1].replace(',', '.')) || 1;
-      if (initialQtyMatch[2]) unit = initialQtyMatch[2].toLowerCase();
-      name = cleanStr.slice(initialQtyMatch[0].length).trim();
+    // Detectar cantidad al inicio en gramos o kilos (ej: "250g de Chorizo", "500 grs", "0.25 kg", "2 kg")
+    const gramMatch = cleanStr.match(/^([0-9.,]+)\s*(?:g|gr|grs|gramos)\s+(?:de\s+)?/i);
+    if (gramMatch) {
+      const parsedGrams = parseFloat(gramMatch[1].replace(',', '.')) || 0;
+      qty = Math.round((parsedGrams / 1000) * 1000) / 1000;
+      unit = 'kg';
+      name = cleanStr.slice(gramMatch[0].length).trim();
+    } else {
+      const initialQtyMatch = cleanStr.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|combos|bolsa|bolsas|botella|botellas|promo|un|unidad|unidades|piezas?)?\s+(?:de\s+)?/i);
+      if (initialQtyMatch) {
+        qty = parseFloat(initialQtyMatch[1].replace(',', '.')) || 1;
+        if (initialQtyMatch[2]) {
+          const u = initialQtyMatch[2].toLowerCase();
+          unit = (u.startsWith('k') ? 'kg' : (u.startsWith('comb') ? 'combo' : (u.startsWith('bols') ? 'bolsa' : (u.startsWith('bot') ? 'botella' : 'un'))));
+        }
+        name = cleanStr.slice(initialQtyMatch[0].length).trim();
+      }
     }
 
     // Detectar precio/subtotal: "— $39.999", "($39.999)", "$39.999" o "$39999"
@@ -414,8 +438,15 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   }, []);
 
   const syncPosCartToOrder = (cartList) => {
-    const formattedLines = cartList.map(item => `${item.quantity}x ${item.name} ($${(item.price * item.quantity).toLocaleString('es-AR')})`);
-    const total = cartList.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const formattedLines = cartList.map(item => {
+      const q = Number(item.quantity) || 1;
+      const u = item.unit || 'kg';
+      const isKg = u.toLowerCase() === 'kg' || u.toLowerCase().startsWith('kilo');
+      const qtyStr = isKg && q < 1 ? `${Math.round(q * 1000)}g` : `${q} ${u}`;
+      const lineSubtotal = Math.round(item.price * q);
+      return `${qtyStr}x ${item.name} ($${lineSubtotal.toLocaleString('es-AR')})`;
+    });
+    const total = cartList.reduce((acc, item) => acc + Math.round(item.price * (Number(item.quantity) || 1)), 0);
     setItemsInputText(formattedLines.join('\n'));
     setOrderModal(prev => prev ? {
       ...prev,
@@ -427,14 +458,19 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     } : null);
   };
 
-  const handleAddPosProduct = (prod) => {
+  const handleAddPosProduct = (prod, defaultWeight = null) => {
     setPosCart(prev => {
       const existing = prev.find(item => item.name.toLowerCase() === prod.name.toLowerCase() || item.id === prod.id);
       let updated;
       if (existing) {
-        updated = prev.map(item => item.id === existing.id ? { ...item, quantity: item.quantity + 1 } : item);
+        const isKg = (existing.unit || 'kg').toLowerCase() === 'kg';
+        const step = isKg ? (defaultWeight || 0.5) : 1;
+        const newQty = Math.round((existing.quantity + step) * 1000) / 1000;
+        updated = prev.map(item => item.id === existing.id ? { ...item, quantity: newQty } : item);
       } else {
-        updated = [...prev, { id: prod.id, name: prod.name, price: Number(prod.price) || 0, quantity: 1, unit: prod.unit || 'kg', icon: prod.icon || '🥩' }];
+        const isKg = (prod.unit || 'kg').toLowerCase() === 'kg';
+        const initialQty = defaultWeight || (isKg ? 1 : 1);
+        updated = [...prev, { id: prod.id, name: prod.name, price: Number(prod.price) || 0, quantity: initialQty, unit: prod.unit || 'kg', icon: prod.icon || '🥩' }];
       }
       syncPosCartToOrder(updated);
       return updated;
@@ -446,13 +482,41 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       const existing = prev.find(item => item.id === prodId);
       if (!existing) return prev;
       let updated;
-      if (existing.quantity > 1) {
-        updated = prev.map(item => item.id === prodId ? { ...item, quantity: item.quantity - 1 } : item);
+      const isKg = (existing.unit || 'kg').toLowerCase() === 'kg';
+      const step = isKg ? (existing.quantity <= 0.5 ? 0.25 : 0.5) : 1;
+      const newQty = Math.round((existing.quantity - step) * 1000) / 1000;
+      if (newQty > 0.04) {
+        updated = prev.map(item => item.id === prodId ? { ...item, quantity: newQty } : item);
       } else {
         updated = prev.filter(item => item.id !== prodId);
       }
       syncPosCartToOrder(updated);
       return updated;
+    });
+  };
+
+  const handleSetPosItemQuantity = (prodId, newQty) => {
+    const q = Math.max(0, Math.round(Number(newQty) * 1000) / 1000);
+    setPosCart(prev => {
+      let updated;
+      if (q <= 0.01) {
+        updated = prev.filter(item => item.id !== prodId);
+      } else {
+        updated = prev.map(item => item.id === prodId ? { ...item, quantity: q } : item);
+      }
+      syncPosCartToOrder(updated);
+      return updated;
+    });
+  };
+
+  const handleStepPosWeightGrams = (prodId, deltaGrams) => {
+    setPosCart(prev => {
+      const existing = prev.find(item => item.id === prodId);
+      if (!existing) return prev;
+      const currentGrams = Math.round((Number(existing.quantity) || 1) * 1000);
+      const targetGrams = Math.max(50, currentGrams + deltaGrams);
+      const targetKg = Math.round(targetGrams) / 1000;
+      const updated = prev.map(item => item.id === prodId ? { ...item, quantity: targetKg } : item);
     });
   };
 
@@ -634,6 +698,50 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       }
     } catch (err) {
       console.error('Error eliminando pedido:', err);
+    }
+  };
+
+  const handleQuickAssignBranch = async (orderId, branchId) => {
+    const branch = branches.find(b => b.id === branchId || b.alias?.includes(branchId) || b.name.toLowerCase() === branchId.toLowerCase());
+    const branchName = branch ? branch.name : (branchId ? branchId : '');
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, branchId, branchName } : o));
+    try {
+      await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchId, branchName })
+      });
+    } catch (err) {
+      console.error('Error actualizando sucursal asignada:', err);
+    }
+  };
+
+  const handleQuickAssignDriver = async (orderId, driverVal) => {
+    if (driverVal === 'pickup') {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, driverId: '', driverName: '', deliveryType: 'pickup' } : o));
+      try {
+        await fetch(`/api/orders/${orderId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driverId: '', driverName: '', deliveryType: 'pickup' })
+        });
+      } catch (err) {
+        console.error('Error actualizando entrega en local:', err);
+      }
+      return;
+    }
+
+    const driver = drivers.find(d => d.id === driverVal || d.name.toLowerCase() === driverVal.toLowerCase());
+    const driverName = driver ? driver.name : (driverVal ? driverVal : '');
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, driverId: driverVal, driverName, deliveryType: 'delivery' } : o));
+    try {
+      await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId: driverVal, driverName, deliveryType: 'delivery' })
+      });
+    } catch (err) {
+      console.error('Error actualizando repartidor asignado:', err);
     }
   };
 
@@ -1598,8 +1706,8 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-xs shrink-0">{prod.icon}</span>
                         <span className="font-semibold text-slate-200 text-[11px] truncate">{prod.name}</span>
-                        <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300 font-bold text-[10px] shrink-0 font-mono">
-                          {prod.quantity} {prod.unit}
+                        <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold text-[10px] shrink-0 font-mono">
+                          {formatItemQuantity(prod.quantity, prod.unit)}
                         </span>
                       </div>
                       <span className="font-mono font-bold text-emerald-400 text-[11px] shrink-0">
@@ -1610,158 +1718,193 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 </div>
               </div>
 
-              {/* Branch Assignment Badge */}
-              <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 min-w-0">
+              {/* Quick Branch Assignment Inline Select */}
+              <div className="p-2 rounded-xl bg-[#111b21] border border-slate-800/80 hover:border-emerald-500/50 flex items-center justify-between text-xs transition">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Store size={13} className="text-emerald-400 shrink-0" />
-                  <span className="text-slate-300 font-semibold truncate">
-                    {order.branchName || 'Sin Sucursal Asignada'}
-                  </span>
-                </div>
-                {order.branchStatus && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
-                    order.branchStatus === 'accepted'
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : order.branchStatus === 'ready'
-                      ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                      : order.branchStatus === 'derived'
-                      ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-                      : 'bg-slate-500/10 text-slate-400 border-slate-700'
-                  }`}>
-                    {order.branchStatus === 'accepted' ? '🥩 Aceptado' : order.branchStatus === 'ready' ? '🚚 Listo' : order.branchStatus === 'derived' ? '⏳ Derivado' : order.branchStatus}
-                  </span>
-                )}
-              </div>
-
-              {/* Driver Assignment Badge */}
-              <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Bike size={13} className="text-sky-400 shrink-0" />
-                  <span className="text-slate-300 font-semibold truncate">
-                    {order.driverName ? `Repartidor: ${order.driverName}` : 'Sin Repartidor Asignado'}
-                  </span>
-                </div>
-                {order.driverStatus && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
-                    order.driverStatus === 'in_transit'
-                      ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-                      : order.driverStatus === 'delivered'
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  }`}>
-                    {order.driverStatus === 'in_transit' ? '🛵 En Camino' : order.driverStatus === 'delivered' ? '✅ Entregado' : '⏳ Asignado'}
-                  </span>
-                )}
-              </div>
-
-              {/* Status Selector & Actions */}
-              <div className="pt-2 border-t border-slate-800/80 space-y-2">
-                <div className="flex items-center gap-2">
                   <select
-                    value={order.status}
-                    onChange={(e) => handleRequestStatusChange(order, e.target.value)}
-                    className="flex-1 bg-[#111b21] border border-slate-700/80 text-xs text-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    value={order.branchId || ''}
+                    onChange={(e) => handleQuickAssignBranch(order.id, e.target.value)}
+                    className="w-full bg-transparent text-slate-200 font-semibold text-xs focus:outline-none cursor-pointer truncate appearance-none"
+                    title="Cambiar sucursal asignada (clic para seleccionar)"
                   >
-                    <option value="pending">⏳ Pendiente</option>
-                    <option value="preparing">🥩 En Preparación</option>
-                    <option value="ready">✨ Listo / Preparado</option>
-                    <option value="in_transit">🚚 En Camino</option>
-                    <option value="delivered">✅ Entregado</option>
-                    <option value="completed">📦 Finalizado / Archivado</option>
-                    <option value="cancelled">❌ Cancelado</option>
+                    <option value="" className="bg-[#111b21] text-slate-400">🏢 Sin Sucursal / Central</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id} className="bg-[#111b21] text-slate-200">
+                        🏢 {b.name}
+                      </option>
+                    ))}
                   </select>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-1">
+                  {order.branchStatus && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${
+                      order.branchStatus === 'accepted'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : order.branchStatus === 'ready'
+                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                        : order.branchStatus === 'derived'
+                        ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                        : 'bg-slate-500/10 text-slate-400 border-slate-700'
+                    }`}>
+                      {order.branchStatus === 'accepted' ? '🥩 Aceptado' : order.branchStatus === 'ready' ? '🚚 Listo' : order.branchStatus === 'derived' ? '⏳ Derivado' : order.branchStatus}
+                    </span>
+                  )}
+                  <ChevronDown size={11} className="text-slate-500 pointer-events-none" />
+                </div>
+              </div>
 
-                  <button
-                    onClick={() => setTicketPrintModal(order)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                    title="Imprimir Ticket Térmico / Comanda (80mm, 58mm, A4)"
+              {/* Quick Driver / Reparto Assignment Inline Select */}
+              <div className="p-2 rounded-xl bg-[#111b21] border border-slate-800/80 hover:border-sky-500/50 flex items-center justify-between text-xs transition">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <Bike size={13} className="text-sky-400 shrink-0" />
+                  <select
+                    value={order.deliveryType === 'pickup' ? 'pickup' : (order.driverId || '')}
+                    onChange={(e) => handleQuickAssignDriver(order.id, e.target.value)}
+                    className="w-full bg-transparent text-slate-200 font-semibold text-xs focus:outline-none cursor-pointer truncate appearance-none"
+                    title="Cambiar repartidor o modalidad de entrega (clic para seleccionar)"
                   >
-                    <Printer size={14} />
-                  </button>
+                    <option value="" className="bg-[#111b21] text-slate-400">🛵 Sin Repartidor Asignado</option>
+                    <option value="pickup" className="bg-[#111b21] text-purple-300 font-bold">🏪 Retiro en Sucursal / Local</option>
+                    {drivers.map(d => (
+                      <option key={d.id} value={d.id} className="bg-[#111b21] text-slate-200">
+                        🛵 {d.name} ({d.vehicle || 'Moto'}) {d.status === 'busy' ? '• En viaje' : '• Libre'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-1">
+                  {order.driverStatus && order.deliveryType !== 'pickup' && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${
+                      order.driverStatus === 'in_transit'
+                        ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
+                        : order.driverStatus === 'delivered'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    }`}>
+                      {order.driverStatus === 'in_transit' ? '🛵 En Camino' : order.driverStatus === 'delivered' ? '✅ Entregado' : '⏳ Asignado'}
+                    </span>
+                  )}
+                  <ChevronDown size={11} className="text-slate-500 pointer-events-none" />
+                </div>
+              </div>
 
-                  <button
-                    onClick={() => setDetailModal(order)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                    title="Ver Detalle Completo del Pedido"
-                  >
-                    <Eye size={14} />
-                  </button>
+              {/* Status Selector & Compact Actions Bar (Zero Overflow) */}
+              <div className="pt-2.5 border-t border-slate-800/80 space-y-2">
+                {/* Full-width Status Selector */}
+                <select
+                  value={order.status}
+                  onChange={(e) => handleRequestStatusChange(order, e.target.value)}
+                  className="w-full bg-[#111b21] border border-slate-700/80 text-xs font-bold text-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="pending">⏳ Pendiente</option>
+                  <option value="preparing">🥩 En Preparación</option>
+                  <option value="ready">✨ Listo / Preparado</option>
+                  <option value="in_transit">🚚 En Camino</option>
+                  <option value="delivered">✅ Entregado</option>
+                  <option value="completed">📦 Finalizado / Archivado</option>
+                  <option value="cancelled">❌ Cancelado</option>
+                </select>
 
-                  <button
-                    onClick={() => handleOpenMap(order.address, order.customerName)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                    title="Ver Ubicación en Mapa de Córdoba"
-                  >
-                    <MapPin size={14} />
-                  </button>
+                {/* Responsive Non-overflowing Actions Toolbar */}
+                <div className="flex items-center flex-wrap justify-between gap-1.5 max-w-full">
+                  {/* Left Operational Tools */}
+                  <div className="flex items-center flex-wrap gap-1">
+                    <button
+                      onClick={() => setTicketPrintModal(order)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
+                      title="Imprimir Ticket Térmico / Comanda"
+                    >
+                      <Printer size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleOpenAssignDriverModal(order)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
-                    title="Asignar Repartidor y Despachar por WhatsApp"
-                  >
-                    <Bike size={14} />
-                  </button>
+                    <button
+                      onClick={() => setDetailModal(order)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
+                      title="Ver Detalle Completo"
+                    >
+                      <Eye size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleOpenDeriveModal(order)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                    title="Derivar a Sucursal con WhatsApp"
-                  >
-                    <Store size={14} />
-                  </button>
+                    <button
+                      onClick={() => handleOpenMap(order.address, order.customerName)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
+                      title="Ver Ubicación en Mapa de Córdoba"
+                    >
+                      <MapPin size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleOpenPaymentLink(order)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-700/60 transition"
-                    title="Cobrar / Link Mercado Pago"
-                  >
-                    <CreditCard size={14} />
-                  </button>
+                    <button
+                      onClick={() => handleOpenAssignDriverModal(order)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition shrink-0"
+                      title="Asignar Repartidor y Despachar"
+                    >
+                      <Bike size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleOpenManualPayment(order)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                    title="Registrar Pago Manual (Efectivo / Transferencia)"
-                  >
-                    <DollarSign size={14} />
-                  </button>
+                    <button
+                      onClick={() => handleOpenDeriveModal(order)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
+                      title="Derivar a Sucursal"
+                    >
+                      <Store size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleOpenEditOrder(order)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                    title="Editar pedido con POS"
-                  >
-                    <Edit3 size={14} />
-                  </button>
+                    <button
+                      onClick={() => handleOpenPaymentLink(order)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-[#009ee3]/20 text-slate-400 hover:text-[#009ee3] border border-slate-700/60 transition shrink-0"
+                      title="Cobrar / Link Mercado Pago"
+                    >
+                      <CreditCard size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleDuplicateOrder(order.id)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition"
-                    title="Duplicar pedido"
-                  >
-                    <Copy size={14} />
-                  </button>
+                    <button
+                      onClick={() => handleOpenManualPayment(order)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
+                      title="Registrar Pago Manual (Efectivo / Transferencia)"
+                    >
+                      <DollarSign size={13} />
+                    </button>
+                  </div>
 
-                  <button
-                    onClick={() => handleToggleArchive(order)}
-                    className={`p-2 rounded-xl border transition ${
-                      order.isArchived || order.status === 'completed'
-                        ? 'bg-slate-700/50 hover:bg-slate-600/50 text-emerald-400 border-slate-600'
-                        : 'bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/60'
-                    }`}
-                    title={order.isArchived || order.status === 'completed' ? 'Desarchivar pedido' : 'Finalizar y Archivar pedido'}
-                  >
-                    {order.isArchived || order.status === 'completed' ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-                  </button>
+                  {/* Right Management Tools */}
+                  <div className="flex items-center gap-1 shrink-0 ml-auto">
+                    <button
+                      onClick={() => handleOpenEditOrder(order)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition shrink-0"
+                      title="Editar pedido con POS"
+                    >
+                      <Edit3 size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleDeleteOrder(order.id)}
-                    className="p-2 rounded-xl bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition"
-                    title="Eliminar pedido"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                    <button
+                      onClick={() => handleDuplicateOrder(order.id)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-sky-950/40 text-slate-400 hover:text-sky-400 border border-slate-700/60 transition shrink-0"
+                      title="Duplicar pedido"
+                    >
+                      <Copy size={13} />
+                    </button>
+
+                    <button
+                      onClick={() => handleToggleArchive(order)}
+                      className={`p-1.5 rounded-lg border transition shrink-0 ${
+                        order.isArchived || order.status === 'completed'
+                          ? 'bg-slate-700/50 hover:bg-slate-600/50 text-emerald-400 border-slate-600'
+                          : 'bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-white border-slate-700/60'
+                      }`}
+                      title={order.isArchived || order.status === 'completed' ? 'Desarchivar pedido' : 'Finalizar y Archivar pedido'}
+                    >
+                      {order.isArchived || order.status === 'completed' ? <ArchiveRestore size={13} /> : <Archive size={13} />}
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteOrder(order.id)}
+                      className="p-1.5 rounded-lg bg-[#111b21] hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition shrink-0"
+                      title="Eliminar pedido"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2479,6 +2622,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                     </div>
 
                     {/* Live Cart Items Summary with Stepper */}
+                    {/* Live Cart Items Summary with Stepper and Grams Support */}
                     <div className="bg-[#182229] p-3 rounded-2xl border border-slate-800 space-y-2">
                       <div className="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-slate-800 pb-1.5">
                         <span>Detalle de Cortes Seleccionados</span>
@@ -2498,46 +2642,111 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                           Haz clic en los cortes o combos arriba para añadirlos al pedido.
                         </div>
                       ) : (
-                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                          {posCart.map(item => (
-                            <div
-                              key={item.id}
-                              className="flex items-center justify-between p-2 rounded-xl bg-[#111b21] border border-slate-800/80 text-xs"
-                            >
-                              <div className="min-w-0 pr-2">
-                                <div className="font-bold text-white truncate">{item.name}</div>
-                                <div className="text-[10px] text-slate-400 font-mono">
-                                  ${item.price.toLocaleString('es-AR')} / {item.unit || 'kg'}
-                                </div>
-                              </div>
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                          {posCart.map(item => {
+                            const isKg = (item.unit || 'kg').toLowerCase() === 'kg' || (item.unit || '').toLowerCase().startsWith('kilo');
+                            const currentQty = Number(item.quantity) || 1;
+                            const currentGrams = Math.round(currentQty * 1000);
+                            const lineSubtotal = Math.round(item.price * currentQty);
 
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div className="flex items-center bg-[#182229] border border-slate-700 rounded-lg p-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemovePosProduct(item.id)}
-                                    className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
-                                  >
-                                    <Minus size={11} />
-                                  </button>
-                                  <span className="px-2 font-mono font-bold text-white text-xs">
-                                    {item.quantity}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddPosProduct(item)}
-                                    className="p-1 text-emerald-400 hover:text-white rounded hover:bg-slate-800 transition"
-                                  >
-                                    <Plus size={11} />
-                                  </button>
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 text-xs space-y-2"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="min-w-0 pr-2 flex items-center gap-1.5">
+                                    <span className="text-sm shrink-0">{item.icon || '🥩'}</span>
+                                    <div className="truncate">
+                                      <div className="font-bold text-white truncate">{item.name}</div>
+                                      <div className="text-[10px] text-slate-400 font-mono">
+                                        ${item.price.toLocaleString('es-AR')} / {item.unit || 'kg'}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {/* Stepper controls */}
+                                    <div className="flex items-center bg-[#182229] border border-slate-700 rounded-lg p-0.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => isKg ? handleStepPosWeightGrams(item.id, -250) : handleRemovePosProduct(item.id)}
+                                        className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
+                                        title={isKg ? 'Restar 250g' : 'Restar 1'}
+                                      >
+                                        <Minus size={11} />
+                                      </button>
+
+                                      <div className="px-1.5 flex items-center gap-1">
+                                        <input
+                                          type="number"
+                                          step={isKg ? '0.05' : '1'}
+                                          min={isKg ? '0.05' : '1'}
+                                          value={item.quantity}
+                                          onChange={(e) => handleSetPosItemQuantity(item.id, parseFloat(e.target.value) || 0)}
+                                          className="w-12 bg-transparent text-center font-mono font-bold text-white text-xs focus:outline-none"
+                                        />
+                                        <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                          {isKg ? (currentQty < 1 ? `(${currentGrams}g)` : 'kg') : (item.unit || 'un')}
+                                        </span>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => isKg ? handleStepPosWeightGrams(item.id, 250) : handleAddPosProduct(item)}
+                                        className="p-1 text-emerald-400 hover:text-white rounded hover:bg-slate-800 transition"
+                                        title={isKg ? 'Sumar 250g' : 'Sumar 1'}
+                                      >
+                                        <Plus size={11} />
+                                      </button>
+                                    </div>
+
+                                    <div className="font-mono font-extrabold text-emerald-400 text-xs w-20 text-right">
+                                      ${lineSubtotal.toLocaleString('es-AR')}
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetPosItemQuantity(item.id, 0)}
+                                      className="p-1 text-slate-500 hover:text-rose-400 transition"
+                                      title="Quitar corte"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
                                 </div>
 
-                                <div className="font-mono font-extrabold text-white text-xs w-20 text-right">
-                                  ${(item.price * item.quantity).toLocaleString('es-AR')}
-                                </div>
+                                {/* Weight quick pills for kg items */}
+                                {isKg && (
+                                  <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-slate-800/60">
+                                    <span className="text-[10px] text-slate-500 font-medium mr-1">Pesos rápidos:</span>
+                                    {[
+                                      { label: '250 g', qty: 0.25 },
+                                      { label: '500 g', qty: 0.5 },
+                                      { label: '750 g', qty: 0.75 },
+                                      { label: '1 kg', qty: 1 },
+                                      { label: '1.5 kg', qty: 1.5 },
+                                      { label: '2 kg', qty: 2 },
+                                      { label: '3 kg', qty: 3 }
+                                    ].map(preset => (
+                                      <button
+                                        key={preset.label}
+                                        type="button"
+                                        onClick={() => handleSetPosItemQuantity(item.id, preset.qty)}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold transition ${
+                                          Math.abs(currentQty - preset.qty) < 0.01
+                                            ? 'bg-emerald-500 text-slate-950 font-bold'
+                                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        {preset.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
 
@@ -2545,7 +2754,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                       <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-300">Total Calculado del Pedido:</span>
                         <span className="text-base font-black font-mono text-emerald-400">
-                          ${posCart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toLocaleString('es-AR')}
+                          ${posCart.reduce((sum, item) => sum + Math.round(item.price * (Number(item.quantity) || 1)), 0).toLocaleString('es-AR')}
                         </span>
                       </div>
                     </div>
@@ -2650,7 +2859,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                     ]}
                     value={orderModal.data.branchId || ''}
                     onChange={(val) => {
-                      const selected = branches.find(b => b.id === val);
+                      const selected = branches.find(b => b.id === val || b.alias?.includes(val) || b.name.toLowerCase() === (val || '').toLowerCase());
                       setOrderModal({
                         ...orderModal,
                         data: {
@@ -2660,7 +2869,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                         }
                       });
                     }}
-                    allowCustom={true}
+                    allowCustom={false}
                     placeholder="Elegir o buscar sucursal..."
                     icon={Store}
                   />
@@ -2675,7 +2884,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                     ]}
                     value={orderModal.data.driverId || ''}
                     onChange={(val) => {
-                      const selected = drivers.find(d => d.id === val);
+                      const selected = drivers.find(d => d.id === val || d.name.toLowerCase() === (val || '').toLowerCase());
                       setOrderModal({
                         ...orderModal,
                         data: {
@@ -2685,7 +2894,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                         }
                       });
                     }}
-                    allowCustom={true}
+                    allowCustom={false}
                     placeholder="Elegir o buscar repartidor..."
                     icon={Bike}
                   />
@@ -3201,6 +3410,148 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 </div>
               </form>
             )}
+
+          </div>
+        </div>
+      )}
+
+      {/* Order Detail & Breakdown Modal */}
+      {detailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-slate-700/80 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                  🥩
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">Detalle del Pedido #{detailModal.id}</h3>
+                    {getStatusBadge(detailModal.status)}
+                  </div>
+                  <p className="text-xs text-slate-400">{detailModal.customerName} • {detailModal.phone}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDetailModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="space-y-4 overflow-y-auto pr-1 text-xs">
+              
+              {/* Delivery & Logistics Grid */}
+              <div className="grid grid-cols-2 gap-2 bg-[#111b21] p-3 rounded-2xl border border-slate-800/80">
+                <div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase">Dirección de Entrega:</div>
+                  <div className="text-slate-200 font-medium truncate">{detailModal.address || 'A convenir / Retiro en local'}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase">Sucursal Asignada:</div>
+                  <div className="text-emerald-400 font-semibold truncate">{detailModal.branchName || 'Central / Sin Sucursal'}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase">Modalidad / Repartidor:</div>
+                  <div className="text-sky-400 font-semibold truncate">
+                    {detailModal.deliveryType === 'pickup' ? '🏪 Retiro en Sucursal' : (detailModal.driverName ? `🛵 ${detailModal.driverName}` : '🛵 Sin Repartidor Asignado')}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase">Medio de Pago:</div>
+                  <div className="text-slate-200 font-medium truncate">{detailModal.paymentMethod || 'Efectivo al repartidor'}</div>
+                </div>
+              </div>
+
+              {/* Products and Cuts Breakdown Table */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">
+                  Desglose de Cortes y Productos:
+                </div>
+                <div className="bg-[#111b21] rounded-2xl p-2.5 border border-slate-800 space-y-1.5 divide-y divide-slate-800/60">
+                  {parseOrderItems(detailModal).map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between pt-1.5 first:pt-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm shrink-0">{item.icon}</span>
+                        <div className="truncate">
+                          <div className="font-bold text-white truncate">{item.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            ${item.price.toLocaleString('es-AR')} / {item.unit || 'kg'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 font-bold font-mono text-[10px]">
+                          {formatItemQuantity(item.quantity, item.unit)}
+                        </span>
+                        <span className="font-mono font-extrabold text-emerald-400 text-xs w-20 text-right">
+                          ${item.total.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes */}
+              {detailModal.notes && (
+                <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800/80 space-y-1">
+                  <div className="text-[10px] text-slate-400 font-bold uppercase">Notas / Observaciones:</div>
+                  <div className="text-slate-300 italic">{detailModal.notes}</div>
+                </div>
+              )}
+
+              {/* Total Summary */}
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 text-emerald-400 font-mono font-extrabold text-sm">
+                <span>Total del Pedido:</span>
+                <span className="text-base">${(Number(detailModal.totalAmount) || 0).toLocaleString('es-AR')}</span>
+              </div>
+
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = detailModal;
+                  setDetailModal(null);
+                  setTicketPrintModal(target);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#111b21] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-xs transition"
+              >
+                <Printer size={13} />
+                <span>Imprimir Ticket</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = detailModal;
+                    setDetailModal(null);
+                    handleOpenEditOrder(target);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition"
+                >
+                  <Edit3 size={13} />
+                  <span>Editar con POS</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDetailModal(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
 
           </div>
         </div>

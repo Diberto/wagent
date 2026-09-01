@@ -32,38 +32,55 @@ export default function SearchableCombobox({
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Normalizar opciones a formato { id, label, icon }
+  // Normalizar opciones a formato { id, label, icon, aliases }
   const normalizedOptions = (options || []).map(opt => {
     if (typeof opt === 'string') {
-      return { id: opt, label: opt };
+      return { id: opt, label: opt, aliases: [opt.toLowerCase()] };
     }
+    const aliases = [
+      String(opt.id || '').toLowerCase(),
+      String(opt.label || opt.name || '').toLowerCase(),
+      ...(Array.isArray(opt.aliases) ? opt.aliases.map(a => String(a).toLowerCase()) : [])
+    ];
+    // Auto-mapeo de sucursales oficiales por ID y alias
+    if (opt.id === 'br-1' || opt.label?.includes('URCA CENTRAL')) aliases.push('branch_urca_1', 'urca_1', 'urca central', 'funes');
+    if (opt.id === 'br-2' || opt.label?.includes('ALTO TEJEDA')) aliases.push('branch_urca_2', 'urca_2', 'alto tejeda', 'pidal');
+    if (opt.id === 'br-3' || opt.label?.includes('INTERCOUNTRY')) aliases.push('branch_intercountry', 'intercountry', 'corteza');
+    if (opt.id === 'br-4' || opt.label?.includes('DUARTE QUIRÓS')) aliases.push('branch_duarte_quiros', 'duarte', 'quiros');
+    if (opt.id === 'br-5' || opt.label?.includes('VILLA ALLENDE')) aliases.push('branch_villa_allende', 'villa allende', 'golf');
+    if (opt.id === 'br-6' || opt.label?.includes('RECTA MARTINOLLI')) aliases.push('branch_recta', 'recta', 'martinolli');
+
     return {
-      id: opt.id || opt.value || opt.name || opt.label,
+      id: opt.id ?? opt.value ?? opt.name ?? opt.label,
       label: opt.label || opt.name || opt.id || String(opt),
       icon: opt.icon,
-      subtitle: opt.subtitle || opt.address
+      subtitle: opt.subtitle || opt.address,
+      aliases
     };
   });
 
-  // Encontrar etiqueta del valor actual
+  const valStr = String(value || '').toLowerCase().trim();
+  // Encontrar opción del valor actual con soporte de alias e IDs
   const currentOption = normalizedOptions.find(opt => 
-    String(opt.id).toLowerCase() === String(value).toLowerCase() || 
-    String(opt.label).toLowerCase() === String(value).toLowerCase()
+    String(opt.id).toLowerCase() === valStr || 
+    String(opt.label).toLowerCase() === valStr ||
+    opt.aliases?.includes(valStr)
   );
 
   const displayValue = isFocused ? searchTerm : (currentOption ? currentOption.label : (value || ''));
 
   // Filtrar opciones según búsqueda
   const filteredOptions = normalizedOptions.filter(opt => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
     return opt.label.toLowerCase().includes(term) || 
-           (opt.subtitle && opt.subtitle.toLowerCase().includes(term));
+           (opt.subtitle && opt.subtitle.toLowerCase().includes(term)) ||
+           (opt.aliases && opt.aliases.some(a => a.includes(term)));
   });
 
   // Determinar si el término actual es una opción nueva no existente
   const isNewCustomOption = allowCustom && searchTerm.trim() && !normalizedOptions.some(
-    opt => opt.label.toLowerCase() === searchTerm.trim().toLowerCase()
+    opt => opt.label.toLowerCase() === searchTerm.trim().toLowerCase() || opt.aliases?.includes(searchTerm.trim().toLowerCase())
   );
 
   // Manejar clics fuera del componente
@@ -72,6 +89,7 @@ export default function SearchableCombobox({
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setIsOpen(false);
         setIsFocused(false);
+        setSearchTerm('');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -79,7 +97,7 @@ export default function SearchableCombobox({
   }, []);
 
   const handleSelect = (opt) => {
-    const selectedVal = opt.id || opt.label;
+    const selectedVal = opt.id ?? opt.label;
     onChange?.(selectedVal, opt);
     setSearchTerm('');
     setIsOpen(false);
@@ -112,13 +130,13 @@ export default function SearchableCombobox({
 
       <div 
         className={`relative flex items-center bg-gray-900/90 border rounded-xl transition-all duration-200 ${
-          isOpen ? 'border-red-500 ring-2 ring-red-500/20' : 'border-gray-700 hover:border-gray-600'
+          isOpen ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-gray-700 hover:border-gray-600'
         } ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-800/50' : 'cursor-text'}`}
         onClick={() => {
           if (!disabled) {
             setIsOpen(true);
             setIsFocused(true);
-            setSearchTerm(value || '');
+            setSearchTerm('');
             if (inputRef.current) inputRef.current.focus();
           }
         }}
@@ -143,7 +161,7 @@ export default function SearchableCombobox({
           }}
           onFocus={() => {
             setIsFocused(true);
-            setSearchTerm(value || '');
+            setSearchTerm('');
             setIsOpen(true);
           }}
           onKeyDown={(e) => {
@@ -157,9 +175,10 @@ export default function SearchableCombobox({
             } else if (e.key === 'Escape') {
               setIsOpen(false);
               setIsFocused(false);
+              setSearchTerm('');
             }
           }}
-          placeholder={placeholder}
+          placeholder={currentOption ? currentOption.label : placeholder}
           className={`w-full bg-transparent px-3.5 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none ${
             Icon ? 'pl-2' : ''
           }`}
@@ -193,7 +212,7 @@ export default function SearchableCombobox({
             }}
             className="p-1 text-gray-400 hover:text-gray-200 transition-colors"
           >
-            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180 text-red-400' : ''}`} />
+            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180 text-emerald-400' : ''}`} />
           </button>
         </div>
       </div>
@@ -205,7 +224,8 @@ export default function SearchableCombobox({
             {filteredOptions.length > 0 ? (
               filteredOptions.map((opt) => {
                 const isSelected = String(value).toLowerCase() === String(opt.id).toLowerCase() ||
-                                   String(value).toLowerCase() === String(opt.label).toLowerCase();
+                                   String(value).toLowerCase() === String(opt.label).toLowerCase() ||
+                                   opt.aliases?.includes(String(value).toLowerCase());
                 return (
                   <button
                     key={opt.id}
@@ -213,7 +233,7 @@ export default function SearchableCombobox({
                     onClick={() => handleSelect(opt)}
                     className={`w-full text-left px-3.5 py-2.5 text-sm flex items-center justify-between gap-2 transition-colors ${
                       isSelected
-                        ? 'bg-red-500/15 text-red-300 font-medium'
+                        ? 'bg-emerald-500/15 text-emerald-300 font-medium'
                         : 'text-gray-200 hover:bg-gray-800/80 hover:text-white'
                     }`}
                   >
@@ -226,7 +246,7 @@ export default function SearchableCombobox({
                         )}
                       </div>
                     </div>
-                    {isSelected && <Check className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                    {isSelected && <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
                   </button>
                 );
               })
@@ -237,7 +257,7 @@ export default function SearchableCombobox({
               <button
                 type="button"
                 onClick={handleCustomSubmit}
-                className="w-full text-left px-3.5 py-2.5 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors border-t border-gray-800"
+                className="w-full text-left px-3.5 py-2.5 text-sm text-emerald-400 hover:bg-emerald-500/10 flex items-center gap-2 transition-colors border-t border-gray-800"
               >
                 <Plus className="w-4 h-4 flex-shrink-0" />
                 <span className="truncate">Usar texto personalizado: <strong>"{searchTerm}"</strong></span>
