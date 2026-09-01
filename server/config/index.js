@@ -53,9 +53,27 @@ export const CONFIG = {
     businessRules: 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, pagos en efectivo, transferencia (Alias: republica.carne.mp) o Mercado Pago.',
     autoReplyEnabled: true,
     voiceRepliesEnabled: true, // Si el usuario manda audio, responder con audio
-    alwaysVoiceReply: false,   // Siempre responder con audio, incluso a texto
     autoCallFollowUp: true,    // Enviar nota de voz automática cuando entra una llamada
     callFollowUpMessage: '¡Hola! Gracias por comunicarte con República de la Carne. Carlos por acá, maestro carnicero. En este momento estoy atendiendo en mostrador, pero decime qué cortes o asado te gustaría que te preparemos y te lo dejo listo al instante. 🥩🛵',
+    
+    // Horarios de Atención y Logística de Reparto
+    businessHours: {
+      open: '08:00',
+      close: '20:00',
+      days: 'Lunes a Sábados (Domingos 09:00 a 13:30 hs)'
+    },
+    deliverySlots: [
+      { id: 'morning', name: 'Franja Mañana', start: '09:00', end: '13:00', active: true, desc: 'Entregas matutinas de 9:00 a 13:00 hs' },
+      { id: 'afternoon', name: 'Franja Tarde', start: '14:00', end: '19:00', active: true, desc: 'Entregas vespertinas de 14:00 a 19:00 hs' }
+    ],
+    deliveryCutoffHour: 12, // 12:00 mediodía: antes de las 12 se entrega en la tarde (máx 24h), posterior al día siguiente
+    deliveryMaxHours: 24,
+    deliveryStandardCost: 3500,
+    deliveryExpressEnabled: true,
+    deliveryExpressCost: 6500,
+    deliveryFreeEnabled: true,
+    deliveryFreeThreshold: 45000,
+    deliveryCoverageRadiusKm: 15,
     
     systemPrompt: `Eres Carlos, maestro carnicero y asesor comercial experto de "República de la Carne" en Córdoba, Argentina.
 Tu objetivo es asesorar a los clientes con calidez, recomendar los mejores cortes de novillito pesado y cerdo, y guiarlos fluidamente en el proceso de compra por WhatsApp.

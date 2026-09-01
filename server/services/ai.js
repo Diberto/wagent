@@ -2361,31 +2361,68 @@ export class AIService {
         ? `al retirar por la sucursal **${branchName}**`
         : `a tu domicilio en **${destAddr}** en el día (dentro de las 24 hs)`;
 
+      const deliveryCalc = db.calculateDeliverySlotAndCost({
+        orderDate: new Date(),
+        deliveryType: isPickup ? 'pickup' : 'delivery',
+        subtotal: amount
+      });
+
+      const isMissingAddress = isDelivery && (!destAddr || destAddr === 'tu domicilio' || destAddr.length < 4 || isGarbageAddress(destAddr));
+
       if (/^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|efectivo|cash|al repartidor|contraentrega)$/i.test(t.trim())) {
         if (targetOrder) {
           db.updateOrder(targetOrder.id, { 
             paymentMethod: isPickup ? 'Efectivo en sucursal' : 'Efectivo al repartidor', 
-            status: 'preparing',
+            status: isMissingAddress ? 'pending' : 'preparing',
             deliveryType: isPickup ? 'pickup' : 'delivery',
+            deliverySlot: deliveryCalc.suggestedSlotId,
+            deliverySlotName: deliveryCalc.suggestedSlotName,
+            estimatedDelivery: deliveryCalc.estimatedDeliveryLabel,
+            shippingCost: deliveryCalc.shippingCost,
+            isFreeShipping: deliveryCalc.isFreeShipping,
             ...(isPickup ? { branch: branchName } : { branch: '', address: destAddr })
           });
         }
+
+        if (isMissingAddress) {
+          return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo al repartidor** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
+            `📍 *Paso obligatorio:* Para asignarte el repartidor y coordinar la entrega (${deliveryCalc.estimatedDeliveryLabel}), por favor pasame tu **Calle, Altura/Número y Barrio**. 🙌 [[STAGE:confirming_data]]`;
+        }
+
         if (isPickup) {
           return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo en sucursal** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
-            `📍 Te esperamos al retirar por la sucursal **${branchName}**. ¡Ya está en marcha la preparación de tus cortes en carnicería! 🙌 [[STAGE:closed_won]]`;
+            `📍 Te esperamos al retirar por la sucursal **${branchName}** (${deliveryCalc.businessHours?.open || '08:00'} a ${deliveryCalc.businessHours?.close || '20:00'} hs). ¡Ya está en marcha la preparación de tus cortes en carnicería! 🙌 [[STAGE:closed_won]]`;
         } else {
           return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo al repartidor** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
-            `🛵 Te lo llevamos a domicilio a **${destAddr}** en el día (dentro de las 24 hs). ¡Podés abonar en efectivo directo al repartidor al recibir tu pedido! 🙌 [[STAGE:closed_won]]`;
+            `🛵 *Entrega programada:* **${deliveryCalc.estimatedDeliveryLabel}** hacia **${destAddr}**.\n` +
+            `¡Podés abonar en efectivo directo al repartidor al recibir tu pedido! 🙌 [[STAGE:closed_won]]`;
         }
       }
 
       if (/^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|transferencia|transferir|alias|banco|cbu)$/i.test(t.trim())) {
         if (targetOrder) {
-          db.updateOrder(targetOrder.id, { paymentMethod: 'Transferencia Bancaria', status: 'pending' });
+          db.updateOrder(targetOrder.id, { 
+            paymentMethod: 'Transferencia Bancaria', 
+            status: 'pending',
+            deliverySlot: deliveryCalc.suggestedSlotId,
+            deliverySlotName: deliveryCalc.suggestedSlotName,
+            estimatedDelivery: deliveryCalc.estimatedDeliveryLabel,
+            shippingCost: deliveryCalc.shippingCost,
+            isFreeShipping: deliveryCalc.isFreeShipping
+          });
         }
+
+        if (isMissingAddress) {
+          return `¡Excelente elección ${clientName}! 🥩🏦 Para abonar tu pedido **#${orderId}** por **Transferencia Bancaria**:\n\n` +
+            `📱 *Alias Mercado Pago / Bancario:* \`republica.carne.mp\`\n` +
+            `💰 *Monto exacto:* **$${Number(amount).toLocaleString('es-AR')}**\n\n` +
+            `📍 *Paso obligatorio:* Para coordinar el envío (${deliveryCalc.estimatedDeliveryLabel}), por favor pasame también tu **Calle, Altura/Número y Barrio**. 🙌 [[STAGE:confirming_data]]`;
+        }
+
         return `¡Excelente elección ${clientName}! 🥩🏦 Para abonar tu pedido **#${orderId}** por **Transferencia Bancaria**:\n\n` +
           `📱 *Alias Mercado Pago / Bancario:* \`republica.carne.mp\`\n` +
-          `💰 *Monto exacto:* **$${Number(amount).toLocaleString('es-AR')}**\n\n` +
+          `💰 *Monto exacto:* **$${Number(amount).toLocaleString('es-AR')}**\n` +
+          `⏰ *Entrega:* ${deliveryCalc.estimatedDeliveryLabel}\n\n` +
           `👉 En cuanto hagas la transferencia, pasame el comprobante o avisame por acá y lo despachamos al instante ${destLocation}. 🙌 [[STAGE:closed_won]]`;
       }
 
@@ -2412,14 +2449,24 @@ export class AIService {
         }
 
         if (targetOrder) {
-          db.updateOrder(targetOrder.id, { paymentMethod: 'Mercado Pago (Checkout Pro)', paymentLink: dynamicLink });
+          db.updateOrder(targetOrder.id, { 
+            paymentMethod: 'Mercado Pago (Checkout Pro)', 
+            paymentLink: dynamicLink,
+            deliverySlot: deliveryCalc.suggestedSlotId,
+            deliverySlotName: deliveryCalc.suggestedSlotName,
+            estimatedDelivery: deliveryCalc.estimatedDeliveryLabel,
+            shippingCost: deliveryCalc.shippingCost,
+            isFreeShipping: deliveryCalc.isFreeShipping
+          });
         }
 
         const modeTag = creds.isSandbox ? '\n🧪 *[MODO PRUEBAS - SANDBOX]*' : '';
+        const addressReminder = isMissingAddress ? `\n\n📍 *Recordá indicarnos tu Calle, Altura y Barrio para la entrega.*` : '';
         return `💳 *[MERCADO PAGO CHECKOUT OFICIAL]*\n¡De diez ${clientName}! 🥩💳 Acá tenés el link de pago oficial y seguro para tu pedido **#${orderId}** por **$${Number(amount).toLocaleString('es-AR')}**:${modeTag}\n\n` +
           `1️⃣ **Link de Pago Directo:**\n🔗 ${dynamicLink}\n\n` +
           `2️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* \`republica.carne.mp\`\n\n` +
-          `Podés abonar con Dinero en cuenta, Débito, Crédito o Transferencia. En cuanto se acredite, ¡comenzamos el despacho hacia **${destAddr}**! 🙌 [[STAGE:closed_won]]`;
+          `⏰ *Entrega:* ${deliveryCalc.estimatedDeliveryLabel}\n` +
+          `Podés abonar con Dinero en cuenta, Débito, Crédito o Transferencia. En cuanto se acredite, ¡comenzamos el despacho hacia **${destAddr}**! 🙌${addressReminder} [[STAGE:closed_won]]`;
       }
     }
 

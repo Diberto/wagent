@@ -1099,9 +1099,9 @@ export class WhatsAppService {
   emitStatus() {
     if (this.io) {
       const statusData = this.getStatus();
-      if (this.sessionId === 'default') {
-        this.io.emit('whatsapp:status', statusData);
-      }
+      // Emisión global para todos los listeners de la aplicación
+      this.io.emit('whatsapp:status', statusData);
+      // Emisión específica por ID de sesión/usuario
       this.io.emit(`whatsapp:status:${this.sessionId}`, statusData);
       this.io.emit('whatsapp:sessions:update', statusData);
     }
@@ -1112,13 +1112,14 @@ export class WhatsAppService {
       const qrData = {
         sessionId: this.sessionId,
         userId: this.sessionId,
+        status: 'qr_ready',
         qrCode: this.qrCode,
         qrDataUrl: this.qrDataUrl
       };
-      if (this.sessionId === 'default') {
-        this.io.emit('whatsapp:qr', qrData);
-      }
+      // Emisión global y específica para que cualquier operador reciba su QR al instante
+      this.io.emit('whatsapp:qr', qrData);
       this.io.emit(`whatsapp:qr:${this.sessionId}`, qrData);
+      this.io.emit('whatsapp:sessions:update', qrData);
     }
   }
 }

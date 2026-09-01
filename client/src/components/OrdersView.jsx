@@ -1928,21 +1928,49 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
 
                 {/* Logistic & Payment Info */}
                 <div className="bg-[#111b21] p-3.5 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 border-b border-slate-800 pb-1.5">
-                    <Truck size={13} className="text-sky-400" />
-                    <span>Logística & Pago</span>
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="flex items-center gap-1.5 text-sky-400">
+                      <Truck size={13} /> Logística & Franja Horaria
+                    </span>
+                    {detailModal.customerName && detailModal.phone && (detailModal.deliveryType === 'pickup' ? (detailModal.branch || detailModal.branchName) : (detailModal.address && detailModal.address.length >= 4)) ? (
+                      <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-400 font-extrabold text-[9px] border border-emerald-500/30">
+                        ✓ Verificado
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-400 font-extrabold text-[9px] border border-amber-500/30">
+                        ⚠ Incompleto
+                      </span>
+                    )}
                   </div>
-                  <div className="space-y-1 text-xs">
+                  <div className="space-y-1.5 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Modalidad:</span>
                       <span className="font-bold text-slate-200">
                         {detailModal.deliveryType === 'pickup' ? '🏪 Retiro en Sucursal' : '🛵 Envío a Domicilio'}
                       </span>
                     </div>
+                    <div className="flex items-start justify-between gap-1">
+                      <span className="text-slate-400 shrink-0">Franja / Entrega:</span>
+                      <span className="font-bold text-emerald-400 text-right leading-tight">
+                        {detailModal.estimatedDelivery || detailModal.deliverySlotName || (detailModal.deliverySlot === 'morning' ? 'Franja Mañana (09:00 a 13:00 hs)' : 'Franja Tarde (14:00 a 19:00 hs)')}
+                      </span>
+                    </div>
+                    {detailModal.isExpress && (
+                      <div className="flex items-center justify-between text-amber-400 font-bold text-[11px]">
+                        <span>Tipo de Envío:</span>
+                        <span>🚀 Express Prioritario</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Costo Envío:</span>
+                      <span className={`font-bold ${detailModal.isFreeShipping ? 'text-emerald-400' : 'text-slate-200'}`}>
+                        {detailModal.isFreeShipping ? '🎉 Bonificado ($0)' : detailModal.shippingCost ? `$${Number(detailModal.shippingCost).toLocaleString('es-AR')}` : 'Incluido'}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Sucursal:</span>
                       <span className="font-medium text-emerald-400 truncate max-w-[160px]">
-                        {detailModal.branchName || 'URCA CENTRAL'}
+                        {detailModal.branchName || detailModal.branch || 'URCA CENTRAL'}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">

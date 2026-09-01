@@ -528,6 +528,7 @@ export default function SettingsModal({ isOpen, onClose }) {
 
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
+    { id: 'logistics', label: 'Logística & Franjas', icon: Bike },
     { id: 'orderFilters', label: 'Filtros de Pedidos', icon: Filter },
     { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
     { id: 'arca', label: 'ARCA / Facturación', icon: Receipt },
@@ -795,6 +796,326 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* TAB: LOGÍSTICA, HORARIOS & FRANJAS DE REPARTO */}
+          {activeTab === 'logistics' && (
+            <div className="space-y-5 animate-in fade-in">
+              {/* Card 1: Horarios de Atención al Público */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <Clock size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Horarios de Atención de Sucursales</h3>
+                    <p className="text-xs text-slate-400">Horarios en los que el agente atiende y coordina retiros</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Hora de Apertura</label>
+                    <input
+                      type="time"
+                      value={settings?.businessHours?.open || '08:00'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        businessHours: { ...(settings?.businessHours || {}), open: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Hora de Cierre</label>
+                    <input
+                      type="time"
+                      value={settings?.businessHours?.close || '20:00'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        businessHours: { ...(settings?.businessHours || {}), close: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Días de Atención</label>
+                    <input
+                      type="text"
+                      value={settings?.businessHours?.days || 'Lunes a Sábados (Domingos 09:00 a 13:30 hs)'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        businessHours: { ...(settings?.businessHours || {}), days: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Regla de Corte (12:00 PM) y Tiempos de Entrega */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                    <Bike size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      Regla de Corte y Despacho de Pedidos
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-bold border border-indigo-500/30">
+                        Corte 12:00 hs (Máx 24h)
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">Determina si el pedido se despacha en la tarde del mismo día o al día siguiente</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Hora Límite de Corte (Formato 24h)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="23"
+                        value={settings?.deliveryCutoffHour ?? 12}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          deliveryCutoffHour: parseInt(e.target.value, 10) || 12
+                        })}
+                        className="w-24 px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                      />
+                      <span className="text-xs text-slate-400">:00 hs del mediodía</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Plazo Máximo Garantizado
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="72"
+                        value={settings?.deliveryMaxHours ?? 24}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          deliveryMaxHours: parseInt(e.target.value, 10) || 24
+                        })}
+                        className="w-24 px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                      />
+                      <span className="text-xs text-slate-400">horas</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info Callout */}
+                <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5 text-indigo-200">
+                    <span>💡 Lógica de corte activa:</span>
+                  </div>
+                  <div>• <b>Antes de las {settings?.deliveryCutoffHour ?? 12}:00 hs:</b> Se intentará enviar durante el transcurso de la tarde (máx 24 horas).</div>
+                  <div>• <b>Luego de las {settings?.deliveryCutoffHour ?? 12}:00 hs:</b> El pedido se despachará al día siguiente en franja correspondiente (siempre dentro de las 24 horas).</div>
+                </div>
+              </div>
+
+              {/* Card 3: Franjas Horarias de Entrega (2 Franjas por Defecto) */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                      <Layers size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Franjas Horarias de Entrega</h3>
+                      <p className="text-xs text-slate-400">Rangos de reparto que el agente de IA ofrece a los clientes</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {(settings?.deliverySlots || [
+                    { id: 'morning', name: 'Franja Mañana', start: '09:00', end: '13:00', active: true, desc: 'Entregas matutinas de 9:00 a 13:00 hs' },
+                    { id: 'afternoon', name: 'Franja Tarde', start: '14:00', end: '19:00', active: true, desc: 'Entregas vespertinas de 14:00 a 19:00 hs' }
+                  ]).map((slot, index) => (
+                    <div key={slot.id || index} className="p-3.5 rounded-xl bg-[#111b21] border border-slate-700/80 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                          <span className="text-xs font-bold text-white">{slot.name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">({slot.start} a {slot.end} hs)</span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={slot.active !== false}
+                            onChange={(e) => {
+                              const updated = [...(settings?.deliverySlots || [
+                                { id: 'morning', name: 'Franja Mañana', start: '09:00', end: '13:00', active: true, desc: 'Entregas matutinas de 9:00 a 13:00 hs' },
+                                { id: 'afternoon', name: 'Franja Tarde', start: '14:00', end: '19:00', active: true, desc: 'Entregas vespertinas de 14:00 a 19:00 hs' }
+                              ])];
+                              updated[index] = { ...updated[index], active: e.target.checked };
+                              setSettings({ ...settings, deliverySlots: updated });
+                            }}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Nombre</label>
+                          <input
+                            type="text"
+                            value={slot.name}
+                            onChange={(e) => {
+                              const updated = [...(settings?.deliverySlots || [])];
+                              updated[index] = { ...updated[index], name: e.target.value };
+                              setSettings({ ...settings, deliverySlots: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-[#182229] border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Inicio</label>
+                          <input
+                            type="time"
+                            value={slot.start}
+                            onChange={(e) => {
+                              const updated = [...(settings?.deliverySlots || [])];
+                              updated[index] = { ...updated[index], start: e.target.value };
+                              setSettings({ ...settings, deliverySlots: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-[#182229] border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1">Fin</label>
+                          <input
+                            type="time"
+                            value={slot.end}
+                            onChange={(e) => {
+                              const updated = [...(settings?.deliverySlots || [])];
+                              updated[index] = { ...updated[index], end: e.target.value };
+                              setSettings({ ...settings, deliverySlots: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-[#182229] border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Card 4: Tarifas, Envío Express y Envío Bonificado */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Tarifas de Entrega, Express y Envío Bonificado</h3>
+                    <p className="text-xs text-slate-400">Precios de flete y montos mínimos de compra para envío gratis</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Envío Estándar */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                    <label className="block text-xs font-bold text-white">Costo Envío Estándar ($)</label>
+                    <input
+                      type="number"
+                      value={settings?.deliveryStandardCost ?? 3500}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        deliveryStandardCost: parseFloat(e.target.value) || 0
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-[10px] text-slate-400 block">Flete general por envío</span>
+                  </div>
+
+                  {/* Envío Express */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-amber-400">Envío Express Prioritario</label>
+                      <input
+                        type="checkbox"
+                        checked={settings?.deliveryExpressEnabled !== false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          deliveryExpressEnabled: e.target.checked
+                        })}
+                        className="rounded text-amber-500 focus:ring-amber-500"
+                      />
+                    </div>
+                    <input
+                      type="number"
+                      value={settings?.deliveryExpressCost ?? 6500}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        deliveryExpressCost: parseFloat(e.target.value) || 0
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[10px] text-slate-400 block">A cargo del cliente (45-60 min)</span>
+                  </div>
+
+                  {/* Envío Gratis */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-emerald-400">Envío Gratis Desde ($)</label>
+                      <input
+                        type="checkbox"
+                        checked={settings?.deliveryFreeEnabled !== false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          deliveryFreeEnabled: e.target.checked
+                        })}
+                        className="rounded text-emerald-500 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <input
+                      type="number"
+                      value={settings?.deliveryFreeThreshold ?? 45000}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        deliveryFreeThreshold: parseFloat(e.target.value) || 0
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-emerald-300 font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-[10px] text-slate-400 block">Bonificación para compras mayores</span>
+                  </div>
+                </div>
+
+                {/* Radio de Cobertura */}
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Radio de Cobertura Máximo</div>
+                    <div className="text-[10px] text-slate-400">Distancia máxima desde las sucursales para delivery directo</div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      value={settings?.deliveryCoverageRadiusKm ?? 15}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        deliveryCoverageRadiusKm: parseFloat(e.target.value) || 15
+                      })}
+                      className="w-20 px-2.5 py-1.5 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white font-bold text-center focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-xs text-slate-400 font-bold">Km</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

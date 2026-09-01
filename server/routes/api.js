@@ -997,6 +997,45 @@ export function createApiRouter(whatsappService, io) {
     res.json(db.getOrders());
   });
 
+  // --- Validación y Estimación de Franjas y Envíos ---
+  router.post('/orders/validate', (req, res) => {
+    try {
+      const validation = db.validateOrderPayload(req.body);
+      const deliveryCalc = db.calculateDeliverySlotAndCost({
+        orderDate: req.body.createdAt || new Date(),
+        deliveryType: req.body.deliveryType || 'delivery',
+        subtotal: Number(req.body.totalAmount) || 0,
+        isExpress: Boolean(req.body.isExpress || req.body.deliveryOption === 'express'),
+        requestedSlotId: req.body.deliverySlotId || req.body.deliverySlot
+      });
+      res.json({
+        success: true,
+        ...validation,
+        deliveryCalc
+      });
+    } catch (err) {
+      console.error('Error validando pedido:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/orders/delivery-estimate', (req, res) => {
+    try {
+      const { deliveryType = 'delivery', subtotal = 0, isExpress = false, requestedSlotId = null, date } = req.body;
+      const deliveryCalc = db.calculateDeliverySlotAndCost({
+        orderDate: date || new Date(),
+        deliveryType,
+        subtotal: Number(subtotal) || 0,
+        isExpress: Boolean(isExpress),
+        requestedSlotId
+      });
+      res.json({ success: true, ...deliveryCalc });
+    } catch (err) {
+      console.error('Error calculando estimación de envío:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   router.post('/orders', (req, res) => {
     const payload = {
       ...req.body,

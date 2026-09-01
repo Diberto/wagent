@@ -218,17 +218,190 @@ class DatabaseService {
     }
   }
 
-  // --- Settings ---
+  // --- Settings & Deep Merge Persistence Guarantee ---
   getSettings() {
     const db = this.readDb();
-    return { ...CONFIG.DEFAULT_SETTINGS, ...(db.settings || {}) };
+    const rawSettings = db.settings || {};
+    return {
+      ...CONFIG.DEFAULT_SETTINGS,
+      ...rawSettings,
+      businessHours: {
+        ...(CONFIG.DEFAULT_SETTINGS.businessHours || {}),
+        ...(rawSettings.businessHours || {})
+      },
+      deliverySlots: Array.isArray(rawSettings.deliverySlots) && rawSettings.deliverySlots.length > 0
+        ? rawSettings.deliverySlots
+        : (CONFIG.DEFAULT_SETTINGS.deliverySlots || [])
+    };
   }
 
   updateSettings(newSettings) {
     const db = this.readDb();
-    db.settings = { ...CONFIG.DEFAULT_SETTINGS, ...(db.settings || {}), ...newSettings };
+    const current = this.getSettings();
+    const merged = {
+      ...current,
+      ...newSettings,
+      businessHours: {
+        ...(current.businessHours || {}),
+        ...(newSettings.businessHours || {})
+      },
+      deliverySlots: newSettings.deliverySlots !== undefined
+        ? newSettings.deliverySlots
+        : (current.deliverySlots || [])
+    };
+    db.settings = merged;
     this.writeDb(db);
     return db.settings;
+  }
+
+  /**
+   * Calcula la franja horaria recomendada y costo de envío según la regla de corte de las 12:00 hs,
+   * tipo de envío (Estándar vs Express) y monto mínimo de compra para envío gratuito.
+   */
+  calculateDeliverySlotAndCost({ orderDate = new Date(), deliveryType = 'delivery', subtotal = 0, isExpress = false, requestedSlotId = null } = {}) {
+    const settings = this.getSettings();
+    const cutoffHour = Number(settings.deliveryCutoffHour) || 12;
+    const standardCost = Number(settings.deliveryStandardCost) || 3500;
+    const expressCost = Number(settings.deliveryExpressCost) || 6500;
+    const freeThreshold = Number(settings.deliveryFreeThreshold) || 45000;
+    const freeEnabled = settings.deliveryFreeEnabled !== false;
+    const expressEnabled = settings.deliveryExpressEnabled !== false;
+
+    const dateObj = orderDate instanceof Date ? orderDate : new Date(orderDate);
+    const hour = dateObj.getHours();
+
+    const isBeforeCutoff = hour < cutoffHour;
+    
+    // Franjas configurables (por defecto Mañana 09-13hs y Tarde 14-19hs)
+    const slots = (settings.deliverySlots && settings.deliverySlots.length > 0) ? settings.deliverySlots : [
+      { id: 'morning', name: 'Franja Mañana', start: '09:00', end: '13:00', active: true },
+      { id: 'afternoon', name: 'Franja Tarde', start: '14:00', end: '19:00', active: true }
+    ];
+
+    let suggestedSlot = null;
+    let estimatedDeliveryLabel = '';
+    let dayOffset = 0; // 0 = hoy, 1 = mañana
+
+    if (isExpress && expressEnabled) {
+      suggestedSlot = { id: 'express', name: 'Envío Express Inmediato', start: 'Inmediato', end: '45-60 min' };
+      estimatedDeliveryLabel = 'Despacho prioritario inmediato (45 a 60 minutos)';
+    } else if (isBeforeCutoff) {
+      // Compra antes de las 12:00 hs -> Se despacha durante la tarde del mismo día (máx 24h)
+      const afternoonSlot = slots.find(s => s.id === 'afternoon' || s.name.toLowerCase().includes('tarde')) || slots[1] || slots[0];
+      suggestedSlot = afternoonSlot;
+      dayOffset = 0;
+      estimatedDeliveryLabel = `Hoy en ${afternoonSlot?.name || 'Franja Tarde'} (${afternoonSlot?.start || '14:00'} a ${afternoonSlot?.end || '19:00'} hs, máx 24h)`;
+    } else {
+      // Compra después de las 12:00 hs -> Se despacha preferentemente al día siguiente (dentro de las 24h)
+      const morningSlot = slots.find(s => s.id === 'morning' || s.name.toLowerCase().includes('mañana')) || slots[0];
+      suggestedSlot = morningSlot;
+      dayOffset = 1;
+      estimatedDeliveryLabel = `Mañana en ${morningSlot?.name || 'Franja Mañana'} (${morningSlot?.start || '09:00'} a ${morningSlot?.end || '13:00'} hs, máx 24h)`;
+    }
+
+    if (requestedSlotId && requestedSlotId !== 'auto') {
+      const found = slots.find(s => s.id === requestedSlotId);
+      if (found) {
+        suggestedSlot = found;
+        if (!isExpress) {
+          estimatedDeliveryLabel = `${dayOffset === 0 ? 'Hoy' : 'Mañana'} en ${found.name} (${found.start} a ${found.end} hs)`;
+        }
+      }
+    }
+
+    // Cálculo del costo de envío
+    let shippingCost = 0;
+    let isFreeShipping = false;
+
+    if (deliveryType === 'pickup') {
+      shippingCost = 0;
+      isFreeShipping = true;
+    } else if (isExpress && expressEnabled) {
+      shippingCost = expressCost;
+      isFreeShipping = false;
+    } else if (freeEnabled && subtotal >= freeThreshold) {
+      shippingCost = 0;
+      isFreeShipping = true;
+    } else {
+      shippingCost = standardCost;
+      isFreeShipping = false;
+    }
+
+    return {
+      suggestedSlotId: suggestedSlot?.id || 'afternoon',
+      suggestedSlotName: suggestedSlot?.name || 'Franja Tarde',
+      suggestedSlot,
+      dayOffset,
+      isBeforeCutoff,
+      cutoffHour,
+      estimatedDeliveryLabel,
+      shippingCost,
+      isFreeShipping,
+      isExpress: Boolean(isExpress && expressEnabled),
+      freeThreshold,
+      standardCost,
+      expressCost,
+      businessHours: settings.businessHours
+    };
+  }
+
+  /**
+   * Valida que todos los datos requeridos para ingresar el pedido hayan sido solicitados y comprobados.
+   */
+  validateOrderPayload(orderData = {}) {
+    const missingFields = [];
+    const errors = [];
+
+    // 1. Nombre del cliente
+    const name = (orderData.customerName || orderData.name || '').trim();
+    if (!name || name === 'Contacto WhatsApp' || name === 'Don Juan' || name === 'Cliente Demo') {
+      missingFields.push('customerName');
+      errors.push('Nombre del cliente es requerido.');
+    }
+
+    // 2. Teléfono o JID de contacto
+    const phone = String(orderData.phone || orderData.customerPhone || orderData.jid || '').replace(/\D/g, '');
+    if (!phone || phone.length < 6) {
+      missingFields.push('phone');
+      errors.push('Teléfono de WhatsApp de contacto es requerido.');
+    }
+
+    // 3. Modalidad de entrega y destino
+    const deliveryType = orderData.deliveryType === 'pickup' ? 'pickup' : 'delivery';
+    if (deliveryType === 'delivery') {
+      const address = (orderData.address || '').trim();
+      if (!address || address.length < 4 || /^(retiro|sucursal|a coordinar|domicilio|sin direccion)/i.test(address)) {
+        missingFields.push('address');
+        errors.push('Dirección de entrega completa (Calle, Altura/Número y Barrio) es requerida para envíos a domicilio.');
+      }
+    } else {
+      const branch = (orderData.branch || orderData.branchName || '').trim();
+      if (!branch || branch === 'A coordinar') {
+        missingFields.push('branch');
+        errors.push('Debe seleccionar una de las 6 sucursales para el retiro.');
+      }
+    }
+
+    // 4. Medio de pago
+    const paymentMethod = (orderData.paymentMethod || '').trim();
+    if (!paymentMethod || paymentMethod.toLowerCase().includes('pendiente') || paymentMethod === 'Efectivo / Transferencia / Mercado Pago') {
+      missingFields.push('paymentMethod');
+      errors.push('Medio de pago (Efectivo, Transferencia o Mercado Pago) debe estar seleccionado.');
+    }
+
+    // 5. Items o productos
+    const items = Array.isArray(orderData.items) ? orderData.items : (typeof orderData.items === 'string' ? orderData.items.split('\n').filter(Boolean) : []);
+    const products = Array.isArray(orderData.products) ? orderData.products : [];
+    if (items.length === 0 && products.length === 0) {
+      missingFields.push('items');
+      errors.push('El pedido debe contener al menos un producto o corte.');
+    }
+
+    return {
+      isValid: missingFields.length === 0,
+      missingFields,
+      errors
+    };
   }
 
   // --- Knowledge Base ---
@@ -1838,6 +2011,15 @@ class DatabaseService {
     const calculatedTotal = products.reduce((acc, p) => acc + (Number(p.subtotal) || (Number(p.price) * Number(p.quantity)) || 0), 0);
     const finalTotalAmount = Number(orderData.totalAmount) || calculatedTotal || 0;
 
+    // Calcular estimación de franja horaria y costo de envío según la regla de corte de las 12hs
+    const deliveryCalc = this.calculateDeliverySlotAndCost({
+      orderDate: orderData.createdAt ? new Date(orderData.createdAt) : new Date(),
+      deliveryType: orderData.deliveryType || 'delivery',
+      subtotal: finalTotalAmount,
+      isExpress: Boolean(orderData.isExpress || orderData.deliveryOption === 'express'),
+      requestedSlotId: orderData.deliverySlotId || orderData.deliverySlot
+    });
+
     const newOrder = {
       id: orderData.id || `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
       jid: orderData.jid || '',
@@ -1848,6 +2030,12 @@ class DatabaseService {
       branchName: branchName,
       branchId: branchId,
       deliveryType: orderData.deliveryType || 'delivery',
+      deliverySlot: orderData.deliverySlot || deliveryCalc.suggestedSlotId,
+      deliverySlotName: orderData.deliverySlotName || deliveryCalc.suggestedSlotName,
+      estimatedDelivery: orderData.estimatedDelivery || deliveryCalc.estimatedDeliveryLabel,
+      shippingCost: orderData.shippingCost !== undefined ? Number(orderData.shippingCost) : deliveryCalc.shippingCost,
+      isFreeShipping: orderData.isFreeShipping !== undefined ? Boolean(orderData.isFreeShipping) : deliveryCalc.isFreeShipping,
+      isExpress: Boolean(orderData.isExpress || deliveryCalc.isExpress),
       items: items,
       products: products,
       totalAmount: finalTotalAmount,
@@ -1871,7 +2059,10 @@ class DatabaseService {
       branchName: branchName,
       branchId: branchId,
       products: products,
-      totalAmount: finalTotalAmount
+      totalAmount: finalTotalAmount,
+      deliverySlot: orderData.deliverySlot || deliveryCalc.suggestedSlotId,
+      deliverySlotName: orderData.deliverySlotName || deliveryCalc.suggestedSlotName,
+      estimatedDelivery: orderData.estimatedDelivery || deliveryCalc.estimatedDeliveryLabel
     };
 
     db.orders.unshift(newOrder);

@@ -72,6 +72,7 @@ export default function QRModal({
       setOperatorSessions(prev => ({ ...prev, [targetSession]: data }));
       if (targetSession === selectedUserId) {
         setActiveSessionStatus(data);
+        setIsLoadingSession(false);
       }
     };
 
@@ -85,15 +86,22 @@ export default function QRModal({
           qrDataUrl: data.qrDataUrl,
           qrCode: data.qrCode
         }));
+        setIsLoadingSession(false);
       }
     };
 
     socket.on('whatsapp:status', handleStatusUpdate);
     socket.on('whatsapp:qr', handleQrUpdate);
+    socket.on('whatsapp:sessions:update', handleStatusUpdate);
+    socket.on(`whatsapp:status:${selectedUserId}`, handleStatusUpdate);
+    socket.on(`whatsapp:qr:${selectedUserId}`, handleQrUpdate);
 
     return () => {
       socket.off('whatsapp:status', handleStatusUpdate);
       socket.off('whatsapp:qr', handleQrUpdate);
+      socket.off('whatsapp:sessions:update', handleStatusUpdate);
+      socket.off(`whatsapp:status:${selectedUserId}`, handleStatusUpdate);
+      socket.off(`whatsapp:qr:${selectedUserId}`, handleQrUpdate);
     };
   }, [socket, selectedUserId]);
 

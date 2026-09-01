@@ -14761,5 +14761,37 @@
       "inicioActividades": "2023-01-10",
       "isDefault": false
     }
+  ],
+  "quickReplies": [
+    {
+      "id": "qr-branches",
+      "title": "🏪 Sucursales y Direcciones",
+      "category": "sucursales",
+      "content": "🏪 *NUESTRAS 6 SUCURSALES EN CÓRDOBA:*\n\n1️⃣ *URCA CENTRAL:* Av. José Roque Funes 1115 (📞 3513906947)\n2️⃣ *URCA 2 – ALTO TEJEDA:* Av. Menéndez Pidal 3575 (📞 3518623195)\n3️⃣ *INTERCOUNTRY – CORTEZA MALL:* Av. Los Álamos 1015 (📞 3518623194)\n4️⃣ *DUARTE QUIRÓS:* Av. Duarte Quirós 5130 (📞 3518156595)\n5️⃣ *VILLA ALLENDE:* Av. Figueroa Alcorta 480 (📞 3513540031)\n6️⃣ *COUNTRY SAN ISIDRO:* Av. Padre Luchesse km 2 (📞 3518769099)\n\n🛵 *Envíos directos a domicilio en el día en todo Córdoba.*"
+    },
+    {
+      "id": "qr-hours",
+      "title": "⏰ Horarios de Atención",
+      "category": "horarios",
+      "content": "⏰ *HORARIOS DE ATENCIÓN EN SUCURSALES:*\n\n🥩 *Urca Central / Urca 2 / Intercountry:*\nLunes a Sábado: 9:00 a 21:00 hs | Domingos: 9:00 a 13:30 hs\n\n🥩 *Duarte Quirós / Villa Allende:*\nLunes a Sábado: 9:00 a 13:30 y 17:00 a 21:00 hs | Domingos: 9:00 a 13:30 hs\n\n🥩 *Country San Isidro:*\nLunes a Miércoles: 7:00 a 00:00 hs | Jueves a Sábado: 7:00 a 01:00 hs"
+    },
+    {
+      "id": "qr-payment",
+      "title": "💳 Datos Bancarios y Medios de Pago",
+      "category": "pagos",
+      "content": "💳 *DATOS DE PAGO OFICIALES:*\n\n📱 *Alias Mercado Pago / Bancario:* `republica.carne.mp`\n🏦 *Titular:* República de la Carne\n\n👉 *También aceptamos:* Efectivo contraentrega, Débito/Crédito y Dinero en cuenta de Mercado Pago.\nEn cuanto transfieras, por favor pasanos el comprobante por acá para despachar tu pedido al instante. 🙌"
+    },
+    {
+      "id": "qr-promos",
+      "title": "🥩 Promociones y Combos Estrella",
+      "category": "productos",
+      "content": "🔥 *OFERTAS DESTACADAS DEL DÍA:*\n\n1️⃣ Combo “Asadazo” (4 kg cortes + Vino de regalo) ➔ $39.999\n2️⃣ Vacío Especial Seleccionado ➔ $11.500 / kg\n3️⃣ Costillar Novillito ➔ $9.800 / kg\n4️⃣ Bife de Chorizo Premium ➔ $14.500 / kg\n5️⃣ Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) ➔ $5.000 / kg\n6️⃣ Matambrito de Cerdo Tiernizado ➔ $8.500 / kg"
+    },
+    {
+      "id": "qr-order-status",
+      "title": "🚚 Estado y Despacho de Pedido",
+      "category": "pedidos",
+      "content": "¡Hola {nombre}! 👋 Tu pedido #{pedido_id} por ${total} se encuentra en preparación en carnicería y saldrá en el próximo despacho con nuestro repartidor a {direccion}. ¡Te avisamos en cuanto esté en viaje! 🥩🛵"
+    }
   ]
 }
