@@ -332,32 +332,43 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     }
   };
 
-  const fetchOrders = async () => {
-    setIsLoading(true);
+  const fetchOrders = async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
     try {
       const res = await fetch('/api/orders');
       const data = await res.json();
-      setOrders(Array.isArray(data) ? data : []);
+      if (Array.isArray(data)) {
+        setOrders(prev => {
+          // Comparar longitud y IDs/estados para evitar re-renders innecesarios
+          if (prev.length === data.length) {
+            const hasChanges = data.some((item, idx) => {
+              const p = prev[idx];
+              return !p || p.id !== item.id || p.status !== item.status || p.paymentStatus !== item.paymentStatus || p.branchId !== item.branchId || p.driverId !== item.driverId || p.updatedAt !== item.updatedAt;
+            });
+            if (!hasChanges) return prev;
+          }
+          return data;
+        });
+      }
     } catch (err) {
       console.error('Error cargando pedidos:', err);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchOrders();
+    // Carga inicial
+    fetchOrders(true);
     fetchBranches();
     fetchDrivers();
     fetchCustomers();
     fetchCatalogProducts();
 
-    // Auto-sincronización periódica y al recuperar el foco de la ventana
-    const handleFocus = () => fetchOrders();
-    window.addEventListener('focus', handleFocus);
+    // Sincronización en segundo plano silenciosa y no intrusiva (cada 60s como salvaguarda)
     const syncInterval = setInterval(() => {
-      fetchOrders();
-    }, 8000);
+      fetchOrders(false);
+    }, 60000);
 
     if (socket) {
       socket.on('order:new', (newOrder) => {
@@ -365,7 +376,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       });
 
       socket.on('order:update', (updatedOrder) => {
-        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
       });
 
       socket.on('order:delete', (deletedId) => {
@@ -374,7 +385,10 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
 
       socket.on('orders:sync', (allOrders) => {
         if (Array.isArray(allOrders) && allOrders.length > 0) {
-          setOrders(allOrders);
+          setOrders(prev => {
+            if (prev.length === allOrders.length && JSON.stringify(prev) === JSON.stringify(allOrders)) return prev;
+            return allOrders;
+          });
         }
       });
 
@@ -382,7 +396,6 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       socket.on('driver:new', () => fetchDrivers());
 
       return () => {
-        window.removeEventListener('focus', handleFocus);
         clearInterval(syncInterval);
         socket.off('order:new');
         socket.off('order:update');
@@ -394,13 +407,15 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     }
 
     return () => {
-      window.removeEventListener('focus', handleFocus);
       clearInterval(syncInterval);
     };
   }, [socket]);
 
+  // Manejo de orden objetivo sin disparar re-renderizados continuos
+  const targetHandledRef = React.useRef(null);
   useEffect(() => {
-    if (targetOrderId) {
+    if (targetOrderId && targetHandledRef.current !== targetOrderId) {
+      targetHandledRef.current = targetOrderId;
       setSearch(String(targetOrderId));
       const found = orders.find(o => String(o.id) === String(targetOrderId) || String(o.id).replace(/\D/g, '') === String(targetOrderId).replace(/\D/g, ''));
       if (found) {
