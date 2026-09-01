@@ -260,7 +260,11 @@ class DatabaseService {
       },
       deliverySlots: Array.isArray(rawSettings.deliverySlots) && rawSettings.deliverySlots.length > 0
         ? rawSettings.deliverySlots
-        : (CONFIG.DEFAULT_SETTINGS.deliverySlots || [])
+        : (CONFIG.DEFAULT_SETTINGS.deliverySlots || []),
+      storeConfig: {
+        ...(CONFIG.DEFAULT_SETTINGS.storeConfig || {}),
+        ...(rawSettings.storeConfig || {})
+      }
     };
   }
 
@@ -276,7 +280,11 @@ class DatabaseService {
       },
       deliverySlots: newSettings.deliverySlots !== undefined
         ? newSettings.deliverySlots
-        : (current.deliverySlots || [])
+        : (current.deliverySlots || []),
+      storeConfig: {
+        ...(current.storeConfig || {}),
+        ...(newSettings.storeConfig || {})
+      }
     };
     db.settings = merged;
     this.writeDb(db);
@@ -1074,6 +1082,13 @@ class DatabaseService {
     const ivaRate = prodData.ivaRate !== undefined ? Number(prodData.ivaRate) : (isMeat ? 10.5 : 21);
 
     const existingIndex = db.products.findIndex(p => p.id === prodData.id || (plu && p.plu === plu));
+    const availableInStore = prodData.availableInStore !== undefined 
+      ? Boolean(prodData.availableInStore) 
+      : (prodData.isAvailable !== false);
+    const availableInWhatsApp = prodData.availableInWhatsApp !== undefined 
+      ? Boolean(prodData.availableInWhatsApp) 
+      : (prodData.isAvailable !== false);
+
     const newProduct = {
       id: prodData.id || `prod-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       plu: plu,
@@ -1087,12 +1102,16 @@ class DatabaseService {
       stock: Number(prodData.stock) ?? 100,
       imageUrl: prodData.imageUrl || '',
       isAvailable: prodData.isAvailable !== false,
+      availableInStore,
+      availableInWhatsApp,
       sku: prodData.sku || (plu ? `PLU-${plu}` : ''),
       updatedAt: new Date().toISOString(),
       ...prodData,
       plu: plu,
       barcode: barcode,
-      ivaRate: ivaRate
+      ivaRate: ivaRate,
+      availableInStore,
+      availableInWhatsApp
     };
 
     if (existingIndex >= 0) {
@@ -1114,6 +1133,46 @@ class DatabaseService {
       return product;
     }
     return null;
+  }
+
+  bulkUpdateProducts(productIds, updates = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(db.products) || !Array.isArray(productIds)) return [];
+    const updatedList = [];
+    const idSet = new Set(productIds);
+
+    db.products = db.products.map(p => {
+      if (idSet.has(p.id) || idSet.has(p.plu)) {
+        const modified = { ...p };
+        if (updates.pricePercentChange !== undefined) {
+          const factor = 1 + (Number(updates.pricePercentChange) / 100);
+          modified.price = Math.max(0, Math.round(Number(p.price || 0) * factor));
+        }
+        if (updates.ivaRate !== undefined) modified.ivaRate = Number(updates.ivaRate);
+        if (updates.availableInStore !== undefined) modified.availableInStore = Boolean(updates.availableInStore);
+        if (updates.availableInWhatsApp !== undefined) modified.availableInWhatsApp = Boolean(updates.availableInWhatsApp);
+        if (updates.isAvailable !== undefined) modified.isAvailable = Boolean(updates.isAvailable);
+        if (updates.category !== undefined) modified.category = updates.category;
+        
+        modified.updatedAt = new Date().toISOString();
+        updatedList.push(modified);
+        return modified;
+      }
+      return p;
+    });
+
+    this.writeDb(db);
+    return updatedList;
+  }
+
+  bulkDeleteProducts(productIds) {
+    const db = this.readDb();
+    if (!Array.isArray(db.products) || !Array.isArray(productIds)) return 0;
+    const idSet = new Set(productIds);
+    const beforeCount = db.products.length;
+    db.products = db.products.filter(p => !idSet.has(p.id) && !idSet.has(p.plu));
+    this.writeDb(db);
+    return beforeCount - db.products.length;
   }
 
   updateProductStock(id, stockDelta, isAbsolute = false) {

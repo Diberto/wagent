@@ -219,7 +219,7 @@ export function getFeaturedWhatsAppOffers(catalog = null) {
   const validMeatList = currentCatalog.filter(p => {
     const price = Number(p.price) || 0;
     if (price <= 0 || price === 1) return false;
-    if (p.isAvailable === false || p.showInWhatsApp === false) return false;
+    if (p.isAvailable === false || p.showInWhatsApp === false || p.availableInWhatsApp === false) return false;
     const cat = p.category || '';
     if (['Snacks', 'Verdulería y Frutas', 'General', 'Fiambres y Quesos', 'Bazar y Accesorios'].includes(cat)) return false;
     if (/snack|pehuamar|lays|doritos|3d queso|aceite|acelga|achicoria/i.test(p.name)) return false;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ShoppingBag, 
   Search, 
@@ -25,27 +25,36 @@ import {
   Package,
   Layers,
   AlertCircle,
-  Tag
+  Tag,
+  Copy,
+  Check,
+  ExternalLink,
+  ShieldCheck,
+  ArrowRight,
+  Info,
+  Sliders,
+  BadgeCheck,
+  Banknote
 } from 'lucide-react';
 import SearchableCombobox from './ui/SearchableCombobox.jsx';
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { id: 'all', label: '🔥 Todo el Catálogo', icon: '🥩' },
-  { id: 'combos', label: '⭐ Combos y Ofertas', icon: '⭐' },
-  { id: 'parrilla', label: '🥩 Vacuno y Parrilla', icon: '🥩' },
+  { id: 'combos', label: '⭐ Combos & Ofertas', icon: '⭐' },
+  { id: 'parrilla', label: '🥩 Vacuno & Parrilla', icon: '🥩' },
   { id: 'cerdo', label: '🐖 Cerdo Seleccionado', icon: '🐖' },
-  { id: 'achuras', label: '🌭 Achuras y Embutidos', icon: '🌭' },
-  { id: 'elaborados', label: '🍽️ Milanesas y Elaborados', icon: '🍽️' },
-  { id: 'almacen', label: '🍷 Carbón y Bebidas', icon: '🔥' }
+  { id: 'achuras', label: '🌭 Achuras & Embutidos', icon: '🌭' },
+  { id: 'elaborados', label: '🍽️ Milanesas & Elaborados', icon: '🍽️' },
+  { id: 'almacen', label: '🍷 Carbón & Bebidas', icon: '🔥' }
 ];
 
 const DEFAULT_BRANCHES = [
-  { id: 'branch-1', name: 'Urca Central', address: 'Av. José Roque Funes 1115, Córdoba' },
-  { id: 'branch-2', name: 'Recta Martinoli', address: 'Av. Recta Martinoli 7850, Villa Belgrano' },
-  { id: 'branch-3', name: 'Villa Allende', address: 'Av. Goycoechea 1420, Villa Allende' },
-  { id: 'branch-4', name: 'Barrio Jardín', address: 'Av. Richieri 2850, Barrio Jardín' },
-  { id: 'branch-5', name: 'General Paz', address: '24 de Septiembre 1120, B° General Paz' },
-  { id: 'branch-6', name: 'Cerro de las Rosas', address: 'Av. Rafael Núñez 4200, Cerro de las Rosas' }
+  { id: 'branch-1', name: 'Urca Central', address: 'Av. José Roque Funes 1115, Córdoba', phone: '351-6262475' },
+  { id: 'branch-2', name: 'Recta Martinoli', address: 'Av. Recta Martinoli 7850, Villa Belgrano', phone: '351-6262475' },
+  { id: 'branch-3', name: 'Villa Allende', address: 'Av. Goycoechea 1420, Villa Allende', phone: '351-6262475' },
+  { id: 'branch-4', name: 'Barrio Jardín', address: 'Av. Richieri 2850, Barrio Jardín', phone: '351-6262475' },
+  { id: 'branch-5', name: 'General Paz', address: '24 de Septiembre 1120, B° General Paz', phone: '351-6262475' },
+  { id: 'branch-6', name: 'Cerro de las Rosas', address: 'Av. Rafael Núñez 4200, Cerro de las Rosas', phone: '351-6262475' }
 ];
 
 // Productos que permiten venta fraccionada por unidades y su factor promedio de unidades por kg
@@ -58,14 +67,15 @@ const FRACTIONABLE_PRODUCTS = {
   milanesa: 6,
   bife: 3,
   pata: 3,
-  muslo: 3
+  muslo: 3,
+  hamburguesa: 5
 };
 
 function isProductFractionable(name = '', category = '') {
   const n = name.toLowerCase();
   const c = category.toLowerCase();
   if (n.includes('bife de chorizo')) return false;
-  return /chorizo|morcilla|costeleta|chuleta|milanesa|pata\s+muslo/i.test(n) ||
+  return /chorizo|morcilla|costeleta|chuleta|milanesa|pata\s+muslo|hamburguesa/i.test(n) ||
          c.includes('embutido') || c.includes('elaborados');
 }
 
@@ -81,10 +91,33 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'tracking'
   const [products, setProducts] = useState([]);
   const [branches, setBranches] = useState(DEFAULT_BRANCHES);
-  const [settings, setSettings] = useState({});
+  const [storeConfig, setStoreConfig] = useState({
+    storeName: 'República de la Carne',
+    tagline: 'Carnicería Boutique & Asados Gourmet',
+    heroBadge: '🔥 Envíos en el día en Córdoba Capital',
+    heroTitle: 'La Mejor Carne Argentina Directo a Tu Mesa',
+    heroSubtitle: 'Novillito pesado premium, cerdo seleccionado y achuras frescas. Hacé tu pedido en segundos con entrega asegurada.',
+    heroCtaText: 'Explorar Catálogo',
+    heroBannerMode: 'glass-mesh',
+    announcementBarEnabled: true,
+    announcementBarText: '🥩 ¡Envíos gratis en compras superiores a $45.000 en Córdoba! Despacho asegurado en 24hs.',
+    themePreset: 'apple-obsidian',
+    primaryColor: '#10b981',
+    accentColor: '#38bdf8',
+    fontFamily: 'Inter',
+    glassBlurLevel: 'xl',
+    allowMercadoPago: true,
+    allowCash: true,
+    allowTransfer: true,
+    transferAlias: 'republica.carne.mp',
+    whatsappDirectNumber: '+5493516262475',
+    freeShippingThreshold: 45000
+  });
+
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [copiedAlias, setCopiedAlias] = useState(false);
 
   // Carrito de Compras
   const [cart, setCart] = useState(() => {
@@ -102,10 +135,11 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   const [customerName, setCustomerName] = useState(() => localStorage.getItem('republica_customer_name') || '');
   const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('republica_customer_phone') || '');
   const [customerAddress, setCustomerAddress] = useState(() => localStorage.getItem('republica_customer_address') || '');
-  const [customerFiscalCondition, setCustomerFiscalCondition] = useState('CF'); // 'CF' | 'RI' | 'MONO' | 'EX'
+  const [customerFiscalCondition, setCustomerFiscalCondition] = useState('CF'); // 'CF' | 'RI'
   const [customerCuit, setCustomerCuit] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState(DEFAULT_BRANCHES[0].id);
-  const [paymentMethod, setPaymentMethod] = useState('Efectivo contraentrega');
+  const [paymentMethod, setPaymentMethod] = useState('Efectivo');
+  const [cashBillAmount, setCashBillAmount] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
@@ -120,37 +154,34 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     localStorage.setItem('republica_cart', JSON.stringify(cart));
   }, [cart]);
 
-  // Cargar catálogo de productos y sucursales
-  const fetchData = async () => {
+  // Cargar configuración de tienda y catálogo público aislado
+  const fetchStoreData = async () => {
     setIsLoading(true);
     try {
-      const [prodRes, branchRes, setRes] = useState ? await Promise.all([
-        fetch('/api/products').then(r => r.json()).catch(() => []),
-        fetch('/api/branches').then(r => r.json()).catch(() => DEFAULT_BRANCHES),
-        fetch('/api/settings').then(r => r.json()).catch(() => ({}))
-      ]) : [[], DEFAULT_BRANCHES, {}];
+      const [cfgRes, prodRes, branchRes] = await Promise.all([
+        fetch('/api/store/config').then(r => r.json()).catch(() => null),
+        fetch('/api/store/products').then(r => r.json()).catch(() => []),
+        fetch('/api/store/branches').then(r => r.json()).catch(() => DEFAULT_BRANCHES)
+      ]);
 
+      if (cfgRes && cfgRes.config) {
+        setStoreConfig(prev => ({ ...prev, ...cfgRes.config }));
+      }
       if (Array.isArray(prodRes)) {
-        // Filtrar productos válidos y activos en WhatsApp / Tienda
-        const activeProds = prodRes.filter(p => p.isAvailable !== false && Number(p.price) > 0);
-        setProducts(activeProds);
+        setProducts(prodRes);
       }
       if (Array.isArray(branchRes) && branchRes.length > 0) {
         setBranches(branchRes);
       }
-      if (setRes) {
-        setSettings(setRes);
-      }
     } catch (err) {
-      console.error('Error cargando tienda:', err);
+      console.error('Error cargando datos de tienda:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Cargar datos y verificar si hay código de seguimiento en la URL
   useEffect(() => {
-    fetchData();
+    fetchStoreData();
 
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -171,10 +202,9 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   // Agregar al Carrito (soporta kilos o unidades)
   const handleAddToCart = (product, mode = 'kg', amount = 1) => {
     const isUnit = mode === 'units';
-    const unitsPerKg = getUnitsPerKg(product.name);
+    const unitsPerKg = product.unitsPerKg || getUnitsPerKg(product.name);
     const unitPrice = Number(product.price) || 0;
 
-    // Calcular peso equivalente y subtotal
     const calculatedKg = isUnit ? (amount / unitsPerKg) : amount;
     const subtotal = Math.round(unitPrice * calculatedKg);
 
@@ -219,7 +249,6 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     setIsCartOpen(true);
   };
 
-  // Modificar cantidad en Carrito
   const handleUpdateCartItemQty = (cartItemId, delta) => {
     setCart(prev => {
       return prev.map(item => {
@@ -254,14 +283,37 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   };
 
   // Totales
-  const totalCartAmount = cart.reduce((sum, item) => sum + (item.subtotal || 0), 0);
-  const totalCartItemsCount = cart.length;
+  const totalCartAmount = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  }, [cart]);
 
-  // Checkout y Envío al WhatsApp del Agente por defecto
-  const handleCheckoutWhatsApp = async () => {
+  const totalCartItemsCount = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (item.isUnitMode ? item.unitCount : 1), 0);
+  }, [cart]);
+
+  const freeShippingGoal = storeConfig.freeShippingThreshold || 45000;
+  const freeShippingProgress = Math.min(100, Math.round((totalCartAmount / freeShippingGoal) * 100));
+  const missingForFreeShipping = Math.max(0, freeShippingGoal - totalCartAmount);
+
+  const calculatedChange = useMemo(() => {
+    if (paymentMethod !== 'Efectivo' || !cashBillAmount) return null;
+    const bill = parseFloat(cashBillAmount.replace(/[^0-9.]/g, '')) || 0;
+    if (bill <= totalCartAmount) return 0;
+    return bill - totalCartAmount;
+  }, [cashBillAmount, totalCartAmount, paymentMethod]);
+
+  const handleCopyAlias = () => {
+    const alias = storeConfig.transferAlias || 'republica.carne.mp';
+    navigator.clipboard.writeText(alias);
+    setCopiedAlias(true);
+    setTimeout(() => setCopiedAlias(false), 2500);
+  };
+
+  // Checkout y creación de pedido sincronizado
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
     if (!customerName.trim() || !customerPhone.trim()) {
-      alert('Por favor completá tu Nombre y Teléfono de WhatsApp para continuar.');
+      alert('Por favor completá tu Nombre y Teléfono de WhatsApp para confirmar el pedido.');
       return;
     }
     if (deliveryType === 'delivery' && !customerAddress.trim()) {
@@ -276,9 +328,8 @@ export default function StorefrontView({ onBackToAdmin = null }) {
       localStorage.setItem('republica_customer_address', customerAddress);
     }
 
-    const selectedBranchObj = branches.find(b => b.id === selectedBranchId) || branches[0];
+    const selectedBranchObj = branches.find(b => b.id === selectedBranchId) || branches[0] || DEFAULT_BRANCHES[0];
 
-    // 1. Guardar orden en Backend (sincronizada en vivo con CRM y canal TIENDA)
     try {
       const orderPayload = {
         customerName: customerName.trim(),
@@ -293,9 +344,9 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         items: cart,
         totalAmount: totalCartAmount,
         paymentMethod,
+        cashChangeFor: paymentMethod === 'Efectivo' && cashBillAmount ? Number(cashBillAmount) : null,
         channel: 'TIENDA',
-        source: 'TIENDA',
-        origin: 'TIENDA',
+        source: 'TIENDA_WEB_APPLE_GLASS',
         notes: orderNotes.trim()
       };
 
@@ -321,7 +372,10 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         localStorage.setItem('republica_recent_orders', JSON.stringify(updatedRecent));
       } catch (e) {}
 
-      // 2. Construir mensaje preformateado para WhatsApp
+      // Si el usuario eligió Mercado Pago y se generó link de pago, podemos ofrecer abrirlo directamente
+      const paymentLink = data.paymentLink || orderObj.paymentLink;
+
+      // Armar mensaje WhatsApp
       const itemsListFormatted = cart.map(it => {
         if (it.isUnitMode && it.unitCount > 0) {
           return `• ${it.unitCount} Unidades de ${it.name} ➔ $${it.subtotal.toLocaleString('es-AR')}`;
@@ -338,30 +392,49 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         ? `🏢 *Factura Solicitada:* Factura A (CUIT: ${customerCuit.trim()})`
         : `👤 *Facturación:* Consumidor Final`;
 
-      const whatsappText = `¡Hola Carlos! 🥩 Acabo de armar mi pedido en la Tienda Web:
+      let paymentText = `💳 *Medio de Pago:* ${paymentMethod}`;
+      if (paymentMethod === 'Efectivo' && cashBillAmount) {
+        paymentText += ` (Abona con $${Number(cashBillAmount).toLocaleString('es-AR')} - Vuelto: $${(calculatedChange || 0).toLocaleString('es-AR')})`;
+      } else if (paymentMethod === 'Transferencia Bancaria') {
+        paymentText += ` (Alias: ${storeConfig.transferAlias || 'republica.carne.mp'})`;
+      } else if (paymentMethod === 'Mercado Pago' && paymentLink) {
+        paymentText += `\n💳 *Link de Pago MP:* ${paymentLink}`;
+      }
+
+      const whatsappText = `¡Hola! 🥩 Acabo de realizar mi pedido en la Tienda Web:
 
 📋 *Pedido #${orderObj.id}*
 👤 *Cliente:* ${customerName.trim()}
 📱 *Teléfono:* ${customerPhone.trim()}
 📍 ${deliveryInfo}
 🧾 ${fiscalInfo}
-💳 *Medio de Pago:* ${paymentMethod}
+${paymentText}
 
-🥩 *Detalle de Cortes (precios por kilo según corte):*
+🥩 *Detalle de Cortes Seleccionados:*
 ${itemsListFormatted}
 
-💰 *Total Estimado a Abonar:* $${totalCartAmount.toLocaleString('es-AR')}
-*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*
+💰 *Total Estimado:* $${totalCartAmount.toLocaleString('es-AR')}
+*(Nota: Precios por kg. El total informado es estimado y puede ajustarse al pesaje final de balanza).*
 ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 🔗 *Seguimiento en Vivo:* ${trackingUrl}
 
-¿Me confirmás el pedido para comenzar la preparación? ¡Muchas gracias! 🙌`;
+¿Me confirman para comenzar la preparación? ¡Muchas gracias! 🙌`;
 
-      // 3. Obtener número del agente por defecto (Settings / WhatsApp oficial)
-      const defaultAgentPhone = (settings.whatsappNumber || settings.agentPhone || '5493513906947').replace(/\D/g, '');
-      const waUrl = `https://wa.me/${defaultAgentPhone}?text=${encodeURIComponent(whatsappText)}`;
+      const targetWhatsApp = (storeConfig.whatsappDirectNumber || '5493516262475').replace(/\D/g, '');
+      const waUrl = `https://wa.me/${targetWhatsApp}?text=${encodeURIComponent(whatsappText)}`;
       
+      // Abrir WhatsApp
       window.open(waUrl, '_blank');
+
+      // Si hay link de Mercado Pago, ofrecer abrirlo
+      if (paymentLink && paymentMethod === 'Mercado Pago') {
+        setTimeout(() => {
+          if (window.confirm('¿Deseas abrir ahora el Checkout de Mercado Pago para abonar con tarjeta o saldo?')) {
+            window.open(paymentLink, '_blank');
+          }
+        }, 1000);
+      }
+
       setCart([]);
       setIsCartOpen(false);
       setActiveTab('tracking');
@@ -375,7 +448,7 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
     }
   };
 
-  // Buscar pedidos para tracking (por código #ORD-XXXX o por teléfono)
+  // Buscar pedidos para tracking
   const fetchTrackedOrders = async (queryToSearch) => {
     const rawQ = queryToSearch || trackingPhone || '';
     const q = rawQ.trim();
@@ -383,25 +456,12 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 
     setIsSearchingTracking(true);
     try {
-      const res = await fetch(`/api/orders/track/${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/store/track/${encodeURIComponent(q)}`);
       const data = await res.json();
       if (data && Array.isArray(data.orders) && data.orders.length > 0) {
         setTrackedOrders(data.orders);
       } else {
-        // Fallback a /api/orders
-        const allRes = await fetch('/api/orders');
-        const allOrders = await allRes.json();
-        if (Array.isArray(allOrders)) {
-          const qDigits = q.replace(/\D/g, '');
-          const matches = allOrders.filter(o => {
-            const ordId = String(o.id).toLowerCase();
-            const ordPhone = String(o.phone || o.customerPhone || '').replace(/\D/g, '');
-            return ordId.includes(q.toLowerCase()) || (qDigits.length >= 4 && ordPhone.includes(qDigits));
-          });
-          setTrackedOrders(matches);
-        } else {
-          setTrackedOrders([]);
-        }
+        setTrackedOrders([]);
       }
     } catch (err) {
       console.error('Error buscando tracking:', err);
@@ -411,88 +471,151 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
     }
   };
 
-  // Filtrar productos
-  const filteredProducts = products.filter(p => {
-    const matchesCat = selectedCategory === 'all' || 
-      (selectedCategory === 'combos' && /combo|asadazo/i.test(p.name + p.category)) ||
-      (selectedCategory === 'parrilla' && /parrilla|vacuno|novillito|vacio|costillar|tapa|entraña|bife/i.test(p.name + p.category)) ||
-      (selectedCategory === 'cerdo' && /cerdo|bondiola|matambrito|pechito/i.test(p.name + p.category)) ||
-      (selectedCategory === 'achuras' && /achura|chorizo|morcilla|chinchulin|molleja/i.test(p.name + p.category)) ||
-      (selectedCategory === 'elaborados' && /milanesa|elaborado|picada|hamburguesa/i.test(p.name + p.category)) ||
-      (selectedCategory === 'almacen' && /carbon|carbón|vino|bebida|almacen/i.test(p.name + p.category));
+  // Filtrado de productos del catálogo
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchesCat = selectedCategory === 'all' || 
+        (selectedCategory === 'combos' && /combo|oferta|promo|asadazo/i.test(p.name + (p.category || ''))) ||
+        (selectedCategory === 'parrilla' && /parrilla|vacuno|novillito|vacio|costillar|tapa|entraña|bife|matambre/i.test(p.name + (p.category || ''))) ||
+        (selectedCategory === 'cerdo' && /cerdo|bondiola|matambrito|pechito|solomillo/i.test(p.name + (p.category || ''))) ||
+        (selectedCategory === 'achuras' && /achura|chorizo|morcilla|chinchulin|molleja|rinon|chori/i.test(p.name + (p.category || ''))) ||
+        (selectedCategory === 'elaborados' && /milanesa|elaborado|picada|hamburguesa|preparado/i.test(p.name + (p.category || ''))) ||
+        (selectedCategory === 'almacen' && /carbon|carbón|vino|bebida|almacen|sal|especia/i.test(p.name + (p.category || ''))) ||
+        (p.category && p.category.toLowerCase() === selectedCategory.toLowerCase());
 
-    const matchesSearch = !searchTerm || 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.category && p.category.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesSearch = !searchTerm || 
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.category && p.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    return matchesCat && matchesSearch;
-  });
+      return matchesCat && matchesSearch;
+    });
+  }, [products, selectedCategory, searchTerm]);
+
+  // Estilos y Blur dinámico
+  const blurClass = storeConfig.glassBlurLevel === '2xl' 
+    ? 'backdrop-blur-2xl' 
+    : storeConfig.glassBlurLevel === 'lg' 
+    ? 'backdrop-blur-lg' 
+    : storeConfig.glassBlurLevel === 'md' 
+    ? 'backdrop-blur-md' 
+    : 'backdrop-blur-xl';
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col selection:bg-red-500 selection:text-white">
-      
-      {/* Header Superior (100% experiencia cliente) */}
-      <header className="sticky top-0 z-40 bg-gray-900/90 backdrop-blur-xl border-b border-gray-800 shadow-2xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <div 
+      className="min-h-screen bg-[#070b0e] text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950 relative overflow-x-hidden font-sans"
+      style={{ fontFamily: storeConfig.fontFamily || 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}
+    >
+      {/* Background Apple Glass Mesh Orbs */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div 
+          className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[140px] opacity-20 transition-all duration-1000"
+          style={{ backgroundColor: storeConfig.primaryColor || '#10b981' }}
+        />
+        <div 
+          className="absolute top-1/3 -right-40 w-[550px] h-[550px] rounded-full blur-[160px] opacity-15 transition-all duration-1000"
+          style={{ backgroundColor: storeConfig.accentColor || '#38bdf8' }}
+        />
+        <div 
+          className="absolute -bottom-40 left-1/4 w-[700px] h-[700px] rounded-full blur-[180px] opacity-10"
+          style={{ backgroundColor: storeConfig.primaryColor || '#10b981' }}
+        />
+      </div>
+
+      {/* 1. Ticker / Announcement Bar */}
+      {storeConfig.announcementBarEnabled !== false && (
+        <aside 
+          aria-label="Anuncios y Promociones"
+          className="relative z-50 py-2 px-4 text-xs font-semibold text-center border-b border-white/10 flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-emerald-950/80 backdrop-blur-md"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+          <span className="text-slate-200 tracking-wide">
+            {storeConfig.announcementBarText || '🥩 ¡Envíos gratis en compras superiores a $45.000 en Córdoba! Despacho asegurado en 24hs.'}
+          </span>
+        </aside>
+      )}
+
+      {/* 2. Apple Glass Floating Header */}
+      <header className={`sticky top-0 z-40 bg-slate-950/70 ${blurClass} border-b border-white/10 shadow-2xl transition-all`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
           
           {/* Logo & Marca */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-700 via-red-600 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-red-900/40">
-                <Flame className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-base font-black tracking-tight text-white leading-none flex items-center gap-1.5">
-                  República de la Carne
-                  <span className="text-[10px] px-1.5 py-0.5 bg-red-500/20 text-red-400 font-bold rounded border border-red-500/30">
-                    TIENDA
-                  </span>
+            <div 
+              className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-lg border border-white/20 transition-transform hover:scale-105 active:scale-95"
+              style={{
+                background: `linear-gradient(135deg, ${storeConfig.primaryColor || '#10b981'}, ${storeConfig.accentColor || '#38bdf8'})`
+              }}
+            >
+              <Flame className="w-6 h-6 text-slate-950 fill-current" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-black tracking-tight text-white leading-none">
+                  {storeConfig.storeName || 'República de la Carne'}
                 </h1>
-                <p className="text-[11px] text-gray-400 font-medium">La calidad nos hace diferentes • Córdoba</p>
+                <span 
+                  className="text-[10px] px-2 py-0.5 rounded-full font-bold border tracking-wider uppercase"
+                  style={{
+                    backgroundColor: `${storeConfig.primaryColor || '#10b981'}20`,
+                    borderColor: `${storeConfig.primaryColor || '#10b981'}40`,
+                    color: storeConfig.primaryColor || '#10b981'
+                  }}
+                >
+                  Apple Glass
+                </span>
               </div>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                {storeConfig.tagline || 'Carnicería Boutique & Asados Gourmet • Córdoba'}
+              </p>
             </div>
           </div>
 
-          {/* Navegación Pestañas & Carrito */}
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex bg-gray-950/80 p-1 rounded-xl border border-gray-800 text-xs font-semibold">
+          {/* Navegación Desktop & Carrito */}
+          <div className="flex items-center gap-3">
+            <nav aria-label="Navegación principal de la tienda" className="hidden sm:flex bg-white/[0.04] p-1 rounded-2xl border border-white/10 text-xs font-semibold backdrop-blur-xl">
               <button
                 onClick={() => setActiveTab('catalog')}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   activeTab === 'catalog'
-                    ? 'bg-red-600 text-white shadow'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-white/15 text-white shadow-lg border border-white/20 font-bold'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                🥩 Catálogo & Ofertas
+                <span>🥩</span>
+                <span>Catálogo</span>
               </button>
               <button
                 onClick={() => {
                   setActiveTab('tracking');
                   if (trackingPhone) fetchTrackedOrders(trackingPhone);
                 }}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                   activeTab === 'tracking'
-                    ? 'bg-red-600 text-white shadow'
-                    : 'text-gray-400 hover:text-gray-200'
+                    ? 'bg-white/15 text-white shadow-lg border border-white/20 font-bold'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                📦 Mis Pedidos
+                <Package size={13} />
+                <span>Mis Pedidos</span>
               </button>
-            </div>
+            </nav>
 
-            {/* Botón Carrito Flotante / Header */}
+            {/* Botón Carrito Apple Glass */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative px-3.5 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-red-900/30 transition-all active:scale-95"
+              className="relative px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-2xl transition-all duration-200 active:scale-95 border border-white/20 text-slate-950 group"
+              style={{
+                background: `linear-gradient(135deg, ${storeConfig.primaryColor || '#10b981'}, ${storeConfig.accentColor || '#38bdf8'})`
+              }}
             >
-              <ShoppingBag className="w-4 h-4" />
-              <span className="hidden sm:inline">Ver Pedido</span>
-              <span className="bg-white text-red-700 px-1.5 py-0.2 rounded-full font-black text-[11px]">
+              <ShoppingBag className="w-4 h-4 text-slate-950 transition-transform group-hover:scale-110" />
+              <span className="hidden sm:inline font-extrabold">Mi Carrito</span>
+              <span className="bg-slate-950 text-white px-2 py-0.5 rounded-full font-black text-[11px] shadow-sm">
                 {totalCartItemsCount}
               </span>
               {totalCartAmount > 0 && (
-                <span className="hidden md:inline border-l border-red-400/40 pl-2">
+                <span className="hidden md:inline border-l border-slate-950/30 pl-2 font-black">
                   ${totalCartAmount.toLocaleString('es-AR')}
                 </span>
               )}
@@ -500,17 +623,17 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
           </div>
         </div>
 
-        {/* Barra Móvil de Pestañas */}
-        <div className="sm:hidden flex border-t border-gray-800 bg-gray-950/90 text-xs font-semibold">
+        {/* Mobile Navigation Tabs */}
+        <nav aria-label="Navegación móvil de la tienda" className="sm:hidden flex border-t border-white/10 bg-slate-950/80 text-xs font-semibold">
           <button
             onClick={() => setActiveTab('catalog')}
             className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
               activeTab === 'catalog'
-                ? 'border-red-500 text-red-400 bg-red-500/10'
-                : 'border-transparent text-gray-400'
+                ? 'border-emerald-400 text-emerald-300 bg-white/[0.04] font-bold'
+                : 'border-transparent text-slate-400'
             }`}
           >
-            🥩 Catálogo
+            🥩 Catálogo & Cortes
           </button>
           <button
             onClick={() => {
@@ -519,74 +642,99 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
             }}
             className={`flex-1 py-2.5 text-center border-b-2 transition-all ${
               activeTab === 'tracking'
-                ? 'border-red-500 text-red-400 bg-red-500/10'
-                : 'border-transparent text-gray-400'
+                ? 'border-emerald-400 text-emerald-300 bg-white/[0.04] font-bold'
+                : 'border-transparent text-slate-400'
             }`}
           >
-            📦 Seguir Pedido
+            📦 Rastrear Pedido
           </button>
-        </div>
+        </nav>
       </header>
 
-      {/* Contenido Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* 3. Main Content Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10">
         
         {activeTab === 'catalog' ? (
-          <div>
+          <div className="space-y-6">
             
-            {/* Hero / Promoción Destacada */}
-            <div className="mb-8 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-red-950/80 via-gray-900 to-gray-900 border border-red-900/40 shadow-2xl relative overflow-hidden">
-              <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-red-600/10 to-transparent pointer-events-none" />
-              
-              <div className="max-w-2xl relative z-10">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-500/20 text-red-300 rounded-full text-xs font-bold border border-red-500/30 mb-3">
+            {/* Hero / Glassmorphic Banner */}
+            <div className="p-6 sm:p-10 rounded-3xl bg-gradient-to-br from-white/[0.07] via-white/[0.02] to-transparent border border-white/15 shadow-2xl relative overflow-hidden backdrop-blur-2xl">
+              {/* Radial Accent Glow */}
+              <div 
+                className="absolute -right-20 -top-20 w-80 h-80 rounded-full blur-3xl opacity-30 pointer-events-none"
+                style={{ backgroundColor: storeConfig.primaryColor || '#10b981' }}
+              />
+
+              <div className="max-w-3xl relative z-10 space-y-4">
+                <div 
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-md"
+                  style={{
+                    backgroundColor: `${storeConfig.primaryColor || '#10b981'}20`,
+                    borderColor: `${storeConfig.primaryColor || '#10b981'}40`,
+                    color: storeConfig.primaryColor || '#10b981'
+                  }}
+                >
                   <Sparkles className="w-3.5 h-3.5" />
-                  Cortes Seleccionados Novillito & Cerdo Pesado
+                  <span>{storeConfig.heroBadge || '🔥 Envíos en el día en Córdoba Capital'}</span>
                 </div>
-                <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight mb-2">
-                  Los mejores cortes y asados de Córdoba directo a tu mesa
+
+                <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight">
+                  {storeConfig.heroTitle || 'La Mejor Carne Argentina Directo a Tu Mesa'}
                 </h2>
-                <p className="text-sm text-gray-300 mb-4 leading-relaxed">
-                  Elegí por <strong>Kilos</strong> o fraccioná por <strong>Unidades</strong> (chorizos, costeletas, milanesas). Tu pedido se coordina al instante con Carlos por WhatsApp.
+                
+                <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl">
+                  {storeConfig.heroSubtitle || 'Novillito pesado premium, cerdo seleccionado y achuras frescas. Elegí por kilos o unidades con entrega asegurada en Córdoba.'}
                 </p>
 
-                <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-400">
-                  <span className="flex items-center gap-1.5 text-emerald-400">
-                    <Truck className="w-4 h-4" /> Envíos en el día
-                  </span>
-                  <span className="flex items-center gap-1.5 text-red-400">
-                    <Store className="w-4 h-4" /> 6 Sucursales de retiro
-                  </span>
-                  <span className="flex items-center gap-1.5 text-amber-400">
-                    <CreditCard className="w-4 h-4" /> Efectivo, Transferencia o MP
-                  </span>
+                {/* Badges de Beneficios Apple Glass */}
+                <div className="flex flex-wrap items-center gap-3 pt-2 text-xs font-semibold text-slate-300">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md">
+                    <Truck className="w-4 h-4 text-emerald-400" />
+                    <span>Envíos en el día</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md">
+                    <Store className="w-4 h-4 text-sky-400" />
+                    <span>6 Sucursales en Córdoba</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md">
+                    <CreditCard className="w-4 h-4 text-purple-400" />
+                    <span>Mercado Pago, Efectivo & Transferencia</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Buscador & Categorías */}
-            <div className="mb-6 space-y-4">
+            {/* Search Bar & Category Pills */}
+            <div className="space-y-4">
               <div className="relative max-w-xl">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar cortes, asado, tapa de cuadril, chorizos, promos..."
-                  className="w-full bg-gray-900/90 border border-gray-800 rounded-2xl pl-10 pr-4 py-3 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all"
+                  placeholder="Buscar corte (ej: Vacío, Asado, Tapa de Cuadril, Chorizos)..."
+                  className="w-full bg-slate-900/60 border border-white/15 rounded-2xl pl-11 pr-4 py-3 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 backdrop-blur-xl transition-all shadow-lg"
                 />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-lg"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
               </div>
 
-              {/* Categorías en Carrusel Horizontal */}
+              {/* Categorías iOS Pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
-                {CATEGORIES.map(cat => (
+                {DEFAULT_CATEGORIES.map(cat => (
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    className={`px-4 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border ${
                       selectedCategory === cat.id
-                        ? 'bg-red-600 text-white shadow-lg shadow-red-950/50 scale-105'
-                        : 'bg-gray-900/80 border border-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-850'
+                        ? 'bg-white/20 text-white border-white/40 shadow-xl shadow-black/40 scale-105'
+                        : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.08]'
                     }`}
                   >
                     <span>{cat.icon}</span>
@@ -596,33 +744,34 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
               </div>
             </div>
 
-            {/* Grid de Productos */}
+            {/* Product Grid */}
             {isLoading ? (
-              <div className="py-20 flex flex-col items-center justify-center text-gray-500">
-                <RefreshCw className="w-8 h-8 animate-spin text-red-500 mb-3" />
+              <div className="py-24 flex flex-col items-center justify-center text-slate-400">
+                <RefreshCw className="w-8 h-8 animate-spin text-emerald-400 mb-3" />
                 <p className="text-sm font-medium">Cargando cortes frescos...</p>
               </div>
             ) : filteredProducts.length === 0 ? (
-              <div className="py-16 text-center border border-dashed border-gray-800 rounded-3xl p-8 bg-gray-900/40">
-                <Flame className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-gray-300 mb-1">No se encontraron productos</h3>
-                <p className="text-xs text-gray-500 max-w-sm mx-auto mb-4">
+              <div className="py-20 text-center border border-dashed border-white/15 rounded-3xl p-8 bg-white/[0.02] backdrop-blur-xl">
+                <Flame className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-white mb-1">No se encontraron productos</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
                   Probá buscando con otro término o seleccionando otra categoría.
                 </p>
                 <button
                   onClick={() => { setSearchTerm(''); setSelectedCategory('all'); }}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-semibold rounded-xl"
+                  className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-xs font-semibold rounded-xl border border-white/15 transition"
                 >
-                  Ver todos los productos
+                  Ver todos los cortes
                 </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                 {filteredProducts.map(product => (
-                  <ProductCard
+                  <AppleGlassProductCard
                     key={product.id || product.name}
                     product={product}
                     onAddToCart={handleAddToCart}
+                    primaryColor={storeConfig.primaryColor || '#10b981'}
                   />
                 ))}
               </div>
@@ -630,36 +779,38 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 
           </div>
         ) : (
-          /* Pestaña de Seguimiento / Mis Pedidos */
-          <div className="max-w-3xl mx-auto py-4">
-            <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-2xl mb-6">
-              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                <Package className="w-5 h-5 text-red-500" />
-                Rastrear y Consultar Pedidos
-              </h2>
-              <p className="text-xs text-gray-400 mb-6">
-                Ingresá tu <strong>Código de Pedido (ej: #ORD-3218)</strong> o tu <strong>Número de WhatsApp</strong> para ver el estado de preparación y despacho en tiempo real.
-              </p>
+          /* Pestaña: Mis Pedidos & Tracking */
+          <div className="max-w-3xl mx-auto py-4 space-y-6 animate-in fade-in">
+            <div className="bg-slate-900/60 border border-white/15 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl space-y-4">
+              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/30">
+                  <Package size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-extrabold text-white">Rastreo & Estado de Pedidos en Vivo</h2>
+                  <p className="text-xs text-slate-400">Consultá el avance de preparación y despacho de tu pedido en tiempo real</p>
+                </div>
+              </div>
 
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input
                     type="text"
                     value={trackingPhone}
                     onChange={(e) => setTrackingPhone(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') fetchTrackedOrders(trackingPhone); }}
                     placeholder="Código de pedido (#ORD-XXXX) o Celular WhatsApp"
-                    className="w-full bg-gray-950 border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
+                    className="w-full bg-black/40 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
                   />
                 </div>
                 <button
                   onClick={() => fetchTrackedOrders(trackingPhone)}
                   disabled={isSearchingTracking}
-                  className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
                 >
-                  <Search className="w-4 h-4" />
-                  <span>{isSearchingTracking ? 'Buscando...' : 'Consultar'}</span>
+                  <Search className="w-3.5 h-3.5" />
+                  <span>{isSearchingTracking ? 'Consultando...' : 'Rastrear'}</span>
                 </button>
               </div>
 
@@ -669,8 +820,8 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                   const recents = JSON.parse(localStorage.getItem('republica_recent_orders') || '[]');
                   if (recents.length > 0) {
                     return (
-                      <div className="mt-4 pt-3 border-t border-gray-800/80 flex items-center gap-2 flex-wrap text-xs text-gray-400">
-                        <span className="text-[11px] text-gray-500">Tus pedidos recientes:</span>
+                      <div className="pt-2 border-t border-white/10 flex items-center gap-2 flex-wrap text-xs text-slate-400">
+                        <span className="text-[11px] text-slate-500">Tus pedidos recientes:</span>
                         {recents.map(rId => (
                           <button
                             key={rId}
@@ -678,7 +829,7 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                               setTrackingPhone(rId);
                               fetchTrackedOrders(rId);
                             }}
-                            className="px-2.5 py-1 bg-gray-950 hover:bg-gray-800 border border-gray-750 hover:border-red-500/50 text-gray-200 rounded-lg text-[11px] font-semibold transition"
+                            className="px-2.5 py-1 bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-slate-200 rounded-lg text-[11px] font-semibold transition font-mono"
                           >
                             #{rId}
                           </button>
@@ -695,18 +846,18 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
             {trackedOrders.length > 0 ? (
               <div className="space-y-4">
                 {trackedOrders.map(order => (
-                  <OrderTrackingCard 
+                  <AppleGlassOrderTrackingCard 
                     key={order.id} 
                     order={order} 
-                    agentNumber={settings.whatsappNumber || settings.agentPhone || '5493513906947'} 
+                    whatsappNumber={storeConfig.whatsappDirectNumber || '5493516262475'} 
                   />
                 ))}
               </div>
             ) : trackingPhone && !isSearchingTracking ? (
-              <div className="text-center py-12 text-gray-500 bg-gray-900/30 border border-gray-800 rounded-3xl p-6">
-                <Clock className="w-8 h-8 mx-auto mb-2 text-gray-600" />
+              <div className="text-center py-12 text-slate-500 bg-white/[0.02] border border-white/10 rounded-3xl p-6">
+                <Clock className="w-8 h-8 mx-auto mb-2 text-slate-600" />
                 <p className="text-sm">No encontramos pedidos activos asociados a la búsqueda.</p>
-                <p className="text-xs text-gray-600 mt-1">Verificá que el código o celular ingresado sea correcto.</p>
+                <p className="text-xs text-slate-600 mt-1">Verificá que el código o celular ingresado sea correcto.</p>
               </div>
             ) : null}
           </div>
@@ -714,48 +865,71 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 
       </main>
 
-      {/* Modal / Slide-Over del Carrito de Compras */}
+      {/* 4. Slide-Over Cart & Frictionless Checkout Drawer */}
       {isCartOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-md bg-gray-900 border-l border-gray-800 shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-50 overflow-hidden bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="absolute inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10">
+            <div className="w-screen max-w-md bg-slate-950/95 border-l border-white/15 shadow-2xl flex flex-col backdrop-blur-2xl">
               
               {/* Header Carrito */}
-              <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-gray-950/80">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-red-500/10 text-red-400 rounded-xl">
+              <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="p-2.5 rounded-2xl flex items-center justify-center font-bold text-slate-950"
+                    style={{ background: storeConfig.primaryColor || '#10b981' }}
+                  >
                     <ShoppingBag className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Tu Pedido</h3>
-                    <p className="text-xs text-gray-400">{cart.length} productos seleccionados</p>
+                    <h3 className="text-base font-extrabold text-white">Tu Carrito de Compra</h3>
+                    <p className="text-xs text-slate-400">{cart.length} cortes seleccionados</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsCartOpen(false)}
-                  className="p-2 text-gray-400 hover:text-white rounded-xl"
+                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Lista de Ítems */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 divide-y divide-gray-800/60 custom-scrollbar">
+              {/* Barra de Envío Gratis */}
+              <div className="px-6 py-3 bg-white/[0.03] border-b border-white/10 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Truck size={14} className="text-emerald-400" />
+                    <span>Envío Gratis ($45.000)</span>
+                  </span>
+                  <span className="font-bold text-emerald-400">
+                    {missingForFreeShipping === 0 ? '¡Envío Gratis desbloqueado! 🎉' : `Faltan $${missingForFreeShipping.toLocaleString('es-AR')}`}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-500 to-sky-400 rounded-full transition-all duration-500"
+                    style={{ width: `${freeShippingProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 divide-y divide-white/10 custom-scrollbar">
                 {cart.length === 0 ? (
-                  <div className="py-16 text-center text-gray-500">
-                    <ShoppingBag className="w-12 h-12 mx-auto mb-3 text-gray-700" />
-                    <p className="text-sm font-semibold text-gray-400">Tu canasta está vacía</p>
-                    <p className="text-xs text-gray-600 mt-1">Elegí cortes frescos del catálogo para agregarlos.</p>
+                  <div className="py-20 text-center text-slate-500 space-y-3">
+                    <ShoppingBag className="w-12 h-12 mx-auto text-slate-700" />
+                    <p className="text-sm font-semibold text-slate-400">Tu carrito está vacío</p>
+                    <p className="text-xs text-slate-600 max-w-xs mx-auto">
+                      Explorá el catálogo y agregá tus cortes favoritos para armar tu pedido.
+                    </p>
                   </div>
                 ) : (
                   cart.map(item => (
                     <div key={item.cartItemId} className="pt-3 first:pt-0 flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-white truncate">{item.name}</h4>
+                        <h4 className="text-xs sm:text-sm font-bold text-white truncate">{item.name}</h4>
                         
-                        {/* CONDICIONAL OBLIGATORIO: Mostrar Unidades y NO kilos si fue fraccionado por unidades */}
-                        <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
-                          <span className="px-2 py-0.5 bg-gray-800 rounded font-semibold text-red-300">
+                        <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-white/10 rounded-md font-semibold text-emerald-300">
                             {item.isUnitMode && item.unitCount > 0
                               ? `${item.unitCount} Unidades`
                               : `${item.quantity} ${item.unit || 'kg'}`}
@@ -765,11 +939,11 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                       </div>
 
                       {/* Stepper y Subtotal */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center bg-gray-950 border border-gray-800 rounded-lg p-0.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex items-center bg-black/60 border border-white/15 rounded-xl p-0.5">
                           <button
                             onClick={() => handleUpdateCartItemQty(item.cartItemId, -1)}
-                            className="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800"
+                            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
@@ -778,22 +952,22 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                           </span>
                           <button
                             onClick={() => handleUpdateCartItemQty(item.cartItemId, 1)}
-                            className="p-1 text-gray-400 hover:text-white rounded hover:bg-gray-800"
+                            className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
                         </div>
 
                         <div className="text-right min-w-[70px]">
-                          <div className="text-sm font-bold text-white">
+                          <div className="text-xs sm:text-sm font-extrabold text-emerald-400">
                             ${item.subtotal.toLocaleString('es-AR')}
                           </div>
                         </div>
 
                         <button
                           onClick={() => handleRemoveCartItem(item.cartItemId)}
-                          className="text-gray-500 hover:text-red-400 p-1 transition-colors"
-                          title="Eliminar"
+                          className="text-slate-500 hover:text-rose-400 p-1 transition"
+                          title="Quitar"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -803,23 +977,23 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                 )}
               </div>
 
-              {/* Formulario de Entrega & Checkout */}
+              {/* Checkout Form & Final Actions */}
               {cart.length > 0 && (
-                <div className="p-6 border-t border-gray-800 bg-gray-950/90 space-y-4">
+                <div className="p-5 sm:p-6 border-t border-white/15 bg-slate-950 space-y-4 max-h-[55vh] overflow-y-auto custom-scrollbar">
                   
-                  {/* Tipo de Entrega */}
+                  {/* Modalidad de Entrega */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wider">
+                    <label className="block text-[10px] font-extrabold text-slate-400 mb-1.5 uppercase tracking-wider">
                       Modalidad de Entrega
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setDeliveryType('delivery')}
-                        className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
                           deliveryType === 'delivery'
-                            ? 'bg-red-600 text-white border-red-500 shadow'
-                            : 'bg-gray-900 border-gray-800 text-gray-400 hover:bg-gray-850'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md'
+                            : 'bg-white/[0.04] border-white/10 text-slate-400 hover:bg-white/[0.08]'
                         }`}
                       >
                         <Truck className="w-4 h-4" />
@@ -828,10 +1002,10 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                       <button
                         type="button"
                         onClick={() => setDeliveryType('pickup')}
-                        className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
                           deliveryType === 'pickup'
-                            ? 'bg-red-600 text-white border-red-500 shadow'
-                            : 'bg-gray-900 border-gray-800 text-gray-400 hover:bg-gray-850'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md'
+                            : 'bg-white/[0.04] border-white/10 text-slate-400 hover:bg-white/[0.08]'
                         }`}
                       >
                         <Store className="w-4 h-4" />
@@ -840,31 +1014,31 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                     </div>
                   </div>
 
-                  {/* Sucursal o Dirección según entrega */}
+                  {/* Sucursal o Dirección */}
                   {deliveryType === 'pickup' ? (
                     <div>
                       <SearchableCombobox
-                        label="Sucursal de Retiro"
+                        label="Sucursal de Retiro en Córdoba"
                         options={branches.map(b => ({ id: b.id, label: b.name, subtitle: b.address }))}
                         value={selectedBranchId}
                         onChange={(val) => setSelectedBranchId(val)}
-                        placeholder="Elegí la sucursal..."
+                        placeholder="Seleccionar sucursal..."
                         icon={Store}
                       />
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+                      <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
                         Dirección de Entrega en Córdoba
                       </label>
                       <div className="relative">
-                        <MapPin className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
+                        <MapPin className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
                         <input
                           type="text"
                           value={customerAddress}
                           onChange={(e) => setCustomerAddress(e.target.value)}
                           placeholder="Calle, Número, Barrio (ej: Av. Funes 1115, Urca)"
-                          className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-9 pr-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
                         />
                       </div>
                     </div>
@@ -873,7 +1047,7 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                   {/* Datos del Cliente */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+                      <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
                         Tu Nombre
                       </label>
                       <input
@@ -881,11 +1055,11 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
                         placeholder="Ej: Juan Pérez"
-                        className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
+                        className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
+                      <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
                         WhatsApp (Celular)
                       </label>
                       <input
@@ -893,24 +1067,24 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
                         placeholder="Ej: 3512345678"
-                        className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-100 placeholder-gray-500 focus:outline-none focus:border-red-500"
+                        className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
                       />
                     </div>
                   </div>
 
-                  {/* Condición Fiscal IVA para Facturación */}
-                  <div className="space-y-1.5 p-3 rounded-2xl bg-gray-900/90 border border-gray-800">
-                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                      Tipo de Comprobante / Facturación
+                  {/* Facturación Fiscal ARCA */}
+                  <div className="p-3 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2">
+                    <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      Comprobante / Factura
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setCustomerFiscalCondition('CF')}
-                        className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        className={`py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                           customerFiscalCondition === 'CF'
-                            ? 'bg-red-500 text-white shadow-md'
-                            : 'bg-gray-950 text-gray-400 border border-gray-800 hover:text-white'
+                            ? 'bg-emerald-500 text-slate-950 font-black'
+                            : 'bg-black/40 text-slate-400 border border-white/10 hover:text-white'
                         }`}
                       >
                         <span>👤 Consumidor Final</span>
@@ -918,10 +1092,10 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                       <button
                         type="button"
                         onClick={() => setCustomerFiscalCondition('RI')}
-                        className={`py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                        className={`py-1.5 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
                           customerFiscalCondition === 'RI'
-                            ? 'bg-red-500 text-white shadow-md'
-                            : 'bg-gray-950 text-gray-400 border border-gray-800 hover:text-white'
+                            ? 'bg-purple-500 text-white font-black'
+                            : 'bg-black/40 text-slate-400 border border-white/10 hover:text-white'
                         }`}
                       >
                         <span>🏢 Factura A (CUIT)</span>
@@ -929,61 +1103,183 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                     </div>
 
                     {customerFiscalCondition === 'RI' && (
-                      <div className="pt-2">
-                        <label className="block text-[10px] text-gray-400 font-semibold mb-1">
-                          CUIT de la Empresa / Razón Social:
-                        </label>
+                      <div className="pt-1">
                         <input
                           type="text"
                           required
                           value={customerCuit}
                           onChange={(e) => setCustomerCuit(e.target.value)}
-                          placeholder="Ej: 30-71234567-8"
-                          className="w-full bg-gray-950 border border-red-500/50 rounded-xl px-3 py-1.5 text-xs text-white font-mono placeholder-gray-600 focus:outline-none focus:border-red-500"
+                          placeholder="CUIT / Razón Social (ej: 30-71234567-8)"
+                          className="w-full bg-slate-900 border border-purple-500/50 rounded-xl px-3 py-1.5 text-xs text-white font-mono placeholder-slate-600 focus:outline-none focus:border-purple-500"
                         />
                       </div>
                     )}
                   </div>
 
-                  {/* Medio de Pago */}
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">
-                      Preferencia de Pago
+                  {/* Métodos de Pago Habilitados */}
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      Método de Pago
                     </label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-xs text-gray-100 focus:outline-none focus:border-red-500"
-                    >
-                      <option value="Efectivo contraentrega">💵 Efectivo (al repartidor o en sucursal)</option>
-                      <option value="Transferencia Bancaria">📲 Transferencia (Alias: republica.carne.mp)</option>
-                      <option value="Mercado Pago">💳 Mercado Pago (Tarjetas / Dinero en cuenta)</option>
-                    </select>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {storeConfig.allowCash !== false && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('Efectivo')}
+                          className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                            paymentMethod === 'Efectivo'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60 shadow-md'
+                              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <DollarSign size={16} />
+                          <span>Efectivo</span>
+                        </button>
+                      )}
+
+                      {storeConfig.allowTransfer !== false && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('Transferencia Bancaria')}
+                          className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                            paymentMethod === 'Transferencia Bancaria'
+                              ? 'bg-purple-500/20 text-purple-300 border-purple-500/60 shadow-md'
+                              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <ArrowRight size={16} />
+                          <span>Transferencia</span>
+                        </button>
+                      )}
+
+                      {storeConfig.allowMercadoPago !== false && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMethod('Mercado Pago')}
+                          className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                            paymentMethod === 'Mercado Pago'
+                              ? 'bg-sky-500/20 text-sky-300 border-sky-500/60 shadow-md'
+                              : 'bg-white/[0.04] border-white/10 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <CreditCard size={16} />
+                          <span>Mercado Pago</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Frictionless Helper: Efectivo & Calculadora de Vuelto */}
+                    {paymentMethod === 'Efectivo' && (
+                      <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2 animate-in fade-in">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-emerald-400 flex items-center gap-1">
+                            <Banknote size={14} />
+                            <span>¿Con cuánto abonás? (Calculadora de Vuelto)</span>
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            placeholder="Ej: 50000"
+                            value={cashBillAmount}
+                            onChange={(e) => setCashBillAmount(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-slate-900 border border-emerald-500/40 rounded-xl text-xs text-white font-bold placeholder-slate-600 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setCashBillAmount(String(totalCartAmount))}
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[11px] font-semibold whitespace-nowrap"
+                          >
+                            Monto Exacto
+                          </button>
+                        </div>
+
+                        {/* Chips rápidos de billetes comunes */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {[20000, 30000, 40000, 50000, 100000].filter(v => v >= totalCartAmount).map(chip => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => setCashBillAmount(String(chip))}
+                              className="px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] font-bold border border-emerald-500/30"
+                            >
+                              ${chip.toLocaleString('es-AR')}
+                            </button>
+                          ))}
+                        </div>
+
+                        {calculatedChange !== null && calculatedChange > 0 && (
+                          <div className="text-[11px] font-bold text-emerald-300 pt-1">
+                            💵 Tu vuelto estimado será: <b>${calculatedChange.toLocaleString('es-AR')}</b>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Frictionless Helper: Transferencia Bancaria con 1-Click Copy */}
+                    {paymentMethod === 'Transferencia Bancaria' && (
+                      <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 space-y-2 animate-in fade-in">
+                        <div className="text-xs text-purple-300">
+                          Transferí directamente al Alias oficial:
+                        </div>
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900 border border-purple-500/30">
+                          <span className="font-mono font-bold text-xs text-purple-200">
+                            {storeConfig.transferAlias || 'republica.carne.mp'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleCopyAlias}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-[11px] font-bold transition"
+                          >
+                            {copiedAlias ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            <span>{copiedAlias ? '¡Copiado!' : 'Copiar'}</span>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-400">
+                          Al finalizar, adjuntá el comprobante en el chat de WhatsApp que se abrirá automáticamente.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Frictionless Helper: Mercado Pago */}
+                    {paymentMethod === 'Mercado Pago' && (
+                      <div className="p-3 rounded-2xl bg-sky-500/10 border border-sky-500/20 space-y-1.5 animate-in fade-in">
+                        <div className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                          <CreditCard size={14} />
+                          <span>Checkout Pro de Mercado Pago</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300">
+                          Pagá con Tarjeta de Débito, Crédito o Dinero en Cuenta con acreditación instantánea y protección al comprador.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Total y Botón de Envío a WhatsApp */}
-                  <div className="pt-2 space-y-2">
-                    <div className="flex items-center justify-between text-base font-black text-white">
+                  {/* Total & Action Button */}
+                  <div className="pt-3 space-y-2.5 border-t border-white/10">
+                    <div className="flex items-center justify-between text-base font-extrabold text-white">
                       <span>Total Estimado:</span>
-                      <span className="text-xl text-red-400">${totalCartAmount.toLocaleString('es-AR')}</span>
+                      <span className="text-xl text-emerald-400 font-black">${totalCartAmount.toLocaleString('es-AR')}</span>
                     </div>
 
                     <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2 leading-tight">
-                      <span className="text-sm">⚖️</span>
-                      <span><strong>Nota de pesaje:</strong> Los precios de los cortes son por kilo. El valor final se ajustará según el pesaje exacto en balanza al momento del corte.</span>
+                      <Info size={14} className="shrink-0 mt-0.5 text-amber-400" />
+                      <span><strong>Aviso de balanza:</strong> Los precios de los cortes son por kilo. El valor final se confirmará al pesaje exacto al preparar el pedido.</span>
                     </div>
 
                     <button
-                      onClick={handleCheckoutWhatsApp}
+                      onClick={handleCheckout}
                       disabled={isSubmittingOrder}
-                      className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-2xl text-sm font-black flex items-center justify-center gap-2 shadow-xl shadow-green-950/40 active:scale-98 transition-all disabled:opacity-50"
+                      className="w-full py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 shadow-2xl active:scale-98 transition-all disabled:opacity-50 text-slate-950"
+                      style={{
+                        background: `linear-gradient(135deg, ${storeConfig.primaryColor || '#10b981'}, ${storeConfig.accentColor || '#38bdf8'})`
+                      }}
                     >
-                      <MessageCircle className="w-5 h-5 fill-white" />
-                      <span>{isSubmittingOrder ? 'Procesando pedido...' : 'Finalizar Pedido por WhatsApp'}</span>
+                      <MessageCircle className="w-5 h-5 fill-current" />
+                      <span>{isSubmittingOrder ? 'Generando Pedido...' : 'Confirmar Pedido'}</span>
                     </button>
-                    <p className="text-[11px] text-gray-500 text-center">
-                      Al presionar, se abrirá WhatsApp con el detalle de tu pedido listo para enviar a Carlos.
-                    </p>
                   </div>
 
                 </div>
@@ -994,21 +1290,23 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="border-t border-gray-900 bg-gray-950 py-6 text-center text-xs text-gray-600">
-        <p>© 2026 República de la Carne. Todos los derechos reservados.</p>
-        <p className="mt-1">Carnicería Boutique y Asados Gourmet • Córdoba, Argentina</p>
-        {onBackToAdmin && (
-          <div className="mt-3">
-            <button
-              onClick={onBackToAdmin}
-              className="inline-flex items-center gap-1.5 text-[11px] text-gray-700 hover:text-gray-400 transition-colors py-1 px-2.5 rounded-lg border border-transparent hover:border-gray-800"
-              title="Panel Administrativo"
-            >
-              <span>🔒 Acceso CRM / Panel Operador</span>
-            </button>
-          </div>
-        )}
+      {/* 5. Footer */}
+      <footer className="border-t border-white/10 bg-slate-950/80 backdrop-blur-2xl py-8 text-center text-xs text-slate-400 relative z-10 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 space-y-2">
+          <p className="font-bold text-slate-300">© 2026 {storeConfig.storeName || 'República de la Carne'}. Todos los derechos reservados.</p>
+          <p className="text-[11px] text-slate-400">Carnicería Boutique & Asados Gourmet • Córdoba, Argentina</p>
+          
+          {onBackToAdmin && (
+            <div className="pt-2">
+              <button
+                onClick={onBackToAdmin}
+                className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 transition py-1 px-3 rounded-xl border border-transparent hover:border-white/10 bg-white/[0.02]"
+              >
+                <span>🔒 Acceso Operador CRM</span>
+              </button>
+            </div>
+          )}
+        </div>
       </footer>
 
     </div>
@@ -1016,14 +1314,14 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 }
 
 /**
- * Tarjeta individual de Producto con selector de Kilos vs Unidades
+ * Tarjeta individual de Producto con Estilo Apple Glass
  */
-function ProductCard({ product, onAddToCart }) {
+function AppleGlassProductCard({ product, onAddToCart, primaryColor = '#10b981' }) {
   const isKgProduct = !product.unit || product.unit === 'kg';
   const isFractionable = isProductFractionable(product.name, product.category);
-  const unitsPerKg = getUnitsPerKg(product.name);
+  const unitsPerKg = product.unitsPerKg || getUnitsPerKg(product.name);
 
-  // Modo de selección: 'kg' (peso) o 'units' (unidades / piezas)
+  // Modo: 'kg' (peso) o 'units' (piezas)
   const [mode, setMode] = useState(isKgProduct ? (isFractionable ? 'units' : 'kg') : 'units');
   const [amount, setAmount] = useState(() => {
     if (!isKgProduct) return 1;
@@ -1056,10 +1354,10 @@ function ProductCard({ product, onAddToCart }) {
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden flex flex-col justify-between hover:border-gray-700 transition-all group shadow-xl hover:shadow-2xl hover:shadow-black/60">
+    <div className="bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 hover:border-white/25 rounded-3xl overflow-hidden flex flex-col justify-between transition-all duration-300 group shadow-xl hover:shadow-2xl hover:-translate-y-1 backdrop-blur-xl">
       
-      {/* Imagen & Badges */}
-      <div className="aspect-[4/3] bg-gray-950 relative overflow-hidden flex items-center justify-center">
+      {/* Image Container with Glass Badges */}
+      <div className="aspect-[4/3] bg-black/40 relative overflow-hidden flex items-center justify-center">
         <img
           src={product.imageUrl || product.image || 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=500&auto=format&fit=crop&q=80'}
           alt={product.name}
@@ -1071,38 +1369,41 @@ function ProductCard({ product, onAddToCart }) {
           }}
         />
 
-        {/* Badge Categoría */}
-        <span className="absolute top-3 left-3 px-2.5 py-1 bg-black/70 backdrop-blur-md rounded-lg text-[10px] font-bold text-gray-300 uppercase tracking-wider border border-white/10">
+        {/* Category Pill */}
+        <span className="absolute top-3 left-3 px-2.5 py-1 bg-black/60 backdrop-blur-md rounded-xl text-[10px] font-bold text-slate-300 uppercase tracking-wider border border-white/10 shadow">
           {product.category || 'Carnicería'}
         </span>
 
         {isKgProduct && (
-          <span className="absolute top-3 right-3 px-2 py-0.5 bg-red-600/90 backdrop-blur-md text-white rounded-md text-[10px] font-black uppercase tracking-wide">
+          <span 
+            className="absolute top-3 right-3 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wide backdrop-blur-md border border-white/15 text-slate-950"
+            style={{ backgroundColor: primaryColor }}
+          >
             {isFractionable ? '⚖️ Peso o Unid.' : '⚖️ Por Kilo'}
           </span>
         )}
       </div>
 
-      {/* Datos del Producto */}
-      <div className="p-4 flex-1 flex flex-col justify-between">
+      {/* Product Body */}
+      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
         <div>
-          <h3 className="text-sm font-bold text-white leading-snug line-clamp-2 mb-1 group-hover:text-red-400 transition-colors">
+          <h3 className="text-sm font-extrabold text-white leading-snug line-clamp-2 mb-1 group-hover:text-emerald-400 transition-colors">
             {product.name}
           </h3>
-          <div className="text-base font-black text-red-400 mb-2">
+          <div className="text-base font-black text-emerald-400">
             ${unitPrice.toLocaleString('es-AR')}
-            <span className="text-xs text-gray-400 font-normal"> / {product.unit || 'kg'}</span>
+            <span className="text-xs text-slate-400 font-normal"> / {product.unit || 'kg'}</span>
           </div>
         </div>
 
-        {/* Selector de Modalidad (Por Peso vs Por Unidades) */}
+        {/* Mode Selector (Kg vs Units) */}
         {isKgProduct && (
-          <div className="mb-2.5 bg-gray-950 p-1 rounded-xl border border-gray-800 flex text-[11px] font-bold">
+          <div className="bg-black/50 p-1 rounded-xl border border-white/10 flex text-[11px] font-bold">
             <button
               type="button"
               onClick={() => { setMode('kg'); setAmount(1); }}
-              className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                mode === 'kg' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'
+              className={`flex-1 py-1 rounded-lg transition flex items-center justify-center gap-1 ${
+                mode === 'kg' ? 'bg-white/20 text-white shadow-sm font-extrabold' : 'text-slate-400 hover:text-white'
               }`}
             >
               <span>⚖️</span>
@@ -1111,8 +1412,8 @@ function ProductCard({ product, onAddToCart }) {
             <button
               type="button"
               onClick={() => { setMode('units'); setAmount(isFractionable ? 4 : 2); }}
-              className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                mode === 'units' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'
+              className={`flex-1 py-1 rounded-lg transition flex items-center justify-center gap-1 ${
+                mode === 'units' ? 'bg-white/20 text-white shadow-sm font-extrabold' : 'text-slate-400 hover:text-white'
               }`}
             >
               <span>🥩</span>
@@ -1121,8 +1422,8 @@ function ProductCard({ product, onAddToCart }) {
           </div>
         )}
 
-        {/* Chips de Selección Rápida */}
-        <div className="mb-2.5 flex items-center gap-1.5 justify-center flex-wrap">
+        {/* Quick Select Chips */}
+        <div className="flex items-center gap-1.5 justify-center flex-wrap">
           {isKgProduct && mode === 'kg' ? (
             <>
               {[0.5, 1, 1.5, 2, 3].map(w => (
@@ -1130,10 +1431,10 @@ function ProductCard({ product, onAddToCart }) {
                   key={w}
                   type="button"
                   onClick={() => setAmount(w)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border ${
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
                     amount === w
-                      ? 'bg-red-500/20 border-red-500 text-red-300'
-                      : 'bg-gray-950/80 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
                   }`}
                 >
                   {w === 0.5 ? '500g' : `${w} kg`}
@@ -1147,10 +1448,10 @@ function ProductCard({ product, onAddToCart }) {
                   key={u}
                   type="button"
                   onClick={() => setAmount(u)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border ${
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
                     amount === u
-                      ? 'bg-red-500/20 border-red-500 text-red-300'
-                      : 'bg-gray-950/80 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
                   }`}
                 >
                   {u} un
@@ -1164,10 +1465,10 @@ function ProductCard({ product, onAddToCart }) {
                   key={u}
                   type="button"
                   onClick={() => setAmount(u)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all border ${
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
                     amount === u
-                      ? 'bg-red-500/20 border-red-500 text-red-300'
-                      : 'bg-gray-950/80 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200'
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
                   }`}
                 >
                   {u} {product.unit || 'un'}
@@ -1177,14 +1478,13 @@ function ProductCard({ product, onAddToCart }) {
           )}
         </div>
 
-        {/* Controles de Cantidad Fina y Botón de Agregar */}
+        {/* Stepper & Add to Cart Button */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between bg-gray-950 border border-gray-800 rounded-xl p-1">
+          <div className="flex items-center justify-between bg-black/50 border border-white/10 rounded-xl p-1">
             <button
               type="button"
               onClick={handleDecrement}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-              title="Disminuir"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
             >
               <Minus className="w-3.5 h-3.5" />
             </button>
@@ -1192,10 +1492,10 @@ function ProductCard({ product, onAddToCart }) {
             <div className="text-center font-bold text-xs">
               <span className="text-white">
                 {isKgProduct
-                  ? (mode === 'units' ? `${amount} unidades (~${calculatedKg.toFixed(2)} kg)` : `${amount} kg`)
-                  : `${amount} ${product.unit || 'unidad'}`}
+                  ? (mode === 'units' ? `${amount} un (~${calculatedKg.toFixed(2)} kg)` : `${amount} kg`)
+                  : `${amount} ${product.unit || 'un'}`}
               </span>
-              <span className="text-[10px] text-red-400 font-black block">
+              <span className="text-[10px] text-emerald-400 font-extrabold block">
                 Total: ${calculatedSubtotal.toLocaleString('es-AR')}
               </span>
             </div>
@@ -1203,8 +1503,7 @@ function ProductCard({ product, onAddToCart }) {
             <button
               type="button"
               onClick={handleIncrement}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-              title="Aumentar"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -1213,10 +1512,10 @@ function ProductCard({ product, onAddToCart }) {
           <button
             type="button"
             onClick={() => onAddToCart(product, mode, amount)}
-            className="w-full py-2 bg-red-600 hover:bg-red-500 active:scale-98 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-red-950/50"
+            className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition shadow-lg shadow-emerald-500/20"
           >
             <ShoppingBag className="w-3.5 h-3.5" />
-            <span>Agregar al Pedido</span>
+            <span>Agregar al Carrito</span>
           </button>
         </div>
 
@@ -1227,23 +1526,23 @@ function ProductCard({ product, onAddToCart }) {
 }
 
 /**
- * Tarjeta de Seguimiento de Pedido (Tracking)
+ * Tarjeta de Seguimiento de Pedido (Tracking) Apple Glass
  */
-function OrderTrackingCard({ order, agentNumber }) {
+function AppleGlassOrderTrackingCard({ order, whatsappNumber = '5493516262475' }) {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'delivered':
-        return { label: '✅ Entregado con éxito', bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
+        return { label: '✅ Entregado con éxito', bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' };
       case 'in_transit':
-        return { label: '🛵 En camino a tu domicilio', bg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' };
+        return { label: '🛵 En camino a tu domicilio', bg: 'bg-sky-500/20 text-sky-300 border-sky-500/40' };
       case 'ready_for_pickup':
-        return { label: '🏪 Listo para retirar', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
+        return { label: '🏪 Listo para retirar', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/40' };
       case 'preparing':
-        return { label: '🥩 En preparación en carnicería', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30' };
+        return { label: '🥩 En preparación en carnicería', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40' };
       case 'cancelled':
-        return { label: '❌ Cancelado', bg: 'bg-red-500/20 text-red-300 border-red-500/30' };
+        return { label: '❌ Cancelado', bg: 'bg-rose-500/20 text-rose-300 border-rose-500/40' };
       default:
-        return { label: '⏳ Pendiente de confirmación', bg: 'bg-blue-500/20 text-blue-300 border-blue-500/30' };
+        return { label: '⏳ Pedido Recibido', bg: 'bg-blue-500/20 text-blue-300 border-blue-500/40' };
     }
   };
 
@@ -1251,11 +1550,11 @@ function OrderTrackingCard({ order, agentNumber }) {
   const items = Array.isArray(order.items) ? order.items : [];
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 pb-3">
+    <div className="bg-slate-900/70 border border-white/15 rounded-3xl p-6 shadow-2xl backdrop-blur-2xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
         <div>
-          <span className="text-xs font-bold text-gray-500 uppercase">Orden #{order.id}</span>
-          <h4 className="text-base font-bold text-white">{order.customerName || 'Cliente'}</h4>
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono">Orden #{order.id}</span>
+          <h4 className="text-base font-extrabold text-white">{order.customerName || 'Cliente'}</h4>
         </div>
         <div className={`px-3 py-1 rounded-full text-xs font-bold border ${badge.bg}`}>
           {badge.label}
@@ -1263,35 +1562,35 @@ function OrderTrackingCard({ order, agentNumber }) {
       </div>
 
       {/* Detalle */}
-      <div className="space-y-1.5 text-xs text-gray-300 bg-gray-950 p-3.5 rounded-2xl border border-gray-850">
-        <div className="font-semibold text-gray-400 mb-1">Cortes del pedido:</div>
+      <div className="space-y-1.5 text-xs text-slate-300 bg-black/40 p-3.5 rounded-2xl border border-white/10">
+        <div className="font-semibold text-slate-400 mb-1">Cortes del pedido:</div>
         {items.map((it, idx) => (
-          <div key={idx} className="font-medium text-gray-200">
+          <div key={idx} className="font-medium text-slate-200">
             {typeof it === 'string' ? it : `• ${it.quantity || it.amount} ${it.unit || 'kg'} ${it.name} — $${Number(it.subtotal || it.price).toLocaleString('es-AR')}`}
           </div>
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 pt-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 pt-1">
         <div>
           <span>Destino: </span>
-          <strong className="text-gray-200">{order.address || order.branch || 'Córdoba'}</strong>
+          <strong className="text-slate-200">{order.address || order.branch || 'Córdoba'}</strong>
         </div>
-        <div className="text-base font-black text-red-400">
+        <div className="text-base font-black text-emerald-400">
           Total: ${Number(order.totalAmount || 0).toLocaleString('es-AR')}
         </div>
       </div>
 
-      {/* Botón Consultar a Carlos */}
+      {/* WhatsApp Support Button */}
       <div className="pt-2">
         <a
-          href={`https://wa.me/${agentNumber.replace(/\D/g, '')}?text=${encodeURIComponent(`¡Hola Carlos! Consulto por el estado de mi pedido #${order.id}.`)}`}
+          href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}?text=${encodeURIComponent(`¡Hola! Consulto por el estado de mi pedido #${order.id}.`)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-gray-700"
+          className="w-full py-2.5 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition border border-white/15"
         >
           <MessageCircle className="w-4 h-4 text-emerald-400" />
-          <span>Consultar al Agente por WhatsApp</span>
+          <span>Consultar por WhatsApp</span>
         </a>
       </div>
     </div>

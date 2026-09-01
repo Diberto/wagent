@@ -798,29 +798,369 @@ export function createApiRouter(whatsappService, io) {
     res.json({ success: true });
   });
 
-  // --- 5.1 Product Catalog ---
+  // --- 5.0 Public Store API (Isolated, Frictionless & Secure Apple Glass Store) ---
+  router.get('/store/config', (req, res) => {
+    try {
+      const settings = db.getSettings() || {};
+      const safeConfig = {
+        success: true,
+        businessName: settings.businessName || 'República de la Carne',
+        country: settings.country || 'Argentina',
+        region: settings.region || 'Córdoba Capital y Alrededores',
+        currency: settings.currency || 'ARS ($)',
+        businessHours: settings.businessHours || { open: '08:00', close: '20:00', days: 'Lunes a Sábados' },
+        deliverySlots: settings.deliverySlots || [],
+        deliveryCutoffHour: Number(settings.deliveryCutoffHour) ?? 12,
+        deliveryMaxHours: Number(settings.deliveryMaxHours) ?? 24,
+        deliveryStandardCost: Number(settings.deliveryStandardCost) ?? 3500,
+        deliveryExpressCost: Number(settings.deliveryExpressCost) ?? 6500,
+        deliveryFreeThreshold: Number(settings.deliveryFreeThreshold) ?? 45000,
+        deliveryFreeEnabled: settings.deliveryFreeEnabled !== false,
+        deliveryExpressEnabled: settings.deliveryExpressEnabled !== false,
+        deliveryCoverageRadiusKm: Number(settings.deliveryCoverageRadiusKm) ?? 15,
+        storeConfig: {
+          ...(CONFIG.DEFAULT_SETTINGS.storeConfig || {}),
+          ...(settings.storeConfig || {})
+        }
+      };
+      res.json(safeConfig);
+    } catch (err) {
+      console.error('Error obteniendo configuración pública de tienda:', err);
+      res.status(500).json({ success: false, error: 'Error cargando configuración de la tienda' });
+    }
+  });
+
+  router.get('/store/products', (req, res) => {
+    try {
+      const all = db.getProducts() || [];
+      // Filtrar estrictamente solo los que están disponibles para la tienda web
+      const publicProducts = all
+        .filter(p => p.availableInStore !== false && p.isAvailable !== false && Number(p.price) > 0)
+        .map(p => ({
+          id: p.id,
+          plu: p.plu,
+          barcode: p.barcode,
+          name: p.name,
+          category: p.category || 'Parrilla',
+          price: Number(p.price) || 0,
+          unit: p.unit || 'kg',
+          description: p.description || '',
+          imageUrl: p.imageUrl || '',
+          isAvailable: p.isAvailable !== false,
+          availableInStore: true,
+          isFeaturedWhatsApp: Boolean(p.isFeaturedWhatsApp),
+          stockQuantity: Number(p.stockQuantity ?? p.stock ?? 100),
+          allowBackorder: p.allowBackorder !== false
+        }));
+
+      res.json(publicProducts);
+    } catch (err) {
+      console.error('Error obteniendo catálogo público de tienda:', err);
+      res.status(500).json({ success: false, error: 'Error cargando productos' });
+    }
+  });
+
+  router.get('/store/branches', (req, res) => {
+    try {
+      const branches = db.getBranches ? db.getBranches() : [];
+      if (branches && branches.length > 0) {
+        return res.json(branches);
+      }
+      res.json([
+        { id: 'branch-1', name: 'Urca Central', address: 'Av. José Roque Funes 1115, Córdoba', phone: '3513906947' },
+        { id: 'branch-2', name: 'Urca 2 – Alto Tejeda', address: 'Av. Menéndez Pidal 3575, Córdoba', phone: '3518623195' },
+        { id: 'branch-3', name: 'Intercountry – Corteza Mall', address: 'Av. Los Álamos 1015, Córdoba', phone: '3518623194' },
+        { id: 'branch-4', name: 'Duarte Quirós', address: 'Av. Duarte Quirós 5130, Córdoba', phone: '3518156595' },
+        { id: 'branch-5', name: 'Villa Allende', address: 'Av. Figueroa Alcorta 480, Villa Allende', phone: '3513540031' },
+        { id: 'branch-6', name: 'Country San Isidro', address: 'Av. Padre Luchesse km 2, Villa Allende', phone: '3518769099' }
+      ]);
+    } catch (err) {
+      console.error('Error obteniendo sucursales públicas:', err);
+      res.status(500).json({ success: false, error: 'Error cargando sucursales' });
+    }
+  });
+
+  router.post('/store/order', async (req, res) => {
+    try {
+      const {
+        customerName,
+        phone,
+        address,
+        fiscalCondition = 'CF',
+        cuit = '',
+        customerDoc = '',
+        deliveryType = 'delivery',
+        branchId = 'branch-1',
+        branchName = 'Urca Central',
+        items = [],
+        products = [],
+        totalAmount,
+        paymentMethod = 'Efectivo contraentrega',
+        notes = '',
+        requestedSlotId = null,
+        isExpress = false,
+        cashReceived = null
+      } = req.body;
+
+      if (!customerName || !String(customerName).trim()) {
+        return res.status(400).json({ success: false, error: 'El nombre del cliente es obligatorio.' });
+      }
+      if (!phone || !String(phone).trim()) {
+        return res.status(400).json({ success: false, error: 'El teléfono de WhatsApp es obligatorio.' });
+      }
+      if (deliveryType === 'delivery' && (!address || !String(address).trim())) {
+        return res.status(400).json({ success: false, error: 'La dirección de entrega es obligatoria para envíos.' });
+      }
+
+      const allItems = items.length > 0 ? items : products;
+      if (!Array.isArray(allItems) || allItems.length === 0) {
+        return res.status(400).json({ success: false, error: 'El carrito no contiene productos.' });
+      }
+
+      // 1. Calcular subtotal de ítems
+      const subtotalCalc = allItems.reduce((acc, it) => acc + (Number(it.subtotal) || (Number(it.price || 0) * Number(it.quantity || it.amount || 1))), 0);
+      const subtotal = Math.max(1, Math.round(subtotalCalc));
+
+      // 2. Calcular logística de franja y costo de envío
+      const deliveryCalc = db.calculateDeliverySlotAndCost({
+        orderDate: new Date(),
+        deliveryType,
+        subtotal,
+        isExpress,
+        requestedSlotId
+      });
+
+      const finalTotal = subtotal + (deliveryType === 'delivery' ? (deliveryCalc.deliveryCost || 0) : 0);
+
+      // 3. Crear payload unificado de pedido
+      const orderData = {
+        customerName: String(customerName).trim(),
+        phone: String(phone).trim(),
+        address: deliveryType === 'delivery' ? String(address).trim() : (branchName || 'Retiro en Sucursal'),
+        fiscalCondition: fiscalCondition || 'CF',
+        cuit: String(cuit || customerDoc || '').trim(),
+        customerDoc: String(cuit || customerDoc || '').trim(),
+        deliveryType,
+        branchId: branchId || 'branch-1',
+        branchName: branchName || 'Urca Central',
+        deliverySlotId: deliveryCalc.slotId || null,
+        deliverySlotName: deliveryCalc.slotName || null,
+        deliveryWindow: deliveryCalc.deliveryWindow || null,
+        deliveryCost: deliveryType === 'delivery' ? (deliveryCalc.deliveryCost || 0) : 0,
+        subtotalAmount: subtotal,
+        totalAmount: Number(totalAmount) || finalTotal,
+        items: allItems,
+        products: allItems,
+        paymentMethod: paymentMethod || 'Efectivo',
+        paymentStatus: 'pending',
+        channel: 'TIENDA',
+        source: 'TIENDA_WEB',
+        origin: 'TIENDA',
+        notes: String(notes || '').trim(),
+        cashReceived: cashReceived ? Number(cashReceived) : null,
+        changeAmount: (cashReceived && Number(cashReceived) > finalTotal) ? (Number(cashReceived) - finalTotal) : 0,
+        status: 'pending'
+      };
+
+      // 4. Evaluar contra el motor de reglas de pedidos si está activo
+      try {
+        const filterEvaluation = await OrderFilterEngine.evaluateOrder(orderData);
+        orderData.filterEvaluation = filterEvaluation;
+        if (filterEvaluation && filterEvaluation.action === 'reject') {
+          return res.status(400).json({
+            success: false,
+            error: filterEvaluation.reason || 'El pedido no cumple con las condiciones de entrega actuales.',
+            evaluation: filterEvaluation
+          });
+        }
+      } catch (fErr) {
+        console.warn('Evaluación de filtro de pedidos omitida:', fErr.message);
+      }
+
+      // 5. Guardar en Base de Datos Unificada
+      const savedOrder = db.addOrder(orderData);
+
+      // 6. Si eligió Mercado Pago, generar link de pago instantáneo
+      let checkoutUrl = null;
+      let initPoint = null;
+      let sandboxInitPoint = null;
+      let mpPreferenceId = null;
+
+      if (/mercadopago|mercado pago|tarjeta|link/i.test(paymentMethod)) {
+        try {
+          const pref = await mercadoPagoService.createPaymentPreference(savedOrder);
+          if (pref) {
+            checkoutUrl = pref.checkoutUrl || pref.initPoint;
+            initPoint = pref.initPoint;
+            sandboxInitPoint = pref.sandboxInitPoint;
+            mpPreferenceId = pref.id;
+
+            db.updateOrder(savedOrder.id, {
+              paymentLink: checkoutUrl,
+              mercadopagoPreferenceId: mpPreferenceId,
+              mercadopagoMode: pref.mode,
+              sandboxPaymentLink: sandboxInitPoint
+            });
+            savedOrder.paymentLink = checkoutUrl;
+            savedOrder.mercadopagoPreferenceId = mpPreferenceId;
+          }
+        } catch (mpErr) {
+          console.warn('Aviso: No se pudo generar preferencia automática de Mercado Pago:', mpErr.message);
+        }
+      }
+
+      // 7. Notificar en vivo a operadores y CRM
+      io.emit('order:new', savedOrder);
+      io.emit('orders:sync', db.getOrders());
+
+      res.json({
+        success: true,
+        order: savedOrder,
+        orderId: savedOrder.id,
+        checkoutUrl,
+        initPoint,
+        sandboxInitPoint,
+        trackingUrl: `/tienda?tracking=${encodeURIComponent(savedOrder.id)}`
+      });
+    } catch (err) {
+      console.error('Error registrando pedido desde la tienda pública:', err);
+      res.status(500).json({ success: false, error: err.message || 'Error registrando el pedido' });
+    }
+  });
+
+  router.get('/store/track/:query', (req, res) => {
+    try {
+      const q = String(req.params.query || '').trim();
+      if (!q) {
+        return res.status(400).json({ success: false, error: 'Consulta de seguimiento requerida' });
+      }
+
+      const orders = db.getOrdersByQuery(q);
+      if (orders && orders.length > 0) {
+        const sanitized = orders.map(o => ({
+          id: o.id,
+          customerName: o.customerName,
+          phone: o.phone ? `***-***-${String(o.phone).slice(-4)}` : '',
+          status: o.status || 'pending',
+          paymentStatus: o.paymentStatus || 'pending',
+          paymentMethod: o.paymentMethod || 'Efectivo',
+          paymentLink: o.paymentLink || null,
+          totalAmount: o.totalAmount,
+          subtotalAmount: o.subtotalAmount,
+          deliveryType: o.deliveryType || 'delivery',
+          branchName: o.branchName || '',
+          deliverySlotName: o.deliverySlotName || '',
+          createdAt: o.createdAt,
+          itemsCount: Array.isArray(o.items) ? o.items.length : 0,
+          items: (o.items || []).map(i => ({
+            name: i.name,
+            quantity: i.quantity || i.amount || 1,
+            unit: i.unit || 'kg',
+            isUnitMode: Boolean(i.isUnitMode),
+            unitCount: i.unitCount || 0,
+            subtotal: i.subtotal || 0
+          }))
+        }));
+
+        return res.json({
+          success: true,
+          count: sanitized.length,
+          orders: sanitized,
+          order: sanitized[0]
+        });
+      }
+
+      // Buscar por ID exacto
+      const single = db.getOrder(q);
+      if (single) {
+        const sanitizedSingle = {
+          id: single.id,
+          customerName: single.customerName,
+          status: single.status || 'pending',
+          paymentStatus: single.paymentStatus || 'pending',
+          paymentMethod: single.paymentMethod || 'Efectivo',
+          paymentLink: single.paymentLink || null,
+          totalAmount: single.totalAmount,
+          deliveryType: single.deliveryType || 'delivery',
+          branchName: single.branchName || '',
+          deliverySlotName: single.deliverySlotName || '',
+          createdAt: single.createdAt,
+          items: (single.items || []).map(i => ({
+            name: i.name,
+            quantity: i.quantity || i.amount || 1,
+            unit: i.unit || 'kg',
+            isUnitMode: Boolean(i.isUnitMode),
+            unitCount: i.unitCount || 0,
+            subtotal: i.subtotal || 0
+          }))
+        };
+        return res.json({ success: true, count: 1, orders: [sanitizedSingle], order: sanitizedSingle });
+      }
+
+      res.json({ success: true, count: 0, orders: [], order: null, message: 'No se encontraron pedidos con ese código o teléfono.' });
+    } catch (err) {
+      console.error('Error consultando tracking de pedido:', err);
+      res.status(500).json({ success: false, error: 'Error consultando estado del pedido' });
+    }
+  });
+
+  // --- 5.1 Product Catalog & Admin Operations ---
   router.get('/products', (req, res) => {
     res.json(db.getProducts());
   });
 
   router.post('/products', (req, res) => {
     const product = db.saveProduct(req.body);
+    io.emit('catalog:updated', { product });
     res.json(product);
   });
 
   router.put('/products/:id', (req, res) => {
     const product = db.updateProduct(req.params.id, req.body);
+    io.emit('catalog:updated', { product });
     res.json(product);
+  });
+
+  router.post('/products/bulk-update', (req, res) => {
+    try {
+      const { productIds, updates } = req.body;
+      if (!Array.isArray(productIds) || productIds.length === 0) {
+        return res.status(400).json({ success: false, error: 'Lista de IDs de productos requerida' });
+      }
+      const updatedList = db.bulkUpdateProducts(productIds, updates || {});
+      io.emit('catalog:updated', { count: updatedList.length, products: db.getProducts() });
+      res.json({ success: true, count: updatedList.length, products: updatedList });
+    } catch (err) {
+      console.error('Error en bulk update de productos:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/products/bulk-delete', (req, res) => {
+    try {
+      const { productIds } = req.body;
+      if (!Array.isArray(productIds) || productIds.length === 0) {
+        return res.status(400).json({ success: false, error: 'Lista de IDs de productos requerida' });
+      }
+      const deletedCount = db.bulkDeleteProducts(productIds);
+      io.emit('catalog:updated', { count: deletedCount, products: db.getProducts() });
+      res.json({ success: true, deletedCount, products: db.getProducts() });
+    } catch (err) {
+      console.error('Error en bulk delete de productos:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/products/:id/duplicate', (req, res) => {
     const product = db.duplicateProduct(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+    io.emit('catalog:updated', { product });
     res.json(product);
   });
 
   router.delete('/products/:id', (req, res) => {
     db.deleteProduct(req.params.id);
+    io.emit('catalog:updated', { deletedId: req.params.id });
     res.json({ success: true });
   });
 

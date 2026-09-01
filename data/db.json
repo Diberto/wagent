@@ -16905,11 +16905,11 @@
         "notes": ""
       },
       "createdAt": "2026-09-01T03:02:51.380Z",
-      "updatedAt": "2026-09-01T18:45:07.594Z",
-      "totalOrders": 4,
-      "totalSpent": 438833,
-      "lastOrderAt": "2026-09-01T18:45:07.592Z",
-      "lastOrderId": "ORD-3678"
+      "updatedAt": "2026-09-01T22:34:18.461Z",
+      "totalOrders": 5,
+      "totalSpent": 538191,
+      "lastOrderAt": "2026-09-01T22:34:18.461Z",
+      "lastOrderId": "ORD-6509"
     },
     {
       "id": "lead-1788221697271-r55f2",
@@ -17015,8 +17015,8 @@
   ],
   "orders": [
     {
-      "id": "ORD-3678",
-      "jid": "5493516262475_t10@s.whatsapp.net",
+      "id": "ORD-6509",
+      "jid": "t10_1788302058427_pslh@s.whatsapp.net",
       "phone": "+54 9 351 626-2475",
       "customerName": "Don Juan",
       "address": "",
@@ -17101,8 +17101,109 @@
       "source": "WHATSAPP",
       "origin": "WHATSAPP",
       "notes": "",
+      "createdAt": "2026-09-01T22:34:18.461Z",
+      "updatedAt": "2026-09-01T22:34:18.461Z"
+    },
+    {
+      "id": "ORD-3678",
+      "jid": "5493516262475_t10@s.whatsapp.net",
+      "phone": "+54 9 351 626-2475",
+      "customerName": "Don Juan",
+      "address": "",
+      "branch": "URCA 2 – ALTO TEJEDA",
+      "branchName": "URCA 2 – ALTO TEJEDA",
+      "branchId": "branch_urca_2",
+      "deliveryType": "pickup",
+      "deliverySlot": "morning",
+      "deliverySlotName": "Franja Mañana",
+      "estimatedDelivery": "Mañana en Franja Mañana (09:00 a 13:00 hs, máx 24h)",
+      "shippingCost": 0,
+      "isFreeShipping": true,
+      "isExpress": false,
+      "items": [
+        "• 1.5 kg VACIO — $40.499",
+        "• 1.5 kg COSTILLA — $40.499",
+        "• 12 Unidades de CHORIZO DE CERDO — $22.140",
+        "• 1 bolsa Carbon Mezcla x4KG FLAMAR — $3.600",
+        "• 2 COMBO N° 1 - LOCRO — $82.998"
+      ],
+      "products": [
+        {
+          "id": "prod_49_71",
+          "plu": "",
+          "barcode": "",
+          "name": "VACIO",
+          "price": 26999,
+          "unitPrice": 26999,
+          "quantity": 1.5,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 40499
+        },
+        {
+          "id": "prod_14_21",
+          "plu": "",
+          "barcode": "",
+          "name": "COSTILLA",
+          "price": 26999,
+          "unitPrice": 26999,
+          "quantity": 1.5,
+          "unit": "kg",
+          "isUnitMode": false,
+          "unitCount": 0,
+          "subtotal": 40499
+        },
+        {
+          "id": "prod_184_142",
+          "plu": "",
+          "barcode": "",
+          "name": "CHORIZO DE CERDO",
+          "price": 14760,
+          "unitPrice": 14760,
+          "quantity": 1.5,
+          "unit": "kg",
+          "isUnitMode": true,
+          "unitCount": 12,
+          "subtotal": 22140
+        },
+        {
+          "id": "prod_775_735",
+          "plu": "",
+          "barcode": "",
+          "name": "Carbon Mezcla x4KG FLAMAR",
+          "price": 3600,
+          "unitPrice": 3600,
+          "quantity": 1,
+          "unit": "bolsa",
+          "isUnitMode": true,
+          "unitCount": 1,
+          "subtotal": 3600
+        },
+        {
+          "id": "prod_5000_785",
+          "name": "COMBO N° 1 - LOCRO",
+          "price": 41499,
+          "quantity": 2,
+          "unit": "combo",
+          "isUnitMode": true,
+          "unitCount": 2,
+          "subtotal": 82998
+        }
+      ],
+      "totalAmount": 189736,
+      "paymentMethod": "Efectivo / Transferencia",
+      "paymentLink": null,
+      "status": "pending",
+      "isPrepared": false,
+      "preparedAt": null,
+      "preparedBy": null,
+      "channel": "WHATSAPP",
+      "source": "WHATSAPP",
+      "origin": "WHATSAPP",
+      "notes": "",
       "createdAt": "2026-09-01T18:45:07.592Z",
-      "updatedAt": "2026-09-01T18:45:07.592Z"
+      "updatedAt": "2026-09-01T22:32:36.670Z"
     },
     {
       "id": "ORD-1655",
@@ -17545,7 +17646,7 @@
       "origin": "WHATSAPP",
       "notes": "",
       "createdAt": "2026-09-01T15:35:09.736Z",
-      "updatedAt": "2026-09-01T18:45:07.507Z"
+      "updatedAt": "2026-09-01T22:34:18.393Z"
     },
     {
       "id": "ORD-4567",
@@ -17635,7 +17736,7 @@
       "origin": "WHATSAPP",
       "notes": "",
       "createdAt": "2026-09-01T15:35:09.544Z",
-      "updatedAt": "2026-09-01T18:45:07.339Z"
+      "updatedAt": "2026-09-01T22:34:18.264Z"
     },
     {
       "id": "ORD-6186",

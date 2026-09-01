@@ -75,6 +75,36 @@ export const CONFIG = {
     deliveryFreeThreshold: 45000,
     deliveryCoverageRadiusKm: 15,
     
+    // Configuración y Diseño de la Tienda Web (Apple Glass Experience)
+    storeConfig: {
+      storeName: 'República de la Carne',
+      tagline: 'Cortes Seleccionados & Asado Premium',
+      heroBadge: '🔥 Envíos en el día en Córdoba Capital',
+      heroTitle: 'La Mejor Carne Argentina Directo a Tu Mesa',
+      heroSubtitle: 'Novillito pesado premium, cerdo seleccionado y achuras frescas. Hacé tu pedido en segundos con entrega asegurada o retiro en 6 sucursales.',
+      heroCtaText: 'Explorar Catálogo',
+      heroBgImage: '',
+      heroBannerMode: 'glass-mesh', // 'glass-mesh' | 'image' | 'minimal'
+      announcementBarText: '🥩 ¡Envíos gratis en compras superiores a $45.000 en Córdoba! Despacho seguro en 24hs.',
+      announcementBarEnabled: true,
+      logoUrl: '',
+      faviconUrl: '',
+      themePreset: 'apple-obsidian', // 'apple-obsidian' | 'titanium-frost' | 'midnight-ruby' | 'obsidian-gold' | 'custom'
+      primaryColor: '#10b981', // Emerald accent
+      accentColor: '#38bdf8',  // Sky accent
+      glassBlurLevel: 'xl',    // 'md' | 'lg' | 'xl' | '2xl'
+      fontFamily: 'Inter',     // 'Inter' | 'Plus Jakarta Sans' | 'Outfit' | 'SF Pro'
+      allowMercadoPago: true,
+      allowCash: true,
+      allowTransfer: true,
+      transferAlias: 'republica.carne.mp',
+      transferCbu: '0000003100010000000000',
+      whatsappDirectNumber: '+5493516262475',
+      showStockBadges: true,
+      requireFiscalData: false,
+      allowBackorders: true
+    },
+    
     systemPrompt: `Eres Carlos, maestro carnicero y asesor comercial experto de "República de la Carne" en Córdoba, Argentina.
 Tu objetivo es asesorar a los clientes con calidez, recomendar los mejores cortes de novillito pesado y cerdo, y guiarlos fluidamente en el proceso de compra por WhatsApp.
 

@@ -3,7 +3,7 @@ import {
   Package, Plus, Search, Tag, DollarSign, Edit3, Trash2, 
   RefreshCw, CheckCircle2, AlertCircle, ShoppingBag, Sparkles, Filter, Check, X, Copy, Barcode,
   List, LayoutGrid, Download, Upload, FileSpreadsheet, Database, ArrowUpDown, FileText,
-  Star, Smartphone, EyeOff, Eye, Image as ImageIcon, Boxes, AlertTriangle
+  Star, Smartphone, EyeOff, Eye, Image as ImageIcon, Boxes, AlertTriangle, Store, Globe
 } from 'lucide-react';
 import MediaGalleryModal from './MediaGalleryModal';
 
@@ -13,6 +13,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [whatsappFilter, setWhatsappFilter] = useState('all'); // 'all' | 'enabled' | 'disabled' | 'featured'
+  const [channelFilter, setChannelFilter] = useState('all'); // 'all' | 'store_only' | 'whatsapp_only' | 'both' | 'disabled'
   const [stockFilter, setStockFilter] = useState('all'); // 'all' | 'with_control' | 'low_stock' | 'out_of_stock'
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('catalog_view_mode') || 'table');
   const [syncing, setSyncing] = useState(false);
@@ -37,6 +38,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     stockMinAlert: 5,
     allowBackorder: true,
     isAvailable: true,
+    availableInStore: true,
+    availableInWhatsApp: true,
     isFeaturedWhatsApp: false,
     plu: '',
     barcode: '',
@@ -275,6 +278,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       stockMinAlert: 5,
       allowBackorder: true,
       isAvailable: true,
+      availableInStore: true,
+      availableInWhatsApp: true,
       isFeaturedWhatsApp: false,
       plu: nextPlu,
       barcode: `779${nextPlu.padStart(4, '0')}000001`,
@@ -303,6 +308,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       stockMinAlert: product.stockMinAlert ?? 5,
       allowBackorder: product.allowBackorder !== false,
       isAvailable: product.isAvailable !== false,
+      availableInStore: product.availableInStore !== undefined ? Boolean(product.availableInStore) : (product.isAvailable !== false),
+      availableInWhatsApp: product.availableInWhatsApp !== undefined ? Boolean(product.availableInWhatsApp) : (product.isAvailable !== false),
       isFeaturedWhatsApp: Boolean(product.isFeaturedWhatsApp),
       plu: plu,
       barcode: product.barcode || (plu ? `779${plu.padStart(4, '0')}000001` : ''),
@@ -355,21 +362,43 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
   };
 
   const handleToggleWhatsAppAvailability = async (product) => {
-    const newAvailable = product.isAvailable === false ? true : false;
-    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isAvailable: newAvailable } : p));
+    const current = product.availableInWhatsApp !== undefined ? Boolean(product.availableInWhatsApp) : (product.isAvailable !== false);
+    const newAvailable = !current;
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, availableInWhatsApp: newAvailable, isAvailable: newAvailable || (p.availableInStore !== false) } : p));
     try {
       await fetch(`${apiBaseUrl}/api/products/${product.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...product, isAvailable: newAvailable })
+        body: JSON.stringify({ ...product, availableInWhatsApp: newAvailable, isAvailable: newAvailable })
       });
       setSyncMessage({
         type: 'success',
-        text: `Producto "${product.name}" ${newAvailable ? 'habilitado para WhatsApp' : 'ocultado de WhatsApp'}`
+        text: `Producto "${product.name}" ${newAvailable ? 'habilitado en WhatsApp' : 'ocultado de WhatsApp'}`
       });
       setTimeout(() => setSyncMessage(null), 3000);
     } catch (err) {
-      console.error('Error toggling availability:', err);
+      console.error('Error toggling WhatsApp availability:', err);
+      fetchProducts();
+    }
+  };
+
+  const handleToggleStoreAvailability = async (product) => {
+    const current = product.availableInStore !== undefined ? Boolean(product.availableInStore) : (product.isAvailable !== false);
+    const newAvailable = !current;
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, availableInStore: newAvailable } : p));
+    try {
+      await fetch(`${apiBaseUrl}/api/products/${product.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...product, availableInStore: newAvailable })
+      });
+      setSyncMessage({
+        type: 'success',
+        text: `Producto "${product.name}" ${newAvailable ? 'habilitado en Tienda Web' : 'ocultado de Tienda Web'}`
+      });
+      setTimeout(() => setSyncMessage(null), 3000);
+    } catch (err) {
+      console.error('Error toggling Store availability:', err);
       fetchProducts();
     }
   };
@@ -391,6 +420,27 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
     } catch (err) {
       console.error('Error toggling featured:', err);
       fetchProducts();
+    }
+  };
+
+  const handleBulkUpdateChannel = async (channel, enabled) => {
+    if (selectedProductIds.length === 0) return;
+    const key = channel === 'store' ? 'availableInStore' : 'availableInWhatsApp';
+    const label = channel === 'store' ? 'Tienda Web' : 'WhatsApp';
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/products/bulk-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: selectedProductIds, updates: { [key]: enabled } })
+      });
+      if (res.ok) {
+        await fetchProducts();
+        setSelectedProductIds([]);
+        setSyncMessage({ type: 'success', text: `¡${selectedProductIds.length} productos ${enabled ? 'habilitados' : 'ocultados'} en ${label}!` });
+        setTimeout(() => setSyncMessage(null), 4000);
+      }
+    } catch (e) {
+      console.error('Error en bulk channel update:', e);
     }
   };
 
@@ -417,6 +467,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
           stockMinAlert: Number(formData.stockMinAlert ?? 5),
           allowBackorder: formData.allowBackorder !== false,
           isAvailable: Boolean(formData.isAvailable),
+          availableInStore: Boolean(formData.availableInStore),
+          availableInWhatsApp: Boolean(formData.availableInWhatsApp),
           isFeaturedWhatsApp: Boolean(formData.isFeaturedWhatsApp),
           unitsPerKg: formData.unitsPerKg ? Number(formData.unitsPerKg) : null,
           unitWeightGrams: formData.unitWeightGrams ? Number(formData.unitWeightGrams) : null,
@@ -456,12 +508,31 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     
-    // Filtro de estado WhatsApp
+    // Canal Tienda Web vs WhatsApp
+    const inStore = product.availableInStore !== undefined ? Boolean(product.availableInStore) : (product.isAvailable !== false);
+    const inWhatsApp = product.availableInWhatsApp !== undefined ? Boolean(product.availableInWhatsApp) : (product.isAvailable !== false);
+
+    let matchesChannel = true;
+    if (channelFilter === 'store') {
+      matchesChannel = inStore;
+    } else if (channelFilter === 'whatsapp') {
+      matchesChannel = inWhatsApp;
+    } else if (channelFilter === 'both') {
+      matchesChannel = inStore && inWhatsApp;
+    } else if (channelFilter === 'store_only') {
+      matchesChannel = inStore && !inWhatsApp;
+    } else if (channelFilter === 'whatsapp_only') {
+      matchesChannel = inWhatsApp && !inStore;
+    } else if (channelFilter === 'disabled') {
+      matchesChannel = !inStore && !inWhatsApp;
+    }
+
+    // Filtro secundario de WhatsApp
     let matchesWhatsApp = true;
     if (whatsappFilter === 'enabled') {
-      matchesWhatsApp = product.isAvailable !== false;
+      matchesWhatsApp = inWhatsApp;
     } else if (whatsappFilter === 'disabled') {
-      matchesWhatsApp = product.isAvailable === false;
+      matchesWhatsApp = !inWhatsApp;
     } else if (whatsappFilter === 'featured') {
       matchesWhatsApp = Boolean(product.isFeaturedWhatsApp);
     }
@@ -487,7 +558,7 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
       (product.plu || '').toLowerCase().includes(term) ||
       (product.barcode || '').toLowerCase().includes(term) ||
       (product.sku || '').toLowerCase().includes(term);
-    return matchesCategory && matchesWhatsApp && matchesStock && matchesSearch;
+    return matchesCategory && matchesChannel && matchesWhatsApp && matchesStock && matchesSearch;
   });
 
   return (
@@ -630,12 +701,12 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
             />
           </div>
 
-          {/* Filtros rápidos de estado WhatsApp & Stock */}
+          {/* Filtros rápidos de Canal (Tienda Web vs WhatsApp) & Stock */}
           <div className="flex items-center gap-1.5 overflow-x-auto">
             <button
-              onClick={() => { setWhatsappFilter('all'); setStockFilter('all'); }}
+              onClick={() => { setChannelFilter('all'); setWhatsappFilter('all'); setStockFilter('all'); }}
               className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                whatsappFilter === 'all' && stockFilter === 'all'
+                channelFilter === 'all' && whatsappFilter === 'all' && stockFilter === 'all'
                   ? 'bg-slate-700 text-white font-bold'
                   : 'bg-[#182229] text-slate-400 hover:text-white border border-slate-800'
               }`}
@@ -643,15 +714,37 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
               Todos ({products.length})
             </button>
             <button
-              onClick={() => setWhatsappFilter('enabled')}
+              onClick={() => { setChannelFilter('store'); setWhatsappFilter('all'); }}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
-                whatsappFilter === 'enabled'
+                channelFilter === 'store'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                  : 'bg-[#182229] text-emerald-400 hover:text-emerald-300 border border-slate-800'
+              }`}
+            >
+              <Store size={12} />
+              <span>En Tienda Web ({products.filter(p => p.availableInStore !== false && p.isAvailable !== false).length})</span>
+            </button>
+            <button
+              onClick={() => { setChannelFilter('whatsapp'); setWhatsappFilter('all'); }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                channelFilter === 'whatsapp'
                   ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
                   : 'bg-[#182229] text-emerald-400 hover:text-emerald-300 border border-slate-800'
               }`}
             >
               <Smartphone size={12} />
-              <span>En WhatsApp ({products.filter(p => p.isAvailable !== false).length})</span>
+              <span>En WhatsApp ({products.filter(p => p.availableInWhatsApp !== false && p.isAvailable !== false).length})</span>
+            </button>
+            <button
+              onClick={() => { setChannelFilter('both'); setWhatsappFilter('all'); }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                channelFilter === 'both'
+                  ? 'bg-teal-500 text-slate-950 font-bold shadow-sm'
+                  : 'bg-[#182229] text-teal-400 hover:text-teal-300 border border-slate-800'
+              }`}
+            >
+              <Globe size={12} />
+              <span>Ambos Canales ({products.filter(p => (p.availableInStore !== false) && (p.availableInWhatsApp !== false) && p.isAvailable !== false).length})</span>
             </button>
             <button
               onClick={() => setWhatsappFilter('featured')}
@@ -805,8 +898,9 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                     <th className="py-3.5 px-4">Precio / Unidad</th>
                     <th className="py-3.5 px-4">Alícuota IVA</th>
                     <th className="py-3.5 px-4 text-center">Control de Stock</th>
-                    <th className="py-3.5 px-4 text-center">WhatsApp</th>
-                    <th className="py-3.5 px-4 text-center">Menú Top 8</th>
+                    <th className="py-3.5 px-4 text-center">🌐 Tienda Web</th>
+                    <th className="py-3.5 px-4 text-center">📱 WhatsApp</th>
+                    <th className="py-3.5 px-4 text-center">⭐ Top 8</th>
                     <th className="py-3.5 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
@@ -817,6 +911,8 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                     const currentStock = Number(prod.stockQuantity ?? prod.stock ?? 0);
                     const minAlert = Number(prod.stockMinAlert ?? 5);
                     const isSelected = selectedProductIds.includes(prod.id);
+                    const isStoreActive = prod.availableInStore !== false && prod.isAvailable !== false;
+                    const isWhatsAppActive = prod.availableInWhatsApp !== false && prod.isAvailable !== false;
 
                     return (
                       <tr key={prod.id} className={`transition-colors ${isSelected ? 'bg-emerald-500/10' : 'hover:bg-[#202c33]/50'}`}>
@@ -911,17 +1007,42 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                             </button>
                           )}
                         </td>
+                        {/* Tienda Web Toggle */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                          <button
+                            onClick={() => handleToggleStoreAvailability(prod)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition active:scale-95 ${
+                              isStoreActive
+                                ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30'
+                            }`}
+                            title={isStoreActive ? 'Click para ocultar de la Tienda Web' : 'Click para activar en la Tienda Web'}
+                          >
+                            {isStoreActive ? (
+                              <>
+                                <Store size={12} />
+                                <span>Activo</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff size={12} />
+                                <span>Oculto</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
+                        {/* WhatsApp Toggle */}
                         <td className="py-3.5 px-4 whitespace-nowrap text-center">
                           <button
                             onClick={() => handleToggleWhatsAppAvailability(prod)}
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition active:scale-95 ${
-                              prod.isAvailable !== false
-                                ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                              isWhatsAppActive
+                                ? 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30'
                                 : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30'
                             }`}
-                            title={prod.isAvailable !== false ? 'Click para ocultar o quitar de WhatsApp' : 'Click para activar en WhatsApp'}
+                            title={isWhatsAppActive ? 'Click para ocultar de WhatsApp' : 'Click para activar en WhatsApp'}
                           >
-                            {prod.isAvailable !== false ? (
+                            {isWhatsAppActive ? (
                               <>
                                 <Smartphone size={12} />
                                 <span>Activo</span>
@@ -1017,14 +1138,27 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                         </button>
 
                         <button
-                          onClick={() => handleToggleWhatsAppAvailability(prod)}
+                          onClick={() => handleToggleStoreAvailability(prod)}
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition ${
-                            prod.isAvailable !== false
+                            prod.availableInStore !== false && prod.isAvailable !== false
                               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                               : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
                           }`}
+                          title="Click para alternar disponibilidad en Tienda Web"
                         >
-                          {prod.isAvailable !== false ? 'WhatsApp' : 'Oculto'}
+                          {prod.availableInStore !== false && prod.isAvailable !== false ? '🌐 Tienda' : '🌐 Off'}
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleWhatsAppAvailability(prod)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border transition ${
+                            prod.availableInWhatsApp !== false && prod.isAvailable !== false
+                              ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                          }`}
+                          title="Click para alternar disponibilidad en WhatsApp"
+                        >
+                          {prod.availableInWhatsApp !== false && prod.isAvailable !== false ? '📱 WApp' : '📱 Off'}
                         </button>
                       </div>
                     </div>
@@ -1458,28 +1592,48 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-2.5">
+              <div className="p-3 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                {/* Switch Tienda Web */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <label htmlFor="isAvailable" className="text-xs font-bold text-white cursor-pointer flex items-center gap-1.5">
-                      <Smartphone size={13} className="text-emerald-400" />
-                      Habilitar en WhatsApp
+                    <label htmlFor="availableInStore" className="text-xs font-bold text-emerald-400 cursor-pointer flex items-center gap-1.5">
+                      <Store size={14} />
+                      Disponible en Tienda Web (Apple Glass)
+                    </label>
+                    <p className="text-[10px] text-slate-400">Si se activa, el producto se exhibirá en el catálogo público /tienda.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="availableInStore"
+                    checked={formData.availableInStore !== false}
+                    onChange={(e) => setFormData({ ...formData, availableInStore: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 bg-[#202c33]"
+                  />
+                </div>
+
+                {/* Switch WhatsApp */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                  <div>
+                    <label htmlFor="availableInWhatsApp" className="text-xs font-bold text-sky-400 cursor-pointer flex items-center gap-1.5">
+                      <Smartphone size={14} />
+                      Disponible en WhatsApp (Asesor IA)
                     </label>
                     <p className="text-[10px] text-slate-400">Si se desactiva, el asesor virtual no lo cotizará ni lo incluirá en ventas.</p>
                   </div>
                   <input
                     type="checkbox"
-                    id="isAvailable"
-                    checked={Boolean(formData.isAvailable)}
-                    onChange={(e) => setFormData({ ...formData, isAvailable: e.target.checked })}
-                    className="w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 bg-[#202c33]"
+                    id="availableInWhatsApp"
+                    checked={formData.availableInWhatsApp !== false}
+                    onChange={(e) => setFormData({ ...formData, availableInWhatsApp: e.target.checked, isAvailable: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-700 text-sky-500 focus:ring-sky-500 bg-[#202c33]"
                   />
                 </div>
 
+                {/* Switch Top 8 */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                   <div>
                     <label htmlFor="isFeaturedWhatsApp" className="text-xs font-bold text-amber-300 cursor-pointer flex items-center gap-1.5">
-                      <Star size={13} className="text-amber-400" fill="currentColor" />
+                      <Star size={14} className="text-amber-400" fill="currentColor" />
                       Destacar en Menú Principal (Top 8)
                     </label>
                     <p className="text-[10px] text-slate-400">Aparecerá en la lista inicial de 8 ofertas que se le presentan al cliente.</p>
@@ -1777,8 +1931,44 @@ export default function ProductCatalog({ apiBaseUrl = 'http://localhost:3001' })
               className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/30 transition"
               title="Aumentar o reducir precio en % a todos los seleccionados"
             >
-              📈 Cambiar Precios %
+              📈 Precios %
             </button>
+
+            {/* Bulk Tienda Web Toggle */}
+            <div className="flex items-center bg-[#111b21] rounded-xl p-0.5 border border-slate-700">
+              <button
+                onClick={() => handleBulkUpdateChannel('store', true)}
+                className="px-2 py-1 rounded-lg text-[11px] font-bold text-emerald-400 hover:bg-emerald-500/20 transition flex items-center gap-1"
+                title="Habilitar en Tienda Web a seleccionados"
+              >
+                <Store size={11} /> +Tienda
+              </button>
+              <button
+                onClick={() => handleBulkUpdateChannel('store', false)}
+                className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 transition"
+                title="Ocultar de Tienda Web a seleccionados"
+              >
+                -Tienda
+              </button>
+            </div>
+
+            {/* Bulk WhatsApp Toggle */}
+            <div className="flex items-center bg-[#111b21] rounded-xl p-0.5 border border-slate-700">
+              <button
+                onClick={() => handleBulkUpdateChannel('whatsapp', true)}
+                className="px-2 py-1 rounded-lg text-[11px] font-bold text-sky-400 hover:bg-sky-500/20 transition flex items-center gap-1"
+                title="Habilitar en WhatsApp a seleccionados"
+              >
+                <Smartphone size={11} /> +WApp
+              </button>
+              <button
+                onClick={() => handleBulkUpdateChannel('whatsapp', false)}
+                className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 transition"
+                title="Ocultar de WhatsApp a seleccionados"
+              >
+                -WApp
+              </button>
+            </div>
 
             <button
               onClick={() => handleBulkUpdateIva(10.5)}

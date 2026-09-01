@@ -45,7 +45,11 @@ import {
   Receipt,
   FileText,
   QrCode,
-  Bike
+  Bike,
+  Palette,
+  Layout,
+  Type,
+  Image as ImageIcon
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 
@@ -529,6 +533,7 @@ export default function SettingsModal({ isOpen, onClose }) {
 
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
+    { id: 'store', label: '🎨 Tienda Web (Apple Glass)', icon: Store },
     { id: 'logistics', label: 'Logística & Franjas', icon: Bike },
     { id: 'orderFilters', label: 'Filtros de Pedidos', icon: Filter },
     { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
@@ -797,6 +802,509 @@ export default function SettingsModal({ isOpen, onClose }) {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* TAB: TIENDA WEB & BRANDING (APPLE GLASS EXPERIENCE) */}
+          {activeTab === 'store' && (
+            <div className="space-y-6 animate-in fade-in">
+              {/* Header & Live Preview Card */}
+              <div className="p-4 rounded-3xl bg-gradient-to-br from-slate-900 via-[#111b21] to-slate-950 border border-white/10 shadow-2xl relative overflow-hidden">
+                {/* Background Mesh Glow */}
+                <div 
+                  className="absolute -top-10 -right-10 w-48 h-48 rounded-full blur-3xl opacity-30 pointer-events-none"
+                  style={{ backgroundColor: settings?.storeConfig?.primaryColor || '#10b981' }}
+                />
+                <div 
+                  className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full blur-3xl opacity-20 pointer-events-none"
+                  style={{ backgroundColor: settings?.storeConfig?.accentColor || '#38bdf8' }}
+                />
+
+                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold shadow-lg border border-white/15"
+                      style={{ 
+                        backgroundColor: `${settings?.storeConfig?.primaryColor || '#10b981'}25`,
+                        color: settings?.storeConfig?.primaryColor || '#10b981'
+                      }}
+                    >
+                      <Store size={22} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-white">Diseño & Marca: Tienda Web Apple Glass</h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                          En Vivo (/tienda)
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400">Personaliza la portada, paleta de colores translúcidos, tipografías y checkout sin fricción</p>
+                    </div>
+                  </div>
+
+                  <a
+                    href="/tienda"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/10 transition active:scale-95 shrink-0"
+                  >
+                    <span>Ver Tienda</span>
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
+
+                {/* Live Mini Preview */}
+                <div className="mt-4 p-4 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 space-y-3">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-amber-400" />
+                    <span>Vista Previa en Vivo de la Portada</span>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-white/10 relative overflow-hidden bg-gradient-to-r from-slate-900/80 via-black/60 to-slate-900/80">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border mb-2"
+                      style={{
+                        backgroundColor: `${settings?.storeConfig?.primaryColor || '#10b981'}20`,
+                        borderColor: `${settings?.storeConfig?.primaryColor || '#10b981'}40`,
+                        color: settings?.storeConfig?.primaryColor || '#10b981'
+                      }}
+                    >
+                      {settings?.storeConfig?.heroBadge || '🔥 Envíos en el día en Córdoba Capital'}
+                    </div>
+
+                    <h4 
+                      className="text-base font-extrabold text-white mb-1 tracking-tight"
+                      style={{ fontFamily: settings?.storeConfig?.fontFamily || 'Inter' }}
+                    >
+                      {settings?.storeConfig?.heroTitle || 'La Mejor Carne Argentina Directo a Tu Mesa'}
+                    </h4>
+                    
+                    <p className="text-xs text-slate-300 line-clamp-2 max-w-xl mb-3">
+                      {settings?.storeConfig?.heroSubtitle || 'Novillito pesado premium, cerdo seleccionado y achuras frescas.'}
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <button 
+                        type="button"
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-950 shadow-lg flex items-center gap-1.5 transition"
+                        style={{ backgroundColor: settings?.storeConfig?.primaryColor || '#10b981' }}
+                      >
+                        <span>{settings?.storeConfig?.heroCtaText || 'Explorar Catálogo'}</span>
+                        <ArrowRight size={13} />
+                      </button>
+                      
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                        <span>Fuente: <b>{settings?.storeConfig?.fontFamily || 'Inter'}</b></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 1: Portada & Hero Banner */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                    <Layout size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Portada & Textos de Bienvenida (Hero)</h3>
+                    <p className="text-xs text-slate-400">Contenido destacado que los clientes ven al ingresar a la tienda</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Título Principal de Portada</label>
+                    <input
+                      type="text"
+                      value={settings?.storeConfig?.heroTitle ?? 'La Mejor Carne Argentina Directo a Tu Mesa'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), heroTitle: e.target.value }
+                      })}
+                      placeholder="Ej: La Mejor Carne Argentina Directo a Tu Mesa"
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Subtítulo Descriptivo</label>
+                    <textarea
+                      rows={2}
+                      value={settings?.storeConfig?.heroSubtitle ?? 'Novillito pesado premium, cerdo seleccionado y achuras frescas. Hacé tu pedido en segundos con entrega asegurada o retiro en 6 sucursales.'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), heroSubtitle: e.target.value }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Insignia / Badge Superior</label>
+                    <input
+                      type="text"
+                      value={settings?.storeConfig?.heroBadge ?? '🔥 Envíos en el día en Córdoba Capital'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), heroBadge: e.target.value }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Texto Botón de Acción (CTA)</label>
+                    <input
+                      type="text"
+                      value={settings?.storeConfig?.heroCtaText ?? 'Explorar Catálogo'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), heroCtaText: e.target.value }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Estilo de Fondo de Portada</label>
+                    <select
+                      value={settings?.storeConfig?.heroBannerMode || 'glass-mesh'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), heroBannerMode: e.target.value }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="glass-mesh">Efecto Malla de Vidrio & Luces Translúcidas (Apple Mesh)</option>
+                      <option value="image">Imagen Personalizada de Fondo con Desenfoque</option>
+                      <option value="minimal">Minimalista Oscuro Pulcro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">URL Imagen de Fondo (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="https://images.unsplash.com/..."
+                      value={settings?.storeConfig?.heroBgImage || ''}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), heroBgImage: e.target.value }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Barra Superior de Anuncios Ticker */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                      <Sparkles size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Barra de Anuncios & Promociones (Ticker)</h3>
+                      <p className="text-xs text-slate-400">Cintillo superior animado con envíos gratis o avisos clave</p>
+                    </div>
+                  </div>
+
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings?.storeConfig?.announcementBarEnabled !== false}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), announcementBarEnabled: e.target.checked }
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Texto del Anuncio</label>
+                  <input
+                    type="text"
+                    value={settings?.storeConfig?.announcementBarText ?? '🥩 ¡Envíos gratis en compras superiores a $45.000 en Córdoba! Despacho seguro en 24hs.'}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      storeConfig: { ...(settings?.storeConfig || {}), announcementBarText: e.target.value }
+                    })}
+                    className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Card 3: Paleta de Colores & Presets Apple Glass */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <Palette size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Paleta de Colores & Temas Apple Glass</h3>
+                    <p className="text-xs text-slate-400">Selecciona una armonía cromática predefinida o personaliza tus tonos de marca</p>
+                  </div>
+                </div>
+
+                {/* Presets Rápidos */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">Temas Predefinidos (1-Click)</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {[
+                      { id: 'apple-obsidian', name: 'Apple Obsidian', desc: 'Carbón & Esmeralda', primary: '#10b981', accent: '#38bdf8' },
+                      { id: 'titanium-frost', name: 'Titanium Frost', desc: 'Zafiro & Cian', primary: '#0284c7', accent: '#38bdf8' },
+                      { id: 'midnight-ruby', name: 'Midnight Ruby', desc: 'Carmesí & Borgoña', primary: '#e11d48', accent: '#fb7185' },
+                      { id: 'obsidian-gold', name: 'Obsidian Gold', desc: 'Ámbar & Dorado', primary: '#d97706', accent: '#fbbf24' }
+                    ].map((preset) => {
+                      const isSelected = (settings?.storeConfig?.primaryColor === preset.primary && settings?.storeConfig?.accentColor === preset.accent);
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => setSettings({
+                            ...settings,
+                            storeConfig: {
+                              ...(settings?.storeConfig || {}),
+                              themePreset: preset.id,
+                              primaryColor: preset.primary,
+                              accentColor: preset.accent
+                            }
+                          })}
+                          className={`p-3 rounded-2xl border text-left transition-all ${
+                            isSelected
+                              ? 'border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/10'
+                              : 'border-slate-800 bg-[#111b21] hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="w-3.5 h-3.5 rounded-full shadow-inner" style={{ backgroundColor: preset.primary }} />
+                            <span className="w-3.5 h-3.5 rounded-full shadow-inner" style={{ backgroundColor: preset.accent }} />
+                          </div>
+                          <div className="text-xs font-bold text-white">{preset.name}</div>
+                          <div className="text-[10px] text-slate-400">{preset.desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Color Primario (Botones & Acentos)</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={settings?.storeConfig?.primaryColor || '#10b981'}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), primaryColor: e.target.value }
+                        })}
+                        className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
+                      />
+                      <input
+                        type="text"
+                        value={settings?.storeConfig?.primaryColor || '#10b981'}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), primaryColor: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Color de Acento Secundario</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={settings?.storeConfig?.accentColor || '#38bdf8'}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), accentColor: e.target.value }
+                        })}
+                        className="w-9 h-9 rounded-xl cursor-pointer bg-transparent border-0"
+                      />
+                      <input
+                        type="text"
+                        value={settings?.storeConfig?.accentColor || '#38bdf8'}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), accentColor: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Nivel de Desenfoque (Glass Blur)</label>
+                    <select
+                      value={settings?.storeConfig?.glassBlurLevel || 'xl'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), glassBlurLevel: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none"
+                    >
+                      <option value="md">Suave (12px blur)</option>
+                      <option value="lg">Alto (16px blur)</option>
+                      <option value="xl">Ultra Cristalino (24px blur - Recomendado Apple)</option>
+                      <option value="2xl">Profundo (40px blur)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Tipografía & Fuentes */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+                    <Type size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Tipografía & Fuentes Modernas</h3>
+                    <p className="text-xs text-slate-400">Familia tipográfica aplicada a títulos, precios y catálogo de la tienda</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {[
+                    { id: 'Inter', name: 'Inter (Apple UI Clean)', sample: 'Tipografía nítida para pantallas táctiles y números' },
+                    { id: 'Plus Jakarta Sans', name: 'Plus Jakarta Sans', sample: 'Moderna, geométrica y con alta legibilidad' },
+                    { id: 'Outfit', name: 'Outfit', sample: 'Elegante, moderna y premium para e-commerce' },
+                    { id: 'system-ui', name: 'SF Pro / Apple System', sample: 'Nativa de dispositivos iOS y macOS' }
+                  ].map(font => {
+                    const isSelected = (settings?.storeConfig?.fontFamily === font.id) || (!settings?.storeConfig?.fontFamily && font.id === 'Inter');
+                    return (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), fontFamily: font.id }
+                        })}
+                        className={`p-3 rounded-2xl border text-left transition-all ${
+                          isSelected
+                            ? 'border-purple-500 bg-purple-500/10 text-white shadow-lg'
+                            : 'border-slate-800 bg-[#111b21] text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="text-xs font-bold text-white" style={{ fontFamily: font.id }}>{font.name}</div>
+                        <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">{font.sample}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Card 5: Métodos de Pago Habilitados en Tienda Web */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    <CreditCard size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Medios de Pago Habilitados en Tienda Web</h3>
+                    <p className="text-xs text-slate-400">Opciones que se ofrecen al cliente al completar el checkout</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Mercado Pago */}
+                  <div className="p-3.5 rounded-xl bg-[#111b21] border border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+                        <CreditCard size={14} />
+                        <span>Mercado Pago</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={settings?.storeConfig?.allowMercadoPago !== false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), allowMercadoPago: e.target.checked }
+                        })}
+                        className="rounded accent-emerald-500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400">Genera links de pago instantáneos o QR de Checkout Pro</p>
+                  </div>
+
+                  {/* Efectivo contraentrega */}
+                  <div className="p-3.5 rounded-xl bg-[#111b21] border border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <DollarSign size={14} />
+                        <span>Efectivo / Vuelto</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={settings?.storeConfig?.allowCash !== false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), allowCash: e.target.checked }
+                        })}
+                        className="rounded accent-emerald-500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400">Permite abonar al cadete con cálculo de vuelto</p>
+                  </div>
+
+                  {/* Transferencia Bancaria */}
+                  <div className="p-3.5 rounded-xl bg-[#111b21] border border-slate-700/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                        <ArrowRight size={14} />
+                        <span>Transferencia</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={settings?.storeConfig?.allowTransfer !== false}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          storeConfig: { ...(settings?.storeConfig || {}), allowTransfer: e.target.checked }
+                        })}
+                        className="rounded accent-emerald-500"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400">Muestra alias y CBU con botón de 1-toque para copiar</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Alias de Transferencia</label>
+                    <input
+                      type="text"
+                      value={settings?.storeConfig?.transferAlias ?? 'republica.carne.mp'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), transferAlias: e.target.value }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Número de WhatsApp de Contacto Directo</label>
+                    <input
+                      type="text"
+                      value={settings?.storeConfig?.whatsappDirectNumber ?? '+5493516262475'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), whatsappDirectNumber: e.target.value }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

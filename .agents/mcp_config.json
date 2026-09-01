@@ -7,6 +7,21 @@
     "figma-design": {
       "command": "cmd.exe",
       "args": ["/c", "npx", "-y", "@figma/mcp-server"]
+    },
+    "mercadopago-mcp-server": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://mcp.mercadopago.com/mcp",
+        "--header",
+        "Authorization:${AUTH_HEADER}"
+      ],
+      "env": {
+        "AUTH_HEADER": "Bearer APP_USR-963262173359779-083015-7a288c6669f44248572a6202c5de2fb0-2050924390"
+      }
     }
   }
 }
