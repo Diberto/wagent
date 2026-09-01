@@ -981,9 +981,21 @@ export default function ChatInbox({
                       : 'hover:bg-[#182229]/60'
                   }`}
                 >
-                  {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-emerald-400 text-sm flex-shrink-0">
-                    {(lead.name || lead.pushName || 'C').charAt(0).toUpperCase()}
+                  {/* Avatar con foto o iniciales */}
+                  <div className="relative w-10 h-10 rounded-full bg-slate-800 border border-slate-700 overflow-hidden flex items-center justify-center font-bold text-emerald-400 text-sm flex-shrink-0">
+                    {lead.avatar ? (
+                      <img
+                        src={lead.avatar}
+                        alt={lead.name || 'Avatar'}
+                        className="w-full h-full object-cover absolute inset-0"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                    <span>
+                      {(lead.name || lead.pushName || 'C').charAt(0).toUpperCase()}
+                    </span>
                   </div>
 
                   {/* Info del Lead */}
@@ -1043,8 +1055,20 @@ export default function ChatInbox({
           {/* Header del Chat */}
           <div className="h-16 px-5 border-b border-slate-800 bg-[#111b21] flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 text-emerald-400 font-bold flex items-center justify-center text-sm flex-shrink-0">
-                {(selectedLead.name || 'U').substring(0, 2).toUpperCase()}
+              <div className="relative w-10 h-10 rounded-full bg-slate-800 border border-slate-700 overflow-hidden text-emerald-400 font-bold flex items-center justify-center text-sm flex-shrink-0">
+                {selectedLead.avatar ? (
+                  <img
+                    src={selectedLead.avatar}
+                    alt={selectedLead.name || 'Avatar'}
+                    className="w-full h-full object-cover absolute inset-0"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : null}
+                <span>
+                  {(selectedLead.name || selectedLead.pushName || 'U').substring(0, 2).toUpperCase()}
+                </span>
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -1062,7 +1086,11 @@ export default function ChatInbox({
                 
                 <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-400">
                   <span className="font-mono text-[11px] text-slate-300">
-                    📞 {selectedLead.phone || selectedLead.jid?.split('@')[0]}
+                    📞 {selectedLead.phone && !selectedLead.phone.includes('@lid') && !selectedLead.phone.startsWith('+1530')
+                      ? selectedLead.phone
+                      : (selectedLead.jid && selectedLead.jid.includes('@s.whatsapp.net')
+                        ? `+${selectedLead.jid.split('@')[0]}`
+                        : 'WhatsApp Directo')}
                   </span>
                   {selectedLead.email && (
                     <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-sky-400">

@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { Boom } from '@hapi/boom';
 import { CONFIG } from '../config/index.js';
-import { db } from './database.js';
+import { db, isLidIdentifier, normalizePhoneNumber } from './database.js';
 import { AIService } from './ai.js';
 import { AudioConverter } from './audioConverter.js';
 import { SpeechService } from './speech.js';
@@ -38,16 +38,15 @@ function unwrapMessageContent(msgContent) {
  */
 function extractTextMessage(content) {
   if (!content) return '';
-  if (typeof content === 'string') return content;
-  if (content.conversation) return content.conversation;
-  if (content.extendedTextMessage?.text) return content.extendedTextMessage.text;
-  if (content.imageMessage?.caption) return content.imageMessage.caption;
-  if (content.videoMessage?.caption) return content.videoMessage.caption;
-  if (content.documentMessage?.caption) return content.documentMessage.caption;
-  if (content.buttonsResponseMessage?.selectedButtonId) return content.buttonsResponseMessage.selectedButtonId;
-  if (content.listResponseMessage?.singleSelectReply?.selectedRowId) return content.listResponseMessage.singleSelectReply.selectedRowId;
-  if (content.templateButtonReplyMessage?.selectedId) return content.templateButtonReplyMessage.selectedId;
-  return '';
+  return content.conversation ||
+         content.extendedTextMessage?.text ||
+         content.imageMessage?.caption ||
+         content.videoMessage?.caption ||
+         content.documentMessage?.caption ||
+         content.buttonsResponseMessage?.selectedDisplayText ||
+         content.listResponseMessage?.title ||
+         content.templateButtonReplyMessage?.selectedId ||
+         '';
 }
 
 export class WhatsAppService {
@@ -63,6 +62,8 @@ export class WhatsAppService {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.isInitializing = false;
+    this.lidToPhoneMap = new Map();
+    this.phoneToLidMap = new Map();
   }
 
   /**
@@ -255,6 +256,35 @@ export class WhatsAppService {
         }
       });
 
+      // Evento de sincronización de libreta y contactos de WhatsApp (Mapeo LID <-> Teléfono Real)
+      this.sock.ev.on('contacts.upsert', (contacts) => {
+        if (!Array.isArray(contacts)) return;
+        for (const c of contacts) {
+          if (!c) continue;
+          const phoneJid = c.id && c.id.includes('@s.whatsapp.net') ? c.id : null;
+          const lidJid = c.lid && c.lid.includes('@lid') ? c.lid : (c.id && c.id.includes('@lid') ? c.id : null);
+          if (phoneJid && lidJid) {
+            this.lidToPhoneMap.set(lidJid, phoneJid);
+            this.phoneToLidMap.set(phoneJid, lidJid);
+            db.resolveLidToPhone(lidJid, phoneJid, c.notify || c.name);
+          }
+        }
+      });
+
+      this.sock.ev.on('contacts.update', (updates) => {
+        if (!Array.isArray(updates)) return;
+        for (const u of updates) {
+          if (!u) continue;
+          const phoneJid = u.id && u.id.includes('@s.whatsapp.net') ? u.id : null;
+          const lidJid = u.lid && u.lid.includes('@lid') ? u.lid : null;
+          if (phoneJid && lidJid) {
+            this.lidToPhoneMap.set(lidJid, phoneJid);
+            this.phoneToLidMap.set(phoneJid, lidJid);
+            db.resolveLidToPhone(lidJid, phoneJid, u.notify || u.name);
+          }
+        }
+      });
+
       // Evento de mensajes entrantes
       this.sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (!messages || messages.length === 0) return;
@@ -275,6 +305,56 @@ export class WhatsAppService {
     } finally {
       this.isInitializing = false;
     }
+  }
+
+  /**
+   * Resuelve el JID telefónico real a partir de un JID de WhatsApp o LID
+   */
+  async resolvePhoneJid(jid) {
+    if (!jid) return null;
+    const clean = jidNormalizedUser(jid);
+    if (clean.includes('@s.whatsapp.net')) return clean;
+    if (!clean.includes('@lid')) return clean;
+
+    // 1. En mapa de memoria
+    if (this.lidToPhoneMap.has(clean)) {
+      return this.lidToPhoneMap.get(clean);
+    }
+
+    // 2. Consultar repositorio Signal de Baileys
+    try {
+      const pn = await this.sock?.signalRepository?.lidMapping?.getPNFromLID?.(clean);
+      if (pn) {
+        const resolved = pn.includes('@') ? pn : `${pn}@s.whatsapp.net`;
+        this.lidToPhoneMap.set(clean, resolved);
+        this.phoneToLidMap.set(resolved, clean);
+        return resolved;
+      }
+    } catch (e) {}
+
+    // 3. Consultar claves authState
+    try {
+      const keys = await this.sock?.authState?.keys?.get?.('lid-mapping', [clean]);
+      if (keys && keys[clean]) {
+        const resolved = keys[clean].includes('@') ? keys[clean] : `${keys[clean]}@s.whatsapp.net`;
+        this.lidToPhoneMap.set(clean, resolved);
+        this.phoneToLidMap.set(resolved, clean);
+        return resolved;
+      }
+    } catch (e) {}
+
+    // 4. Consultar en base de datos local
+    const existingLead = db.getLead(clean);
+    if (existingLead?.phone && !existingLead.phone.includes('@lid') && !isLidIdentifier(existingLead.phone)) {
+      const rawDigits = existingLead.phone.replace(/\D/g, '');
+      if (rawDigits.length >= 8) {
+        const resolved = `${rawDigits}@s.whatsapp.net`;
+        this.lidToPhoneMap.set(clean, resolved);
+        return resolved;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -429,6 +509,12 @@ export class WhatsAppService {
       realPhone = altJid.split('@')[0];
     } else if (jid.includes('@s.whatsapp.net')) {
       realPhone = jid.split('@')[0];
+    } else if (jid.includes('@lid')) {
+      const resolvedPhoneJid = await this.resolvePhoneJid(jid);
+      if (resolvedPhoneJid) {
+        altJid = resolvedPhoneJid;
+        realPhone = resolvedPhoneJid.split('@')[0];
+      }
     }
 
     // Obtener o reconciliar Lead único sin duplicados
@@ -922,32 +1008,72 @@ export class WhatsAppService {
   }
 
   /**
-   * Obtiene la foto de perfil en alta resolución y el estado de WhatsApp de un contacto
+   * Obtiene la foto de perfil en alta resolución y el estado de WhatsApp de un contacto,
+   * descargando y persistiendo la imagen localmente para que nunca expire.
    */
   async fetchAndSyncContactProfile(jid, pushName = null) {
     if (!this.sock || this.status !== 'connected' || !jid) return null;
     try {
       const cleanJid = jidNormalizedUser(jid);
+      const targetPhoneJid = await this.resolvePhoneJid(cleanJid);
+      const queryJid = targetPhoneJid || (cleanJid.includes('@s.whatsapp.net') ? cleanJid : null);
+
       let profilePicUrl = null;
-      try {
-        profilePicUrl = await this.sock.profilePictureUrl(cleanJid, 'image');
-      } catch (e) {
-        // Puede estar oculto por privacidad
+      if (queryJid) {
+        try {
+          profilePicUrl = await this.sock.profilePictureUrl(queryJid, 'image');
+        } catch (e) {
+          try {
+            profilePicUrl = await this.sock.profilePictureUrl(queryJid, 'preview');
+          } catch (e2) {}
+        }
+      }
+
+      if (!profilePicUrl && !cleanJid.includes('@lid')) {
+        try {
+          profilePicUrl = await this.sock.profilePictureUrl(cleanJid, 'image');
+        } catch (e) {}
+      }
+
+      let localAvatarUrl = null;
+      if (profilePicUrl) {
+        try {
+          const avatarsDir = path.join(CONFIG.MEDIA_DIR, 'avatars');
+          if (!fs.existsSync(avatarsDir)) {
+            fs.mkdirSync(avatarsDir, { recursive: true });
+          }
+          const leadIdent = (queryJid || cleanJid).split('@')[0];
+          const filename = `avatar_${leadIdent}.jpg`;
+          const filePath = path.join(avatarsDir, filename);
+
+          const res = await fetch(profilePicUrl);
+          if (res.ok) {
+            const buffer = await res.arrayBuffer();
+            fs.writeFileSync(filePath, Buffer.from(buffer));
+            localAvatarUrl = `/media/avatars/${filename}?v=${Date.now()}`;
+          } else {
+            localAvatarUrl = profilePicUrl;
+          }
+        } catch (downloadErr) {
+          localAvatarUrl = profilePicUrl;
+        }
       }
 
       let statusBio = null;
-      try {
-        const statusRes = await this.sock.fetchStatus(cleanJid);
-        statusBio = statusRes?.status || null;
-      } catch (e) {}
+      if (queryJid) {
+        try {
+          const statusRes = await this.sock.fetchStatus(queryJid);
+          statusBio = statusRes?.status || null;
+        } catch (e) {}
+      }
 
       const updates = {};
-      if (profilePicUrl) updates.avatar = profilePicUrl;
+      if (localAvatarUrl) updates.avatar = localAvatarUrl;
       if (statusBio) updates.bio = statusBio;
       if (pushName && pushName !== 'Contacto WhatsApp') updates.pushName = pushName;
 
       if (Object.keys(updates).length > 0) {
-        const updatedLead = db.updateLead(cleanJid, updates);
+        const updatedLead = db.updateLead(cleanJid, updates) || (queryJid ? db.updateLead(queryJid, updates) : null);
         if (this.io && updatedLead) {
           this.io.emit('lead:update', updatedLead);
         }

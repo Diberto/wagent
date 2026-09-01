@@ -2,8 +2,22 @@ import fs from 'fs';
 import path from 'path';
 import { CONFIG } from '../config/index.js';
 
+export function isLidIdentifier(raw) {
+  if (!raw) return false;
+  const str = String(raw).trim();
+  if (str.includes('@lid')) return true;
+  const digits = str.replace(/\D/g, '');
+  // WhatsApp LIDs son IDs opacos de 14 a 16 dígitos que no corresponden a numeración telefónica argentina (+54)
+  if (digits.length >= 14 && digits.length <= 16 && !digits.startsWith('549') && !digits.startsWith('54')) {
+    return true;
+  }
+  return false;
+}
+
 export function normalizePhoneNumber(raw) {
   if (!raw) return '';
+  if (isLidIdentifier(raw)) return ''; // No transformar identificadores @lid en números telefónicos ficticios
+
   let digits = String(raw).replace(/\D/g, '');
   if (!digits) return '';
 
@@ -24,11 +38,16 @@ export function normalizePhoneNumber(raw) {
     const lastPart = digits.slice(6);
     return `+54 9 ${area} ${firstPart}-${lastPart}`;
   }
-  return `+${digits}`;
+  
+  if (digits.length >= 8 && digits.length <= 13) {
+    return `+${digits}`;
+  }
+  return '';
 }
 
 export function extractCoreDigits(raw) {
   if (!raw) return '';
+  if (isLidIdentifier(raw)) return '';
   const digits = String(raw).replace(/\D/g, '');
   return digits.length >= 8 ? digits.slice(-8) : digits;
 }
@@ -567,13 +586,14 @@ class DatabaseService {
       return existing;
     } else {
       // Crear nuevo Lead unificado
+      const realPhoneCandidate = formattedPhone || (jid && !isLidIdentifier(jid) ? `+${jid.split('@')[0]}` : '');
       const newLead = {
         id: leadData.id || `lead-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         customerNumber: `CLI-${Math.floor(1000 + Math.random() * 9000)}`,
         jid: jid || (formattedPhone ? `${formattedPhone.replace(/\D/g, '')}@s.whatsapp.net` : ''),
         altJids: altJid ? [altJid] : [],
-        phone: formattedPhone || (jid ? `+${jid.split('@')[0]}` : ''),
-        name: leadData.realName || (leadData.name && leadData.name !== 'Contacto WhatsApp' ? leadData.name : (leadData.pushName && leadData.pushName !== 'Contacto WhatsApp' ? leadData.pushName : formattedPhone || 'Nuevo Contacto')),
+        phone: realPhoneCandidate,
+        name: leadData.realName || (leadData.name && leadData.name !== 'Contacto WhatsApp' ? leadData.name : (leadData.pushName && leadData.pushName !== 'Contacto WhatsApp' ? leadData.pushName : realPhoneCandidate || 'Nuevo Contacto')),
         pushName: leadData.pushName || 'Contacto WhatsApp',
         email: leadData.email || '',
         address: leadData.address || '',
@@ -611,6 +631,49 @@ class DatabaseService {
       this.writeDb(db);
       return newLead;
     }
+  }
+
+  /**
+   * Reconcilia un identificador LID de WhatsApp con el JID/teléfono real del cliente
+   */
+  resolveLidToPhone(lidJid, phoneJid, pushName = null) {
+    if (!lidJid || !phoneJid) return null;
+    const db = this.readDb();
+    if (!db.leads) db.leads = [];
+
+    const normPhone = normalizePhoneNumber(phoneJid);
+    const cleanPhoneJid = phoneJid.includes('@') ? phoneJid : `${phoneJid.replace(/\D/g, '')}@s.whatsapp.net`;
+    const cleanLid = lidJid.includes('@') ? lidJid : `${lidJid}@lid`;
+
+    // Buscar lead existente por LID o por teléfono
+    let lead = db.leads.find(l => 
+      l.jid === cleanLid || 
+      (l.altJids && l.altJids.includes(cleanLid)) ||
+      l.jid === cleanPhoneJid ||
+      (normPhone && l.phone === normPhone)
+    );
+
+    if (lead) {
+      if (!lead.altJids) lead.altJids = [];
+      if (!lead.altJids.includes(cleanLid)) lead.altJids.push(cleanLid);
+      if (!lead.altJids.includes(cleanPhoneJid)) lead.altJids.push(cleanPhoneJid);
+
+      if (normPhone && (!lead.phone || isLidIdentifier(lead.phone))) {
+        lead.phone = normPhone;
+      }
+      if (cleanPhoneJid && lead.jid.includes('@lid')) {
+        lead.altJids.push(lead.jid);
+        lead.jid = cleanPhoneJid;
+      }
+      if (pushName && pushName !== 'Contacto WhatsApp' && (!lead.name || lead.name === 'Contacto WhatsApp' || lead.name.startsWith('+'))) {
+        lead.name = pushName;
+        lead.pushName = pushName;
+      }
+      lead.updatedAt = new Date().toISOString();
+      this.writeDb(db);
+      return lead;
+    }
+    return null;
   }
 
   saveOrUpdateLead(leadData) {
