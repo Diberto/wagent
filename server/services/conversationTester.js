@@ -288,7 +288,8 @@ export async function runConversationTestSuite() {
     'Verifica que al elegir una opción numerada con agregados/quitas (ej: "opción 1 pero suma 2 chorizos"), el agente asiente exactamente la opción elegida sin duplicados ni cortes fantasmas.',
     'Inteligencia Conversacional',
     async () => {
-      const lead = { id: 'lead_t10_opt', name: 'Don Juan', phone: '+54 9 351 626-2475', jid: '5493516262475_t10@s.whatsapp.net', customFields: {} };
+      const uniqueId = `t10_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const lead = { id: `lead_${uniqueId}`, name: 'Don Juan', phone: '+54 9 351 626-2475', jid: `${uniqueId}@s.whatsapp.net`, customFields: {} };
       const asadoProposalMsg = `¡Qué lindo asado Don Juan! 🔥🥩 Para 6 personas calculamos un promedio de 3.5 kg en total (~500g por comensal bien servido).
 
 👉 *Te armé 3 opciones ideales para que elijas:*

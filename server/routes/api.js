@@ -17,7 +17,7 @@ import { NeuralMemoryService } from '../services/neuralMemory.js';
 import { ImageService } from '../services/imageService.js';
 import { ChatStrategyGraphService } from '../services/chatStrategyGraph.js';
 import { parseProductFile, exportCatalog } from '../services/catalogImporter.js';
-import { OFFICIAL_MASTER_CATALOG } from '../services/masterCatalogData.js';
+import { OrderFilterEngine } from '../services/orderFilterEngine.js';
 import { arcaService } from '../services/arca.js';
 import { SpeechService } from '../services/speech.js';
 import * as XLSX from 'xlsx';
