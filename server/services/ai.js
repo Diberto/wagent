@@ -1968,6 +1968,7 @@ Catálogo Oficial de Cortes y Precios Vigentes:
 ${activeProducts}
 
 Reglas de Oro:
+- Atención Consultiva Integral y Reenganche de Ventas: Si el cliente hace cualquier pregunta o consulta (sobre pedidos pendientes, estado de órdenes, medios de pago, envíos a domicilio, horarios, sucursales, procedencia y calidad de la carne, o charla casual), DEBES responder PRIMERO a su duda con total claridad, precisión y empatía, y LUEGO reenganchar de manera fluida, natural y persuasiva hacia el flujo de venta de la carnicería (ofreciendo cortes del día, asesoramiento para asado o coordinando su entrega). NUNCA ignores la pregunta del cliente ni devuelvas una plantilla fija desconectada.
 - Aclaración de Precios por Kilo y Pesaje Variable: En todo detalle de pedido o resumen de compra, aclara al inicio que los precios son por kilo ("📋 Detalle de tu pedido (precios por kilo según corte):") e incluye obligatoriamente luego del monto final la nota: "*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*".
 - Sustitución de Cortes Agotados o Fuera de Catálogo: Si el cliente solicita un producto o corte que no está disponible o no se encuentra en el catálogo (ej: lomo, ojo de bife, t-bone, picanha, etc.), avísale amablemente que no contamos con ese corte específico en este momento, ofrécele de inmediato una alternativa similar disponible del catálogo con su precio por kilo y consúltale si le gustaría llevar ese corte en su reemplazo y qué cantidad prefiere (en kilos o unidades). Mantén siempre la memoria y coherencia de los demás productos ya agregados y permite cambios en tiempo real al vuelo.
 - Desambiguación: Si el cliente pide un corte general o ambiguo (ej: cuadril, matambre, chorizo, milanesas) con múltiples variedades, ofrece opciones numeradas con precios claros para que elija.
@@ -2031,6 +2032,17 @@ export class AIService {
 
       const historyFormatted = (history || []).slice(-8).map(m => `${m.sender === 'user' ? 'Cliente' : (settings.agentName || 'Carlos')}: ${m.content}`).join('\n');
 
+      const activeLeadOrders = db.getOrdersByJid(jid || lead?.id || lead) || [];
+      const activeOrd = db.getActiveOrdersByJid(jid || lead?.id || lead)[0] || null;
+      let orderStatusContext = 'Estado de Pedidos del Cliente: No tiene pedidos activos ni pendientes registrados en carnicería.';
+      if (activeOrd) {
+        orderStatusContext = `Estado de Pedidos del Cliente: Tiene el Pedido Activo #${activeOrd.id} (${activeOrd.status}) con los cortes: ${Array.isArray(activeOrd.items) ? activeOrd.items.join(', ') : activeOrd.items}, Total: $${activeOrd.totalAmount}.`;
+      } else if (lead?.draftCart && Array.isArray(lead.draftCart.items) && lead.draftCart.items.length > 0) {
+        orderStatusContext = `Estado de Pedidos del Cliente: Tiene un borrador de pedido pendiente de confirmar con: ${lead.draftCart.items.join(', ')}, Total: $${lead.draftCart.total}.`;
+      } else if (activeLeadOrders.length > 0) {
+        orderStatusContext = `Estado de Pedidos del Cliente: No tiene pedidos pendientes actuales. Su última compra registrada fue el Pedido #${activeLeadOrders[0].id} (entregado).`;
+      }
+
       // Si es un comando o selección transaccional directa (números, confirmaciones, cancelaciones, cambios de pedido, cantidades)
       const isDirectTransaction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim()) ||
         /(?:cancelar.*ped|cancela.*ped|cambiame|sacale|en vez de|ya transfer[ií]|ya me lo entregaron|recib[ií] el ped)/i.test(incomingText) ||
@@ -2045,7 +2057,7 @@ export class AIService {
         let modelName = settings.aiModel || 'gemini-1.5-flash-latest';
         let model = genAI.getGenerativeModel({ model: modelName });
 
-        const prompt = `System Instruction:\n${fullSystemPrompt}\n\n${neuralContext.contextPrompt}\n\nHistorial de la conversación reciente:\n${historyFormatted}\n\nCliente: ${incomingText}\n\nResponde como ${settings.agentName || 'Carlos'} (manteniendo siempre consistencia total con los cortes y precios del catálogo):`;
+        const prompt = `System Instruction:\n${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}\n\nHistorial de la conversación reciente:\n${historyFormatted}\n\nCliente: ${incomingText}\n\nResponde como ${settings.agentName || 'Carlos'} (resolviendo primero cualquier duda del cliente y reenganchando con el negocio cárnico):`;
         try {
           const result = await model.generateContent(prompt);
           replyText = result.response.text();
@@ -2063,7 +2075,7 @@ export class AIService {
         const completion = await openai.chat.completions.create({
           model: settings.aiModel || 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: `${fullSystemPrompt}\n\n${neuralContext.contextPrompt}` },
+            { role: 'system', content: `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}` },
             ...historyMessages,
             { role: 'user', content: incomingText }
           ],
@@ -2213,6 +2225,16 @@ export class AIService {
         }
       }
       return getVariedCancellationMessage(clientName);
+    }
+
+    // 0.00005 CONSULTAS DE ESTADO DE PEDIDOS / PENDIENTES / HISTORIAL
+    const isOrderQueryEarly = /(?:que|qué|cuales|cuáles|tengo|hay)\s+(?:mis\s+|el\s+|alg[uú]n\s+)?(?:pedidos?|compras?|ordenes?|órdenes?).*(?:pendiente|activos?|en curso|tengo|hice|anotado|guardado|listo)/i.test(t) ||
+      /(?:consultar|ver|estado|seguimiento|donde est[aá]|dónde est[aá]|cuando llega|a que hora llega|como va|mis|mi)\s+(?:de\s+mi\s+|el\s+)?(?:pedidos?|compras?|ordenes?|órdenes?|env[ií]o|despacho)/i.test(t) ||
+      /(?:que|qué)\s+(?:pedidos?\s+tengo|tengo\s+pedid[oa]|te\s+ped[ií]|ped[ií]|tengo\s+pendiente)/i.test(t) ||
+      /^(?:mis pedidos|mi pedido|estado del pedido|pedido pendiente|pedidos pendientes|ver pedido|ver orden)$/i.test(t);
+
+    if (isOrderQueryEarly) {
+      return ChatStrategyGraphService.handleOrderHistory(lead, clientName);
     }
 
     // 0.0001 RESPUESTAS AL MENÚ DE BIENVENIDA / OPCIONES RÁPIDAS

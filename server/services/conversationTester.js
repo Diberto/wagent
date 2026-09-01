@@ -250,6 +250,37 @@ export async function runConversationTestSuite() {
     }
   );
 
+  // 9. Atención Consultiva, Dudas del Cliente y Reenganche de Ventas
+  await runTest(
+    'test-9-consultative-reengagement',
+    'Atención Consultiva, Preguntas Frecuentes y Reenganche de Ventas',
+    'Verifica que ante preguntas sobre pedidos pendientes, pagos, envíos o sucursales, el agente responda con precisión y retome el flujo comercial.',
+    'Atención & Ventas',
+    async () => {
+      const lead = { id: 'lead_t9_juan', name: 'Don Juan', phone: '+54 9 351 626-2475', jid: '5493516262475@s.whatsapp.net', customFields: {} };
+      const history = [
+        { sender: 'user', content: 'Hola' },
+        { sender: 'bot', content: '¡Buenas Don Juan! 👋 Carlos de República de la Carne a tu disposición. ¿Por dónde arrancamos?' }
+      ];
+
+      const reply = await AIService.generateSalesResponse({
+        rawText: 'que pedidos tengo pendiente',
+        lead,
+        history,
+        settings: db.getSettings()
+      });
+
+      // Debe responder específicamente sobre pedidos/estado (no una bienvenida genérica)
+      if (!reply.toLowerCase().includes('pedido') && !reply.toLowerCase().includes('orden')) {
+        throw new Error('No respondió sobre el estado o consulta de pedidos.');
+      }
+
+      if (reply.includes('¿Por dónde arrancamos?') && !reply.includes('Pedido #') && !reply.includes('no tenés')) {
+        throw new Error('Respondió con plantilla genérica en lugar de atender la duda de pedidos.');
+      }
+    }
+  );
+
   const passedCount = results.filter(r => r.passed).length;
   const failedCount = results.filter(r => !r.passed).length;
   const total = results.length;
