@@ -437,6 +437,61 @@ class EmbeddedLlamaService {
   }
 
   /**
+   * Ejecuta una inferencia con soporte de streaming token a token (Server-Sent Events)
+   */
+  async promptStream({
+    systemPrompt = 'Eres un asistente de ventas profesional en Argentina.',
+    prompt = '',
+    temperature = 0.6,
+    maxTokens = 150,
+    onToken = null
+  }) {
+    const startTime = Date.now();
+    const mod = await getNodeLlamaCpp();
+    if (!mod) {
+      throw new Error('node-llama-cpp no está disponible en este entorno.');
+    }
+
+    const { LlamaChatSession } = mod;
+    const { context } = await this.getOrInitContext();
+
+    const session = new LlamaChatSession({
+      contextSequence: context.getSequence(),
+      systemPrompt
+    });
+
+    let fullText = '';
+    await session.prompt(prompt, {
+      maxTokens: Math.min(maxTokens || 150, 256),
+      temperature: typeof temperature === 'number' ? temperature : 0.6,
+      onToken: (tokens) => {
+        let chunk = '';
+        try {
+          if (typeof context.sequences?.decode === 'function') {
+            chunk = context.sequences.decode(tokens);
+          } else if (typeof session.contextSequence?.decode === 'function') {
+            chunk = session.contextSequence.decode(tokens);
+          }
+        } catch (e) {
+          chunk = '';
+        }
+        if (chunk) {
+          fullText += chunk;
+          if (typeof onToken === 'function') {
+            onToken(chunk);
+          }
+        }
+      }
+    });
+
+    const latencyMs = Date.now() - startTime;
+    return {
+      text: fullText.trim(),
+      latencyMs
+    };
+  }
+
+  /**
    * Test de conexión y rendimiento de Qwen 2.5 0.5B
    */
   async testConnection({ temperature = 0.6, maxTokens = 60 } = {}) {

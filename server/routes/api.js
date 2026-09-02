@@ -2734,6 +2734,54 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // --- Endpoints de Chat Directo & Streaming SSE (Server-Sent Events) ---
+  router.post('/chat', async (req, res) => {
+    const { message, prompt: promptText } = req.body || {};
+    const text = message || promptText;
+    if (!text) return res.status(400).json({ error: 'El mensaje es requerido' });
+
+    try {
+      if (embeddedLlama.isModelAvailable()) {
+        const result = await embeddedLlama.prompt({ prompt: text });
+        return res.json({ response: result.text, latencyMs: result.latencyMs });
+      }
+      const response = await AIService.callLLMGeneric({ prompt: text });
+      res.json({ response });
+    } catch (error) {
+      res.status(500).json({ error: error.message || 'Error procesando la inferencia' });
+    }
+  });
+
+  router.post('/chat/stream', async (req, res) => {
+    const { message, prompt: promptText } = req.body || {};
+    const text = message || promptText;
+    if (!text) return res.status(400).json({ error: 'El mensaje es requerido' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    try {
+      if (embeddedLlama.isModelAvailable()) {
+        await embeddedLlama.promptStream({
+          prompt: text,
+          onToken: (chunk) => {
+            res.write(`data: ${JSON.stringify({ token: chunk })}\n\n`);
+          }
+        });
+      } else {
+        const fullResponse = await AIService.callLLMGeneric({ prompt: text });
+        res.write(`data: ${JSON.stringify({ token: fullResponse })}\n\n`);
+      }
+
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch (error) {
+      res.write(`data: ${JSON.stringify({ error: error.message || 'Error en streaming' })}\n\n`);
+      res.end();
+    }
+  });
+
   // Obtener voces personalizadas de la cuenta de ElevenLabs
   router.get('/elevenlabs/voices', async (req, res) => {
     const settings = db.getSettings();
