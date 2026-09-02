@@ -2236,9 +2236,15 @@ export class AIService {
    * Si falla, devuelve el error exacto del API (código HTTP, mensaje, detalles) sin enmascararlo con fallbacks.
    */
   static async testModelConnection({ provider, model, apiKey, customEndpoint, temperature = 0.7, maxTokens = 150 }) {
-    const s = db.getSettings();
-    const effectiveProvider = provider || s.aiProvider || 'gemini';
-    const effectiveModel = model || s.aiModel || getDefaultModelForProvider(effectiveProvider);
+    const s = db.getSettings() || {};
+    let effectiveProvider = provider || s.aiProvider || 'gemini';
+    if (effectiveProvider === 'system_default') {
+      effectiveProvider = s.aiProvider || 'gemini';
+    }
+    let effectiveModel = model || s.aiModel || getDefaultModelForProvider(effectiveProvider);
+    if (effectiveModel === 'default') {
+      effectiveModel = s.aiModel || getDefaultModelForProvider(effectiveProvider);
+    }
     const effectiveTemp = typeof temperature === 'number' ? temperature : 0.7;
     const testPrompt = "Hola, responde únicamente con: 'CONEXION_EXITOSA: [Nombre del modelo] funcionando correctamente.' y una frase corta de saludo.";
 
@@ -2251,7 +2257,7 @@ export class AIService {
         if (!key || !key.startsWith('AIza')) {
           return {
             success: false,
-            provider: effectiveProvider,
+            provider: 'Google Gemini',
             model: effectiveModel,
             error: 'API Key de Google Gemini inválida o faltante (debe comenzar con "AIzaSy..."). Configúrala en Ajustes o en el Agente.',
             latencyMs: Date.now() - startTime,
@@ -2268,7 +2274,14 @@ export class AIService {
           }
         });
 
-        const result = await generativeModel.generateContent(testPrompt);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Tiempo de espera agotado al conectar con Google Gemini (Timeout 7s)')), 7000)
+        );
+
+        const result = await Promise.race([
+          generativeModel.generateContent(testPrompt),
+          timeoutPromise
+        ]);
         const text = result.response.text();
         const latencyMs = Date.now() - startTime;
 
@@ -2293,7 +2306,7 @@ export class AIService {
         if (!key || !key.startsWith('sk-ant-')) {
           return {
             success: false,
-            provider: effectiveProvider,
+            provider: 'Anthropic Claude',
             model: effectiveModel,
             error: 'API Key de Anthropic Claude inválida o faltante (debe comenzar con "sk-ant-..."). Configúrala en Ajustes o en el Agente.',
             latencyMs: Date.now() - startTime,
@@ -2303,6 +2316,7 @@ export class AIService {
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
+          signal: AbortSignal.timeout(7000),
           headers: {
             'x-api-key': key,
             'anthropic-version': '2023-06-01',
@@ -2350,7 +2364,7 @@ export class AIService {
       if (effectiveProvider === 'free_online') {
         const cleanModelName = effectiveModel.replace(/^free:pollinations\//, '');
         const url = `https://text.pollinations.ai/${encodeURIComponent(testPrompt)}?model=${cleanModelName}&seed=42`;
-        const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(15000) });
+        const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(7000) });
         const latencyMs = Date.now() - startTime;
 
         if (!res.ok) {
@@ -2427,7 +2441,8 @@ export class AIService {
       const openai = new OpenAI({
         apiKey: effectiveKey || 'dummy-key',
         baseURL: baseURL || undefined,
-        timeout: 20000
+        timeout: 6000,
+        maxRetries: 0
       });
 
       const completion = await openai.chat.completions.create({
@@ -2615,7 +2630,8 @@ export class AIService {
         const openai = new OpenAI({
           apiKey: effectiveKey || 'dummy-key',
           baseURL: baseURL || undefined,
-          timeout: 25000
+          timeout: 8000,
+          maxRetries: 1
         });
 
         const messages = [];

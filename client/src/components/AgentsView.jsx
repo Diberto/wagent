@@ -282,7 +282,16 @@ export default function AgentsView({ socket, currentUser }) {
           temperature: agentModal.data.aiTemperature ?? 0.7
         })
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        data = {
+          success: false,
+          error: `Error en servidor (${res.status} ${res.statusText || 'Gateway Timeout'}). El servidor tardó en responder.`,
+          isFallback: false
+        };
+      }
       setAiModelTestResult(data);
     } catch (err) {
       setAiModelTestResult({

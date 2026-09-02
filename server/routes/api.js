@@ -2588,16 +2588,42 @@ export function createApiRouter(whatsappService, io) {
   });
 
   router.post('/ai/test-connection', async (req, res) => {
+    let hasSentResponse = false;
+    const timeoutHandle = setTimeout(() => {
+      if (!hasSentResponse) {
+        hasSentResponse = true;
+        res.json({
+          success: false,
+          provider: req.body?.provider || 'IA',
+          model: req.body?.model || 'Desconocido',
+          error: 'Tiempo de espera agotado al conectar con el proveedor de IA (Timeout 8.5s). El servidor remoto o endpoint local no respondió a tiempo.',
+          latencyMs: 8500,
+          isFallback: false
+        });
+      }
+    }, 8500);
+
     try {
       const result = await AIService.testModelConnection(req.body || {});
-      res.json(result);
+      if (!hasSentResponse) {
+        hasSentResponse = true;
+        clearTimeout(timeoutHandle);
+        res.json(result);
+      }
     } catch (err) {
-      console.error('Error testeando conexión de modelo IA:', err);
-      res.status(500).json({
-        success: false,
-        error: err.message,
-        isFallback: false
-      });
+      if (!hasSentResponse) {
+        hasSentResponse = true;
+        clearTimeout(timeoutHandle);
+        console.error('Error testeando conexión de modelo IA:', err);
+        res.json({
+          success: false,
+          provider: req.body?.provider || 'IA',
+          model: req.body?.model || 'Desconocido',
+          error: err.message || 'Error interno al probar el modelo',
+          latencyMs: 0,
+          isFallback: false
+        });
+      }
     }
   });
 
