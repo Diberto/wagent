@@ -978,7 +978,7 @@ export function createApiRouter(whatsappService, io) {
       }
 
       // 5. Guardar en Base de Datos Unificada
-      const savedOrder = db.addOrder(orderData);
+      const savedOrder = db.createOrder(orderData);
 
       // 6. Si eligió Mercado Pago, generar link de pago instantáneo
       let checkoutUrl = null;

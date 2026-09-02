@@ -2038,6 +2038,14 @@ class DatabaseService {
     return true;
   }
 
+  addOrder(orderData) {
+    return this.createOrder(orderData);
+  }
+
+  saveOrder(orderData) {
+    return this.createOrder(orderData);
+  }
+
   createOrder(orderData) {
     const db = this.readDb();
     if (!db.orders) db.orders = [];
