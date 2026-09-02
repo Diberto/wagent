@@ -5,6 +5,18 @@
 
 export const SYSTEM_AI_PROVIDERS = [
   {
+    id: 'system_default',
+    name: 'Por Defecto del Sistema',
+    icon: '⚙️',
+    badge: 'Heredar de Ajustes',
+    color: 'slate',
+    desc: 'Usa automáticamente el proveedor y modelo configurados globalmente en Ajustes del Sistema',
+    requiresKey: false,
+    keyField: null,
+    keyPlaceholder: 'Configurado en Ajustes',
+    keyHelpUrl: null
+  },
+  {
     id: 'gemini',
     name: 'Google Gemini',
     icon: '♊',
@@ -127,6 +139,9 @@ export const SYSTEM_AI_PROVIDERS = [
 ];
 
 export const SYSTEM_AI_MODELS = {
+  system_default: [
+    { id: 'default', name: 'Modelo Global de Ajustes', tag: 'Automático', desc: 'Hereda automáticamente el motor y modelo principal configurado en Ajustes', isFree: false }
+  ],
   gemini: [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Recomendado', desc: 'Ultra rápido, óptimo para ventas conversacionales y pedidos', isFree: false },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Máxima Inteligencia', desc: 'Máximo razonamiento, comprensión profunda y análisis', isFree: false },

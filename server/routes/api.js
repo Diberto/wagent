@@ -2788,14 +2788,22 @@ export function createApiRouter(whatsappService, io) {
         customFields: {}
       };
 
+      const globalSettings = db.getSettings() || {};
+      const resolvedProvider = (!agent.aiProvider || agent.aiProvider === 'system_default') 
+        ? (globalSettings.aiProvider || 'gemini') 
+        : agent.aiProvider;
+      const resolvedModel = (!agent.aiModel || agent.aiModel === 'default') 
+        ? (globalSettings.aiModel || getDefaultModelForProvider(resolvedProvider)) 
+        : agent.aiModel;
+
       const customSettings = {
-        ...db.getSettings(),
+        ...globalSettings,
         agentName: agent.name,
         agentRole: agent.roleLabel,
-        aiProvider: agent.aiProvider || db.getSettings()?.aiProvider || 'gemini',
-        aiModel: agent.aiModel || db.getSettings()?.aiModel || 'gemini-2.5-flash',
-        aiTemperature: agent.aiTemperature !== undefined ? Number(agent.aiTemperature) : 0.7,
-        aiMaxTokens: agent.aiMaxTokens || 500,
+        aiProvider: resolvedProvider,
+        aiModel: resolvedModel,
+        aiTemperature: agent.aiTemperature !== undefined ? Number(agent.aiTemperature) : (globalSettings.aiTemperature || 0.7),
+        aiMaxTokens: agent.aiMaxTokens || globalSettings.aiMaxTokens || 2048,
         apiKeyOverride: agent.apiKeyOverride || '',
         customEndpoint: agent.customEndpoint || '',
         systemPrompt: `${agent.promptInstructions || ''}\n\nBiografía e Historia: ${agent.backstory || ''}\nPersonalidad: ${agent.personality || ''}`

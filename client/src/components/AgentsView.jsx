@@ -296,6 +296,14 @@ export default function AgentsView({ socket, currentUser }) {
   };
 
   const getModelBadge = (provider, model) => {
+    if (provider === 'system_default' || !provider) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-200 border border-slate-700 flex items-center gap-1.5 shadow-sm">
+          <span className="text-xs">⚙️</span>
+          <span className="font-mono text-emerald-300">Por Defecto del Sistema</span>
+        </span>
+      );
+    }
     const prov = SYSTEM_AI_PROVIDERS.find(p => p.id === provider) || SYSTEM_AI_PROVIDERS[0];
     return (
       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-200 border border-slate-700 flex items-center gap-1.5 shadow-sm">

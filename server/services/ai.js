@@ -2185,10 +2185,18 @@ export function buildFullSystemPrompt(settings, catalog = null) {
     personalityDirective = `• MODO ASESOR EQUILIBRADO (Experto Cordobés): Trato cordial, enérgico y amable de mostrador carnicero. Asesora con paciencia en recetas y cortes, guiando con naturalidad hacia la propuesta de compra.`;
   }
 
+  // Contexto en Tiempo Real del Servidor
+  const now = new Date();
+  const timeOptions = { timeZone: 'America/Argentina/Cordoba', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+  const dateOptions = { timeZone: 'America/Argentina/Cordoba', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  const currentTimeStr = now.toLocaleTimeString('es-AR', timeOptions);
+  const currentDateStr = now.toLocaleDateString('es-AR', dateOptions);
+
   return `Eres ${agentName}, ${agentRole} de "${businessName}".
 
 Contexto Regional y Negocio:
 • País y Región: ${country} (${region})
+• Fecha y Hora Actual: ${currentTimeStr} (${currentDateStr}) [Zona Horaria: America/Argentina/Cordoba, Argentina / UTC-3]
 • Moneda de Venta: ${currency} (todos los precios son exactos en moneda local)
 • Tono y Modismos: ${slang}
 • Directivas de Negocio: ${businessRules}
@@ -2205,16 +2213,20 @@ ${activeProducts}
 Recetas Tradicionales Argentinas y Cortes Vinculados:
 ${recipesList}
 
-Reglas de Oro:
-- Atención a Comidas de Casa y Platos Familiares (NO forzar Asado si no corresponde): Si el cliente pide algo para "cocinar en casa", "algo rápido", "plato familiar", o dice explícitamente "NO quiero asado", NUNCA le ofrezcas costilla ni carbón. Sugiérele platos de cocina diaria calculando 250g a 300g por persona: (1) Milanesas de Nalga o Bola de Lomo, (2) Bifes a la plancha de Costeletas o Bife de Chorizo, (3) Pastel de Papa o Guiso Carrero de Picada Especial / Roast Beef / Osobuco.
-- Atención Consultiva Integral y Reenganche de Ventas: Si el cliente hace cualquier pregunta o consulta (sobre pedidos pendientes, estado de órdenes, medios de pago, envíos a domicilio, horarios, sucursales, procedencia y calidad de la carne, o charla casual), DEBES responder PRIMERO a su duda con total claridad, precisión y empatía, y LUEGO reenganchar de manera fluida, natural y persuasiva hacia el flujo de venta de la carnicería. NUNCA ignores la pregunta del cliente.
+Reglas de Oro y Asesoramiento de Élite:
+- Asesoramiento Consultivo y Combos Estructurados: Cuando el cliente consulte por "ofertas", "juntada con amigos", "comida", "asado" o qué llevar, compórtate como un verdadero maestro carnicero de mostrador. Proponle opciones ricas y estructuradas con formato prolijo (negrita, viñetas y emojis):
+  * Opción 1: Combo Asadazo Parrillero (Costillar / Tira + Vacío + Chorizos + Morcillas).
+  * Opción 2: Combo Cerdo & Achuras (Pechito con manta + Matambre de cerdo + Chorizos).
+  * Opción 3: Promo Menú Semanal / Cocina Diaria (Nalga para milanesas + Carne picada especial + Costeletas).
+- Cálculo Preciso de Raciones: Para asados calcula entre 500g y 600g por persona (sumando cortes y achuras). Para comidas de olla, horno o milanesas calcula 250g a 300g por persona. Explica la distribución en: (1) La Previa / Achuras, (2) El Plato Fuerte y (3) Acompañamientos / Bebidas / Carbón.
+- Atención Consultiva Integral y Reenganche de Ventas: Si el cliente hace cualquier pregunta (la hora, pedidos pendientes, medios de pago, sucursales, envíos a domicilio, o charla casual), responde PRIMERO a su consulta con total amabilidad, precisión y empatía, y LUEGO reengancha con entusiasmo hacia la propuesta de compra para armar su pedido.
+- Consulta de la Hora: Si el cliente pregunta qué hora es o si están abiertos, indícale la hora actual exacta (${currentTimeStr}) y comenta alegremente que estás firme en mostrador para prepararle los mejores cortes.
 - Aclaración de Precios por Kilo y Pesaje Variable: En todo detalle de pedido o resumen de compra, aclara al inicio que los precios son por kilo ("📋 Detalle de tu pedido (precios por kilo según corte):") e incluye obligatoriamente luego del monto final la nota: "*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*".
 - Sustitución de Cortes Agotados o Fuera de Catálogo: Si el cliente solicita un producto que no está disponible, ofrécele de inmediato una alternativa similar del catálogo con su precio por kilo.
 - Desambiguación: Si el cliente pide un corte general o ambiguo con múltiples variedades, ofrece opciones numeradas con precios claros para que elija.
 - Fraccionamiento por Unidades: Cuando el cliente pida productos que se venden por unidad (chorizos, morcillas, costeletas, milanesas) indicando unidades (ej: "6 chorizos", "4 costeletas"), en el detalle del pedido SIEMPRE muestra "X Unidades de [Nombre]" y NUNCA "kg".
 - Consulta de Pago Previa al Cierre: Antes de cerrar el pedido final, consulta cómo pagará (1️⃣ Efectivo contraentrega, 2️⃣ Transferencia Alias: republica.carne.mp, 3️⃣ Link de Mercado Pago).
-- Condiciones Obligatorias: No cierres un pedido sin validar: (1) cortes o combo definidos con precio, (2) modalidad de entrega (Domicilio o Sucursal), (3) medio de pago y (4) nombre del cliente.
-- Sé siempre preciso con los precios del catálogo. Para asados calcula 500g a 600g por persona; para comidas de olla, milanesas o pastel de papa calcula 250g a 300g por persona.`;
+- Condiciones Obligatorias: No cierres un pedido sin validar: (1) cortes o combo definidos con precio, (2) modalidad de entrega (Domicilio o Sucursal), (3) medio de pago y (4) nombre del cliente.`;
 }
 
 export class AIService {
@@ -2923,10 +2935,16 @@ Whenever the user asks about the current time, date, products count, orders, or 
       // Si es un comando estrictamente atómico (ej: solo un dígito o palabra clave de confirmación/cancelación directa)
       const isPureAtomicAction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim());
 
-      const effectiveProvider = settings.aiProvider || 'gemini';
-      const effectiveModel = settings.aiModel || getDefaultModelForProvider(effectiveProvider);
+      let effectiveProvider = settings.aiProvider || 'gemini';
+      if (effectiveProvider === 'system_default') {
+        effectiveProvider = db.getSettings()?.aiProvider || 'gemini';
+      }
+      let effectiveModel = settings.aiModel || getDefaultModelForProvider(effectiveProvider);
+      if (effectiveModel === 'default') {
+        effectiveModel = db.getSettings()?.aiModel || getDefaultModelForProvider(effectiveProvider);
+      }
       const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
-      const effectiveMaxTokens = settings.aiMaxTokens || 450;
+      const effectiveMaxTokens = settings.aiMaxTokens || 2048;
 
       const combinedSystemPrompt = `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}`;
 
@@ -3113,6 +3131,69 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
     if (isOrderQueryEarly) {
       return ChatStrategyGraphService.handleOrderHistory(lead, clientName);
+    }
+
+    // 0.00006 CONSULTAS DIRECTAS DE HORA Y ESTADO DEL MOSTRADOR
+    if (/(?:qu[eé]\s+hora\s+es|qu[eé]\s+hora\s+ten[eé]s|hora\s+actual|a\s+qu[eé]\s+hora\s+abren|est[aá]n\s+abiertos|horarios?|a\s+que\s+hora\s+cierran)/i.test(t)) {
+      const now = new Date();
+      const currentTimeStr = now.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Cordoba', hour12: false, hour: '2-digit', minute: '2-digit' });
+      return `¡Hola ${clientName}! 👋 Acá en mostrador son las **${currentTimeStr} hs** y estamos a pleno atendiendo y preparando pedidos.\n\n` +
+        `🥩 Contame: ¿tenías ganas de prender el fuego para un asadito o buscás cortes para la comida de hoy? ¡Te dejamos todo listo para entrega en el día o retiro por sucursal! 🛵🔪 [[STAGE:proposal]]`;
+    }
+
+    // 0.00007 CONSULTAS DIRECTAS DE OFERTAS, COMBOS Y CARTELERA
+    if (/(?:ofertas?|promos?|promociones?|lista\s+de\s+ofertas?|qu[eé]\s+ofertas?\s+hay|qu[eé]\s+promos?\s+ten[eé]s|cartelera|pizarra|combos?\s+parrilleros?|combos?)/i.test(t) && !wasBranchMenuOffered && !wasModMenuOffered) {
+      const catalogToOffer = getFeaturedWhatsAppOffers(products);
+      const formattedCatalog = formatNumberedCatalog(catalogToOffer);
+      return `🔥 *OFERTAS Y COMBOS DESTACADOS EN REPÚBLICA DE LA CARNE:* 🥩\n\n` +
+        `${formattedCatalog}\n\n` +
+        `👉 *¿Para cuántas personas estás calculando o qué cortes te gustaría que te preparemos?* Te dejamos el combo listo para entrega en el día o retiro por sucursal. 🛵🙌 [[STAGE:proposal]]`;
+    }
+
+    // 0.00008 JUNTADAS, COMIDA CON AMIGOS Y PLANES DE ASADO
+    if (/(?:comida\s+con\s+(?:unos\s+)?amigos|juntada\s+con\s+amigos|juntada|asado\s+con\s+amigos|reuni[oó]n|hacer\s+un\s+asado|armar\s+un\s+asado|asado\s+para\s+amigos)/i.test(t)) {
+      return `¡Qué lindo plan ${clientName}! 🥩🔥 La juntada con amigos es sagrada y acá en República de la Carne te armamos la combinación perfecta para quedar de diez:\n\n` +
+        `🔥 *1. Combo Asadazo Parrillero:* Costillar / Tira de asado + Vacío seleccionado + Chorizos criollos + Morcillas bombón.\n` +
+        `🍖 *2. Combo Cerdo & Achuras:* Pechito con manta + Matambre tierno de cerdo + Chorizos caseros.\n` +
+        `🥩 *3. Cortes Premium a la Carta:* Ojo de bife, entraña fresca o matambrito crocante.\n\n` +
+        `💡 *Cálculo parrillero:* Calculamos **500g a 600g por persona** para que coman abundante y no falte nada.\n\n` +
+        `👉 Contame: **¿Cuántos son en total para la comida?** (ej: 'somos 4', 'somos 6', 'somos 10') y te calculo los kilos exactos y el total para dejártelo listo. 🔪🛵 [[STAGE:proposal]]`;
+    }
+
+    // 0.000085 COMIDA CASERA / COCINAR EN CASA / PLATOS FAMILIARES
+    const isHomeCooking = /(?:cocinar\s+(?:algo\s+)?en\s+casa|comida\s+casera|platos?\s+familiares?|no\s+quiero\s+asado|cocinar\s+con\s+mi\s+familia|comida\s+para\s+mi\s+familia|men[uú]\s+semanal)/i.test(t);
+    if (isHomeCooking) {
+      return `¡Qué linda idea ${clientName}! 🏠🥘 Para cocinar en casa y compartir con la familia calculamos **~250g a 300g por persona**. Te propongo 3 platazos caseros espectaculares:\n\n` +
+        `1️⃣ **Milanesas Caseras:** Nalga tierna o Bola de Lomo cortadas finitas listas para empanar.\n` +
+        `2️⃣ **Bifes a la Plancha:** Costeletas con hueso o Bife de Chorizo jugoso con papas o ensalada.\n` +
+        `3️⃣ **Pastel de Papa o Guiso Carrero:** Picada especial magra, Roast Beef o Osobuco tierno de novillito.\n\n` +
+        `👉 Contame cuál de estas opciones te gustaría armar o cuántos kilos te preparamos. ¡Hacemos envíos directos en el día! 🛵🥩 [[STAGE:proposal]]`;
+    }
+
+    // 0.00009 CÁLCULO DE COMENSALES ("somos 4", "somos 6", "para 4 personas", etc. sin pedido explícito de cortes)
+    const comensalesMatch = t.match(/(?:somos|para|seremos|calculo|calculamos|vamos\s+a\s+ser)\s+(\d{1,2})\s*(?:personas?|amigos?|comensales?|adultos?)?/) || t.match(/^(\d{1,2})\s*(?:personas?|amigos?|comensales?|adultos?)$/);
+    const hasExplicitProductOrder = /(?:kilos?|kg|unidades?|\d+\s*(?:chorizos?|matambre|costilla|vacio|vacío|bifes?|tira|carbon|carbón))/i.test(t);
+    if (comensalesMatch && !hasExplicitProductOrder && !isHomeCooking) {
+      const cantPersonas = parseInt(comensalesMatch[1], 10);
+      if (cantPersonas > 0 && cantPersonas <= 50) {
+        const kgTotal = ((cantPersonas * 0.55)).toFixed(1);
+        const choris = cantPersonas;
+        const morcis = Math.max(1, Math.round(cantPersonas / 2));
+        const tiraKg = ((cantPersonas * 0.25)).toFixed(1);
+        const vacioKg = ((cantPersonas * 0.20)).toFixed(1);
+
+        return `¡Espectacular ${clientName}! 🥩🔥 Para **${cantPersonas} personas** el cálculo clásico para comer abundante y que nadie se quede con las ganas es **~${kgTotal} kg en total**:\n\n` +
+          `🔥 *La Distribución Parrillera Recomendada:*\n` +
+          `1️⃣ **La Previa / Achuras:**\n` +
+          `   • ${choris} Chorizos criollos puro cerdo\n` +
+          `   • ${morcis} Morcillas bombón de la casa\n\n` +
+          `2️⃣ **El Plato Fuerte:**\n` +
+          `   • ${tiraKg} kg de Costillar / Asado de Tira de novillito\n` +
+          `   • ${vacioKg} kg de Vacío especial tierno\n\n` +
+          `3️⃣ **Acompañamiento:**\n` +
+          `   • 1 Bolsa de Carbón vegetal de primera calidad\n\n` +
+          `👉 ¿Te gustaría que te preparemos este combo para entrega a domicilio o retiro por sucursal? 🛵🏪 [[STAGE:proposal]]`;
+      }
     }
 
     // 0.0001 RESPUESTAS AL MENÚ DE BIENVENIDA / OPCIONES RÁPIDAS
