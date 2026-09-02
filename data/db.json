@@ -18863,7 +18863,13 @@
       "isActive": true,
       "isDefault": true,
       "createdAt": "2026-09-01T15:35:09.108Z",
-      "updatedAt": "2026-09-01T15:35:09.109Z"
+      "updatedAt": "2026-09-01T15:35:09.109Z",
+      "aiProvider": "gemini",
+      "aiModel": "gemini-2.5-flash",
+      "aiTemperature": 0.7,
+      "aiMaxTokens": 500,
+      "apiKeyOverride": "",
+      "customEndpoint": ""
     },
     {
       "id": "agent_valeria",
@@ -18883,7 +18889,13 @@
       "isActive": true,
       "isDefault": false,
       "createdAt": "2026-09-01T15:35:09.109Z",
-      "updatedAt": "2026-09-01T15:35:09.109Z"
+      "updatedAt": "2026-09-01T15:35:09.109Z",
+      "aiProvider": "openai",
+      "aiModel": "gpt-4o-mini",
+      "aiTemperature": 0.3,
+      "aiMaxTokens": 500,
+      "apiKeyOverride": "",
+      "customEndpoint": ""
     },
     {
       "id": "agent_martin",
@@ -18903,7 +18915,13 @@
       "isActive": true,
       "isDefault": false,
       "createdAt": "2026-09-01T15:35:09.109Z",
-      "updatedAt": "2026-09-01T15:35:09.109Z"
+      "updatedAt": "2026-09-01T15:35:09.109Z",
+      "aiProvider": "gemini",
+      "aiModel": "gemini-1.5-pro-latest",
+      "aiTemperature": 0.8,
+      "aiMaxTokens": 500,
+      "apiKeyOverride": "",
+      "customEndpoint": ""
     },
     {
       "id": "agent_roberto",
@@ -18923,7 +18941,13 @@
       "isActive": true,
       "isDefault": false,
       "createdAt": "2026-09-01T15:35:09.109Z",
-      "updatedAt": "2026-09-01T15:35:09.109Z"
+      "updatedAt": "2026-09-01T15:35:09.109Z",
+      "aiProvider": "openai",
+      "aiModel": "gpt-4o",
+      "aiTemperature": 0.4,
+      "aiMaxTokens": 500,
+      "apiKeyOverride": "",
+      "customEndpoint": ""
     },
     {
       "id": "agent_lucia",
@@ -18943,7 +18967,13 @@
       "isActive": true,
       "isDefault": false,
       "createdAt": "2026-09-01T15:35:09.109Z",
-      "updatedAt": "2026-09-01T15:35:09.109Z"
+      "updatedAt": "2026-09-01T15:35:09.109Z",
+      "aiProvider": "anthropic",
+      "aiModel": "claude-3-5-sonnet-20241022",
+      "aiTemperature": 0.7,
+      "aiMaxTokens": 500,
+      "apiKeyOverride": "",
+      "customEndpoint": ""
     }
   ],
   "recipes": [

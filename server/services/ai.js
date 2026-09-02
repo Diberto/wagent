@@ -2262,39 +2262,77 @@ export class AIService {
         /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada).*(?:para|somos)?\s*\d+|para\s+\d+\s*(?:personas|comensales|amigos|invitados|peronas)/i.test(incomingText) ||
         /^(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?)|medio\s+kilo|1\/2\s*kg|dos|tres|cuatro|cinco|seis|ocho|diez|\d+)$/i.test(incomingText.trim());
 
+      const effectiveProvider = settings.aiProvider || 'gemini';
+      const effectiveModel = settings.aiModel || (effectiveProvider === 'openai' ? 'gpt-4o-mini' : (effectiveProvider === 'deepseek' ? 'deepseek-chat' : (effectiveProvider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : (effectiveProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'))));
+      const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
+      const effectiveMaxTokens = settings.aiMaxTokens || 450;
+
       if (isDirectTransaction) {
         replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
-      } else if (settings.aiProvider === 'gemini' && isValidGeminiKey) {
-        const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-        let modelName = settings.aiModel || 'gemini-1.5-flash-latest';
-        let model = genAI.getGenerativeModel({ model: modelName });
+      } else if (effectiveProvider === 'gemini' && isValidGeminiKey) {
+        const apiKey = settings.apiKeyOverride || settings.geminiApiKey;
+        const genAI = new GoogleGenerativeAI(apiKey);
+        let modelName = effectiveModel;
+        let model = genAI.getGenerativeModel({ 
+          model: modelName,
+          generationConfig: {
+            temperature: effectiveTemp,
+            maxOutputTokens: effectiveMaxTokens
+          }
+        });
 
         const prompt = `System Instruction:\n${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}\n\nHistorial de la conversación reciente:\n${historyFormatted}\n\nCliente: ${incomingText}\n\nResponde como ${settings.agentName || 'Carlos'} (resolviendo primero cualquier duda del cliente y reenganchando con el negocio cárnico):`;
         try {
           const result = await model.generateContent(prompt);
           replyText = result.response.text();
         } catch (geminiErr) {
-          console.warn(`Error con modelo ${modelName}, usando motor inteligente directo:`, geminiErr.message);
+          console.warn(`Error con modelo Gemini ${modelName}, usando motor inteligente directo:`, geminiErr.message);
           replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
         }
-      } else if (settings.aiProvider === 'openai' && isValidOpenAiKey) {
-        const openai = new OpenAI({ apiKey: settings.openaiApiKey });
+      } else if (['openai', 'deepseek', 'groq', 'anthropic', 'local'].includes(effectiveProvider) && (isValidOpenAiKey || settings.apiKeyOverride || effectiveProvider === 'local')) {
+        let apiKey = settings.apiKeyOverride || settings.openaiApiKey;
+        let baseURL = settings.customEndpoint || undefined;
+
+        if (effectiveProvider === 'deepseek') {
+          apiKey = apiKey || settings.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
+          baseURL = baseURL || 'https://api.deepseek.com';
+        } else if (effectiveProvider === 'groq') {
+          apiKey = apiKey || settings.groqApiKey || process.env.GROQ_API_KEY;
+          baseURL = baseURL || 'https://api.groq.com/openai/v1';
+        } else if (effectiveProvider === 'anthropic') {
+          apiKey = apiKey || settings.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+          baseURL = baseURL || 'https://api.anthropic.com/v1';
+        } else if (effectiveProvider === 'local') {
+          baseURL = baseURL || 'http://localhost:11434/v1';
+          apiKey = apiKey || 'ollama';
+        }
+
+        const openai = new OpenAI({ 
+          apiKey: apiKey || 'dummy-key',
+          baseURL: baseURL || undefined
+        });
+
         const historyMessages = (history || []).slice(-8).map(m => ({
-          role: m.sender === 'user' ? 'user' : 'assistant',
-          content: m.content
+          role: (m.sender === 'user' || m.sender === 'client') ? 'user' : 'assistant',
+          content: m.content || m.text || ''
         }));
 
-        const completion = await openai.chat.completions.create({
-          model: settings.aiModel || 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}` },
-            ...historyMessages,
-            { role: 'user', content: incomingText }
-          ],
-          temperature: 0.7,
-          max_tokens: 450
-        });
-        replyText = completion.choices[0]?.message?.content || '';
+        try {
+          const completion = await openai.chat.completions.create({
+            model: effectiveModel,
+            messages: [
+              { role: 'system', content: `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}` },
+              ...historyMessages,
+              { role: 'user', content: incomingText }
+            ],
+            temperature: effectiveTemp,
+            max_tokens: effectiveMaxTokens
+          });
+          replyText = completion.choices[0]?.message?.content || '';
+        } catch (openaiErr) {
+          console.warn(`Error con modelo ${effectiveProvider}/${effectiveModel}, usando motor inteligente directo:`, openaiErr.message);
+          replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+        }
       } else {
         replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
       }

@@ -10,6 +10,9 @@ class MultiAgentOpsService {
         role: 'Líder de Ventas & Atención al Cliente',
         avatar: '🥩',
         status: 'active',
+        aiProvider: 'gemini',
+        aiModel: 'gemini-2.5-flash',
+        aiTemperature: 0.7,
         skills: ['Ventas en WhatsApp', 'Cotización de Cortes', 'Cierre de Pedidos', 'Manejo de Objeciones'],
         personality: 'Enérgico, cordial, especialista en venta de asados y atención personalizada.'
       },
@@ -18,6 +21,10 @@ class MultiAgentOpsService {
         name: 'Chef Don Mateo',
         role: 'Sommelier de Carnes & Asesor Gastronómico',
         avatar: '👨‍🍳',
+        status: 'active',
+        aiProvider: 'gemini',
+        aiModel: 'gemini-2.5-flash',
+        aiTemperature: 0.8,
         skills: ['Recetas Tradicionales Argentinas', 'Cálculo de Comensales', 'Reemplazo de Cortes', 'Maridaje y Acompañamientos'],
         personality: 'Cálido, didáctico, experto en guisos, milanesas, horno, empanadas y cortes criollos.'
       },
@@ -26,6 +33,10 @@ class MultiAgentOpsService {
         name: 'Inspector Stock',
         role: 'Auditor de Inventario, Balanzas & PLUs',
         avatar: '📦',
+        status: 'active',
+        aiProvider: 'openai',
+        aiModel: 'gpt-4o-mini',
+        aiTemperature: 0.2,
         skills: ['Alertas de Stock Mínimo', 'Detección de Cortes Faltantes', 'Validación de PLU / Código de Barras', 'Sugerencias de Promociones'],
         personality: 'Metódico, analítico, enfocado en consistencia de precios y disponibilidad de góndola.'
       },
@@ -34,6 +45,10 @@ class MultiAgentOpsService {
         name: 'DevOps Ops',
         role: 'Optimizador de Sistema, Memoria & Concurrencia',
         avatar: '⚡',
+        status: 'active',
+        aiProvider: 'deepseek',
+        aiModel: 'deepseek-chat',
+        aiTemperature: 0.2,
         skills: ['Monitoreo de CPU/RAM', 'Compactación de Base de Datos', 'Detección de Cuellos de Botella', 'Diagnóstico de Módulos'],
         personality: 'Técnico, veloz, enfocado en alta disponibilidad y resiliencia de servidor.'
       }
@@ -90,6 +105,8 @@ class MultiAgentOpsService {
         agentName: 'Chef Don Mateo',
         avatar: '👨‍🍳',
         role: 'Sommelier de Carnes',
+        aiProvider: 'gemini',
+        aiModel: 'gemini-2.5-flash',
         content: reply
       });
     }
@@ -114,6 +131,8 @@ class MultiAgentOpsService {
         agentName: 'Inspector Stock',
         avatar: '📦',
         role: 'Auditor de Inventario',
+        aiProvider: 'openai',
+        aiModel: 'gpt-4o-mini',
         content: reply
       });
     }
@@ -133,6 +152,8 @@ class MultiAgentOpsService {
         agentName: 'DevOps Ops',
         avatar: '⚡',
         role: 'Optimizador de Sistema',
+        aiProvider: 'deepseek',
+        aiModel: 'deepseek-chat',
         content: reply
       });
     }
@@ -157,6 +178,8 @@ class MultiAgentOpsService {
         agentName: 'Carlos Asesor',
         avatar: '🥩',
         role: 'Líder Comercial',
+        aiProvider: 'gemini',
+        aiModel: 'gemini-2.5-flash',
         content: reply
       });
     }
@@ -168,6 +191,8 @@ class MultiAgentOpsService {
         sender: r.agentName,
         senderRole: r.role,
         avatar: r.avatar,
+        aiProvider: r.aiProvider,
+        aiModel: r.aiModel,
         content: r.content,
         timestamp: new Date().toISOString(),
         isAgent: true,

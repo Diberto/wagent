@@ -68,6 +68,49 @@ export default function AgentsView({ socket, currentUser }) {
     { url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80', label: 'Romina (Atención al Cliente)' }
   ];
 
+  // Proveedores y Presets de Modelos de IA
+  const AI_PROVIDERS = [
+    { id: 'gemini', name: 'Google Gemini', icon: '♊', desc: 'Modelos Flash & Pro ultrarrápidos con visión y contexto masivo' },
+    { id: 'openai', name: 'OpenAI GPT', icon: '🟢', desc: 'GPT-4o, GPT-4o Mini y modelos de razonamiento matemático' },
+    { id: 'anthropic', name: 'Anthropic Claude', icon: '🟣', desc: 'Claude 3.5 Sonnet / Haiku con tono humano y empatía excepcional' },
+    { id: 'deepseek', name: 'DeepSeek AI', icon: '🔵', desc: 'Modelos V3 y R1 de alto rendimiento y ultra bajo costo' },
+    { id: 'groq', name: 'Groq / Meta Llama', icon: '⚡', desc: 'Llama 3.3 70B en LPU a más de 500 tokens/segundo' },
+    { id: 'local', name: 'Servidor Local / Ollama', icon: '🖥️', desc: 'Modelos auto-alojados sin depender de APIs de terceros' }
+  ];
+
+  const AI_MODEL_PRESETS = {
+    gemini: [
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recomendado)', desc: 'Ultra rápido y óptimo para ventas en tiempo real' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Nueva generación con razonamiento mejorado' },
+      { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro', desc: 'Máxima capacidad analítica para consultas complejas' },
+      { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash', desc: 'Versión estable ultraliviana' }
+    ],
+    openai: [
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Recomendado)', desc: 'Rápido, económico y altamente preciso' },
+      { id: 'gpt-4o', name: 'GPT-4o Insignia', desc: 'Máxima inteligencia y redacción natural' },
+      { id: 'o3-mini', name: 'o3-mini (Razonamiento)', desc: 'Especialista en lógica y cálculos' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Gran ventana de contexto y consistencia' }
+    ],
+    anthropic: [
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Recomendado)', desc: 'Excelente tono humano, calidez y redacción' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', desc: 'Respuesta instantánea para atención rápida' }
+    ],
+    deepseek: [
+      { id: 'deepseek-chat', name: 'DeepSeek V3 (Chat)', desc: 'Conversacional avanzado y ultra económico' },
+      { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Reasoner)', desc: 'Cadena de pensamiento para cálculos y logística' }
+    ],
+    groq: [
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', desc: 'Velocidad de rayo con inteligencia de 70B' },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Instant)', desc: 'Baja latencia extrema' },
+      { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B (MoE)', desc: 'Arquitectura de expertos' }
+    ],
+    local: [
+      { id: 'llama3:latest', name: 'Ollama Llama 3 (Local)', desc: 'Ejecutado localmente en servidor' },
+      { id: 'mistral:latest', name: 'Ollama Mistral (Local)', desc: 'Modelo liviano local' },
+      { id: 'qwen2.5-coder:latest', name: 'Qwen 2.5 (Local)', desc: 'Gran precisión lógica' }
+    ]
+  };
+
   const fetchAgents = async () => {
     setIsLoading(true);
     try {
@@ -254,6 +297,48 @@ export default function AgentsView({ socket, currentUser }) {
     }
   };
 
+  const getModelBadge = (provider, model) => {
+    switch (provider) {
+      case 'openai':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+            🟢 {model || 'GPT-4o Mini'}
+          </span>
+        );
+      case 'anthropic':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
+            🟣 {model || 'Claude 3.5 Sonnet'}
+          </span>
+        );
+      case 'deepseek':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1">
+            🔵 {model || 'DeepSeek V3'}
+          </span>
+        );
+      case 'groq':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+            ⚡ {model || 'Llama 3.3 70B'}
+          </span>
+        );
+      case 'local':
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-300 border border-slate-600 flex items-center gap-1">
+            🖥️ {model || 'Ollama Local'}
+          </span>
+        );
+      case 'gemini':
+      default:
+        return (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+            ♊ {model || 'Gemini 2.5 Flash'}
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden">
       {/* Header */}
@@ -271,7 +356,7 @@ export default function AgentsView({ socket, currentUser }) {
                 </span>
               </h1>
               <p className="text-xs text-slate-400">
-                Personalizá personalidades, roles, historias y entrená el comportamiento mediante simulación y baterías de tests.
+                Personalizá personalidades, roles, historias, modelos de IA (Gemini, OpenAI, Claude, DeepSeek, Groq) y entrená su comportamiento.
               </p>
             </div>
           </div>
@@ -301,7 +386,7 @@ export default function AgentsView({ socket, currentUser }) {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Sparkles size={14} /> Simulador en Vivo
+              <Sparkles size={14} /> Simulador de Chat
             </button>
             <button
               onClick={() => setActiveTab('training')}
@@ -327,6 +412,12 @@ export default function AgentsView({ socket, currentUser }) {
                 personality: 'Cálido, cordobés amigable y experto en asados.',
                 promptInstructions: '',
                 firstMessage: '¡Hola! 👋 Soy tu asesor virtual de República de la Carne. ¿En qué te puedo ayudar hoy?',
+                aiProvider: 'gemini',
+                aiModel: 'gemini-2.5-flash',
+                aiTemperature: 0.7,
+                aiMaxTokens: 500,
+                apiKeyOverride: '',
+                customEndpoint: '',
                 ttsProvider: 'elevenlabs',
                 voiceId: 'ErXwobaYiN019PkySvjV',
                 assignedBranches: ['all'],
@@ -334,9 +425,9 @@ export default function AgentsView({ socket, currentUser }) {
                 isDefault: false
               }
             })}
-            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all"
+            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
           >
-            <Plus size={16} /> Crear Agente
+            <Plus size={16} /> Nuevo Agente IA
           </button>
         </div>
       </div>
@@ -424,8 +515,9 @@ export default function AgentsView({ socket, currentUser }) {
                           <p className="text-xs text-slate-400 font-medium truncate mb-2">
                             {agent.roleLabel || 'Asesor Comercial'}
                           </p>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             {getRoleBadge(agent.role)}
+                            {getModelBadge(agent.aiProvider, agent.aiModel)}
                           </div>
                         </div>
                       </div>
@@ -513,8 +605,9 @@ export default function AgentsView({ socket, currentUser }) {
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-slate-100">{simAgent?.name}</span>
                     {getRoleBadge(simAgent?.role || 'vendedor')}
+                    {getModelBadge(simAgent?.aiProvider, simAgent?.aiModel)}
                   </div>
-                  <p className="text-[11px] text-slate-400">{simAgent?.roleLabel || 'Asesor IA'} • Modo Simulación Dual</p>
+                  <p className="text-[11px] text-slate-400">{simAgent?.roleLabel || 'Asesor IA'} • Temp: {simAgent?.aiTemperature ?? 0.7} • Tokens: {simAgent?.aiMaxTokens || 500}</p>
                 </div>
               </div>
 
@@ -530,7 +623,7 @@ export default function AgentsView({ socket, currentUser }) {
                 >
                   {agents.map(a => (
                     <option key={a.id} value={a.id}>
-                      {a.name} ({a.role}) {a.isDefault ? '👑' : ''}
+                      {a.name} ({a.aiModel || a.role}) {a.isDefault ? '👑' : ''}
                     </option>
                   ))}
                 </select>
@@ -568,6 +661,12 @@ export default function AgentsView({ socket, currentUser }) {
                       }`}
                     >
                       <div className="whitespace-pre-wrap">{msg.text}</div>
+                      {msg.modelInfo && (
+                        <div className="mt-2 pt-1.5 border-t border-slate-700/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                          <span className="text-purple-300">⚡ {msg.modelInfo.provider} / {msg.modelInfo.model}</span>
+                          <span className="text-slate-500">{msg.modelInfo.latencyMs}ms</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -962,6 +1061,169 @@ export default function AgentsView({ socket, currentUser }) {
                   placeholder="Directivas de comportamiento: si debe enfocar en ventas premium, coordinar entregas rápidas, etc."
                   className="w-full bg-slate-950 border border-slate-700 p-3 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
                 />
+              </div>
+
+              {/* ASIGNACIÓN DE MODELO DE INTELIGENCIA ARTIFICIAL */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-100">Motor & Modelo de Inteligencia Artificial</h4>
+                      <p className="text-[11px] text-slate-400">Asigná el proveedor y modelo neuronal específico para este agente</p>
+                    </div>
+                  </div>
+                  {getModelBadge(agentModal.data.aiProvider || 'gemini', agentModal.data.aiModel || 'gemini-2.5-flash')}
+                </div>
+
+                {/* Proveedor de IA */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-2">Proveedor de IA</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {AI_PROVIDERS.map(prov => {
+                      const isSelected = (agentModal.data.aiProvider || 'gemini') === prov.id;
+                      return (
+                        <button
+                          type="button"
+                          key={prov.id}
+                          onClick={() => {
+                            const defaultModel = AI_MODEL_PRESETS[prov.id]?.[0]?.id || 'gemini-2.5-flash';
+                            setAgentModal({
+                              ...agentModal,
+                              data: {
+                                ...agentModal.data,
+                                aiProvider: prov.id,
+                                aiModel: defaultModel
+                              }
+                            });
+                          }}
+                          className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                            isSelected
+                              ? 'bg-purple-950/50 border-purple-500 text-white shadow-md shadow-purple-500/10'
+                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-base">{prov.icon}</span>
+                            {isSelected && <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">{prov.name}</div>
+                            <div className="text-[10px] text-slate-500 line-clamp-1">{prov.desc}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Selector de Modelo Preset o Personalizado */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">
+                      Modelo Preconfigurado
+                    </label>
+                    <select
+                      value={agentModal.data.aiModel || 'gemini-2.5-flash'}
+                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, aiModel: e.target.value } })}
+                      className="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-purple-500"
+                    >
+                      {(AI_MODEL_PRESETS[agentModal.data.aiProvider || 'gemini'] || []).map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                      <option value="custom">✏️ Otro / Modelo Personalizado...</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">
+                      Nombre Técnico del Modelo (String ID)
+                    </label>
+                    <input
+                      type="text"
+                      value={agentModal.data.aiModel || ''}
+                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, aiModel: e.target.value } })}
+                      placeholder="ej: gemini-2.5-flash, gpt-4o, claude-3-5-sonnet"
+                      className="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 font-mono focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Temperatura & Max Tokens Sliders */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
+                      <span>Temperatura (Creatividad):</span>
+                      <span className="text-purple-400 font-mono">{agentModal.data.aiTemperature ?? 0.7}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={agentModal.data.aiTemperature ?? 0.7}
+                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, aiTemperature: parseFloat(e.target.value) } })}
+                      className="w-full accent-purple-500 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                      <span>0.0 (Preciso / Directo)</span>
+                      <span>1.0 (Creativo / Gourmet)</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-1">
+                      <span>Límite de Tokens (Longitud):</span>
+                      <span className="text-purple-400 font-mono">{agentModal.data.aiMaxTokens || 500} tokens</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="150"
+                      max="2000"
+                      step="50"
+                      value={agentModal.data.aiMaxTokens || 500}
+                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, aiMaxTokens: parseInt(e.target.value, 10) } })}
+                      className="w-full accent-purple-500 cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                      <span>150 (Respuestas cortas)</span>
+                      <span>2000 (Exhaustivo)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* API Key Override & Custom Endpoint (Opcionales) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                      API Key Específica del Agente (Opcional)
+                    </label>
+                    <input
+                      type="password"
+                      value={agentModal.data.apiKeyOverride || ''}
+                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, apiKeyOverride: e.target.value } })}
+                      placeholder="Dejar vacío para usar la global de Ajustes"
+                      className="w-full bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl text-xs text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                      Endpoint Base Personalizado (Ollama / Local)
+                    </label>
+                    <input
+                      type="text"
+                      value={agentModal.data.customEndpoint || ''}
+                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, customEndpoint: e.target.value } })}
+                      placeholder="ej: http://localhost:11434/v1"
+                      className="w-full bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl text-xs text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* First Message & Voice */}

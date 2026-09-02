@@ -2736,6 +2736,12 @@ export function createApiRouter(whatsappService, io) {
         ...db.getSettings(),
         agentName: agent.name,
         agentRole: agent.roleLabel,
+        aiProvider: agent.aiProvider || db.getSettings()?.aiProvider || 'gemini',
+        aiModel: agent.aiModel || db.getSettings()?.aiModel || 'gemini-2.5-flash',
+        aiTemperature: agent.aiTemperature !== undefined ? Number(agent.aiTemperature) : 0.7,
+        aiMaxTokens: agent.aiMaxTokens || 500,
+        apiKeyOverride: agent.apiKeyOverride || '',
+        customEndpoint: agent.customEndpoint || '',
         systemPrompt: `${agent.promptInstructions || ''}\n\nBiografía e Historia: ${agent.backstory || ''}\nPersonalidad: ${agent.personality || ''}`
       };
 
@@ -2747,22 +2753,38 @@ export function createApiRouter(whatsappService, io) {
           }))
         : [{ sender: 'user', content: userMessage }];
 
+      const startTime = Date.now();
       const reply = await AIService.generateSalesResponse({
         rawText: userMessage,
         lead: dummyLead,
         history: formattedHistory,
         settings: customSettings
       });
+      const latencyMs = Date.now() - startTime;
 
       // Obtener el estado canónico del carrito tras este turno
       const canonicalCart = getCanonicalCart(dummyLead, formattedHistory, userMessage, db.getProducts());
 
       res.json({
         success: true,
-        agent: { id: agent.id, name: agent.name, role: agent.role, avatar: agent.avatar },
+        agent: { 
+          id: agent.id, 
+          name: agent.name, 
+          role: agent.role, 
+          avatar: agent.avatar,
+          aiProvider: customSettings.aiProvider,
+          aiModel: customSettings.aiModel,
+          aiTemperature: customSettings.aiTemperature
+        },
         userMessage,
         reply,
-        canonicalCart
+        canonicalCart,
+        modelInfo: {
+          provider: customSettings.aiProvider,
+          model: customSettings.aiModel,
+          temperature: customSettings.aiTemperature,
+          latencyMs
+        }
       });
     } catch (err) {
       console.error('Error simulando respuesta de agente:', err);

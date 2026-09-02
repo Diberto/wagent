@@ -185,7 +185,10 @@ export default function MultiAgentChatView({ socket = null }) {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             </div>
             <h4 className="text-xs font-bold text-white">Carlos Asesor</h4>
-            <p className="text-[10px] text-slate-400 truncate">Ventas & Cierre</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] text-slate-400 truncate">Ventas & Cierre</p>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">♊ Gemini 2.5</span>
+            </div>
           </button>
 
           <button
@@ -201,7 +204,10 @@ export default function MultiAgentChatView({ socket = null }) {
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             </div>
             <h4 className="text-xs font-bold text-white">Chef Don Mateo</h4>
-            <p className="text-[10px] text-slate-400 truncate">Recetas & Sommelier</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] text-slate-400 truncate">Recetas & Asesor</p>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">♊ Gemini 2.5</span>
+            </div>
           </button>
 
           <button
@@ -217,7 +223,10 @@ export default function MultiAgentChatView({ socket = null }) {
               <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
             </div>
             <h4 className="text-xs font-bold text-white">Inspector Stock</h4>
-            <p className="text-[10px] text-slate-400 truncate">Auditoría de Balanzas</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] text-slate-400 truncate">Balanzas & PLU</p>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🟢 GPT-4o Mini</span>
+            </div>
           </button>
 
           <button
@@ -233,7 +242,10 @@ export default function MultiAgentChatView({ socket = null }) {
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
             </div>
             <h4 className="text-xs font-bold text-white">DevOps Ops</h4>
-            <p className="text-[10px] text-slate-400 truncate">Memoria & Rendimiento</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] text-slate-400 truncate">Memoria & Concurrencia</p>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">🔵 DeepSeek V3</span>
+            </div>
           </button>
         </div>
       </div>
@@ -315,6 +327,11 @@ export default function MultiAgentChatView({ socket = null }) {
                     <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-medium">
                       {msg.senderRole || 'Team'}
                     </span>
+                    {msg.aiModel && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono font-bold">
+                        {msg.aiModel}
+                      </span>
+                    )}
                   </div>
                   <span className="text-[10px] opacity-60">
                     {new Date(msg.timestamp || Date.now()).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
