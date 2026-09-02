@@ -24,6 +24,9 @@ import SettingsModal from './components/SettingsModal';
 import CallModal from './components/CallModal';
 import StorefrontView from './components/StorefrontView';
 import MediaGalleryModal from './components/MediaGalleryModal';
+import RecipesView from './components/RecipesView';
+import SystemHealthView from './components/SystemHealthView';
+import MultiAgentChatView from './components/MultiAgentChatView';
 
 const socket = io();
 
@@ -508,6 +511,18 @@ export default function App() {
 
         {currentTab === 'campaigns' && (
           <BroadcastCampaignsView socket={socket} />
+        )}
+
+        {currentTab === 'recipes' && (
+          <RecipesView socket={socket} />
+        )}
+
+        {currentTab === 'system-health' && (
+          <SystemHealthView socket={socket} />
+        )}
+
+        {currentTab === 'multi-agent' && (
+          <MultiAgentChatView socket={socket} />
         )}
 
         {currentTab === 'knowledge' && (

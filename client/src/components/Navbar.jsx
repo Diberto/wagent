@@ -27,7 +27,9 @@ import {
   Receipt,
   Search,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  ChefHat,
+  Activity
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -72,6 +74,7 @@ export default function Navbar({
       icon: Store,
       items: [
         { id: 'storefront', label: '🛍️ Tienda Online (/tienda)', icon: Globe, desc: 'Catálogo webapp y pedidos WhatsApp' },
+        { id: 'recipes', label: '👨‍🍳 Recetas Tradicionales', icon: ChefHat, desc: 'Recetario argentino vinculado a cortes' },
         { id: 'branches', label: '6 Sucursales Oficiales', icon: Store, desc: 'Urca, Intercountry, Duarte Quirós, Villa Allende y más' },
         { id: 'media-gallery', label: '🖼️ Galería de Medios', icon: ImageIcon, desc: 'Fotos de cortes y banners optimizados' },
         { id: 'kanban', label: 'Embudo de Ventas (CRM)', icon: Kanban, desc: 'Pipeline de conversión y etapas' },
@@ -83,6 +86,8 @@ export default function Navbar({
       label: 'IA & Módulos',
       icon: Sparkles,
       items: [
+        { id: 'multi-agent', label: '👥 Team Multi-Agente Ops', icon: Users, desc: 'Chat interno con Carlos, Mateo, Stock y DevOps' },
+        { id: 'system-health', label: '📊 Monitoreo & Recursos', icon: Activity, desc: 'Telemetría CPU/RAM, estado de módulos y optimización BD' },
         { id: 'agents', label: 'Agentes IA Personalizados', icon: Bot, desc: 'Perfiles, historias, roles, personalidades y avatares' },
         { id: 'neural-memory', label: 'Red Neuronal & Grafo', icon: Brain, desc: 'Grafo cognitivo y aprendizaje continuo' },
         { id: 'campaigns', label: 'Difusiones & Campañas', icon: Send, desc: 'Envíos masivos y ofertas' },

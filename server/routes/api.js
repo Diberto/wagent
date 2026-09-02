@@ -20,6 +20,8 @@ import { parseProductFile, exportCatalog } from '../services/catalogImporter.js'
 import { OrderFilterEngine } from '../services/orderFilterEngine.js';
 import { arcaService } from '../services/arca.js';
 import { SpeechService } from '../services/speech.js';
+import { systemMonitor } from '../services/systemMonitor.js';
+import { multiAgentOps } from '../services/multiAgentOps.js';
 import * as XLSX from 'xlsx';
 import { CONFIG } from '../config/index.js';
 
@@ -28,6 +30,12 @@ export function createApiRouter(whatsappService, io) {
   wooCommerceService.setSocketIO(io);
   broadcastService.setWhatsAppService(whatsappService);
   broadcastService.setSocketIO(io);
+
+  // Middleware de telemetría de peticiones para System Monitor
+  router.use((req, res, next) => {
+    systemMonitor.recordRequest(false);
+    next();
+  });
 
   // Configuración de Multer para subida de audios y archivos desde el panel web
   const storage = multer.diskStorage({
@@ -40,6 +48,116 @@ export function createApiRouter(whatsappService, io) {
     }
   });
   const upload = multer({ storage });
+
+  // --- 🌟 System Resource Monitoring & Health Check ---
+  router.get('/system/metrics', async (req, res) => {
+    try {
+      const metrics = await systemMonitor.getFullSystemMetrics(io);
+      res.json({ success: true, ...metrics });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/system/optimize', (req, res) => {
+    try {
+      const dbRes = systemMonitor.optimizeDatabase();
+      const memRes = systemMonitor.clearMemoryCaches();
+      res.json({ success: true, db: dbRes, memory: memRes, message: 'Sistema optimizado, bases compactadas y memoria liberada con éxito.' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- 👨‍🍳 Recetas Tradicionales Argentinas Vinculadas al Catálogo ---
+  router.get('/recipes', (req, res) => {
+    try {
+      const recipes = db.getRecipes();
+      res.json(recipes);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/recipes/:id', (req, res) => {
+    try {
+      const recipe = db.getRecipe(req.params.id);
+      if (!recipe) return res.status(404).json({ error: 'Receta no encontrada' });
+      res.json(recipe);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/recipes', (req, res) => {
+    try {
+      const saved = db.saveRecipe(req.body);
+      io.emit('recipes:updated', db.getRecipes());
+      res.json({ success: true, recipe: saved });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.put('/recipes/:id', (req, res) => {
+    try {
+      const saved = db.saveRecipe({ ...req.body, id: req.params.id });
+      io.emit('recipes:updated', db.getRecipes());
+      res.json({ success: true, recipe: saved });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/recipes/:id', (req, res) => {
+    try {
+      const success = db.deleteRecipe(req.params.id);
+      io.emit('recipes:updated', db.getRecipes());
+      res.json({ success });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/recipes/seed', (req, res) => {
+    try {
+      const seeded = db.seedRecipes(true);
+      io.emit('recipes:updated', seeded);
+      res.json({ success: true, count: seeded.length, recipes: seeded, message: `¡${seeded.length} recetas tradicionales argentinas cargadas!` });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- 👥 Equipo Multi-Agente Colaborativo y Chat de Ops ---
+  router.get('/multi-agent/team', (req, res) => {
+    try {
+      const agents = multiAgentOps.getAgents();
+      const history = multiAgentOps.getTeamChatHistory();
+      res.json({ success: true, agents, history });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/multi-agent/message', async (req, res) => {
+    try {
+      const result = await multiAgentOps.processTeamMessage(req.body || {});
+      io.emit('multi-agent:activity', result);
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/multi-agent/task', async (req, res) => {
+    try {
+      const result = await multiAgentOps.executeTask(req.body || {});
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
 
   // --- 0. Image Processing & WebP Optimization Endpoints ---
   router.get('/strategy-graph', (req, res) => {

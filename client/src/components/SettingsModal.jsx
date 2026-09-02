@@ -3384,6 +3384,96 @@ Contexto y Reglas de Negocio:
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
+
+                {/* Selector de Modo de Inteligencia & Personalidad */}
+                <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-700/80 space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-emerald-400 mb-1 flex items-center justify-between">
+                      <span>🧠 Modo de Inteligencia & Enfoque de Conversación</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono">Control de IA</span>
+                    </label>
+                    <p className="text-[11px] text-slate-400 mb-2.5">
+                      Define si el agente actúa como un bot estricto de ventas, un asesor equilibrado o un modo humano que charla brevemente y retoma la venta.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, agentPersonalityMode: 'strict_sales' })}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        settings.agentPersonalityMode === 'strict_sales'
+                          ? 'bg-emerald-950/60 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
+                          : 'bg-[#202c33] border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="text-xs font-bold flex items-center gap-1.5 text-white">
+                        <span>🎯</span> Bot Estricto
+                      </div>
+                      <p className="text-[10px] mt-1 text-slate-400 leading-tight">100% enfocado a venta y cotización inmediata sin desvíos.</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, agentPersonalityMode: 'balanced' })}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        (settings.agentPersonalityMode || 'balanced') === 'balanced'
+                          ? 'bg-emerald-950/60 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
+                          : 'bg-[#202c33] border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="text-xs font-bold flex items-center gap-1.5 text-white">
+                        <span>⚖️</span> Asesor Equilibrado
+                      </div>
+                      <p className="text-[10px] mt-1 text-slate-400 leading-tight">Recomienda cortes y recetas encauzando con naturalidad a la compra.</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, agentPersonalityMode: 'human_empathetic' })}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        settings.agentPersonalityMode === 'human_empathetic'
+                          ? 'bg-emerald-950/60 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
+                          : 'bg-[#202c33] border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="text-xs font-bold flex items-center gap-1.5 text-white">
+                        <span>🤝</span> Modo Humano
+                      </div>
+                      <p className="text-[10px] mt-1 text-slate-400 leading-tight">Charla empática breve con el cliente para luego retomar suavemente la venta.</p>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Turnos de Charla Casual Permitidos
+                      </label>
+                      <select
+                        value={settings.casualTalkTurnsAllowed || 2}
+                        onChange={(e) => setSettings({ ...settings, casualTalkTurnsAllowed: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white"
+                      >
+                        <option value={1}>1 respuesta casual y encauzar</option>
+                        <option value={2}>2 respuestas casuales (Recomendado)</option>
+                        <option value={3}>3 respuestas casuales</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-[#202c33] border border-slate-700">
+                      <div>
+                        <span className="text-xs font-bold text-white block">👨‍🍳 Asesor de Recetas</span>
+                        <span className="text-[10px] text-slate-400">Proponer recetas cuando no es asado</span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={settings.culinaryAdvisorEnabled !== false}
+                        onChange={(e) => setSettings({ ...settings, culinaryAdvisorEnabled: e.target.checked })}
+                        className="w-4 h-4 accent-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* System Prompt Textarea */}

@@ -3933,6 +3933,352 @@ class DatabaseService {
     this.emitChange('agents:sync', db.agents);
     return targetAgent;
   }
+
+  // =========================================================================
+  // GESTIÓN DE RECETAS GASTRONÓMICAS TRADICIONALES
+  // =========================================================================
+  getRecipes() {
+    const db = this.readDb();
+    if (!db.recipes || !Array.isArray(db.recipes) || db.recipes.length === 0) {
+      return this.seedRecipes(false);
+    }
+    return db.recipes;
+  }
+
+  getRecipe(id) {
+    const recipes = this.getRecipes();
+    return recipes.find(r => r.id === id) || null;
+  }
+
+  saveRecipe(recipeData) {
+    const db = this.readDb();
+    if (!db.recipes) db.recipes = [];
+
+    let saved;
+    if (recipeData.id) {
+      const idx = db.recipes.findIndex(r => r.id === recipeData.id);
+      if (idx !== -1) {
+        db.recipes[idx] = {
+          ...db.recipes[idx],
+          ...recipeData,
+          updatedAt: new Date().toISOString()
+        };
+        saved = db.recipes[idx];
+      } else {
+        saved = {
+          ...recipeData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        db.recipes.push(saved);
+      }
+    } else {
+      saved = {
+        ...recipeData,
+        id: `rec-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      db.recipes.push(saved);
+    }
+
+    this.writeDb(db);
+    this.emitChange('recipes:updated', db.recipes);
+    return saved;
+  }
+
+  deleteRecipe(id) {
+    const db = this.readDb();
+    if (!Array.isArray(db.recipes)) return false;
+    db.recipes = db.recipes.filter(r => r.id !== id);
+    this.writeDb(db);
+    this.emitChange('recipes:updated', db.recipes);
+    return true;
+  }
+
+  seedRecipes(force = false) {
+    const db = this.readDb();
+    if (!force && Array.isArray(db.recipes) && db.recipes.length >= 8) {
+      return db.recipes;
+    }
+
+    const defaultRecipes = [
+      {
+        id: "rec-1",
+        title: "Milanesas Caseras a la Napolitana o Fritas",
+        category: "Milanesas y Fritos",
+        description: "El plato familiar argentino por excelencia. Tiernas, crocantes y con el grosor exacto para no secarse.",
+        prepTimeMinutes: 25,
+        difficulty: "Fácil",
+        servingsDefault: 4,
+        gramsPerPerson: 250,
+        suggestedCuts: [
+          { name: "Nalga Feteada", plu: "2021", isPrimary: true, note: "El corte clásico más tierno y sin desperdicio" },
+          { name: "Bola de Lomo", plu: "2022", isPrimary: true, note: "Súper tierna y rendidora" },
+          { name: "Cuadrada", plu: "2029", isPrimary: false, note: "Opción económica y pareja" }
+        ],
+        replacementCuts: [
+          { name: "Peceto", plu: "2023", note: "Para milanesas gourmet redonditas y magras" },
+          { name: "Suprema de Pollo", plu: "2030", note: "Para milanesas de pollo jugosas" }
+        ],
+        ingredients: [
+          "1 kg de Nalga o Bola de Lomo feteada fina",
+          "3 huevos frescos con perejil y ajo picado",
+          "500g de pan rallado de panadería",
+          "Sal fina y pimienta al gusto",
+          "Opcional Napolitana: salsa de tomate, jamón cocido y queso mozzarella"
+        ],
+        instructions: [
+          "Pasar los bifes por la mezcla de huevo batido con ajo, perejil y sal.",
+          "Empanar presionando firmemente con ambas caras sobre el pan rallado.",
+          "Freír en aceite caliente o dorar al horno a 200°C durante 15 minutos.",
+          "Para Napolitana: agregar salsa, jamón y muzzarella en los últimos 5 minutos de horno hasta gratinar."
+        ],
+        isFeatured: true
+      },
+      {
+        id: "rec-2",
+        title: "Guiso de Lentejas o Carrero Criollo",
+        category: "Guisos y Olla",
+        description: "Guisazo calórico y reparador con todo el sabor criollo. La carne queda tierna desmechándose al toque de la cuchara.",
+        prepTimeMinutes: 50,
+        difficulty: "Media",
+        servingsDefault: 4,
+        gramsPerPerson: 250,
+        suggestedCuts: [
+          { name: "Roast Beef", plu: "2024", isPrimary: true, note: "Corte con grasa intramuscular ideal para cubitos jugosos" },
+          { name: "Osobuco con Caracú", plu: "2025", isPrimary: true, note: "Aporta gelatina, caldo espeso y sabor profundo" },
+          { name: "Chorizo Criollo", plu: "2012", isPrimary: false, note: "Indispensable para el toque criollo" }
+        ],
+        replacementCuts: [
+          { name: "Palomita", plu: "2031", note: "Magro y sabroso para cocción lenta" },
+          { name: "Aguja Parrillera", plu: "2032", note: "Muy sabrosa en trozos medianos" },
+          { name: "Falda Parrillera", plu: "2033", note: "Sabor intenso con hueso" }
+        ],
+        ingredients: [
+          "1 kg de Roast Beef u Osobuco cortado en cubos",
+          "2 chorizos criollos puro cerdo en rodajas",
+          "400g de lentejas remojadas",
+          "2 cebollas, 1 morrón rojo, 2 zanahorias y 2 papas en cubos",
+          "1 lata de puré de tomate y 1 litro de caldo de carne",
+          "Pimentón dulce, comino, laurel y ají molido"
+        ],
+        instructions: [
+          "Sellar los cubos de carne y las rodajas de chorizo en una olla gruesa con un chorrito de aceite hasta dorar bien.",
+          "Agregar la cebolla, el morrón y las zanahorias; rehogar 5 minutos.",
+          "Incorporar el tomate, el caldo caliente, el laurel y los condimentos.",
+          "Sumar las lentejas y cocinar a fuego bajo durante 35 minutos.",
+          "Agregar las papas en cubos y cocinar 15 minutos más hasta que todo esté tierno y espeso."
+        ],
+        isFeatured: true
+      },
+      {
+        id: "rec-3",
+        title: "Pastel de Papa Tradicional Casero",
+        category: "Horno y Asaderas",
+        description: "El clásico de la abuela: base sustanciosa de carne picada jugosa y gratinado dorado de puré de papas con manteca.",
+        prepTimeMinutes: 45,
+        difficulty: "Fácil",
+        servingsDefault: 4,
+        gramsPerPerson: 250,
+        suggestedCuts: [
+          { name: "Carne Picada Especial / Molida", plu: "2026", isPrimary: true, note: "Picada en el momento, fresca y magra" },
+          { name: "Nalga Picada", plu: "2021", isPrimary: false, note: "100% magra sin grasa" }
+        ],
+        replacementCuts: [
+          { name: "Roast Beef Picado", plu: "2024", note: "Sabor más intenso y jugoso" },
+          { name: "Sobras de Asado Desmechadas", plu: "2003", note: "Para un pastel de papa ahumado gourmet" }
+        ],
+        ingredients: [
+          "1 kg de Carne Picada Especial",
+          "1.2 kg de papas para puré",
+          "2 cebollas grandes y 1 cebolla de verdeo picadas",
+          "2 huevos duros picados y aceitunas descarozadas",
+          "50g de manteca y 50ml de leche para el puré",
+          "Pimentón dulce, nuez moscada, sal y pimienta",
+          "100g de queso rallado para gratinar"
+        ],
+        instructions: [
+          "Hervir las papas y pisarlas calientes con manteca, leche, sal y nuez moscada.",
+          "Rehogar las cebollas en sartén, agregar la carne picada y cocinar hasta que cambie de color (unos 10 min) sin sobrecocinar para que quede jugosa.",
+          "Condimentar la carne con pimentón, sal y pimienta. Fuera del fuego sumar los huevos duros y aceitunas.",
+          "En una fuente para horno, colocar la capa de carne y cubrir con el puré.",
+          "Espolvorear queso rallado y gratinar a horno fuerte a 220°C por 15 minutos."
+        ],
+        isFeatured: true
+      },
+      {
+        id: "rec-4",
+        title: "Estofado de Carne con Tallarines Caseros o Polenta",
+        category: "Pastas y Salsas",
+        description: "Salsa espesa y perfumada con trozos enteros de carne que se desarman al tenedor.",
+        prepTimeMinutes: 60,
+        difficulty: "Media",
+        servingsDefault: 4,
+        gramsPerPerson: 250,
+        suggestedCuts: [
+          { name: "Peceto", plu: "2023", isPrimary: true, note: "Corte magro y compacto para rodajas perfectas" },
+          { name: "Cuadril", plu: "2028", isPrimary: true, note: "Muy sabroso y tierno" },
+          { name: "Osobuco con Caracú", plu: "2025", isPrimary: false, note: "Para una salsa súper intensa" }
+        ],
+        replacementCuts: [
+          { name: "Roast Beef", plu: "2024", note: "Económico y rendidor" },
+          { name: "Palomita", plu: "2031", note: "Ideal para estofado en olla tapada" }
+        ],
+        ingredients: [
+          "1 kg de Peceto o Cuadril entero o en postas",
+          "2 cebollas, 2 dientes de ajo y 1 zanahoria rallada",
+          "1 vaso de vino tinto Malbec",
+          "750ml de salsa de tomate triturado",
+          "Orégano, laurel, pimentón y sal",
+          "500g de pasta seca o fresca"
+        ],
+        instructions: [
+          "Dorar la carne entera por todos sus lados en cacerola con aceite caliente.",
+          "Agregar los vegetales picados y dorar 5 minutos.",
+          "Desglasar con el vino tinto y dejar evaporar el alcohol 2 minutos.",
+          "Incorporar el tomate y condimentos. Bajar el fuego al mínimo y cocinar tapado durante 50 minutos.",
+          "Servir sobre los tallarines al dente con abundante queso rallado."
+        ],
+        isFeatured: true
+      },
+      {
+        id: "rec-5",
+        title: "Bifes a la Plancha o a la Criolla Rápidos",
+        category: "Minutas y Plancha",
+        description: "Solución en 15 minutos para el almuerzo o cena de la semana con cebolla, morrones y papas.",
+        prepTimeMinutes: 15,
+        difficulty: "Súper Fácil",
+        servingsDefault: 4,
+        gramsPerPerson: 300,
+        suggestedCuts: [
+          { name: "Bife Angosto / Costeletas de Ternera", plu: "2011", isPrimary: true, note: "Jugosos, tiernos y con el hueso que da sabor" },
+          { name: "Bife de Chorizo", plu: "2005", isPrimary: true, note: "Calidad premium para plancha bien caliente" }
+        ],
+        replacementCuts: [
+          { name: "Cuadril", plu: "2028", note: "Bifes magros y tiernos" },
+          { name: "Costeletas de Cerdo", plu: "2010", note: "Opción económica doradas con limón" }
+        ],
+        ingredients: [
+          "4 a 6 bifes de ternera o bife de chorizo (1.2 kg total)",
+          "2 cebollas en aros y 1 morrón en tiras",
+          "Sal entrefina, pimienta negra y provenzal",
+          "Aceite de oliva"
+        ],
+        instructions: [
+          "Calentar la plancha o sartén de hierro a fuego fuerte con un hilo de aceite.",
+          "Colocar los bifes bien secos; dorar 4 minutos por lado sin moverlos para sellar los jugos.",
+          "En la misma plancha al costado, saltear los aros de cebolla y morrón.",
+          "Salpimentar al dar vuelta y servir con papas fritas o ensalada mixta."
+        ],
+        isFeatured: true
+      },
+      {
+        id: "rec-6",
+        title: "Empanadas Criollas Cortadas a Cuchillo",
+        category: "Tradicionales",
+        description: "Empanadas jugosas con cebolla rehogada, comino criollo y masa crocante.",
+        prepTimeMinutes: 50,
+        difficulty: "Media",
+        servingsDefault: 4,
+        gramsPerPerson: 200,
+        suggestedCuts: [
+          { name: "Nalga", plu: "2021", isPrimary: true, note: "Fácil de cortar a cuchillo en cubitos finos" },
+          { name: "Bola de Lomo", plu: "2022", isPrimary: true, note: "Tierna y sabrosa" },
+          { name: "Roast Beef", plu: "2024", isPrimary: false, note: "Muy jugosa" }
+        ],
+        replacementCuts: [
+          { name: "Cuadril", plu: "2028", note: "Corte magro y parejo" },
+          { name: "Carne Picada Especial", plu: "2026", note: "Para preparación rápida" }
+        ],
+        ingredients: [
+          "800g de Nalga o Bola de Lomo cortada a cuchillo en cubitos",
+          "800g de cebolla picada y 2 cebollas de verdeo",
+          "100g de grasa vacuna para rehogar",
+          "Comino, pimentón dulce, ají molido y sal",
+          "3 huevos duros y aceitunas verdes",
+          "24 discos de empanadas criollas"
+        ],
+        instructions: [
+          "Fundir la grasa en sartén y rehogar la cebolla hasta transparentar.",
+          "Agregar la carne cortada a cuchillo y cocinar solo 5 minutos para que no se seque.",
+          "Condimentar con comino, pimentón y sal. Dejar enfriar el relleno en heladera (idealmente de un día para otro).",
+          "Armar las empanadas sumando huevo duro y aceituna en cada disco, repulgar y hornear a 230°C por 12-15 minutos."
+        ],
+        isFeatured: true
+      },
+      {
+        id: "rec-7",
+        title: "Carbonada Criolla en Cazuela",
+        category: "Guisos y Olla",
+        description: "Guiso agridulce tradicional con calabaza, choclo, duraznos y carne vacuna tierna.",
+        prepTimeMinutes: 55,
+        difficulty: "Media",
+        servingsDefault: 4,
+        gramsPerPerson: 250,
+        suggestedCuts: [
+          { name: "Roast Beef", plu: "2024", isPrimary: true, note: "Corte ideal para cocción lenta" },
+          { name: "Palomita", plu: "2031", isPrimary: true, note: "Magra y tierna" }
+        ],
+        replacementCuts: [
+          { name: "Osobuco", plu: "2025", note: "Sabor profundo" },
+          { name: "Carnaza Común", plu: "2034", note: "Opción económica" }
+        ],
+        ingredients: [
+          "1 kg de Roast Beef en cubitos",
+          "500g de calabaza en cubos",
+          "2 choclos en rodajas",
+          "1 cebolla y 1 morrón",
+          "4 orejones de durazno o damasco",
+          "Caldo de carne y condimentos criollos"
+        ],
+        instructions: [
+          "Dorar la carne en cubos en olla de hierro.",
+          "Sumar cebolla, morrón y rehogar.",
+          "Agregar caldo, calabaza, choclos y orejones.",
+          "Cocinar a fuego lento durante 40 minutos hasta que la calabaza comience a espesar el caldo."
+        ],
+        isFeatured: false
+      },
+      {
+        id: "rec-8",
+        title: "Matambre a la Pizza al Horno",
+        category: "Horno y Asaderas",
+        description: "Matambre tiernizado al horno con salsa de tomate casera, queso mozzarella derretido y orégano.",
+        prepTimeMinutes: 40,
+        difficulty: "Fácil",
+        servingsDefault: 4,
+        gramsPerPerson: 350,
+        suggestedCuts: [
+          { name: "Matambre Vacuno", plu: "2008", isPrimary: true, note: "El clásico bien tiernizado con leche" },
+          { name: "Matambrito de Cerdo", plu: "2007", isPrimary: true, note: "Súper tierno directo a la asadera" }
+        ],
+        replacementCuts: [
+          { name: "Tapa de Asado", plu: "2035", note: "Tiernizada al horno con papel aluminio" },
+          { name: "Pechito de Cerdo", plu: "2036", note: "Versión porcina jugosa" }
+        ],
+        ingredients: [
+          "1.4 kg de Matambre Vacuno o Matambrito de Cerdo",
+          "1 litro de leche (para hervir si es vacuno)",
+          "300g de salsa de tomate para pizza",
+          "400g de queso mozzarella",
+          "Aceitunas, orégano y ají molido"
+        ],
+        instructions: [
+          "Si es vacuno: hervir 40 minutos en leche con sal y laurel para tiernizar. Si es de cerdo va directo.",
+          "Colocar en asadera con la grasa hacia abajo y dorar 10 min a 200°C.",
+          "Dar vuelta, cubrir con salsa de tomate y abundante muzzarella.",
+          "Hornear 10 minutos más hasta derretir y gratinar. Terminar con orégano y aceitunas."
+        ],
+        isFeatured: true
+      }
+    ];
+
+    db.recipes = defaultRecipes;
+    this.writeDb(db);
+    this.emitChange('recipes:updated', db.recipes);
+    return defaultRecipes;
+  }
 }
 
 export const db = new DatabaseService();
@@ -3960,6 +4306,11 @@ export const createAgent = (data) => db.createAgent(data);
 export const updateAgent = (id, u) => db.updateAgent(id, u);
 export const deleteAgent = (id) => db.deleteAgent(id);
 export const setActiveAgent = (id) => db.setActiveAgent(id);
+export const getRecipes = () => db.getRecipes();
+export const getRecipe = (id) => db.getRecipe(id);
+export const saveRecipe = (r) => db.saveRecipe(r);
+export const deleteRecipe = (id) => db.deleteRecipe(id);
+export const seedRecipes = (f) => db.seedRecipes(f);
 
 
 

@@ -109,8 +109,9 @@ export class ChatStrategyGraphService {
     const suprema = findProd(/suprema|pechuga/i, 'Supremas de Pollo Frescas', 6900);
     const osobuco = findProd(/osobuco/i, 'Osobuco Seleccionado', 6800);
     const roastBeef = findProd(/roast|palomita/i, 'Roast Beef / Palomita Tierna', 9400);
-    const molida = findProd(/molida/i, 'Carne Molida Especial Vacuna', 7200);
+    const molida = findProd(/^(?!.*grasa).*molida|carne picada|picada especial/i, 'Carne Molida Especial Vacuna', 7200);
     const colita = findProd(/colita/i, 'Colita de Cuadril Seleccionada', 12800);
+    const costeleta = findProd(/costeleta|bife angosto|bife de chorizo/i, 'Costeletas de Ternera / Bife Angosto', 17500);
     const pataMuslo = findProd(/pata muslo/i, 'Pata Muslo Fresca de Pollo', 4660);
     const carbon = findProd(/carbón|carbon/i, 'Bolsa de Carbón Quebracho', 3500);
 
@@ -122,18 +123,45 @@ export class ChatStrategyGraphService {
       return null;
     }
 
-    // 1. Detección de Asados por número de personas / comensales
     const peopleMatch = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asadito\s+para|asado\s+para|un\s+asado\s+para|un\s+asadito\s+para)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
       t.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos|peronas)/i);
 
-    const isAsadoConsultation = /(?:asesorame|asesoramiento|qu[eé]\s+me\s+recomendas|recomendas\s+para\s+asado|recomendás\s+para\s+asado|opciones\s+para\s+asado|cuanto\s+calculo|cuánto\s+calculo|calcular\s+asado|asado\s+para\s+\d+|para\s+\d+\s+personas|somos\s+\d+)/i.test(t) ||
-      (peopleMatch && /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|fuego|brasas|comer|cena|almuerzo)/i.test(t));
+    let peopleCount = peopleMatch ? parseInt(peopleMatch[1], 10) : 4;
+    if (peopleCount <= 0) peopleCount = 4;
+    if (peopleCount > 100) peopleCount = 100;
 
-    if (peopleMatch || isAsadoConsultation) {
-      let peopleCount = peopleMatch ? parseInt(peopleMatch[1], 10) : 4;
-      if (peopleCount <= 0) peopleCount = 4;
-      if (peopleCount > 100) peopleCount = 100;
+    // Detección de Negación Explícita de Asado o Búsqueda de Comida Casera/Rápida
+    const isExplicitNoAsado = /no\s+(?:quiero|hago|vamos\s+a\s+hacer|tengo\s+ganas\s+de)\s+(?:asado|parrilla|asadito)|nada\s+de\s+asado|sin\s+asado|fuera\s+de\s+asado|otra\s+cosa\s+que\s+no\s+sea\s+asado/i.test(t);
+    const isDailyCookingOrFamilyMeal = /(?:cocinar\s+r[aá]pido|algo\s+sencillo|plato\s+familiar|para\s+cocinar\s+en\s+casa|comida\s+de\s+casa|almuerzo\s+familiar|cena\s+familiar|cocinar\s+hoy|algo\s+para\s+comer|comida\s+r[aá]pida|men[uú]\s+del\s+d[ií]a|algo\s+f[aá]cil)/i.test(t);
 
+    // 1. SI ES COMIDA DIARIA FAMILIAR O SE NEGÓ EL ASADO EXPLÍCITAMENTE
+    if (isExplicitNoAsado || (isDailyCookingOrFamilyMeal && !/(?:parrilla|fuego|brasas|asadazo)/i.test(t))) {
+      const familyMeatKg = Math.max(1, Math.round(peopleCount * 0.25 * 10) / 10);
+      const bifeKg = Math.max(1, Math.round(peopleCount * 0.3 * 10) / 10);
+      const bifesCount = peopleCount;
+
+      const nalgaPrice = nalga.price * familyMeatKg;
+      const bifePrice = (costeleta.price || 17500) * bifeKg;
+      const picadaPrice = molida.price * familyMeatKg;
+
+      return `¡Entendido perfectamente ${clientName}! 👨‍🍳🍲 Para **cocinar rico, fácil y rápido en casa para ${peopleCount} personas** (~250g a 300g por porción), te propongo 3 platazos clásicos infalibles:\n\n` +
+        `1️⃣ **Milanesas Caseras a la Napolitana o Fritas (Rinde ${peopleCount} platos abundantes):**\n` +
+        `• ${familyMeatKg} kg de ${nalga.name} feteada fina ($${nalgaPrice.toLocaleString('es-AR')})\n` +
+        `💰 *Total:* **$${nalgaPrice.toLocaleString('es-AR')}**\n\n` +
+        `2️⃣ **Bifes a la Plancha o a la Criolla con Papas (Listo en 15 minutos):**\n` +
+        `• ${bifeKg} kg de ${costeleta.name} (~${bifesCount} bifes) ($${bifePrice.toLocaleString('es-AR')})\n` +
+        `💰 *Total:* **$${bifePrice.toLocaleString('es-AR')}**\n\n` +
+        `3️⃣ **Pastel de Papa Tradicional o Guisito Carrero:**\n` +
+        `• ${familyMeatKg} kg de ${molida.name} magra ($${picadaPrice.toLocaleString('es-AR')})\n` +
+        `💰 *Total:* **$${picadaPrice.toLocaleString('es-AR')}**\n\n` +
+        `👉 ¿Cuál de estas opciones te gustaría que te preparemos (*1*, *2* o *3*), o preferís otro corte para tu receta? 🙌 [[STAGE:proposal]]`;
+    }
+
+    // 2. Detección de Asados por número de personas / comensales
+    const isAsadoConsultation = /(?:asesorame|asesoramiento|qu[eé]\s+me\s+recomendas|recomendas\s+para\s+asado|recomendás\s+para\s+asado|opciones\s+para\s+asado|cuanto\s+calculo|cuánto\s+calculo|calcular\s+asado|asado\s+para\s+\d+|un\s+asado)/i.test(t) ||
+      (peopleMatch && /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|fuego|brasas)/i.test(t));
+
+    if (isAsadoConsultation) {
       // Cálculo: ~500g por persona para asado completo (carne + achura/embutido)
       const totalKg = (peopleCount * 0.5).toFixed(1).replace('.0', '');
       const meatKg = Math.max(1, Math.round(peopleCount * 0.35));
@@ -164,7 +192,7 @@ export class ChatStrategyGraphService {
         `👉 ¿Con cuál opción te gustaría avanzar (*1*, *2* o *3*), o preferís ajustar algún corte a tu gusto? 🙌 [[STAGE:proposal]]`;
     }
 
-    // 2. Detección de Milanesas
+    // 3. Detección de Milanesas
     if (/(?:milanesa|milanesas|milas|supremas|hacer milanesas)/i.test(t)) {
       return `¡De diez ${clientName}! 🥩 Para hacer las mejores **Milanesas**, te recomendamos nuestros cortes tiernos y sin grasa:\n\n` +
         `1️⃣ *${nalga.name}* ($${nalga.price.toLocaleString('es-AR')} / kg) — Feteada justa para milanesas tiernas.\n` +
@@ -173,7 +201,7 @@ export class ChatStrategyGraphService {
         `👉 Decime cuántos kilos o qué opción te preparamos feteada para milanesas. 🙌 [[STAGE:proposal]]`;
     }
 
-    // 3. Detección de Guisos, Estofados o Empanadas
+    // 4. Detección de Guisos, Estofados o Empanadas
     if (/(?:guiso|estofado|olla|locro|puchero|carbonada|empanadas|picada)/i.test(t)) {
       return `¡Excelente idea ${clientName}! 🍲 Para **guisos, estofados u olla**, estos son nuestros mejores cortes con todo el sabor:\n\n` +
         `1️⃣ *${osobuco.name}* ($${osobuco.price.toLocaleString('es-AR')} / kg) — Puro sabor con caracú para estofados y guisazos.\n` +
@@ -182,7 +210,7 @@ export class ChatStrategyGraphService {
         `👉 ¿Cuántos kilos te gustaría que te separemos? Respondé con el número o nombre del corte. 🥩 [[STAGE:proposal]]`;
     }
 
-    // 4. Detección de Horno / Cocción Lenta
+    // 5. Detección de Horno / Cocción Lenta
     if (/(?:horno|al horno|coccion lenta|cocción lenta|asadera|con papas)/i.test(t)) {
       return `¡Espectacular ${clientName}! 🥩 Para cocinar al **Horno con papas o verduras**, los cortes más jugosos son:\n\n` +
         `1️⃣ *${colita.name}* ($${colita.price.toLocaleString('es-AR')} / kg) — Queda tiernísima y rosada al medio.\n` +

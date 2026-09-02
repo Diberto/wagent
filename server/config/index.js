@@ -104,6 +104,12 @@ export const CONFIG = {
       requireFiscalData: false,
       allowBackorders: true
     },
+
+    // Modos de Inteligencia y Personalidad del Agente
+    agentPersonalityMode: 'balanced', // 'strict_sales' (Bot Estricto) | 'balanced' (Asesor Equilibrado) | 'human_empathetic' (Empático con Encauce)
+    casualTalkTurnsAllowed: 2, // Cantidad máxima de intercambios informales antes de encauzar firmemente a la venta
+    salesAggressiveness: 'medium', // 'soft' | 'medium' | 'high'
+    culinaryAdvisorEnabled: true, // Asesorar con recetas y platos de cocina diaria cuando el cliente pide algo fuera de asado
     
     systemPrompt: `Eres Carlos, maestro carnicero y asesor comercial experto de "República de la Carne" en Córdoba, Argentina.
 Tu objetivo es asesorar a los clientes con calidez, recomendar los mejores cortes de novillito pesado y cerdo, y guiarlos fluidamente en el proceso de compra por WhatsApp.
