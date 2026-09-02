@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node server/index.js",
     "start:prod": "node server/index.js",
+    "start:cluster": "node server/cluster.js",
     "dev:server": "node --watch server/index.js",
     "client": "npm run dev --workspace=client",
     "build": "npm run build --workspace=client",
@@ -29,6 +30,7 @@
     "@sentropic/graphify": "^0.17.1",
     "@whiskeysockets/baileys": "^6.7.24",
     "@woocommerce/woocommerce-rest-api": "^1.0.2",
+    "better-sqlite3": "^13.0.3",
     "compression": "^1.8.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

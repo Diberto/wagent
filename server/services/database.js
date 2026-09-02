@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { CONFIG } from '../config/index.js';
+import { sqliteStorage } from './sqliteStorage.js';
 
 export function isLidIdentifier(raw) {
   if (!raw) return false;
@@ -225,6 +226,14 @@ class DatabaseService {
   writeDb(data) {
     if (!data) return false;
     this._cache = data;
+
+    // Sincronización transparente con SQLite WAL
+    try {
+      sqliteStorage.migrateFromJsonData(data);
+    } catch (sqliteErr) {
+      console.warn('⚠️ [DatabaseService] Error sincronizando a SQLite:', sqliteErr.message);
+    }
+
     const jsonStr = JSON.stringify(data, null, 2);
     try {
       const tempPath = `${this.dbFile}.tmp.${process.pid}`;
@@ -245,6 +254,10 @@ class DatabaseService {
         return false;
       }
     }
+  }
+
+  getStorageMode() {
+    return 'SQLite WAL (Write-Ahead Logging) + L1 RAM Cache';
   }
 
   // --- Settings & Deep Merge Persistence Guarantee ---

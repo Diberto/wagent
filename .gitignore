@@ -9,6 +9,7 @@ data/db.backup*
 data/backups/
 data/*.tmp*
 data/*.tmp.*
+data/*.db*
 scratch/
 .graphify/
 logs/

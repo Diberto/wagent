@@ -22,6 +22,8 @@ import { arcaService } from '../services/arca.js';
 import { SpeechService } from '../services/speech.js';
 import { systemMonitor } from '../services/systemMonitor.js';
 import { multiAgentOps } from '../services/multiAgentOps.js';
+import { runStorageBenchmark } from '../services/benchmarks.js';
+import { taskQueue } from '../services/taskQueue.js';
 import * as XLSX from 'xlsx';
 import { CONFIG } from '../config/index.js';
 
@@ -64,6 +66,25 @@ export function createApiRouter(whatsappService, io) {
       const dbRes = systemMonitor.optimizeDatabase();
       const memRes = systemMonitor.clearMemoryCaches();
       res.json({ success: true, db: dbRes, memory: memRes, message: 'Sistema optimizado, bases compactadas y memoria liberada con éxito.' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/system/benchmark', async (req, res) => {
+    try {
+      const { readOps = 2000, writeOps = 1000 } = req.body || {};
+      const result = await runStorageBenchmark({ readOps: Number(readOps), writeOps: Number(writeOps) });
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/system/queue-status', (req, res) => {
+    try {
+      const stats = taskQueue.getStats();
+      res.json({ success: true, stats });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
