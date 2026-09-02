@@ -123,7 +123,7 @@ export class ChatStrategyGraphService {
       return null;
     }
 
-    const peopleMatch = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asadito\s+para|asado\s+para|un\s+asado\s+para|un\s+asadito\s+para)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
+    const peopleMatch = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asadito\s+para|asado\s+para|un\s+asado\s+para|un\s+asadito\s+para)\s+(?:unos\s+|unas\s+|los\s+|las\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
       t.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos|peronas)/i);
 
     let peopleCount = peopleMatch ? parseInt(peopleMatch[1], 10) : 4;
@@ -159,38 +159,50 @@ export class ChatStrategyGraphService {
     }
 
     // 2. Detección de Asados por número de personas / comensales
-    const isAsadoConsultation = /(?:asesorame|asesoramiento|qu[eé]\s+me\s+recomendas|recomendas\s+para\s+asado|recomendás\s+para\s+asado|opciones\s+para\s+asado|cuanto\s+calculo|cuánto\s+calculo|calcular\s+asado|asado\s+para\s+\d+|un\s+asado)/i.test(t) ||
-      (peopleMatch && /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|fuego|brasas)/i.test(t));
+    const isAsadoConsultation = /(?:asesorame|asesoramiento|qu[eé]\s+me\s+recomendas|recomendas\s+para\s+asado|recomendás\s+para\s+asado|opciones\s+para\s+asado|cuanto\s+calculo|cuánto\s+calculo|calcular\s+asado|asado\s+para|asadito\s+para|un\s+asado|un\s+asadito|hacer\s+(?:un\s+)?asado|hacer\s+(?:un\s+)?asadito)/i.test(t) ||
+      (/(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|fuego|brasas)/i.test(t) && Boolean(peopleMatch));
 
     if (isAsadoConsultation) {
       // Cálculo: ~500g por persona para asado completo (carne + achura/embutido)
-      const totalKg = (peopleCount * 0.5).toFixed(1).replace('.0', '');
-      const meatKg = Math.max(1, Math.round(peopleCount * 0.35));
-      const choriKg = Math.max(1, Math.round(peopleCount * 0.15));
+      const totalKg = Number((peopleCount * 0.5).toFixed(1));
+      const meatKg = peopleCount <= 3 ? Number((totalKg * 0.75).toFixed(1)) : Math.max(1, Math.round(peopleCount * 0.35));
+      const choriKg = peopleCount <= 3 ? Number((totalKg * 0.25).toFixed(1)) : Math.max(1, Math.round(peopleCount * 0.15));
+      const choriUnits = Math.max(2, Math.round(choriKg * 8));
 
-      const total1 = (meatKg * vacio.price) + (choriKg * chori.price);
-      const total2 = comboAsadazo.price + (peopleCount > 4 ? (peopleCount - 4) * vacio.price : 0);
-      const meatGourmet1 = Math.max(1, Math.round(meatKg * 0.6));
-      const meatGourmet2 = Math.max(1, Math.round(meatKg * 0.4));
-      const total3 = (meatGourmet1 * tapaCuadril.price) + (meatGourmet2 * matambre.price) + (choriKg * chori.price);
+      const total1 = Math.round((meatKg * vacio.price) + (choriKg * chori.price));
+      const meatGourmet1 = Number((meatKg * 0.6).toFixed(1));
+      const meatGourmet2 = Number((meatKg * 0.4).toFixed(1));
+      const total3 = Math.round((meatGourmet1 * tapaCuadril.price) + (meatGourmet2 * matambre.price) + (choriKg * chori.price));
 
-      return `¡Qué lindo asado ${clientName}! 🔥🥩 Para **${peopleCount} personas** calculamos un promedio de **${totalKg} kg en total** (~500g por comensal bien servido).\n\n` +
-        `👉 *Te armé 3 opciones ideales para que elijas:*\n\n` +
-        `1️⃣ **Opción Clásica Equilibrada (${totalKg} kg):**\n` +
-        `• ${meatKg} kg de ${vacio.name} ($${(meatKg * vacio.price).toLocaleString('es-AR')})\n` +
-        `• ${choriKg} kg de ${chori.name} ($${(choriKg * chori.price).toLocaleString('es-AR')})\n` +
+      let option2Section = '';
+      if (peopleCount <= 3) {
+        const costillaKg = 1.0;
+        const total2 = Math.round((costillaKg * 9800) + (choriKg * chori.price));
+        option2Section = `2️⃣ **Opción Costillar & Chorizos:**\n` +
+          `• 1.0 kg de Costillar / Asado de Tira ($9.800)\n` +
+          `• ${choriUnits} Chorizos Criollos Puro Cerdo (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
+          `💰 *Total:* **$${total2.toLocaleString('es-AR')}**\n\n`;
+      } else {
+        const total2 = comboAsadazo.price + (peopleCount > 4 ? (peopleCount - 4) * vacio.price : 0);
+        option2Section = `2️⃣ **Opción Combo “Asadazo” + Agregados:**\n` +
+          `• 1 ${comboAsadazo.name} — $${comboAsadazo.price.toLocaleString('es-AR')}\n` +
+          (peopleCount > 4 ? `• ${Math.max(1, peopleCount - 4)} kg adicional de Vacío / Costillar ($${((peopleCount - 4) * vacio.price).toLocaleString('es-AR')})\n` : '') +
+          `💰 *Total:* **$${total2.toLocaleString('es-AR')}**\n\n`;
+      }
+
+      return `¡Qué lindo asado ${clientName}! 🔥🥩 Para **${peopleCount} personas** calculamos un promedio de **${totalKg} kg en total** (~500g por comensal bien servido):\n\n` +
+        `1️⃣ **Opción Clásica (${totalKg} kg):**\n` +
+        `• ${meatKg} kg de ${vacio.name} ($${Math.round(meatKg * vacio.price).toLocaleString('es-AR')})\n` +
+        `• ${choriUnits} Chorizos Criollos Puro Cerdo (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
         `💰 *Total:* **$${total1.toLocaleString('es-AR')}**\n\n` +
-        `2️⃣ **Opción Combo “Asadazo” + Agregados:**\n` +
-        `• 1 ${comboAsadazo.name} — $${comboAsadazo.price.toLocaleString('es-AR')}\n` +
-        (peopleCount > 4 ? `• ${Math.max(1, peopleCount - 4)} kg adicional de Vacío / Costillar ($${((peopleCount - 4) * vacio.price).toLocaleString('es-AR')})\n` : '') +
-        `💰 *Total:* **$${total2.toLocaleString('es-AR')}**\n\n` +
+        option2Section +
         `3️⃣ **Opción Parrillera Gourmet:**\n` +
-        `• ${meatGourmet1} kg de ${tapaCuadril.name} ($${(meatGourmet1 * tapaCuadril.price).toLocaleString('es-AR')})\n` +
-        `• ${meatGourmet2} kg de ${matambre.name} ($${(meatGourmet2 * matambre.price).toLocaleString('es-AR')})\n` +
-        `• ${choriKg} kg de ${chori.name} ($${(choriKg * chori.price).toLocaleString('es-AR')})\n` +
+        `• ${meatGourmet1} kg de ${tapaCuadril.name} ($${Math.round(meatGourmet1 * tapaCuadril.price).toLocaleString('es-AR')})\n` +
+        `• ${meatGourmet2} kg de ${matambre.name} ($${Math.round(meatGourmet2 * matambre.price).toLocaleString('es-AR')})\n` +
+        `• ${choriUnits} Chorizos Criollos Puro Cerdo (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
         `💰 *Total:* **$${total3.toLocaleString('es-AR')}**\n\n` +
-        `💡 *Complemento opcional:* ¿Querés sumar 1 bolsa de Carbón Quebracho ($${carbon.price.toLocaleString('es-AR')}) para el fuego? 🪵\n\n` +
-        `👉 ¿Con cuál opción te gustaría avanzar (*1*, *2* o *3*), o preferís ajustar algún corte a tu gusto? 🙌 [[STAGE:proposal]]`;
+        `💡 *Carbón opcional:* Si te hace falta para el fuego, tenemos bolsa de Carbón Quebracho a $${carbon.price.toLocaleString('es-AR')}. 🪵\n\n` +
+        `👉 ¿Cuál de estas opciones te gusta más (*1*, *2* o *3*), o preferís armarlo con otros cortes a tu gusto? 🙌 [[STAGE:proposal]]`;
     }
 
     // 3. Detección de Milanesas
@@ -364,22 +376,12 @@ export class ChatStrategyGraphService {
     }
 
     const activeOrder = db.getActiveOrdersByJid(lead.jid || lead.id || lead)[0] || null;
-    if (activeOrder) {
+    if (activeOrder && activeOrder.status === 'in_transit') {
       return `${smalltalkAck}\n\n` +
-        `Te recuerdo que tenemos en curso tu pedido **#${activeOrder.id}** por **$${Number(activeOrder.totalAmount).toLocaleString('es-AR')}**.\n\n` +
-        `👉 *¿Precisás algo de tu pedido?*\n` +
-        `1️⃣ Modificar datos o cortes\n` +
-        `2️⃣ Consultar estado y detalle\n` +
-        `3️⃣ Cancelar pedido\n\n` +
-        `¡Estoy acá para ayudarte! 🙌`;
+        `Te comento que tu pedido **#${activeOrder.id}** está en camino con el repartidor. 🛵🥩 ¡Cualquier duda acá estoy! 🙌`;
     }
 
     return `${smalltalkAck}\n\n` +
-      `Contame, ¿tenías ganas de preparar un asadito o buscás cortes para la semana? Hacemos envíos directos en el día a todo Córdoba. 🛵🥩\n\n` +
-      `👉 *Opciones rápidas:*\n` +
-      `1️⃣ Ver ofertas del día y combos\n` +
-      `2️⃣ Asesoramiento de asado por cantidad de personas\n` +
-      `3️⃣ Consultar nuestras 6 sucursales\n\n` +
-      `¿Por dónde arrancamos? 🙌 [[STAGE:proposal]]`;
+      `Contame, ¿tenías ganas de prender el fuego para un asadito o buscás cortes para cocinar en casa? Hacemos envíos directos en el día a todo Córdoba. 🛵🥩 ¿En qué te puedo dar una mano hoy? 🙌 [[STAGE:proposal]]`;
   }
 }

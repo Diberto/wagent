@@ -2479,6 +2479,24 @@ export class AIService {
     const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasQuantityPrompt && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
       !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered;
 
+    // 0.00000 ACLARACIÓN DE EQUIVOCACIÓN O DESACUERDO DEL CLIENTE ("pero yo no te pedí eso", "no pedí nada", etc.)
+    const isBotCorrectionOrMisunderstanding = /(?:yo\s+no\s+(?:te\s+)?ped[ií]|no\s+(?:te\s+)?ped[ií]\s+eso|no\s+es\s+lo\s+que\s+ped[ií]|no\s+te\s+ped[ií]\s+nada|te\s+equivocaste|no\s+dije\s+eso|yo\s+no\s+dije|no\s+quiero\s+eso|no\s+te\s+encargu[eé]|no\s+compr[eé]\s+nada|no\s+ped[ií]\s+nada|no\s+era\s+eso|pero\s+yo\s+no|yo\s+no\s+pedi)/i.test(t);
+
+    if (isBotCorrectionOrMisunderstanding) {
+      if (currentActiveOrder && ['pending', 'preparing', 'draft'].includes(currentActiveOrder.status)) {
+        db.updateOrder(currentActiveOrder.id, { status: 'cancelled' });
+      }
+      if (lead) {
+        lead.draftCart = null;
+        lead.currentOrder = null;
+        if (lead.jid || lead.id) {
+          db.updateLead(lead.jid || lead.id, { draftCart: null, currentOrder: null });
+        }
+      }
+      return `¡Tenés toda la razón ${clientName}, mil disculpas! 🙏 Me adelanté sin querer. Quedate súper tranquilo que no hay ningún pedido agendado ni cobrado, solo te estaba dando ideas de cortes y precios.\n\n` +
+        `Contame con calma qué tenías en mente para cocinar o compartir (¿preferís asado, milanesas, bifes o algún corte en particular?) y lo armamos juntos a tu gusto y sin ningún apuro. 😉🥩`;
+    }
+
     // 0.00001 CANCELACIÓN GENERAL DE PEDIDO / PROCESO
     const isCancelIntent = /(?:cancelar|cancelo|cancela|cancelame|anular|anula|anulame|no quiero nada|no quiero comprar nada|cancelar el pedido|cancelar mi pedido|cancelo el pedido|ya no quiero el pedido|no voy a querer|no quiero nada gracias)/i.test(t) ||
       (wasDataConfirmOffered && /^(?:3|3️⃣|cancelar|cancelo)$/i.test(t.trim())) ||
@@ -4054,13 +4072,12 @@ export class AIService {
     // =========================================================================
     // 3.5 ASESORAMIENTO CULINARIO Y RECETAS (ASADOS, MILANESAS, GUISOS, HORNO)
     // =========================================================================
-    const isCulinaryConsultation = /(?:para hacer|para preparar|recomendas para|recomendás para|que me recomendas|qué me recomendás|que corte|qué corte|para guiso|para estofado|para milanesas|para horno|para asado|hacer milanesas|hacer un asado|somos \d+|para \d+ personas)/i.test(t) && !hasSpecificCutsWithQtyEarly;
+    const isCulinaryConsultation = /(?:para hacer|para preparar|recomendas para|recomendás para|que me recomendas|qué me recomendás|que corte|qué corte|para guiso|para estofado|para milanesas|para horno|para asado|para un asado|para el asado|para asadito|para un asadito|hacer milanesas|hacer un asado|hacer un asadito|hacer asado|hacer asadito|preparar un asado|preparar asadito|somos \d+|para (?:los\s+)?\d+|asado para|asadito para|asado con|cocinar|cocinar en casa|comida en casa|plato familiar|almorzar|cenar)/i.test(t) && !hasSpecificCutsWithQtyEarly;
     if (isCulinaryConsultation) {
       const advice = ChatStrategyGraphService.handleCulinaryAndAsado(rawText, clientName, products);
       if (advice) return advice;
     }
 
-    // =========================================================================
     // =========================================================================
     // 4. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y ADICIONES / CORRECCIONES
     // =========================================================================
@@ -4102,27 +4119,23 @@ export class AIService {
       const { items: detectedItems, total: detectedTotal, addedItems, products: detectedProducts } = extractItemsFromHistoryAndText(history, rawText, products, lead);
       
       if (detectedItems.length > 0) {
+        if (lead) {
+          lead.draftCart = {
+            items: detectedItems,
+            total: detectedTotal,
+            products: detectedProducts,
+            updatedAt: new Date().toISOString()
+          };
+          if (lead.jid || lead.id) {
+            db.updateLead(lead.jid || lead.id, { draftCart: lead.draftCart });
+          }
+        }
         if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
           db.updateOrder(currentActiveOrder.id, {
             items: detectedItems,
             products: detectedProducts,
             totalAmount: detectedTotal
           });
-        } else if (!currentActiveOrder && detectedItems.length > 0) {
-          const newOrder = db.createOrder({
-            jid: lead.jid || lead.id,
-            customerName: clientName,
-            phone: lead.phone || (lead.jid ? `+${lead.jid.split('@')[0]}` : ''),
-            items: detectedItems,
-            products: detectedProducts,
-            totalAmount: detectedTotal,
-            status: 'pending',
-            source: 'whatsapp',
-            deliveryType: lead.deliveryType || 'pickup',
-            address: lead.address || '',
-            branch: lead.preferredBranch || ''
-          });
-          currentActiveOrder = newOrder;
         }
         const formattedTotal = `$${detectedTotal.toLocaleString('es-AR')}`;
         let prefixGreeting = `¡De diez ${clientName}! 🥩 Te separo los cortes solicitados:`;
