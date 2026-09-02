@@ -1227,13 +1227,21 @@ export default function SettingsModal({ isOpen, onClose }) {
                     <div className="p-3.5 rounded-2xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between">
                       <div className="text-[11px] font-bold text-slate-400 mb-1 flex items-center justify-between">
                         <span>Compilación C++</span>
-                        <Terminal size={13} className="text-purple-400" />
+                        <Terminal size={13} className={embeddedModelInfo?.isSupported ? 'text-purple-400' : 'text-amber-400'} />
                       </div>
                       <div className="text-xs font-bold text-white my-1 flex items-center gap-1.5">
-                        <span className="text-purple-300">node-llama-cpp v3</span>
+                        {embeddedModelInfo?.isSupported ? (
+                          <span className="text-purple-300 flex items-center gap-1">
+                            <CheckCircle2 size={13} className="text-emerald-400" /> node-llama-cpp v3
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 flex items-center gap-1">
+                            <AlertCircle size={13} /> No disponible en host
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        Zero-GPU • 1 Hilo CPU • 256 ctx
+                        {embeddedModelInfo?.isSupported ? 'Zero-GPU • 1 Hilo CPU • 256 ctx' : 'Hostinger sin make/g++ (Usa Cloud)'}
                       </div>
                     </div>
 

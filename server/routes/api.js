@@ -2714,16 +2714,22 @@ export function createApiRouter(whatsappService, io) {
 
   router.post('/ai/embedded/set-default', async (req, res) => {
     try {
-      const settings = db.getSettings() || {};
-      settings.aiProvider = 'qwen_embedded';
-      settings.aiModel = 'qwen2.5-0.5b-instruct';
-      db.saveSettings(settings);
+      const current = db.getSettings() || {};
+      const updated = db.updateSettings({
+        ...current,
+        aiProvider: 'qwen_embedded',
+        aiModel: 'qwen2.5-0.5b-instruct'
+      });
+      if (typeof io !== 'undefined' && io?.emit) {
+        io.emit('settings:update', updated);
+      }
       res.json({
         success: true,
         message: 'Qwen 2.5 0.5B (node-llama-cpp) configurado como modelo predeterminado del sistema.',
-        settings
+        settings: updated
       });
     } catch (err) {
+      console.error('Error en POST /api/ai/embedded/set-default:', err);
       res.status(500).json({ success: false, error: err.message });
     }
   });

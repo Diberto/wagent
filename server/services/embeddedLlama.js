@@ -21,16 +21,23 @@ if (!fs.existsSync(MODELS_DIR)) {
 
 // Carga perezosa y segura de node-llama-cpp
 let nodeLlamaCppModule = null;
+let isNodeLlamaCppAvailable = null;
+
 async function getNodeLlamaCpp() {
   if (nodeLlamaCppModule) return nodeLlamaCppModule;
   try {
     nodeLlamaCppModule = await import('node-llama-cpp');
+    isNodeLlamaCppAvailable = true;
     return nodeLlamaCppModule;
   } catch (err) {
+    isNodeLlamaCppAvailable = false;
     console.warn('⚠️ [EmbeddedLlama] node-llama-cpp no está disponible en este entorno:', err.message);
     return null;
   }
 }
+
+// Comprobación asíncrona inicial no bloqueante
+getNodeLlamaCpp().catch(() => {});
 
 class EmbeddedLlamaService {
   constructor() {
@@ -102,7 +109,8 @@ class EmbeddedLlamaService {
     return {
       available,
       isLoadedInMemory: this.isLoadedInMemory(),
-      isSupported: nodeLlamaCppModule !== null || !this.isModelAvailable(),
+      isSupported: isNodeLlamaCppAvailable === true,
+      binaryStatus: isNodeLlamaCppAvailable === true ? 'INSTALLED' : (isNodeLlamaCppAvailable === false ? 'NOT_INSTALLED' : 'CHECKING'),
       modelPath: MODEL_PATH,
       filename: MODEL_FILENAME,
       sizeMB,
@@ -415,6 +423,18 @@ class EmbeddedLlamaService {
   async testConnection({ temperature = 0.6, maxTokens = 60 } = {}) {
     const startTime = Date.now();
     try {
+      const llamaModule = await getNodeLlamaCpp();
+      if (!llamaModule) {
+        return {
+          success: false,
+          provider: 'Qwen Embedded',
+          model: 'qwen2.5-0.5b-instruct',
+          error: 'El paquete nativo node-llama-cpp no está compilado en este entorno de servidor (típico de hostings sin herramientas de compilación C++/make). Puedes utilizar los modelos Cloud integrados (Google Gemini, Claude, OpenAI, DeepSeek, etc.) o compilar node-llama-cpp mediante un contenedor Docker.',
+          latencyMs: 0,
+          isFallback: false
+        };
+      }
+
       if (!this.isModelAvailable()) {
         return {
           success: false,
@@ -473,10 +493,18 @@ class EmbeddedLlamaService {
   async runBenchmark({ promptText = 'Explica brevemente por qué el vacío y el asado de tira son los cortes favoritos en Argentina.' } = {}) {
     const startTime = Date.now();
     try {
+      const llamaModule = await getNodeLlamaCpp();
+      if (!llamaModule) {
+        return {
+          success: false,
+          error: 'El paquete nativo node-llama-cpp no está disponible en este servidor (se omitió durante la instalación por falta de herramientas de compilación C++/make en el hosting). Puedes usar los modelos Cloud del sistema (Google Gemini, Claude, OpenAI, DeepSeek, Pollinations) o ejecutar la aplicación dentro de un contenedor Docker para habilitar la inferencia nativa en CPU.'
+        };
+      }
+
       if (!this.isModelAvailable()) {
         return {
           success: false,
-          error: 'El modelo no está descargado. Descárgalo primero desde el panel de Llama-CPP.'
+          error: 'El archivo .gguf del modelo no está descargado en el servidor. Presiona el botón "Descargar Modelo Automáticamente" primero.'
         };
       }
 
