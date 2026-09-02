@@ -19,25 +19,44 @@ if (!fs.existsSync(MODELS_DIR)) {
   fs.mkdirSync(MODELS_DIR, { recursive: true });
 }
 
-// Carga perezosa y segura de node-llama-cpp
+// Carga perezosa y segura de node-llama-cpp con mutex para evitar condiciones de carrera (EEXIST)
 let nodeLlamaCppModule = null;
 let isNodeLlamaCppAvailable = null;
+let nodeLlamaCppPromise = null;
 
 async function getNodeLlamaCpp() {
   if (nodeLlamaCppModule) return nodeLlamaCppModule;
-  try {
-    nodeLlamaCppModule = await import('node-llama-cpp');
-    isNodeLlamaCppAvailable = true;
-    return nodeLlamaCppModule;
-  } catch (err) {
-    isNodeLlamaCppAvailable = false;
-    console.warn('⚠️ [EmbeddedLlama] node-llama-cpp no está disponible en este entorno:', err.message);
-    return null;
-  }
-}
+  if (nodeLlamaCppPromise) return nodeLlamaCppPromise;
 
-// Comprobación asíncrona inicial no bloqueante
-getNodeLlamaCpp().catch(() => {});
+  nodeLlamaCppPromise = (async () => {
+    try {
+      nodeLlamaCppModule = await import('node-llama-cpp');
+      isNodeLlamaCppAvailable = true;
+      return nodeLlamaCppModule;
+    } catch (err) {
+      // Si el error es por condición de carrera en creación de locks/temporales nativos (EEXIST), reintentar
+      if (err.code === 'EEXIST' || err.message?.includes('EEXIST')) {
+        try {
+          await new Promise(r => setTimeout(r, 300));
+          nodeLlamaCppModule = await import('node-llama-cpp');
+          isNodeLlamaCppAvailable = true;
+          return nodeLlamaCppModule;
+        } catch (retryErr) {
+          isNodeLlamaCppAvailable = false;
+          console.warn('⚠️ [EmbeddedLlama] Reintento de carga node-llama-cpp:', retryErr.message);
+          return null;
+        }
+      }
+      isNodeLlamaCppAvailable = false;
+      console.warn('⚠️ [EmbeddedLlama] node-llama-cpp no está disponible en este entorno:', err.message);
+      return null;
+    } finally {
+      nodeLlamaCppPromise = null;
+    }
+  })();
+
+  return nodeLlamaCppPromise;
+}
 
 class EmbeddedLlamaService {
   constructor() {
