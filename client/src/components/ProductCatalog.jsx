@@ -1608,7 +1608,7 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
                   <div>
                     <label htmlFor="availableInStore" className="text-xs font-bold text-emerald-400 cursor-pointer flex items-center gap-1.5">
                       <Store size={14} />
-                      Disponible en Tienda Web (Apple Glass)
+                      Disponible en Tienda Online
                     </label>
                     <p className="text-[10px] text-slate-400">Si se activa, el producto se exhibirá en el catálogo público /tienda.</p>
                   </div>

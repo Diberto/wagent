@@ -2275,19 +2275,20 @@ export class AIService {
         orderStatusContext = `Estado de Pedidos del Cliente: No tiene pedidos pendientes actuales. Su última compra registrada fue el Pedido #${activeLeadOrders[0].id} (entregado).`;
       }
 
-      // Si es un comando o selección transaccional directa (números, confirmaciones, cancelaciones, cambios de pedido, cantidades)
-      const isDirectTransaction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim()) ||
-        /(?:cancelar.*ped|cancela.*ped|cambiame|sacale|en vez de|ya transfer[ií]|ya me lo entregaron|recib[ií] el ped)/i.test(incomingText) ||
-        /(?:quiero|mandame|mandámelo|mandamelo|enviame|envíame|traeme|traéme|armame|armáme|anotame|anótame|separame|sepárame|preparame|prepárame)\s+(?:solo\s+)?\d+/i.test(incomingText) ||
-        /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada).*(?:para|somos)?\s*\d+|para\s+\d+\s*(?:personas|comensales|amigos|invitados|peronas)/i.test(incomingText) ||
-        /^(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?)|medio\s+kilo|1\/2\s*kg|dos|tres|cuatro|cinco|seis|ocho|diez|\d+)$/i.test(incomingText.trim());
+      // Si es un comando estrictamente atómico (ej: solo un dígito o palabra clave de confirmación/cancelación directa)
+      const isPureAtomicAction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim());
 
       const effectiveProvider = settings.aiProvider || 'gemini';
       const effectiveModel = settings.aiModel || (effectiveProvider === 'openai' ? 'gpt-4o-mini' : (effectiveProvider === 'deepseek' ? 'deepseek-chat' : (effectiveProvider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : (effectiveProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'))));
       const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
       const effectiveMaxTokens = settings.aiMaxTokens || 450;
 
-      if (isDirectTransaction) {
+      const hasValidLLMKey = (effectiveProvider === 'gemini' && isValidGeminiKey) ||
+        (['openai', 'deepseek', 'groq', 'anthropic'].includes(effectiveProvider) && (isValidOpenAiKey || settings.apiKeyOverride || settings.openaiApiKey || settings.deepseekApiKey || settings.groqApiKey || settings.anthropicApiKey)) ||
+        effectiveProvider === 'local';
+
+      // Si es una acción atómica Y no tenemos LLM o el usuario está en paso de confirmación de formulario
+      if (isPureAtomicAction && !hasValidLLMKey) {
         replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
       } else if (effectiveProvider === 'gemini' && isValidGeminiKey) {
         const apiKey = settings.apiKeyOverride || settings.geminiApiKey;

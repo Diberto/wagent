@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { io } from 'socket.io-client';
 import { 
   ShoppingBag, 
   Search, 
@@ -34,9 +35,39 @@ import {
   Info,
   Sliders,
   BadgeCheck,
-  Banknote
+  Banknote,
+  Globe
 } from 'lucide-react';
 import SearchableCombobox from './ui/SearchableCombobox.jsx';
+
+/**
+ * Resuelve la URL base de la API del CRM de forma transparente.
+ * Soporta:
+ * 1. Parámetro en URL (?api_url=https://crm.tudominio.com)
+ * 2. Variable global (window.WAGENT_API_URL)
+ * 3. Variable de entorno Vite (VITE_API_URL)
+ * 4. Almacenamiento local persistente (wagent_store_api_url)
+ * 5. Mismo origen relativo ('')
+ */
+export function getStoreApiUrl() {
+  if (typeof window === 'undefined') return '';
+  const urlParams = new URLSearchParams(window.location.search);
+  const paramUrl = urlParams.get('api_url') || urlParams.get('backend');
+  if (paramUrl) {
+    try {
+      localStorage.setItem('wagent_store_api_url', paramUrl);
+    } catch (_) {}
+    return paramUrl.replace(/\/+$/, '');
+  }
+
+  const stored = localStorage.getItem('wagent_store_api_url');
+  if (stored) return stored.replace(/\/+$/, '');
+
+  if (window.WAGENT_API_URL) return String(window.WAGENT_API_URL).replace(/\/+$/, '');
+  if (import.meta.env?.VITE_API_URL) return String(import.meta.env.VITE_API_URL).replace(/\/+$/, '');
+
+  return '';
+}
 
 const DEFAULT_CATEGORIES = [
   { id: 'all', label: '🔥 Todo el Catálogo', icon: '🥩' },
@@ -102,9 +133,9 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     announcementBarEnabled: true,
     announcementBarText: '🥩 ¡Envíos gratis en compras superiores a $45.000 en Córdoba! Despacho asegurado en 24hs.',
     themePreset: 'apple-obsidian',
-    primaryColor: '#10b981',
-    accentColor: '#38bdf8',
-    fontFamily: 'Inter',
+    primaryColor: '#0071e3',
+    accentColor: '#30d158',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Inter, sans-serif',
     glassBlurLevel: 'xl',
     allowMercadoPago: true,
     allowCash: true,
@@ -154,14 +185,15 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     localStorage.setItem('republica_cart', JSON.stringify(cart));
   }, [cart]);
 
-  // Cargar configuración de tienda y catálogo público aislado
+  // Cargar configuración de tienda y catálogo público aislado (Soporte Multi-Dominio)
   const fetchStoreData = async () => {
     setIsLoading(true);
+    const apiBase = getStoreApiUrl();
     try {
       const [cfgRes, prodRes, branchRes] = await Promise.all([
-        fetch('/api/store/config').then(r => r.json()).catch(() => null),
-        fetch('/api/store/products').then(r => r.json()).catch(() => []),
-        fetch('/api/store/branches').then(r => r.json()).catch(() => DEFAULT_BRANCHES)
+        fetch(`${apiBase}/api/store/config`).then(r => r.json()).catch(() => null),
+        fetch(`${apiBase}/api/store/products`).then(r => r.json()).catch(() => []),
+        fetch(`${apiBase}/api/store/branches`).then(r => r.json()).catch(() => DEFAULT_BRANCHES)
       ]);
 
       if (cfgRes && cfgRes.config) {
@@ -180,6 +212,7 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     }
   };
 
+  // Conexión WebSockets en tiempo real con el backend (incluso en otro dominio)
   useEffect(() => {
     fetchStoreData();
 
@@ -197,6 +230,37 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         }
       }
     }
+
+    const apiBase = getStoreApiUrl();
+    const socket = io(apiBase || undefined, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 15,
+      reconnectionDelay: 2000
+    });
+
+    socket.on('products:sync', (newProducts) => {
+      if (Array.isArray(newProducts)) {
+        const availableInStore = newProducts.filter(p => p.isAvailable !== false && p.availableInStore !== false && p.price > 0);
+        setProducts(availableInStore.length > 0 ? availableInStore : newProducts);
+      }
+    });
+
+    socket.on('orders:sync', () => {
+      if (trackingPhone && trackingPhone.trim().length >= 4) {
+        fetchTrackedOrders(trackingPhone);
+      }
+    });
+
+    socket.on('order:update', () => {
+      if (trackingPhone && trackingPhone.trim().length >= 4) {
+        fetchTrackedOrders(trackingPhone);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   // Agregar al Carrito (soporta kilos o unidades)
@@ -346,11 +410,12 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         paymentMethod,
         cashChangeFor: paymentMethod === 'Efectivo' && cashBillAmount ? Number(cashBillAmount) : null,
         channel: 'TIENDA',
-        source: 'TIENDA_WEB_APPLE_GLASS',
+        source: 'TIENDA_ONLINE_WEB',
         notes: orderNotes.trim()
       };
 
-      const res = await fetch('/api/store/order', {
+      const apiBase = getStoreApiUrl();
+      const res = await fetch(`${apiBase}/api/store/order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderPayload)
@@ -455,8 +520,9 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
     if (!q) return;
 
     setIsSearchingTracking(true);
+    const apiBase = getStoreApiUrl();
     try {
-      const res = await fetch(`/api/store/track/${encodeURIComponent(q)}`);
+      const res = await fetch(`${apiBase}/api/store/track/${encodeURIComponent(q)}`);
       const data = await res.json();
       if (data && Array.isArray(data.orders) && data.orders.length > 0) {
         setTrackedOrders(data.orders);
@@ -557,12 +623,12 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                 <span 
                   className="text-[10px] px-2 py-0.5 rounded-full font-bold border tracking-wider uppercase"
                   style={{
-                    backgroundColor: `${storeConfig.primaryColor || '#10b981'}20`,
-                    borderColor: `${storeConfig.primaryColor || '#10b981'}40`,
-                    color: storeConfig.primaryColor || '#10b981'
+                    backgroundColor: `${storeConfig.primaryColor || '#0071e3'}20`,
+                    borderColor: `${storeConfig.primaryColor || '#0071e3'}40`,
+                    color: storeConfig.primaryColor || '#0071e3'
                   }}
                 >
-                  Apple Glass
+                  Tienda Oficial
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium mt-0.5">
@@ -767,11 +833,11 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                 {filteredProducts.map(product => (
-                  <AppleGlassProductCard
+                  <AppleProductCard
                     key={product.id || product.name}
                     product={product}
                     onAddToCart={handleAddToCart}
-                    primaryColor={storeConfig.primaryColor || '#10b981'}
+                    primaryColor={storeConfig.primaryColor || '#0071e3'}
                   />
                 ))}
               </div>
@@ -846,7 +912,7 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
             {trackedOrders.length > 0 ? (
               <div className="space-y-4">
                 {trackedOrders.map(order => (
-                  <AppleGlassOrderTrackingCard 
+                  <AppleOrderTrackingCard 
                     key={order.id} 
                     order={order} 
                     whatsappNumber={storeConfig.whatsappDirectNumber || '5493516262475'} 
@@ -1314,9 +1380,9 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 }
 
 /**
- * Tarjeta individual de Producto con Estilo Apple Glass
+ * Tarjeta individual de Producto con Estilo Apple Minimalista
  */
-function AppleGlassProductCard({ product, onAddToCart, primaryColor = '#10b981' }) {
+function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
   const isKgProduct = !product.unit || product.unit === 'kg';
   const isFractionable = isProductFractionable(product.name, product.category);
   const unitsPerKg = product.unitsPerKg || getUnitsPerKg(product.name);
@@ -1526,9 +1592,9 @@ function AppleGlassProductCard({ product, onAddToCart, primaryColor = '#10b981' 
 }
 
 /**
- * Tarjeta de Seguimiento de Pedido (Tracking) Apple Glass
+ * Tarjeta de Seguimiento de Pedido (Tracking) Estilo Apple
  */
-function AppleGlassOrderTrackingCard({ order, whatsappNumber = '5493516262475' }) {
+function AppleOrderTrackingCard({ order, whatsappNumber = '5493516262475' }) {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'delivered':

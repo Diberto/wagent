@@ -175,7 +175,8 @@ export default function SettingsModal({ isOpen, onClose }) {
     try {
       const res = await fetch('/api/backups');
       const data = await res.json();
-      setBackupsList(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : (Array.isArray(data?.backups) ? data.backups : (Array.isArray(data?.data) ? data.data : []));
+      setBackupsList(list);
     } catch (err) {
       console.error('Error cargando lista de respaldos:', err);
     } finally {
@@ -533,7 +534,7 @@ export default function SettingsModal({ isOpen, onClose }) {
 
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
-    { id: 'store', label: '🎨 Tienda Web (Apple Glass)', icon: Store },
+    { id: 'store', label: '🎨 Tienda Online (Apple UI)', icon: Store },
     { id: 'logistics', label: 'Logística & Franjas', icon: Bike },
     { id: 'orderFilters', label: 'Filtros de Pedidos', icon: Filter },
     { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
@@ -833,7 +834,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-bold text-white">Diseño & Marca: Tienda Web Apple Glass</h3>
+                        <h3 className="text-sm font-bold text-white">Diseño & Marca: Tienda Online Apple UI</h3>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
                           En Vivo (/tienda)
                         </span>
@@ -1046,7 +1047,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                     <Palette size={20} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">Paleta de Colores & Temas Apple Glass</h3>
+                    <h3 className="text-sm font-bold text-white">Paleta de Colores & Temas Apple UI</h3>
                     <p className="text-xs text-slate-400">Selecciona una armonía cromática predefinida o personaliza tus tonos de marca</p>
                   </div>
                 </div>

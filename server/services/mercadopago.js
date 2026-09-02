@@ -19,19 +19,13 @@ export class MercadoPagoService {
     const prodAccessToken = settings.mercadopagoAccessTokenProduction || settings.mercadopagoAccessToken;
     const prodPublicKey = settings.mercadopagoPublicKeyProduction || settings.mercadopagoPublicKey;
 
-    let mode = settings.mercadopagoMode;
-    // Si no está explícito o es sandbox pero el token es APP_USR-, auto-ajustar a producción
-    if (!mode) {
-      if (prodAccessToken?.startsWith('APP_USR-')) {
-        mode = 'production';
-      } else if (sandboxAccessToken?.startsWith('TEST-') || prodAccessToken?.startsWith('TEST-')) {
+    let mode = settings.mercadopagoMode || 'production';
+    if (!settings.mercadopagoMode) {
+      if (sandboxAccessToken?.startsWith('TEST-') || prodAccessToken?.startsWith('TEST-')) {
         mode = 'sandbox';
-      } else {
+      } else if (prodAccessToken?.startsWith('APP_USR-')) {
         mode = 'production';
       }
-    } else if (mode === 'sandbox' && prodAccessToken?.startsWith('APP_USR-') && !sandboxAccessToken?.startsWith('TEST-')) {
-      // Si configuró APP_USR pero el modo decía sandbox, priorizar producción real porque APP_USR falla en sandbox
-      mode = 'production';
     }
 
     const isSandbox = mode === 'sandbox';
@@ -235,11 +229,13 @@ export class MercadoPagoService {
 
       const preference = await response.json();
 
-      // Si el token es de producción (APP_USR-), SIEMPRE entregar preference.init_point para evitar error de sandbox
-      const isRealProd = creds.accessToken?.startsWith('APP_USR-');
-      const checkoutUrl = (!isRealProd && creds.isSandbox && preference.sandbox_init_point)
-        ? preference.sandbox_init_point 
-        : (preference.init_point || preference.sandbox_init_point);
+      // Si el modo es Sandbox, utilizar SIEMPRE el link de Sandbox (sandbox_init_point)
+      let checkoutUrl = preference.init_point;
+      if (creds.isSandbox && preference.sandbox_init_point) {
+        checkoutUrl = preference.sandbox_init_point;
+      } else if (!checkoutUrl && preference.sandbox_init_point) {
+        checkoutUrl = preference.sandbox_init_point;
+      }
 
       // Actualizar el pedido en la base de datos con el link generado y modo
       db.updateOrder(orderId, {

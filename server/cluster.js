@@ -17,6 +17,14 @@ if (cluster.isPrimary || cluster.isMaster) {
   console.log(`💾 Base de Datos: SQLite WAL (Multi-Process Concurrent Safe)`);
   console.log('================================================================');
 
+  // Configurar el script de ejecución exacto de cada worker
+  const entryScript = path.resolve(__dirname, 'index.js');
+  if (typeof cluster.setupPrimary === 'function') {
+    cluster.setupPrimary({ exec: entryScript });
+  } else if (typeof cluster.setupMaster === 'function') {
+    cluster.setupMaster({ exec: entryScript });
+  }
+
   // Lanzar workers
   for (let i = 0; i < WORKERS; i++) {
     const worker = cluster.fork({ WORKER_ID: i + 1 });
