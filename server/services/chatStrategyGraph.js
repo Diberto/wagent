@@ -130,19 +130,20 @@ export class ChatStrategyGraphService {
     if (peopleCount <= 0) peopleCount = 4;
     if (peopleCount > 100) peopleCount = 100;
 
-    // Detección de Negación Explícita de Asado o Búsqueda de Comida Casera/Rápida
+    // Detección de Negación Explícita de Asado o Búsqueda de Comida Casera/Rápida/Familiar
     const isExplicitNoAsado = /no\s+(?:quiero|hago|vamos\s+a\s+hacer|tengo\s+ganas\s+de)\s+(?:asado|parrilla|asadito)|nada\s+de\s+asado|sin\s+asado|fuera\s+de\s+asado|otra\s+cosa\s+que\s+no\s+sea\s+asado/i.test(t);
-    const isDailyCookingOrFamilyMeal = /(?:cocinar\s+r[aá]pido|algo\s+sencillo|plato\s+familiar|para\s+cocinar\s+en\s+casa|comida\s+de\s+casa|almuerzo\s+familiar|cena\s+familiar|cocinar\s+hoy|algo\s+para\s+comer|comida\s+r[aá]pida|men[uú]\s+del\s+d[ií]a|algo\s+f[aá]cil)/i.test(t);
+    const isDailyCookingOrFamilyMeal = /(?:cocinar\s+(?:algo|rico|hoy|en\s+casa|para\s+la\s+familia|con\s+mi\s+familia)|algo\s+sencillo|plato\s+familiar|para\s+cocinar|comida\s+de\s+casa|almuerzo|cena|cocinar\s+hoy|algo\s+para\s+comer|comida\s+r[aá]pida|men[uú]|algo\s+f[aá]cil|hacer\s+(?:la\s+)?comida|hacer\s+algo|comer\s+algo|comer\s+en\s+casa|con\s+mi\s+familia|en\s+familia|somos\s+\d+)/i.test(t);
 
-    // 1. SI ES COMIDA DIARIA FAMILIAR O SE NEGÓ EL ASADO EXPLÍCITAMENTE
-    if (isExplicitNoAsado || (isDailyCookingOrFamilyMeal && !/(?:parrilla|fuego|brasas|asadazo)/i.test(t))) {
-      const familyMeatKg = Math.max(1, Math.round(peopleCount * 0.25 * 10) / 10);
-      const bifeKg = Math.max(1, Math.round(peopleCount * 0.3 * 10) / 10);
+    // 1. SI ES COMIDA DIARIA FAMILIAR O SE NEGÓ EL ASADO EXPLÍCITAMENTE (O NO MENCIONA ASADO/PARRILLA)
+    if (isExplicitNoAsado || (isDailyCookingOrFamilyMeal && !/(?:asado|asadito|parrilla|parrillada|fuego|brasas|asadazo)/i.test(t))) {
+      const rawFamilyKg = Math.round(peopleCount * 0.28 * 10) / 10;
+      const familyMeatKg = Math.max(0.75, rawFamilyKg);
+      const bifeKg = Math.max(0.8, Math.round(peopleCount * 0.3 * 10) / 10);
       const bifesCount = peopleCount;
 
-      const nalgaPrice = nalga.price * familyMeatKg;
-      const bifePrice = (costeleta.price || 17500) * bifeKg;
-      const picadaPrice = molida.price * familyMeatKg;
+      const nalgaPrice = Math.round(nalga.price * familyMeatKg);
+      const bifePrice = Math.round((costeleta.price || 17500) * bifeKg);
+      const picadaPrice = Math.round(molida.price * familyMeatKg);
 
       return `¡Entendido perfectamente ${clientName}! 👨‍🍳🍲 Para **cocinar rico, fácil y rápido en casa para ${peopleCount} personas** (~250g a 300g por porción), te propongo 3 platazos clásicos infalibles:\n\n` +
         `1️⃣ **Milanesas Caseras a la Napolitana o Fritas (Rinde ${peopleCount} platos abundantes):**\n` +

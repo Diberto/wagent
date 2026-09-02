@@ -887,24 +887,42 @@ function parseQuantity(str) {
 /**
  * Validador de nombres reales vs palabras basura
  */
-function isGarbageName(name) {
+export function isGarbageName(name) {
   if (!name || typeof name !== 'string') return true;
   const n = name.toLowerCase().trim();
   if (n.length < 3 || n.length > 40) return true;
   if (/[0-9]/.test(n)) return true;
-  const blacklist = /domicilio|casa|repartidor|efectivo|transferencia|combo|asadazo|envio|pedido|asado|hola|gracias|confirmar|ok|quiero|tal cual|eso asi|contacto|desconocido|cliente|recuerda|funes|locelso|duarte|quiros|urca/i;
+  const blacklist = /domicilio|casa|repartidor|efectivo|transferencia|combo|asadazo|envio|pedido|asado|hola|gracias|confirmar|ok|quiero|tal cual|eso asi|contacto|desconocido|cliente|recuerda|funes|locelso|duarte|quiros|urca|cocinar|familia|somos|para|kilo|kg|opcion|opción/i;
   return blacklist.test(n);
 }
 
 /**
  * Validador de direcciones reales vs intenciones genéricas
  */
-function isGarbageAddress(addr) {
+export function isGarbageAddress(addr) {
   if (!addr || typeof addr !== 'string') return true;
   const a = addr.toLowerCase().trim();
   if (a.length < 4) return true;
-  if (!/[0-9]/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon|cerro|urca|tejeda/i.test(a)) return true;
-  if (/^(?:mi domicilio|mi casa|a mi domicilio|domicilio|ok quiero|para envio|para envío)$/i.test(a)) return true;
+
+  // Frases conversacionales, intenciones de comida, recetas o charlas cotidianas
+  if (/(?:quisiera|quiero\s+cocinar|cocinar|hacer\s+algo|comer|receta|plato|comida|familia|somos\s+\d+|comemos|personas|amigos|invitados|asado|asadito|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|precio|cuanto|cuánto|horario|hola|buenas|gracias|chau|opcion|opción|combo|promo|abierto|delivery|envio|envío|solo|nada\s+mas)\b/i.test(a)) {
+    // Solo permitir si explícitamente tiene prefijo formal de calle/altura como 'calle', 'av', 'barrio' con número de calle
+    const hasExplicitStreetPrefix = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro)\b/i.test(a);
+    if (!hasExplicitStreetPrefix || !/[0-9]{2,5}/.test(a)) {
+      return true;
+    }
+  }
+
+  // Si no contiene número de calle (altura) ni calles reconocidas de Córdoba
+  if (!/[0-9]{1,5}/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon|cerro|urca|tejeda/i.test(a)) {
+    return true;
+  }
+
+  // Si es solo una palabra o texto genérico
+  if (/^(?:mi domicilio|mi casa|a mi domicilio|domicilio|ok quiero|para envio|para envío|en mi casa|a casa|para casa)$/i.test(a)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -914,6 +932,8 @@ function isGarbageAddress(addr) {
  */
 export function extractCleanAddress(rawText) {
   if (!rawText || typeof rawText !== 'string') return '';
+  if (isGarbageAddress(rawText)) return '';
+
   let a = rawText.trim();
 
   // 0. Extraer segmento específico si viene introducido en medio del texto conversacional
@@ -950,7 +970,7 @@ export function extractCleanAddress(rawText) {
     return a;
   }
 
-  return rawText.trim();
+  return '';
 }
 
 /**
@@ -2450,7 +2470,7 @@ export class AIService {
     const wasActiveOrderHelpOffered = !wasDataConfirmOffered && (
       /Tu pedido \*\*#ORD-.* ya está confirmado|Opciones:\s*\n?1️⃣\s*Modificar algún dato o cortes|¿Precisás algo de tu pedido\?|Tenés un pedido activo en curso|¿Querés consultar el estado \/ modificarlo/i.test(lastAgentMessage)
     );
-    const wasAsadoProposalOffered = /1️⃣\s*[*_]*Opción Clásica|[*_]*Te\s+arm[eé]\s+3\s+opciones|¿Con cu[aá]l opci[oó]n|Opción Combo|Opción Parrillera/i.test(lastAgentMessage);
+    const wasAsadoProposalOffered = /1️⃣\s*[*_]*(?:Opción|Milanesas|Bifes|Pastel|Plato|Guiso|Asado)|[*_]*Te\s+arm[eé]\s+3\s+opciones|[*_]*Te\s+propongo\s+3\s+platazos|¿Cu[aá]l de estas opciones te gustar[ií]a|¿Con cu[aá]l opci[oó]n|Opción Clásica|Opción Combo|Opción Parrillera/i.test(lastAgentMessage);
     const wasSubstitutionOffered = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(lastAgentMessage);
     const wasQuantityPrompt = /¿Qué cantidad|¿Cuántos kilos|¿Cuántas unidades|¿Qué cantidad te preparamos|¿Cuántas bolsas|¿Cuántas botellas|¿Qué cantidad de combos|Por Unidades:.*Por Kilos/i.test(lastAgentMessage);
     const wasPaymentMethodOffered = /(?:c[oó]mo prefer[ií]s abonar|1️⃣\s*\*?Efectivo|2️⃣\s*\*?Transferencia|3️⃣\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oó]mo prefer[ií]s abonar)/i.test(lastAgentMessage);
@@ -3904,14 +3924,13 @@ export class AIService {
     // =========================================================================
     // 2. DETECTOR DE DIRECCIÓN Y NOMBRE REAL (PRESENTACIÓN Y SOLICITUD DE CONFIRMACIÓN)
     // =========================================================================
-    const isInformationalQuery = /(?:hora|horario|cierran|abren|cuanto|precio|costo|consulta|duda|donde|dónde|a que hora|tenes|tenés|vendes|vendés|abierto|atienden)\b/i.test(t);
-    const hasAddressPatterns = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro|entre|altura|manzana|lote|san martin)/i.test(t) ||
+    const isInformationalQuery = /(?:hora|horario|cierran|abren|cuanto|precio|costo|consulta|duda|donde|dónde|a que hora|tenes|tenés|vendes|vendés|abierto|atienden|cocinar|comer|comida|receta|familia|somos|personas|comensales|amigos|invitados|asado|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|opcion|opción|combo|promo)\b/i.test(t);
+    const hasAddressPatterns = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro|entre|altura|manzana|lote|san martin)\b/i.test(t) ||
       /^(?:te paso mi direccion|mi direccion es|direccion:?|la direccion es|la direccion de entrega es|vivo en|estoy en|mandalo a|mandar a|enviar a|entregar en)\s+/i.test(t) ||
-      (rawText.includes(',') && /[0-9]{2,5}/.test(rawText)) ||
-      /^[a-záéíóúñÁÉÍÓÚÑ\s\.\-]+\s+[0-9]{1,5}$/i.test(cleanConfirmText);
+      (/^[a-záéíóúñÁÉÍÓÚÑ\s\.\-]+\s+[0-9]{2,5}$/i.test(cleanConfirmText) && !/(?:somos|para|kilo|kilos|kg|cocinar|comer|familia|personas|bifes|platos|opcion|opción|combos?|hacer)/i.test(cleanConfirmText));
     const hasRealAddress = !isInformationalQuery && hasAddressPatterns && (/[0-9]{1,5}/.test(t) || /vivo en|enviar a|mandar a|entregar en/i.test(t) || ((/funes|locelso|pidal|quiros|alamos|alcorta|luchesse/i.test(t)) && /[0-9]{2,5}/.test(t)));
 
-    if (hasRealAddress && t.length > 5) {
+    if (hasRealAddress && t.length > 5 && !isGarbageAddress(rawText)) {
       let extractedName = '';
       let cleanAddress = extractCleanAddress(rawText);
 
@@ -3921,11 +3940,8 @@ export class AIService {
         if (!isGarbageName(cand)) extractedName = cand;
       }
 
-      if (!cleanAddress || cleanAddress.length < 3 || isGarbageAddress(cleanAddress)) {
-        cleanAddress = rawText.trim();
-      }
-
-      let finalClientName = extractedName || clientName;
+      if (cleanAddress && cleanAddress.length >= 4 && !isGarbageAddress(cleanAddress)) {
+        let finalClientName = extractedName || clientName;
 
       const phoneMatch = rawText.match(/(?:tel|cel|telefono|teléfono|wsp|whatsapp)?\s*[:\-\s]?\s*(\+?54\s*9?\s*\d{8,12}|\b351\d{7}\b|\b15\d{7,8}\b|\b\d{10,13}\b)/i);
       let clientPhone = (lead.phone && !lead.phone.includes('@lid')) ? lead.phone : (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351 626-2475');
@@ -3974,7 +3990,7 @@ export class AIService {
       const finalTotal = canonical.total > 0 ? canonical.total : 11500;
       const formattedTotal = `$${finalTotal.toLocaleString('es-AR')}`;
 
-      return `📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n` +
+        return `📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n` +
         `👤 *Destinatario / Cliente:* **${finalClientName}**\n` +
         `📱 *Teléfono de Contacto:* **${clientPhone}**\n` +
         `📍 *Dirección de Entrega:* **${cleanAddress}**\n` +
@@ -3986,6 +4002,7 @@ export class AIService {
         `2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n` +
         `3️⃣ Cancelar pedido\n\n` +
         `👉 Respondé *1*, *2* o *3* (o escribí *SÍ* para confirmar). 🥩🚚 [[STAGE:confirming_data]]`;
+      }
     }
 
     // =========================================================================

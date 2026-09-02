@@ -335,6 +335,50 @@ export async function runConversationTestSuite() {
     }
   );
 
+  // 11. Asesoramiento de Comida Casera Familiar (Evitar Asado Forzado y Falsa Dirección)
+  await runTest(
+    'test-11-family-cooking',
+    'Asesoramiento de Comida Casera Familiar (Evitar Asado Forzado y Falsa Dirección)',
+    'Verifica que cuando el cliente pide ideas para cocinar en casa con su familia para 3 personas, el bot recomiende platos caseros cotidianos (~250-300g/persona) sin forzar 3 kg de Costilla ni tomar la frase como dirección de entrega.',
+    'Asesoramiento Culinario',
+    async () => {
+      const lead = {
+        id: 'test_lead_fam_3',
+        jid: '5493516262475@s.whatsapp.net',
+        name: 'Don Juan',
+        phone: '+54 9 351 626-2475'
+      };
+
+      const history = [
+        { sender: 'user', content: 'Hola' },
+        { sender: 'bot', content: '¡Buenas Don Juan! 👋 ¿Todo bien? Carlos de República de la Carne a tu disposición...' }
+      ];
+
+      const reply = await AIService.generateSalesResponse({
+        rawText: 'quisiera cocinar algo en casa con mi familia, somos 3',
+        lead,
+        history,
+        settings: db.getSettings()
+      });
+
+      // Validaciones críticas:
+      // 1. No debe generar Ficha de Envío con la frase como dirección
+      if (reply.includes('FICHA DE REGISTRO') || reply.includes('Dirección de Entrega: *quisiera')) {
+        throw new Error('El bot interpretó erróneamente la frase conversacional como una dirección de entrega física.');
+      }
+
+      // 2. Debe sugerir platos cotidianos (Milanesas, Bifes, Pastel de Papa / Guiso)
+      if (!reply.includes('Milanesas') && !reply.includes('Bifes') && !reply.includes('Pastel')) {
+        throw new Error('No sugirió opciones de comida casera para la familia.');
+      }
+
+      // 3. No debe forzar 3 kg de Costilla
+      if (reply.includes('3 kg COSTILLA') || reply.includes('3 kg de Costilla') || reply.includes('$80.997')) {
+        throw new Error('El bot forzó erróneamente 3 kg de Costilla por $80.997 para una comida casera de 3 personas.');
+      }
+    }
+  );
+
   const passedCount = results.filter(r => r.passed).length;
   const failedCount = results.filter(r => !r.passed).length;
   const total = results.length;
