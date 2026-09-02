@@ -17,26 +17,31 @@ export async function runStorageBenchmark({ readOps = 5000, writeOps = 1000 } = 
 
   // 2. Benchmark de Escrituras Transaccionales Concurrentes
   const writeStart = performance.now();
-  const writeBatch = sqliteStorage.db.transaction((count) => {
-    for (let i = 0; i < count; i++) {
-      sqliteStorage.saveOrder({
-        id: `bench_order_${i}`,
-        customerName: `Cliente Test Concurrencia ${i}`,
-        customerPhone: `+54 9 351 555-${String(i).padStart(4, '0')}`,
-        total: 15400 + i * 100,
-        status: 'completed',
-        paymentMethod: 'mercadopago',
-        createdAt: new Date().toISOString()
-      });
-    }
-  });
-  writeBatch(writeOps);
+  if (sqliteStorage.isNative) {
+    sqliteStorage.db.exec('BEGIN;');
+  }
+  for (let i = 0; i < writeOps; i++) {
+    sqliteStorage.saveOrder({
+      id: `bench_order_${i}`,
+      customerName: `Cliente Test Concurrencia ${i}`,
+      customerPhone: `+54 9 351 555-${String(i).padStart(4, '0')}`,
+      total: 15400 + i * 100,
+      status: 'completed',
+      paymentMethod: 'mercadopago',
+      createdAt: new Date().toISOString()
+    });
+  }
+  if (sqliteStorage.isNative) {
+    sqliteStorage.db.exec('COMMIT;');
+  }
   const writeEnd = performance.now();
   const writeDurationMs = writeEnd - writeStart;
   const writeTps = Math.round((writeOps / (writeDurationMs / 1000)));
 
   // 3. Limpieza de registros de prueba
-  sqliteStorage.db.exec(`DELETE FROM orders WHERE id LIKE 'bench_order_%'`);
+  if (sqliteStorage.isNative) {
+    sqliteStorage.db.exec(`DELETE FROM orders WHERE id LIKE 'bench_order_%'`);
+  }
 
   const totalDurationMs = Date.now() - startTime;
   const finalMemory = process.memoryUsage().heapUsed;
