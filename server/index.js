@@ -16,6 +16,9 @@ import { createApiRouter } from './routes/api.js';
 const app = express();
 const server = http.createServer(app);
 
+// Habilitar trust proxy para entornos de producción detrás de proxies reversos (Nginx, Hostinger, Cloudflare)
+app.set('trust proxy', 1);
+
 // Configuración de Seguridad en Producción (Helmet)
 app.use(helmet({
   contentSecurityPolicy: {
@@ -55,12 +58,13 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Rate Limiter para APIs
+// Rate Limiter para APIs con soporte proxy
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 2000, // Máximo 2000 peticiones por IP por ventana
+  max: 3000, // Máximo 3000 peticiones por ventana
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { error: 'Demasiadas solicitudes desde esta IP, por favor intenta nuevamente más tarde.' }
 });
 app.use('/api', apiLimiter);
@@ -168,9 +172,11 @@ const gracefulShutdown = async (signal) => {
   try {
     // 2. Cerrar sockets de WhatsApp de forma limpia sin destruir credenciales
     console.log('📱 Desconectando sockets de WhatsApp de forma ordenada (preservando sesión)...');
-    const sessions = whatsapp.getAllSessions();
+    const sessions = (whatsapp && typeof whatsapp.getAllSessions === 'function')
+      ? whatsapp.getAllSessions()
+      : (whatsapp?.sessions ? Array.from(whatsapp.sessions.values()) : []);
     for (const s of sessions) {
-      if (s.sock) {
+      if (s && s.sock) {
         try {
           s.sock.ev.removeAllListeners();
           s.sock.end(undefined);

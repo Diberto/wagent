@@ -1300,6 +1300,10 @@ export class WhatsAppManager {
     return session.getStatus();
   }
 
+  getAllSessions() {
+    return Array.from(this.sessions.values());
+  }
+
   getAllSessionsStatus() {
     const result = {};
     for (const [id, session] of this.sessions.entries()) {
