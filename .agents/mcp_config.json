@@ -20,7 +20,7 @@
         "Authorization:${AUTH_HEADER}"
       ],
       "env": {
-        "AUTH_HEADER": "Bearer APP_USR-963262173359779-083015-7a288c6669f44248572a6202c5de2fb0-2050924390"
+        "AUTH_HEADER": ""
       }
     }
   }
