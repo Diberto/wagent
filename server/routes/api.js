@@ -24,7 +24,8 @@ import { systemMonitor } from '../services/systemMonitor.js';
 import { multiAgentOps } from '../services/multiAgentOps.js';
 import { runStorageBenchmark } from '../services/benchmarks.js';
 import { taskQueue } from '../services/taskQueue.js';
-import * as XLSX from 'xlsx';
+import { tokenTracker } from '../services/tokenTracker.js';
+import { embeddedLlama } from '../services/embeddedLlama.js';
 import { CONFIG } from '../config/index.js';
 import { SYSTEM_AI_PROVIDERS, SYSTEM_AI_MODELS } from '../config/aiModels.js';
 
@@ -2627,6 +2628,72 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // --- 5.0.1 AI Token Usage & Performance Tracker ---
+  router.get('/ai/token-usage', (req, res) => {
+    try {
+      res.json({
+        success: true,
+        stats: tokenTracker.getStats()
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/ai/token-usage/reset', (req, res) => {
+    try {
+      const reset = tokenTracker.resetStats();
+      res.json({
+        success: true,
+        message: 'Métricas de consumo de tokens reiniciadas.',
+        stats: reset
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- 5.0.2 Embedded Qwen 2.5 0.5B (node-llama-cpp) Local Endpoints ---
+  router.get('/ai/embedded/status', (req, res) => {
+    try {
+      res.json({
+        success: true,
+        modelInfo: embeddedLlama.getModelInfo()
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/ai/embedded/download', async (req, res) => {
+    try {
+      if (embeddedLlama.isModelAvailable()) {
+        return res.json({
+          success: true,
+          message: 'El modelo Qwen 2.5 0.5B ya está descargado y listo para usar en modo embebido.',
+          modelInfo: embeddedLlama.getModelInfo()
+        });
+      }
+
+      // Iniciar descarga asíncrona informando vía WebSocket
+      embeddedLlama.downloadModel((state) => {
+        io.emit('ai:embedded:download-progress', state);
+      }).then((result) => {
+        io.emit('ai:embedded:download-complete', result);
+      }).catch((err) => {
+        io.emit('ai:embedded:download-error', { error: err.message });
+      });
+
+      res.json({
+        success: true,
+        message: 'Descarga iniciada en segundo plano desde Hugging Face.',
+        downloadState: embeddedLlama.downloadState
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Obtener voces personalizadas de la cuenta de ElevenLabs
   router.get('/elevenlabs/voices', async (req, res) => {
     const settings = db.getSettings();
@@ -2851,6 +2918,9 @@ export function createApiRouter(whatsappService, io) {
         settings: customSettings
       });
       const latencyMs = Date.now() - startTime;
+      const promptTokens = tokenTracker.estimateTokens(userMessage + (customSettings.systemPrompt || ''));
+      const completionTokens = tokenTracker.estimateTokens(reply);
+      const totalTokens = promptTokens + completionTokens;
 
       // Obtener el estado canónico del carrito tras este turno
       const canonicalCart = getCanonicalCart(dummyLead, formattedHistory, userMessage, db.getProducts());
@@ -2869,11 +2939,19 @@ export function createApiRouter(whatsappService, io) {
         userMessage,
         reply,
         canonicalCart,
+        tokens: {
+          promptTokens,
+          completionTokens,
+          totalTokens
+        },
         modelInfo: {
           provider: customSettings.aiProvider,
           model: customSettings.aiModel,
           temperature: customSettings.aiTemperature,
-          latencyMs
+          latencyMs,
+          promptTokens,
+          completionTokens,
+          totalTokens
         }
       });
     } catch (err) {

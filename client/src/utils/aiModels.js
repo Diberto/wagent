@@ -113,6 +113,18 @@ export const SYSTEM_AI_PROVIDERS = [
     keyHelpUrl: 'https://dashboard.cohere.com'
   },
   {
+    id: 'qwen_embedded',
+    name: 'Qwen 2.5 0.5B Embebido (node-llama-cpp)',
+    icon: '⚡',
+    badge: '100% Local (Low RAM ~350MB)',
+    color: 'emerald',
+    desc: 'Ejecución directa en el proceso Node.js sin Ollama con node-llama-cpp (restringido a 512 tokens y 2 hilos)',
+    requiresKey: false,
+    keyField: null,
+    keyPlaceholder: 'No requerida - Embebido Local',
+    keyHelpUrl: 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF'
+  },
+  {
     id: 'local',
     name: 'Servidor Local (Ollama / LM Studio)',
     icon: '🖥️',
@@ -198,6 +210,9 @@ export const SYSTEM_AI_MODELS = {
     { id: 'command-r-plus', name: 'Cohere Command R+', tag: 'Recomendado', desc: 'Diseñado para empresas y recuperación de información precisa', isFree: false },
     { id: 'command-r', name: 'Cohere Command R', tag: 'Ágil', desc: 'Conversación ágil y consultas de catálogo', isFree: false },
     { id: 'command-light', name: 'Cohere Command Light', tag: 'Baja Latencia', desc: 'Ultra liviano para tareas rápidas', isFree: false }
+  ],
+  qwen_embedded: [
+    { id: 'qwen2.5-0.5b-instruct', name: 'Qwen 2.5 0.5B Instruct (Q4_K_M)', tag: 'Ultra Ligero ~380MB', desc: 'Modelo C++ de 500M parámetros optimizado para baja RAM (~350MB) en Node.js', isFree: true }
   ],
   local: [
     { id: 'llama3.2', name: 'Ollama - Llama 3.2 (3B / 1B)', tag: 'Local Gratis', desc: 'Ejecutado en tu PC via Ollama (http://localhost:11434)', isFree: true },

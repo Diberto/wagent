@@ -90,6 +90,84 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [backupStatusMessage, setBackupStatusMessage] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Token Tracker & Usage State
+  const [tokenStats, setTokenStats] = useState(null);
+  const [isLoadingTokens, setIsLoadingTokens] = useState(false);
+  const [isResettingTokens, setIsResettingTokens] = useState(false);
+
+  // Embedded Qwen 2.5 0.5B Model State
+  const [embeddedModelInfo, setEmbeddedModelInfo] = useState(null);
+  const [isDownloadingEmbedded, setIsDownloadingEmbedded] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const fetchTokenStats = async () => {
+    setIsLoadingTokens(true);
+    try {
+      const res = await fetch('/api/ai/token-usage');
+      const data = await res.json();
+      if (data.success && data.stats) {
+        setTokenStats(data.stats);
+      }
+    } catch (err) {
+      console.error('Error cargando métricas de tokens:', err);
+    } finally {
+      setIsLoadingTokens(false);
+    }
+  };
+
+  const handleResetTokenStats = async () => {
+    if (!window.confirm('¿Deseas reiniciar todos los contadores de consumo de tokens acumulados?')) return;
+    setIsResettingTokens(true);
+    try {
+      const res = await fetch('/api/ai/token-usage/reset', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setTokenStats(data.stats);
+      }
+    } catch (err) {
+      console.error('Error reiniciando métricas de tokens:', err);
+    } finally {
+      setIsResettingTokens(false);
+    }
+  };
+
+  const fetchEmbeddedModelStatus = async () => {
+    try {
+      const res = await fetch('/api/ai/embedded/status');
+      const data = await res.json();
+      if (data.success && data.modelInfo) {
+        setEmbeddedModelInfo(data.modelInfo);
+      }
+    } catch (err) {
+      console.error('Error cargando estado del modelo embebido:', err);
+    }
+  };
+
+  const handleDownloadEmbeddedModel = async () => {
+    setIsDownloadingEmbedded(true);
+    try {
+      const res = await fetch('/api/ai/embedded/download', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        const interval = setInterval(async () => {
+          const statusRes = await fetch('/api/ai/embedded/status');
+          const statusData = await statusRes.json();
+          if (statusData?.modelInfo) {
+            setEmbeddedModelInfo(statusData.modelInfo);
+            setDownloadProgress(statusData.modelInfo.downloadState?.progressPercent || 0);
+            if (statusData.modelInfo.available || !statusData.modelInfo.downloadState?.isDownloading) {
+              clearInterval(interval);
+              setIsDownloadingEmbedded(false);
+            }
+          }
+        }, 1500);
+      }
+    } catch (err) {
+      console.error('Error iniciando descarga del modelo embebido:', err);
+      setIsDownloadingEmbedded(false);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetch('/api/settings')
@@ -99,8 +177,11 @@ export default function SettingsModal({ isOpen, onClose }) {
           setAvailableVoices(data.availableVoices || []);
         })
         .catch(err => console.error('Error cargando configuración:', err));
+
+      if (activeTab === 'tokens') fetchTokenStats();
+      if (activeTab === 'ai') fetchEmbeddedModelStatus();
     }
-  }, [isOpen]);
+  }, [isOpen, activeTab]);
 
   const handleCheckUpdates = async () => {
     setIsCheckingUpdate(true);
@@ -593,6 +674,7 @@ export default function SettingsModal({ isOpen, onClose }) {
 
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
+    { id: 'tokens', label: '📊 Consumo & Tokens IA', icon: Zap },
     { id: 'store', label: '🎨 Tienda Online (Apple UI)', icon: Store },
     { id: 'logistics', label: 'Logística & Franjas', icon: Bike },
     { id: 'orderFilters', label: 'Filtros de Pedidos', icon: Filter },
@@ -839,6 +921,72 @@ export default function SettingsModal({ isOpen, onClose }) {
                           </div>
                         </div>
 
+                        {/* Panel Especial de Qwen 2.5 0.5B Embebido con node-llama-cpp */}
+                        {currentProv.id === 'qwen_embedded' && (
+                          <div className="p-4 rounded-xl bg-[#111b21] border border-emerald-500/40 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                                <span className="text-xs font-bold text-white">Qwen 2.5 0.5B Instruct (Q4_K_M) — Modelo C++ Nativo</span>
+                              </div>
+                              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold self-start sm:self-auto ${
+                                embeddedModelInfo?.available
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              }`}>
+                                {embeddedModelInfo?.available ? '✅ Descargado y Listo (~380 MB)' : '⚠️ Requiere Descarga (.gguf ~380 MB)'}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-300">
+                              Este modelo corre directamente dentro del proceso de Node.js mediante <strong>node-llama-cpp</strong> sin depender de Ollama ni servicios externos, restringido a <strong>512 tokens de contexto</strong> y <strong>2 hilos CPU</strong> para garantizar un consumo ultra bajo de RAM (~350 MB a 400 MB).
+                            </p>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono bg-[#182229] p-2.5 rounded-lg border border-slate-800 text-slate-300">
+                              <div><span className="text-slate-400">RAM:</span> ~350-400 MB</div>
+                              <div><span className="text-slate-400">Contexto:</span> 512 tokens</div>
+                              <div><span className="text-slate-400">Hilos CPU:</span> 2</div>
+                              <div><span className="text-slate-400">Modo:</span> 100% Offline</div>
+                            </div>
+
+                            {!embeddedModelInfo?.available ? (
+                              <div className="space-y-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={handleDownloadEmbeddedModel}
+                                  disabled={isDownloadingEmbedded || embeddedModelInfo?.downloadState?.isDownloading}
+                                  className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition disabled:opacity-50"
+                                >
+                                  {isDownloadingEmbedded || embeddedModelInfo?.downloadState?.isDownloading ? (
+                                    <>
+                                      <RefreshCw size={14} className="animate-spin" />
+                                      <span>Descargando Qwen 2.5 0.5B ({downloadProgress || embeddedModelInfo?.downloadState?.progressPercent || 0}%)...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <HardDriveDownload size={14} />
+                                      <span>Descargar Modelo Automáticamente desde Hugging Face (~380 MB)</span>
+                                    </>
+                                  )}
+                                </button>
+                                {(isDownloadingEmbedded || embeddedModelInfo?.downloadState?.isDownloading) && (
+                                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                                    <div 
+                                      className="bg-emerald-500 h-full transition-all duration-300 rounded-full"
+                                      style={{ width: `${downloadProgress || embeddedModelInfo?.downloadState?.progressPercent || 0}%` }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-emerald-400 flex items-center gap-1.5 font-semibold">
+                                <CheckCircle2 size={14} />
+                                <span>Archivo .gguf verificado en <code>data/models/qwen2.5-0.5b-instruct-q4_k_m.gguf</code> ({embeddedModelInfo?.sizeMB || 380} MB).</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* DIAGNÓSTICO EN VIVO & TEST DE CONEXIÓN REAL */}
                         <div className="pt-3 border-t border-slate-800 space-y-2.5">
                           <div className="flex items-center justify-between">
@@ -897,6 +1045,188 @@ export default function SettingsModal({ isOpen, onClose }) {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* TAB 2: TOKENS & AI USAGE TRACKER */}
+              {activeTab === 'tokens' && (
+                <div className="space-y-5 animate-in fade-in">
+                  {/* Header & Controls */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Zap size={16} className="text-amber-400" />
+                        Monitoreo de Consumo de Tokens & IA
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Supervisa en tiempo real los tokens consumidos (Prompt vs Completion), desglose por proveedor y latencias de respuesta.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={fetchTokenStats}
+                        disabled={isLoadingTokens}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 border border-slate-700 disabled:opacity-50"
+                      >
+                        <RefreshCw size={13} className={isLoadingTokens ? 'animate-spin' : ''} />
+                        <span>Actualizar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetTokenStats}
+                        disabled={isResettingTokens}
+                        className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 border border-rose-500/30 disabled:opacity-50"
+                      >
+                        <RotateCcw size={13} />
+                        <span>Reiniciar</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4 Stat Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-amber-500/30 shadow-lg shadow-amber-950/20">
+                      <div className="text-[11px] font-bold text-amber-400 flex items-center gap-1 mb-1">
+                        <Zap size={13} />
+                        <span>Total Tokens</span>
+                      </div>
+                      <div className="text-xl font-extrabold text-white font-mono">
+                        {(tokenStats?.totalTokens || 0).toLocaleString('es-AR')}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Acumulado global</div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-sky-500/30 shadow-lg shadow-sky-950/20">
+                      <div className="text-[11px] font-bold text-sky-400 flex items-center gap-1 mb-1">
+                        <span>📥 Entrada (Prompt)</span>
+                      </div>
+                      <div className="text-xl font-extrabold text-white font-mono">
+                        {(tokenStats?.totalPromptTokens || 0).toLocaleString('es-AR')}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Tokens enviados a IA</div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-emerald-500/30 shadow-lg shadow-emerald-950/20">
+                      <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1 mb-1">
+                        <span>📤 Salida (Generados)</span>
+                      </div>
+                      <div className="text-xl font-extrabold text-white font-mono">
+                        {(tokenStats?.totalCompletionTokens || 0).toLocaleString('es-AR')}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Tokens respondidos</div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-purple-500/30 shadow-lg shadow-purple-950/20">
+                      <div className="text-[11px] font-bold text-purple-400 flex items-center gap-1 mb-1">
+                        <span>💬 Peticiones</span>
+                      </div>
+                      <div className="text-xl font-extrabold text-white font-mono">
+                        {(tokenStats?.totalRequests || 0).toLocaleString('es-AR')}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Llamadas totales a LLM</div>
+                    </div>
+                  </div>
+
+                  {/* Desglose por Proveedor */}
+                  <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                      <Layers size={14} className="text-purple-400" />
+                      Consumo por Proveedor de Inteligencia Artificial
+                    </h4>
+
+                    {Object.keys(tokenStats?.byProvider || {}).length === 0 ? (
+                      <div className="p-4 rounded-xl bg-[#111b21] border border-dashed border-slate-800 text-center text-xs text-slate-400">
+                        Aún no se registran peticiones a modelos de IA en esta sesión. Los consumos aparecerán automáticamente a medida que los agentes conversen con clientes o realicen pruebas.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {Object.entries(tokenStats.byProvider).map(([key, provData]) => {
+                          const percent = tokenStats.totalTokens > 0 ? Math.round((provData.totalTokens / tokenStats.totalTokens) * 100) : 0;
+                          return (
+                            <div key={key} className="p-3 rounded-xl bg-[#111b21] border border-slate-800 flex flex-col justify-between">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-white capitalize">{provData.name || key}</span>
+                                </div>
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-bold">
+                                  {percent}%
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-[11px] font-mono text-slate-300 bg-[#182229] p-2 rounded-lg border border-slate-800/80">
+                                <div><span className="text-slate-500 block text-[9px]">TOKENS</span>{provData.totalTokens.toLocaleString('es-AR')}</div>
+                                <div><span className="text-slate-500 block text-[9px]">PETICIONES</span>{provData.requests}</div>
+                                <div><span className="text-slate-500 block text-[9px]">LATENCIA</span>{provData.avgLatencyMs} ms</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tabla de Actividad Reciente */}
+                  <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <Clock size={14} className="text-emerald-400" />
+                        Últimas Peticiones & Turnos Conversacionales
+                      </h4>
+                      <span className="text-[10px] text-slate-400">
+                        {tokenStats?.recentLogs?.length || 0} registros recientes
+                      </span>
+                    </div>
+
+                    {(!tokenStats?.recentLogs || tokenStats.recentLogs.length === 0) ? (
+                      <div className="p-4 rounded-xl bg-[#111b21] border border-dashed border-slate-800 text-center text-xs text-slate-400">
+                        Sin registros recientes.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-[#111b21]">
+                        <table className="w-full text-left text-xs text-slate-300">
+                          <thead className="bg-[#182229] text-[10px] uppercase text-slate-400 font-bold border-b border-slate-800">
+                            <tr>
+                              <th className="p-2.5">Hora</th>
+                              <th className="p-2.5">Origen</th>
+                              <th className="p-2.5">Proveedor / Modelo</th>
+                              <th className="p-2.5 text-right">Prompt</th>
+                              <th className="p-2.5 text-right">Completion</th>
+                              <th className="p-2.5 text-right">Total Tokens</th>
+                              <th className="p-2.5 text-right">Latencia</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                            {tokenStats.recentLogs.slice(0, 30).map((log) => {
+                              const timeStr = new Date(log.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
+                                  <td className="p-2.5 text-slate-400 whitespace-nowrap">{timeStr}</td>
+                                  <td className="p-2.5">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-sans font-bold ${
+                                      log.caller === 'whatsapp' ? 'bg-emerald-500/20 text-emerald-400' :
+                                      log.caller === 'god_mode' ? 'bg-amber-500/20 text-amber-400' :
+                                      log.caller === 'simulator' ? 'bg-sky-500/20 text-sky-400' :
+                                      log.caller === 'embedded' ? 'bg-purple-500/20 text-purple-400' :
+                                      'bg-slate-800 text-slate-400'
+                                    }`}>
+                                      {log.caller}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 font-sans font-medium text-white truncate max-w-[150px]">
+                                    <span className="text-slate-400 capitalize">{log.provider}:</span> {log.model}
+                                  </td>
+                                  <td className="p-2.5 text-right text-slate-400">{log.promptTokens}</td>
+                                  <td className="p-2.5 text-right text-slate-400">{log.completionTokens}</td>
+                                  <td className="p-2.5 text-right font-bold text-emerald-400">{log.totalTokens}</td>
+                                  <td className="p-2.5 text-right text-slate-400">{log.latencyMs}ms</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

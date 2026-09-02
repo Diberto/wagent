@@ -8,6 +8,9 @@ import { mercadoPagoService } from './mercadopago.js';
 import { NeuralMemoryService } from './neuralMemory.js';
 import { ChatStrategyGraphService } from './chatStrategyGraph.js';
 import { OrderFilterEngine } from './orderFilterEngine.js';
+import { tokenTracker } from './tokenTracker.js';
+import { embeddedLlama } from './embeddedLlama.js';
+import { OrderSyncEngine } from './orderSyncEngine.js';
 import { 
   getVariedGreeting, 
   getContextualGreeting,
@@ -2251,6 +2254,22 @@ export class AIService {
     const startTime = Date.now();
 
     try {
+      // 0. Qwen 2.5 0.5B Embebido con node-llama-cpp (Zero-RAM, Offline)
+      if (effectiveProvider === 'qwen_embedded' || effectiveProvider === 'embedded') {
+        const res = await embeddedLlama.testConnection({ temperature: effectiveTemp, maxTokens });
+        if (res.success) {
+          tokenTracker.recordUsage({
+            provider: 'qwen_embedded',
+            model: 'qwen2.5-0.5b-instruct',
+            promptText: testPrompt,
+            completionText: res.response,
+            latencyMs: res.latencyMs,
+            caller: 'agent_test'
+          });
+        }
+        return res;
+      }
+
       // 1. Google Gemini
       if (effectiveProvider === 'gemini') {
         const key = apiKey || s.geminiApiKey || process.env.GEMINI_API_KEY;
@@ -2513,6 +2532,36 @@ export class AIService {
       content: m.content || m.text || ''
     }));
 
+    // 0. Qwen 2.5 0.5B Embebido con node-llama-cpp (Zero-RAM, Offline)
+    if (effectiveProvider === 'qwen_embedded' || effectiveProvider === 'embedded') {
+      try {
+        if (embeddedLlama.isModelAvailable()) {
+          const res = await embeddedLlama.prompt({
+            systemPrompt,
+            prompt,
+            history: cleanHistory,
+            temperature: effectiveTemp,
+            maxTokens: Math.min(effectiveMaxTokens, 150)
+          });
+          if (res.text && res.text.trim()) {
+            tokenTracker.recordUsage({
+              provider: 'qwen_embedded',
+              model: 'qwen2.5-0.5b-instruct',
+              promptText: prompt + (systemPrompt || ''),
+              completionText: res.text,
+              latencyMs: res.latencyMs,
+              caller: 'whatsapp'
+            });
+            return res.text.trim();
+          }
+        } else {
+          console.warn('[AIService] Qwen 2.5 0.5B no está descargado aún en data/models/.');
+        }
+      } catch (qwenErr) {
+        console.warn(`[AIService] Fallo con Qwen Embebido:`, qwenErr.message);
+      }
+    }
+
     // 1. Google Gemini
     if (effectiveProvider === 'gemini') {
       const geminiKey = apiKey || s.apiKeyOverride || s.geminiApiKey || process.env.GEMINI_API_KEY;
@@ -2522,6 +2571,7 @@ export class AIService {
 
         for (const mName of uniqueModels) {
           try {
+            const startGemini = Date.now();
             const genAI = new GoogleGenerativeAI(geminiKey);
             const genModel = genAI.getGenerativeModel({
               model: mName,
@@ -2537,6 +2587,14 @@ export class AIService {
             const result = await genModel.generateContent(fullPrompt);
             const responseText = result.response.text();
             if (responseText && responseText.trim()) {
+              tokenTracker.recordUsage({
+                provider: 'gemini',
+                model: mName,
+                promptText: fullPrompt,
+                completionText: responseText,
+                latencyMs: Date.now() - startGemini,
+                caller: 'whatsapp'
+              });
               return responseText.trim();
             }
           } catch (geminiErr) {
@@ -2551,6 +2609,7 @@ export class AIService {
       const anthropicKey = apiKey || s.apiKeyOverride || s.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
       if (anthropicKey && anthropicKey.startsWith('sk-ant-')) {
         try {
+          const startClaude = Date.now();
           const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -2571,7 +2630,18 @@ export class AIService {
           });
           const data = await response.json();
           if (data.content?.[0]?.text) {
-            return data.content[0].text.trim();
+            const resp = data.content[0].text.trim();
+            tokenTracker.recordUsage({
+              provider: 'anthropic',
+              model: effectiveModel,
+              promptTokens: data.usage?.input_tokens,
+              completionTokens: data.usage?.output_tokens,
+              promptText: prompt + (systemPrompt || ''),
+              completionText: resp,
+              latencyMs: Date.now() - startClaude,
+              caller: 'whatsapp'
+            });
+            return resp;
           }
         } catch (claudeErr) {
           console.warn(`[AIService] Fallo con Claude:`, claudeErr.message);
@@ -2582,13 +2652,24 @@ export class AIService {
     // 3. Modelos Gratuitos Online (Pollinations.AI)
     if (effectiveProvider === 'free_online') {
       try {
+        const startPoll = Date.now();
         const cleanModelName = effectiveModel.replace(/^free:pollinations\//, '');
         const combinedPrompt = `${systemPrompt ? `[SYSTEM: ${systemPrompt}]\n` : ''}${cleanHistory.map(h => `${h.role}: ${h.content}`).join('\n')}\nUser: ${prompt}`;
         const url = `https://text.pollinations.ai/${encodeURIComponent(combinedPrompt)}?model=${cleanModelName}&seed=${Math.floor(Math.random() * 1000)}`;
         const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
         if (res.ok) {
           const text = await res.text();
-          if (text && text.trim()) return text.trim();
+          if (text && text.trim()) {
+            tokenTracker.recordUsage({
+              provider: 'free_online',
+              model: cleanModelName,
+              promptText: combinedPrompt,
+              completionText: text,
+              latencyMs: Date.now() - startPoll,
+              caller: 'whatsapp'
+            });
+            return text.trim();
+          }
         }
       } catch (pollErr) {
         console.warn(`[AIService] Fallo con Pollinations Free:`, pollErr.message);
@@ -2626,6 +2707,7 @@ export class AIService {
 
     if (effectiveKey || effectiveProvider === 'local') {
       try {
+        const startOpenAI = Date.now();
         const cleanModel = effectiveModel.replace(/^free:(?:ollama|lmstudio)\//, '');
         const openai = new OpenAI({
           apiKey: effectiveKey || 'dummy-key',
@@ -2647,7 +2729,19 @@ export class AIService {
         });
 
         const content = completion.choices[0]?.message?.content;
-        if (content && content.trim()) return content.trim();
+        if (content && content.trim()) {
+          tokenTracker.recordUsage({
+            provider: effectiveProvider,
+            model: cleanModel,
+            promptTokens: completion.usage?.prompt_tokens,
+            completionTokens: completion.usage?.completion_tokens,
+            promptText: prompt + (systemPrompt || ''),
+            completionText: content,
+            latencyMs: Date.now() - startOpenAI,
+            caller: 'whatsapp'
+          });
+          return content.trim();
+        }
       } catch (err) {
         console.warn(`[AIService] Fallo con ${effectiveProvider}/${effectiveModel}:`, err.message);
       }
@@ -2767,7 +2861,28 @@ Whenever the user asks about the current time, date, products count, orders, or 
       return res.text;
     }
 
-    return await this.generateDynamicReply(incomingText, activeLead, activeKb, activeSettings, activeHistory);
+    const reply = await this.generateDynamicReply(incomingText, activeLead, activeKb, activeSettings, activeHistory);
+    try {
+      OrderSyncEngine.syncOrderFromTurn({
+        jid: activeLead.jid || activeLead.id,
+        lead: activeLead,
+        customerText: incomingText,
+        aiReplyText: reply,
+        products: products || db.getProducts()
+      });
+    } catch (orderSyncErr) {}
+
+    try {
+      tokenTracker.recordUsage({
+        provider: activeSettings.aiProvider || 'gemini',
+        model: activeSettings.aiModel || 'gemini-2.5-flash',
+        promptText: incomingText,
+        completionText: reply,
+        caller: 'simulator'
+      });
+    } catch (tokErr) {}
+
+    return reply;
   }
 
   static async generateReply(param1, param2, param3, param4) {
@@ -2994,6 +3109,31 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
     // Limpiar COMPLETAMENTE cualquier tag interno [[...]] de la respuesta
     replyText = replyText.replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
+
+    // Sincronización garantizada del pedido y persistencia en DB y SQLite WAL
+    try {
+      OrderSyncEngine.syncOrderFromTurn({
+        jid,
+        lead,
+        customerText: incomingText,
+        aiReplyText: replyText,
+        products,
+        stage: suggestedStage
+      });
+    } catch (orderSyncErr) {
+      console.warn('⚠️ [AIService] Error en sincronización de pedido:', orderSyncErr.message);
+    }
+
+    // Registro garantizado de consumo de tokens en turnos de IA
+    try {
+      tokenTracker.recordUsage({
+        provider: settings.aiProvider || 'gemini',
+        model: settings.aiModel || 'gemini-2.5-flash',
+        promptText: incomingText,
+        completionText: replyText,
+        caller: Boolean(lead?.godMode) ? 'god_mode' : 'whatsapp'
+      });
+    } catch (tokErr) {}
 
     const shouldSendAudio = Boolean(
       settings.alwaysVoiceReply || (isAudioInput && settings.voiceRepliesEnabled)

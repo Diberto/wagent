@@ -206,7 +206,12 @@ export default function AgentsView({ socket, currentUser }) {
       });
       const data = await res.json();
       if (data.reply) {
-        setSimMessages(prev => [...prev, { sender: 'agent', text: data.reply }]);
+        setSimMessages(prev => [...prev, { 
+          sender: 'agent', 
+          text: data.reply,
+          modelInfo: data.modelInfo,
+          tokens: data.tokens
+        }]);
       }
       if (data.canonicalCart) {
         setSimCart(data.canonicalCart);
@@ -648,7 +653,12 @@ export default function AgentsView({ socket, currentUser }) {
                       {msg.modelInfo && (
                         <div className="mt-2 pt-1.5 border-t border-slate-700/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                           <span className="text-purple-300">⚡ {msg.modelInfo.provider} / {msg.modelInfo.model}</span>
-                          <span className="text-slate-500">{msg.modelInfo.latencyMs}ms</span>
+                          <div className="flex items-center gap-2">
+                            {Boolean(msg.modelInfo.totalTokens || msg.tokens?.totalTokens) && (
+                              <span className="text-emerald-400 font-bold">🪙 {msg.modelInfo.totalTokens || msg.tokens?.totalTokens} tokens</span>
+                            )}
+                            <span className="text-slate-500">{msg.modelInfo.latencyMs}ms</span>
+                          </div>
                         </div>
                       )}
                     </div>
