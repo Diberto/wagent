@@ -49,9 +49,15 @@ import {
   Palette,
   Layout,
   Type,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Zap
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
+import { 
+  SYSTEM_AI_PROVIDERS, 
+  SYSTEM_AI_MODELS, 
+  getDefaultModelForProvider 
+} from '../utils/aiModels.js';
 
 export default function SettingsModal({ isOpen, onClose }) {
   const [activeTab, setActiveTab] = useState('ai');
@@ -59,6 +65,10 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [availableVoices, setAvailableVoices] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Test AI Connection
+  const [isTestingAi, setIsTestingAi] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState(null);
 
   // Test voice
   const [testVoiceText, setTestVoiceText] = useState('¡Hola! Soy tu asistente virtual de ventas por WhatsApp. ¿En qué te puedo ayudar hoy?');
@@ -144,6 +154,46 @@ export default function SettingsModal({ isOpen, onClose }) {
       console.error('Error guardando configuración:', err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleTestAiConnection = async () => {
+    if (!settings) return;
+    setIsTestingAi(true);
+    setAiTestResult(null);
+    try {
+      let apiKey = '';
+      if (settings.aiProvider === 'gemini') apiKey = settings.geminiApiKey;
+      else if (settings.aiProvider === 'anthropic') apiKey = settings.anthropicApiKey;
+      else if (settings.aiProvider === 'openai') apiKey = settings.openaiApiKey;
+      else if (settings.aiProvider === 'nvidia') apiKey = settings.nvidiaApiKey;
+      else if (settings.aiProvider === 'deepseek') apiKey = settings.deepseekApiKey;
+      else if (settings.aiProvider === 'groq') apiKey = settings.groqApiKey;
+      else if (settings.aiProvider === 'openrouter') apiKey = settings.openrouterApiKey;
+      else if (settings.aiProvider === 'cohere') apiKey = settings.cohereApiKey;
+      else if (settings.aiProvider === 'custom') apiKey = settings.customApiKey;
+
+      const res = await fetch('/api/ai/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: settings.aiProvider || 'gemini',
+          model: settings.aiModel || getDefaultModelForProvider(settings.aiProvider || 'gemini'),
+          apiKey: apiKey || '',
+          customEndpoint: settings.customBaseUrl || settings.customEndpoint || '',
+          temperature: 0.7
+        })
+      });
+      const data = await res.json();
+      setAiTestResult(data);
+    } catch (err) {
+      setAiTestResult({
+        success: false,
+        error: err.message || 'Error de red al intentar probar la conexión',
+        isFallback: false
+      });
+    } finally {
+      setIsTestingAi(false);
     }
   };
 
@@ -606,205 +656,241 @@ export default function SettingsModal({ isOpen, onClose }) {
             <>
               {/* TAB 1: AI ENGINE */}
               {activeTab === 'ai' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Proveedor de Inteligencia Artificial (LLM)</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setSettings({ ...settings, aiProvider: 'gemini' })}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      settings.aiProvider === 'gemini'
-                        ? 'border-emerald-500 bg-emerald-500/10 text-white'
-                        : 'border-slate-800 bg-[#182229] text-slate-400'
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-emerald-400">Google Gemini</div>
-                    <div className="text-[10px] text-slate-400">2.0 Flash (Recomendado)</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSettings({ ...settings, aiProvider: 'nvidia' })}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      settings.aiProvider === 'nvidia'
-                        ? 'border-emerald-500 bg-emerald-500/10 text-white'
-                        : 'border-slate-800 bg-[#182229] text-slate-400'
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-green-400">NVIDIA NIM</div>
-                    <div className="text-[10px] text-slate-400">Llama 3.3 / DeepSeek</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSettings({ ...settings, aiProvider: 'openai' })}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      settings.aiProvider === 'openai'
-                        ? 'border-emerald-500 bg-emerald-500/10 text-white'
-                        : 'border-slate-800 bg-[#182229] text-slate-400'
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-sky-400">OpenAI</div>
-                    <div className="text-[10px] text-slate-400">GPT-4o / GPT-4o-mini</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSettings({ ...settings, aiProvider: 'custom' })}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      settings.aiProvider === 'custom'
-                        ? 'border-emerald-500 bg-emerald-500/10 text-white'
-                        : 'border-slate-800 bg-[#182229] text-slate-400'
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-amber-400">Custom / Ollama</div>
-                    <div className="text-[10px] text-slate-400">Local / LM Studio / Groq</div>
-                  </button>
-                </div>
-              </div>
-
-              {/* 1. Campos de Google Gemini */}
-              {settings.aiProvider === 'gemini' && (
-                <div className="space-y-3 p-4 rounded-2xl bg-[#182229] border border-slate-700/60 animate-in fade-in">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Google Gemini API Key</label>
-                    <input
-                      type="password"
-                      placeholder="AIzaSy..."
-                      value={settings.geminiApiKey || ''}
-                      onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      Permite visión de imágenes, transcripción de voz y respuestas rápidas. Obtén tu clave en <a href="https://aistudio.google.com" target="_blank" rel="noreferrer" className="text-emerald-400 underline">aistudio.google.com</a>
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Modelo de Gemini</label>
-                    <select
-                      value={settings.aiModel || 'gemini-flash-latest'}
-                      onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="gemini-flash-latest">gemini-flash-latest (Ultra Rápido + Multimodal + Visión + Audios)</option>
-                      <option value="gemini-pro-latest">gemini-pro-latest (Máximo Razonamiento y Ventas)</option>
-                      <option value="gemini-3.7-flash">gemini-3.7-flash (Última Generación Google)</option>
-                      <option value="gemini-3.5-flash">gemini-3.5-flash (Alta Velocidad)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* 2. Campos de NVIDIA NIM */}
-              {settings.aiProvider === 'nvidia' && (
-                <div className="space-y-3 p-4 rounded-2xl bg-green-950/20 border border-green-500/30 animate-in fade-in">
-                  <div>
-                    <label className="block text-xs font-semibold text-green-300 mb-1">NVIDIA API Key</label>
-                    <input
-                      type="password"
-                      placeholder="nvapi-..."
-                      value={settings.nvidiaApiKey || ''}
-                      onChange={(e) => setSettings({ ...settings, nvidiaApiKey: e.target.value })}
-                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-green-500"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      Obtén tu API Key gratuita en <a href="https://build.nvidia.com" target="_blank" rel="noreferrer" className="text-green-400 underline">build.nvidia.com</a>
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-green-300 mb-1">Modelo de NVIDIA NIM</label>
-                    <select
-                      value={settings.nvidiaModel || 'meta/llama-3.3-70b-instruct'}
-                      onChange={(e) => setSettings({ ...settings, nvidiaModel: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-green-500"
-                    >
-                      <option value="meta/llama-3.3-70b-instruct">meta/llama-3.3-70b-instruct (Última generación recomendada)</option>
-                      <option value="meta/llama-3.1-70b-instruct">meta/llama-3.1-70b-instruct</option>
-                      <option value="deepseek-ai/deepseek-r1">deepseek-ai/deepseek-r1 (Razonamiento avanzado)</option>
-                      <option value="mistralai/mistral-large-2-instruct">mistralai/mistral-large-2-instruct</option>
-                      <option value="nvidia/llama-3.2-11b-vision-instruct">nvidia/llama-3.2-11b-vision-instruct (Visión)</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* 3. Campos de OpenAI */}
-              {settings.aiProvider === 'openai' && (
-                <div className="space-y-3 p-4 rounded-2xl bg-sky-950/20 border border-sky-500/30 animate-in fade-in">
-                  <div>
-                    <label className="block text-xs font-semibold text-sky-300 mb-1">OpenAI API Key</label>
-                    <input
-                      type="password"
-                      placeholder="sk-proj-..."
-                      value={settings.openaiApiKey || ''}
-                      onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
-                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-sky-300 mb-1">Modelo de OpenAI</label>
-                    <select
-                      value={settings.aiModel || 'gpt-4o-mini'}
-                      onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500"
-                    >
-                      <option value="gpt-4o-mini">gpt-4o-mini (Rápido y económico para ventas)</option>
-                      <option value="gpt-4o">gpt-4o (Máxima inteligencia + Visión)</option>
-                      <option value="gpt-4-turbo">gpt-4-turbo</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* 4. Campos de Custom Endpoint (Ollama, LM Studio, Groq, DeepSeek, LocalAI) */}
-              {settings.aiProvider === 'custom' && (
-                <div className="space-y-3 p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30 animate-in fade-in">
-                  <div>
-                    <label className="block text-xs font-semibold text-amber-300 mb-1">Base URL del Endpoint OpenAI-compatible</label>
-                    <input
-                      type="text"
-                      placeholder="http://localhost:11434/v1 o https://api.groq.com/openai/v1"
-                      value={settings.customBaseUrl || ''}
-                      onChange={(e) => setSettings({ ...settings, customBaseUrl: e.target.value })}
-                      className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-1 block">
-                      Compatible con Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`), Groq, DeepSeek, vLLM, etc.
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-5 animate-in fade-in">
+                  {/* Header & Overview */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
                     <div>
-                      <label className="block text-xs font-semibold text-amber-300 mb-1">Nombre del Modelo</label>
-                      <input
-                        type="text"
-                        placeholder="llama3 / mistral / deepseek-chat"
-                        value={settings.customModel || ''}
-                        onChange={(e) => setSettings({ ...settings, customModel: e.target.value })}
-                        className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                      />
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Sparkles size={16} className="text-purple-400" />
+                        Catálogo de Proveedores de Inteligencia Artificial
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Selecciona el motor neuronal predeterminado para el sistema y asignaciones globales.
+                      </p>
                     </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30 self-start sm:self-auto">
+                      {SYSTEM_AI_PROVIDERS.length} Proveedores Canónicos
+                    </span>
+                  </div>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-amber-300 mb-1">API Key (Si aplica)</label>
-                      <input
-                        type="password"
-                        placeholder="Opcional para Ollama/Local"
-                        value={settings.customApiKey || ''}
-                        onChange={(e) => setSettings({ ...settings, customApiKey: e.target.value })}
-                        className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                      />
+                  {/* Grid de Proveedores Oficiales */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-2">Selecciona el Proveedor de IA</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                      {SYSTEM_AI_PROVIDERS.map((prov) => {
+                        const isSelected = (settings.aiProvider || 'gemini') === prov.id;
+                        return (
+                          <button
+                            type="button"
+                            key={prov.id}
+                            onClick={() => {
+                              const defModel = getDefaultModelForProvider(prov.id);
+                              setAiTestResult(null);
+                              setSettings({
+                                ...settings,
+                                aiProvider: prov.id,
+                                aiModel: defModel
+                              });
+                            }}
+                            className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-purple-950/60 border-purple-500 text-white shadow-lg shadow-purple-500/10 ring-1 ring-purple-400'
+                                : 'bg-[#182229] border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-lg">{prov.icon}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                                prov.badge.includes('Gratis') ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                {prov.badge}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-slate-200">{prov.name}</div>
+                              <div className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{prov.desc}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {/* Configuración Detallada del Proveedor Seleccionado */}
+                  {(() => {
+                    const currentProv = SYSTEM_AI_PROVIDERS.find(p => p.id === (settings.aiProvider || 'gemini')) || SYSTEM_AI_PROVIDERS[0];
+                    const provModels = SYSTEM_AI_MODELS[currentProv.id] || [];
+
+                    return (
+                      <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl">{currentProv.icon}</span>
+                            <div>
+                              <div className="text-xs font-bold text-white flex items-center gap-2">
+                                <span>{currentProv.name}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-normal">
+                                  {currentProv.badge}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400">{currentProv.desc}</div>
+                            </div>
+                          </div>
+                          {currentProv.keyHelpUrl && (
+                            <a
+                              href={currentProv.keyHelpUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-semibold underline shrink-0"
+                            >
+                              <span>Obtener API Key</span>
+                              <ExternalLink size={12} />
+                            </a>
+                          )}
+                        </div>
+
+                        {/* API Key Input (si requiere clave) */}
+                        {currentProv.requiresKey && (
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                              API Key de {currentProv.name}
+                            </label>
+                            <input
+                              type="password"
+                              placeholder={currentProv.keyPlaceholder}
+                              value={settings[currentProv.keyField] || ''}
+                              onChange={(e) => {
+                                setAiTestResult(null);
+                                setSettings({ ...settings, [currentProv.keyField]: e.target.value });
+                              }}
+                              className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        )}
+
+                        {/* Endpoint Base URL para Local / Custom */}
+                        {(currentProv.id === 'local' || currentProv.id === 'custom') && (
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                              Base URL del Endpoint OpenAI-Compatible
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={currentProv.id === 'local' ? 'http://localhost:11434/v1' : 'https://api.servidor.com/v1'}
+                              value={settings.customBaseUrl || settings.customEndpoint || ''}
+                              onChange={(e) => {
+                                setAiTestResult(null);
+                                setSettings({ ...settings, customBaseUrl: e.target.value, customEndpoint: e.target.value });
+                              }}
+                              className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                            />
+                            <span className="text-[10px] text-slate-400 mt-1 block">
+                              Compatible con Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`), LocalAI o vLLM.
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Selector de Modelo Canónico y Nombre de Modelo */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                              Modelo Canónico Predefinido
+                            </label>
+                            <select
+                              value={settings.aiModel || getDefaultModelForProvider(currentProv.id)}
+                              onChange={(e) => {
+                                setAiTestResult(null);
+                                setSettings({ ...settings, aiModel: e.target.value });
+                              }}
+                              className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                            >
+                              {provModels.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} {m.isFree ? '(🎁 100% Gratis)' : `(${m.tag})`}
+                                </option>
+                              ))}
+                              <option value="custom">✏️ Otro / Modelo Personalizado...</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                              Identificador Técnico del Modelo (String ID)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="ej: gemini-2.5-flash, gpt-4o, claude-3-7-sonnet"
+                              value={settings.aiModel || ''}
+                              onChange={(e) => {
+                                setAiTestResult(null);
+                                setSettings({ ...settings, aiModel: e.target.value });
+                              }}
+                              className="w-full px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* DIAGNÓSTICO EN VIVO & TEST DE CONEXIÓN REAL */}
+                        <div className="pt-3 border-t border-slate-800 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                              <Zap size={14} className="text-amber-400" />
+                              Diagnóstico de Conexión en Vivo
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleTestAiConnection}
+                              disabled={isTestingAi}
+                              className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-purple-600/20"
+                            >
+                              {isTestingAi ? (
+                                <>
+                                  <RefreshCw size={13} className="animate-spin" />
+                                  <span>Verificando API Real...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play size={13} />
+                                  <span>Probar Conexión y Diagnóstico ⚡</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {aiTestResult && (
+                            <div className={`p-3 rounded-xl border text-xs animate-in fade-in ${
+                              aiTestResult.success
+                                ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                                : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                            }`}>
+                              <div className="flex items-center justify-between font-bold mb-1">
+                                <span className="flex items-center gap-1.5">
+                                  {aiTestResult.success ? (
+                                    <>
+                                      <CheckCircle2 size={15} className="text-emerald-400" />
+                                      <span>Conexión Exitosa con el Modelo ({aiTestResult.provider})</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <AlertTriangle size={15} className="text-rose-400" />
+                                      <span>Error al Conectar con la API del Modelo</span>
+                                    </>
+                                  )}
+                                </span>
+                                <span className="font-mono text-[11px] opacity-80">{aiTestResult.latencyMs} ms</span>
+                              </div>
+                              <div className="text-[11px] font-mono whitespace-pre-wrap mt-1">
+                                {aiTestResult.success ? aiTestResult.response : aiTestResult.error}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
-            </div>
-          )}
 
           {/* TAB: TIENDA WEB & BRANDING (APPLE GLASS EXPERIENCE) */}
           {activeTab === 'store' && (

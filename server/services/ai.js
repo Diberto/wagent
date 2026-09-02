@@ -22,6 +22,13 @@ import {
   getCrossSellingSuggestion,
   pickRandom 
 } from './messageVariations.js';
+import { 
+  SYSTEM_AI_PROVIDERS, 
+  SYSTEM_AI_MODELS, 
+  getDefaultModelForProvider, 
+  isSystemSupportedProvider, 
+  isSystemSupportedModel 
+} from '../config/aiModels.js';
 
 /**
  * Catálogo Maestro de Cortes y Precios de República de la Carne
@@ -2212,109 +2219,448 @@ Reglas de Oro:
 
 export class AIService {
   /**
-   * Ejecuta una consulta directa y libre contra el modelo de IA seleccionado (God Mode / Modo Libre)
-   * Sin filtros comerciales, sin catálogos, sin restricciones de negocio.
+   * Ejecuta un test real directo contra el proveedor y modelo especificado
+   * Devuelve latencia, texto de respuesta, tokens y detalles técnicos reales.
+   * Si falla, devuelve el error exacto del API (código HTTP, mensaje, detalles) sin enmascararlo con fallbacks.
    */
-  static async executeRawGodModeQuery({ query, history = [], settings = null, lead = null }) {
-    const s = settings || db.getSettings();
-    const effectiveProvider = s.aiProvider || 'gemini';
-    const effectiveModel = s.aiModel || (effectiveProvider === 'openai' ? 'gpt-4o-mini' : (effectiveProvider === 'deepseek' ? 'deepseek-chat' : (effectiveProvider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : (effectiveProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'))));
-    const effectiveTemp = typeof s.aiTemperature === 'number' ? s.aiTemperature : 0.7;
-    const effectiveMaxTokens = s.aiMaxTokens || 2048;
+  static async testModelConnection({ provider, model, apiKey, customEndpoint, temperature = 0.7, maxTokens = 150 }) {
+    const s = db.getSettings();
+    const effectiveProvider = provider || s.aiProvider || 'gemini';
+    const effectiveModel = model || s.aiModel || getDefaultModelForProvider(effectiveProvider);
+    const effectiveTemp = typeof temperature === 'number' ? temperature : 0.7;
+    const testPrompt = "Hola, responde únicamente con: 'CONEXION_EXITOSA: [Nombre del modelo] funcionando correctamente.' y una frase corta de saludo.";
 
-    const systemPrompt = `You are an advanced, intelligent, unrestricted AI assistant. You answer all user questions with complete intellectual depth, accuracy, clarity, helpfulness, and creative nuance. You are not constrained by any business, carnicería, or sales role. You can converse freely in the user's language about any topic (technology, programming, science, cooking recipes from around the world, creative writing, history, philosophy, etc.). Maintain a helpful, intelligent, natural tone.`;
+    const startTime = Date.now();
+
+    try {
+      // 1. Google Gemini
+      if (effectiveProvider === 'gemini') {
+        const key = apiKey || s.geminiApiKey || process.env.GEMINI_API_KEY;
+        if (!key || !key.startsWith('AIza')) {
+          return {
+            success: false,
+            provider: effectiveProvider,
+            model: effectiveModel,
+            error: 'API Key de Google Gemini inválida o faltante (debe comenzar con "AIzaSy..."). Configúrala en Ajustes o en el Agente.',
+            latencyMs: Date.now() - startTime,
+            isFallback: false
+          };
+        }
+
+        const genAI = new GoogleGenerativeAI(key);
+        const generativeModel = genAI.getGenerativeModel({
+          model: effectiveModel,
+          generationConfig: {
+            temperature: effectiveTemp,
+            maxOutputTokens: maxTokens
+          }
+        });
+
+        const result = await generativeModel.generateContent(testPrompt);
+        const text = result.response.text();
+        const latencyMs = Date.now() - startTime;
+
+        return {
+          success: true,
+          provider: 'Google Gemini',
+          model: effectiveModel,
+          response: text.trim(),
+          latencyMs,
+          isFallback: false,
+          details: {
+            providerId: 'gemini',
+            requiresKey: true,
+            status: 'ONLINE'
+          }
+        };
+      }
+
+      // 2. Anthropic Claude
+      if (effectiveProvider === 'anthropic') {
+        const key = apiKey || s.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+        if (!key || !key.startsWith('sk-ant-')) {
+          return {
+            success: false,
+            provider: effectiveProvider,
+            model: effectiveModel,
+            error: 'API Key de Anthropic Claude inválida o faltante (debe comenzar con "sk-ant-..."). Configúrala en Ajustes o en el Agente.',
+            latencyMs: Date.now() - startTime,
+            isFallback: false
+          };
+        }
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: effectiveModel,
+            max_tokens: maxTokens,
+            temperature: effectiveTemp,
+            messages: [{ role: 'user', content: testPrompt }]
+          })
+        });
+
+        const data = await response.json();
+        const latencyMs = Date.now() - startTime;
+
+        if (!response.ok || data.error) {
+          return {
+            success: false,
+            provider: 'Anthropic Claude',
+            model: effectiveModel,
+            error: data.error?.message || `HTTP ${response.status}: ${response.statusText}`,
+            latencyMs,
+            isFallback: false
+          };
+        }
+
+        const text = data.content?.[0]?.text || '';
+        return {
+          success: true,
+          provider: 'Anthropic Claude',
+          model: effectiveModel,
+          response: text.trim(),
+          latencyMs,
+          isFallback: false,
+          details: {
+            providerId: 'anthropic',
+            usage: data.usage,
+            status: 'ONLINE'
+          }
+        };
+      }
+
+      // 3. Modelos Gratuitos Online (Pollinations.AI / Cero API Key)
+      if (effectiveProvider === 'free_online') {
+        const cleanModelName = effectiveModel.replace(/^free:pollinations\//, '');
+        const url = `https://text.pollinations.ai/${encodeURIComponent(testPrompt)}?model=${cleanModelName}&seed=42`;
+        const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(15000) });
+        const latencyMs = Date.now() - startTime;
+
+        if (!res.ok) {
+          return {
+            success: false,
+            provider: 'Modelos Gratuitos Online (Pollinations)',
+            model: effectiveModel,
+            error: `Error HTTP ${res.status} conectando al servicio público de IA gratuita.`,
+            latencyMs,
+            isFallback: false
+          };
+        }
+
+        const text = await res.text();
+        return {
+          success: true,
+          provider: 'Modelos Gratuitos Online (Pollinations AI)',
+          model: effectiveModel,
+          response: text.trim(),
+          latencyMs,
+          isFallback: false,
+          details: {
+            providerId: 'free_online',
+            isZeroCost: true,
+            status: 'ONLINE'
+          }
+        };
+      }
+
+      // 4. OpenAI y Proveedores Compatibles (OpenAI, NVIDIA NIM, DeepSeek, Groq, OpenRouter, Cohere, Local, Custom)
+      let baseURL = customEndpoint;
+      let effectiveKey = apiKey;
+
+      if (effectiveProvider === 'openai') {
+        effectiveKey = effectiveKey || s.openaiApiKey || process.env.OPENAI_API_KEY;
+        baseURL = baseURL || undefined;
+      } else if (effectiveProvider === 'nvidia') {
+        effectiveKey = effectiveKey || s.nvidiaApiKey || process.env.NVIDIA_API_KEY;
+        baseURL = baseURL || 'https://integrate.api.nvidia.com/v1';
+      } else if (effectiveProvider === 'deepseek') {
+        effectiveKey = effectiveKey || s.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
+        baseURL = baseURL || 'https://api.deepseek.com';
+      } else if (effectiveProvider === 'groq') {
+        effectiveKey = effectiveKey || s.groqApiKey || process.env.GROQ_API_KEY;
+        baseURL = baseURL || 'https://api.groq.com/openai/v1';
+      } else if (effectiveProvider === 'openrouter') {
+        effectiveKey = effectiveKey || s.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+        baseURL = baseURL || 'https://openrouter.ai/api/v1';
+      } else if (effectiveProvider === 'cohere') {
+        effectiveKey = effectiveKey || s.cohereApiKey || process.env.COHERE_API_KEY;
+        baseURL = baseURL || 'https://api.cohere.ai/v1';
+      } else if (effectiveProvider === 'local') {
+        baseURL = baseURL || (effectiveModel.includes('lmstudio') ? 'http://localhost:1234/v1' : 'http://localhost:11434/v1');
+        effectiveKey = effectiveKey || 'ollama';
+      } else if (effectiveProvider === 'custom') {
+        baseURL = baseURL || s.customBaseUrl || 'http://localhost:11434/v1';
+        effectiveKey = effectiveKey || s.customApiKey || 'custom-key';
+      }
+
+      const requiresKey = !['local'].includes(effectiveProvider);
+      if (requiresKey && (!effectiveKey || effectiveKey.trim() === '')) {
+        return {
+          success: false,
+          provider: effectiveProvider,
+          model: effectiveModel,
+          error: `API Key faltante para el proveedor ${effectiveProvider}. Configúrala en Ajustes o en el Agente.`,
+          latencyMs: Date.now() - startTime,
+          isFallback: false
+        };
+      }
+
+      const cleanModel = effectiveModel.replace(/^free:(?:ollama|lmstudio)\//, '');
+
+      const openai = new OpenAI({
+        apiKey: effectiveKey || 'dummy-key',
+        baseURL: baseURL || undefined,
+        timeout: 20000
+      });
+
+      const completion = await openai.chat.completions.create({
+        model: cleanModel,
+        messages: [{ role: 'user', content: testPrompt }],
+        temperature: effectiveTemp,
+        max_tokens: maxTokens
+      });
+
+      const latencyMs = Date.now() - startTime;
+      const text = completion.choices[0]?.message?.content || '';
+
+      return {
+        success: true,
+        provider: effectiveProvider.toUpperCase(),
+        model: effectiveModel,
+        response: text.trim(),
+        latencyMs,
+        isFallback: false,
+        details: {
+          providerId: effectiveProvider,
+          usage: completion.usage,
+          status: 'ONLINE'
+        }
+      };
+
+    } catch (err) {
+      const latencyMs = Date.now() - startTime;
+      return {
+        success: false,
+        provider: effectiveProvider,
+        model: effectiveModel,
+        error: err.message || String(err),
+        latencyMs,
+        isFallback: false,
+        details: {
+          code: err.code || err.status,
+          type: err.type || err.name
+        }
+      };
+    }
+  }
+
+  /**
+   * Ejecutor Universal de Modelos de Inteligencia Artificial
+   * Admite Google Gemini, Anthropic Claude, OpenAI, NVIDIA NIM, DeepSeek, Groq, OpenRouter, Cohere, Pollinations (Gratis), Ollama y Custom
+   */
+  static async callLLMGeneric({
+    provider = 'gemini',
+    model = 'gemini-2.5-flash',
+    systemPrompt = '',
+    prompt = '',
+    history = [],
+    temperature = 0.7,
+    maxTokens = 600,
+    settings = null,
+    apiKey = '',
+    customEndpoint = ''
+  }) {
+    const s = settings || db.getSettings();
+    const effectiveProvider = provider || s.aiProvider || 'gemini';
+    const effectiveModel = model || s.aiModel || getDefaultModelForProvider(effectiveProvider);
+    const effectiveTemp = typeof temperature === 'number' ? temperature : (typeof s.aiTemperature === 'number' ? s.aiTemperature : 0.7);
+    const effectiveMaxTokens = maxTokens || s.aiMaxTokens || 600;
 
     const cleanHistory = (history || []).slice(-10).map(m => ({
       role: (m.sender === 'user' || m.sender === 'client') ? 'user' : 'assistant',
       content: m.content || m.text || ''
     }));
 
-    // 1. Intento con Google Gemini
-    const geminiKey = s.apiKeyOverride || s.geminiApiKey || process.env.GEMINI_API_KEY;
-    if (geminiKey && geminiKey.startsWith('AIza')) {
-      const candidateModels = [effectiveModel, 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'].filter(Boolean);
-      const uniqueModels = [...new Set(candidateModels)];
+    // 1. Google Gemini
+    if (effectiveProvider === 'gemini') {
+      const geminiKey = apiKey || s.apiKeyOverride || s.geminiApiKey || process.env.GEMINI_API_KEY;
+      if (geminiKey && geminiKey.startsWith('AIza')) {
+        const candidateModels = [effectiveModel, 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash-latest'].filter(Boolean);
+        const uniqueModels = [...new Set(candidateModels)];
 
-      for (const mName of uniqueModels) {
-        try {
-          const genAI = new GoogleGenerativeAI(geminiKey);
-          const model = genAI.getGenerativeModel({
-            model: mName,
-            generationConfig: {
-              temperature: effectiveTemp,
-              maxOutputTokens: effectiveMaxTokens
+        for (const mName of uniqueModels) {
+          try {
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const genModel = genAI.getGenerativeModel({
+              model: mName,
+              generationConfig: {
+                temperature: effectiveTemp,
+                maxOutputTokens: effectiveMaxTokens
+              }
+            });
+
+            const conversationText = cleanHistory.map(h => `${h.role === 'user' ? 'Cliente/Usuario' : 'Asistente'}: ${h.content}`).join('\n');
+            const fullPrompt = `${systemPrompt ? `Instrucciones del Sistema:\n${systemPrompt}\n\n` : ''}${conversationText ? `Historial:\n${conversationText}\n\n` : ''}Entrada:\n${prompt}\n\nRespuesta:`;
+
+            const result = await genModel.generateContent(fullPrompt);
+            const responseText = result.response.text();
+            if (responseText && responseText.trim()) {
+              return responseText.trim();
             }
-          });
-
-          const conversationText = cleanHistory.map(h => `${h.role === 'user' ? 'Usuario' : 'Asistente'}: ${h.content}`).join('\n');
-          const fullPrompt = `${systemPrompt}\n\nHistorial Reciente:\n${conversationText}\n\nUsuario: ${query}\n\nAsistente:`;
-
-          const result = await model.generateContent(fullPrompt);
-          const responseText = result.response.text();
-          if (responseText && responseText.trim()) {
-            return `⚡ *[God Mode — ${mName}]*\n\n${responseText.trim()}`;
+          } catch (geminiErr) {
+            console.warn(`[AIService] Fallo con Gemini ${mName}:`, geminiErr.message);
           }
-        } catch (geminiErr) {
-          console.warn(`[GodMode] Error con Gemini ${mName}:`, geminiErr.message);
         }
       }
     }
 
-    // 2. Intento con OpenAI / DeepSeek / Groq / Anthropic / Local
-    const isOpenAiCompatible = ['openai', 'deepseek', 'groq', 'anthropic', 'local'].includes(effectiveProvider) ||
-      Boolean(s.openaiApiKey || s.deepseekApiKey || s.groqApiKey);
-
-    if (isOpenAiCompatible) {
-      let apiKey = s.apiKeyOverride || s.openaiApiKey || process.env.OPENAI_API_KEY;
-      let baseURL = s.customEndpoint || undefined;
-
-      if (effectiveProvider === 'deepseek') {
-        apiKey = apiKey || s.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
-        baseURL = baseURL || 'https://api.deepseek.com';
-      } else if (effectiveProvider === 'groq') {
-        apiKey = apiKey || s.groqApiKey || process.env.GROQ_API_KEY;
-        baseURL = baseURL || 'https://api.groq.com/openai/v1';
-      } else if (effectiveProvider === 'anthropic') {
-        apiKey = apiKey || s.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
-        baseURL = baseURL || 'https://api.anthropic.com/v1';
-      } else if (effectiveProvider === 'local') {
-        baseURL = baseURL || 'http://localhost:11434/v1';
-        apiKey = apiKey || 'ollama';
-      }
-
-      if (apiKey || effectiveProvider === 'local') {
+    // 2. Anthropic Claude
+    if (effectiveProvider === 'anthropic') {
+      const anthropicKey = apiKey || s.apiKeyOverride || s.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+      if (anthropicKey && anthropicKey.startsWith('sk-ant-')) {
         try {
-          const openai = new OpenAI({
-            apiKey: apiKey || 'dummy-key',
-            baseURL: baseURL || undefined
+          const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'x-api-key': anthropicKey,
+              'anthropic-version': '2023-06-01',
+              'content-type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: effectiveModel,
+              max_tokens: effectiveMaxTokens,
+              temperature: effectiveTemp,
+              system: systemPrompt || undefined,
+              messages: [
+                ...cleanHistory,
+                { role: 'user', content: prompt }
+              ]
+            })
           });
-
-          const completion = await openai.chat.completions.create({
-            model: effectiveModel,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              ...cleanHistory,
-              { role: 'user', content: query }
-            ],
-            temperature: effectiveTemp,
-            max_tokens: effectiveMaxTokens
-          });
-
-          const content = completion.choices[0]?.message?.content;
-          if (content && content.trim()) {
-            return `⚡ *[God Mode — ${effectiveProvider}/${effectiveModel}]*\n\n${content.trim()}`;
+          const data = await response.json();
+          if (data.content?.[0]?.text) {
+            return data.content[0].text.trim();
           }
-        } catch (openaiErr) {
-          console.warn(`[GodMode] Error con ${effectiveProvider}:`, openaiErr.message);
+        } catch (claudeErr) {
+          console.warn(`[AIService] Fallo con Claude:`, claudeErr.message);
         }
       }
     }
 
-    // 3. Fallback inteligente directo si no hay API key externa
+    // 3. Modelos Gratuitos Online (Pollinations.AI)
+    if (effectiveProvider === 'free_online') {
+      try {
+        const cleanModelName = effectiveModel.replace(/^free:pollinations\//, '');
+        const combinedPrompt = `${systemPrompt ? `[SYSTEM: ${systemPrompt}]\n` : ''}${cleanHistory.map(h => `${h.role}: ${h.content}`).join('\n')}\nUser: ${prompt}`;
+        const url = `https://text.pollinations.ai/${encodeURIComponent(combinedPrompt)}?model=${cleanModelName}&seed=${Math.floor(Math.random() * 1000)}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.trim()) return text.trim();
+        }
+      } catch (pollErr) {
+        console.warn(`[AIService] Fallo con Pollinations Free:`, pollErr.message);
+      }
+    }
+
+    // 4. OpenAI y Proveedores OpenAI-compatibles (OpenAI, NVIDIA, DeepSeek, Groq, OpenRouter, Cohere, Local, Custom)
+    let baseURL = customEndpoint || s.customEndpoint;
+    let effectiveKey = apiKey || s.apiKeyOverride;
+
+    if (effectiveProvider === 'openai') {
+      effectiveKey = effectiveKey || s.openaiApiKey || process.env.OPENAI_API_KEY;
+    } else if (effectiveProvider === 'nvidia') {
+      effectiveKey = effectiveKey || s.nvidiaApiKey || process.env.NVIDIA_API_KEY;
+      baseURL = baseURL || 'https://integrate.api.nvidia.com/v1';
+    } else if (effectiveProvider === 'deepseek') {
+      effectiveKey = effectiveKey || s.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
+      baseURL = baseURL || 'https://api.deepseek.com';
+    } else if (effectiveProvider === 'groq') {
+      effectiveKey = effectiveKey || s.groqApiKey || process.env.GROQ_API_KEY;
+      baseURL = baseURL || 'https://api.groq.com/openai/v1';
+    } else if (effectiveProvider === 'openrouter') {
+      effectiveKey = effectiveKey || s.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+      baseURL = baseURL || 'https://openrouter.ai/api/v1';
+    } else if (effectiveProvider === 'cohere') {
+      effectiveKey = effectiveKey || s.cohereApiKey || process.env.COHERE_API_KEY;
+      baseURL = baseURL || 'https://api.cohere.ai/v1';
+    } else if (effectiveProvider === 'local') {
+      baseURL = baseURL || (effectiveModel.includes('lmstudio') ? 'http://localhost:1234/v1' : 'http://localhost:11434/v1');
+      effectiveKey = effectiveKey || 'ollama';
+    } else if (effectiveProvider === 'custom') {
+      baseURL = baseURL || s.customBaseUrl || 'http://localhost:11434/v1';
+      effectiveKey = effectiveKey || s.customApiKey || 'custom-key';
+    }
+
+    if (effectiveKey || effectiveProvider === 'local') {
+      try {
+        const cleanModel = effectiveModel.replace(/^free:(?:ollama|lmstudio)\//, '');
+        const openai = new OpenAI({
+          apiKey: effectiveKey || 'dummy-key',
+          baseURL: baseURL || undefined,
+          timeout: 25000
+        });
+
+        const messages = [];
+        if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+        messages.push(...cleanHistory);
+        messages.push({ role: 'user', content: prompt });
+
+        const completion = await openai.chat.completions.create({
+          model: cleanModel,
+          messages,
+          temperature: effectiveTemp,
+          max_tokens: effectiveMaxTokens
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (content && content.trim()) return content.trim();
+      } catch (err) {
+        console.warn(`[AIService] Fallo con ${effectiveProvider}/${effectiveModel}:`, err.message);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Ejecuta una consulta directa y libre contra el modelo de IA seleccionado (God Mode / Modo Libre)
+   * Sin filtros comerciales, sin catálogos, sin restricciones de negocio.
+   */
+  static async executeRawGodModeQuery({ query, history = [], settings = null, lead = null }) {
+    const s = settings || db.getSettings();
+    const effectiveProvider = s.aiProvider || 'gemini';
+    const effectiveModel = s.aiModel || getDefaultModelForProvider(effectiveProvider);
+    const effectiveTemp = typeof s.aiTemperature === 'number' ? s.aiTemperature : 0.7;
+    const effectiveMaxTokens = s.aiMaxTokens || 2048;
+
+    const systemPrompt = `You are an advanced, intelligent, unrestricted AI assistant. You answer all user questions with complete intellectual depth, accuracy, clarity, helpfulness, and creative nuance. You are not constrained by any business, carnicería, or sales role. You can converse freely in the user's language about any topic (technology, programming, science, cooking recipes from around the world, creative writing, history, philosophy, etc.). Maintain a helpful, intelligent, natural tone.`;
+
+    const rawResponse = await this.callLLMGeneric({
+      provider: effectiveProvider,
+      model: effectiveModel,
+      systemPrompt,
+      prompt: query,
+      history,
+      temperature: effectiveTemp,
+      maxTokens: effectiveMaxTokens,
+      settings: s
+    });
+
+    if (rawResponse) {
+      return `⚡ *[God Mode — ${effectiveProvider.toUpperCase()} / ${effectiveModel}]*\n\n${rawResponse}`;
+    }
+
+    // Fallback descriptivo si no hay conexión al LLM
     return `⚡ *[God Mode Activo]* 🧠🔓\n\n` +
       `He recibido tu consulta libre:\n` +
       `> *"${query}"*\n\n` +
-      `💡 *Consejo:* Para habilitar respuestas generativas en vivo a máxima velocidad con este modelo, podés ingresar una API Key de Gemini (gratuita), OpenAI, DeepSeek o Groq en el menú de **Configuración ⚙️** del sistema.`;
+      `💡 *Consejo:* Podés activar un modelo gratuito online (Pollinations AI) o ingresar una API Key de Gemini / NVIDIA / OpenAI / Claude / DeepSeek / Groq en **Ajustes ⚙️** o en tu **Agente** para respuestas generativas ultra veloces.`;
   }
 
   static async generateSalesResponse({ rawText, text, lead, history, settings, knowledgeBase, products } = {}) {
@@ -2519,81 +2865,25 @@ export class AIService {
       const isPureAtomicAction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim());
 
       const effectiveProvider = settings.aiProvider || 'gemini';
-      const effectiveModel = settings.aiModel || (effectiveProvider === 'openai' ? 'gpt-4o-mini' : (effectiveProvider === 'deepseek' ? 'deepseek-chat' : (effectiveProvider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : (effectiveProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'))));
+      const effectiveModel = settings.aiModel || getDefaultModelForProvider(effectiveProvider);
       const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
       const effectiveMaxTokens = settings.aiMaxTokens || 450;
 
-      const hasValidLLMKey = (effectiveProvider === 'gemini' && isValidGeminiKey) ||
-        (['openai', 'deepseek', 'groq', 'anthropic'].includes(effectiveProvider) && (isValidOpenAiKey || settings.apiKeyOverride || settings.openaiApiKey || settings.deepseekApiKey || settings.groqApiKey || settings.anthropicApiKey)) ||
-        effectiveProvider === 'local';
+      const combinedSystemPrompt = `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}`;
 
-      // Si es una acción atómica Y no tenemos LLM o el usuario está en paso de confirmación de formulario
-      if (isPureAtomicAction && !hasValidLLMKey) {
-        replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
-      } else if (effectiveProvider === 'gemini' && isValidGeminiKey) {
-        const apiKey = settings.apiKeyOverride || settings.geminiApiKey;
-        const genAI = new GoogleGenerativeAI(apiKey);
-        let modelName = effectiveModel;
-        let model = genAI.getGenerativeModel({ 
-          model: modelName,
-          generationConfig: {
-            temperature: effectiveTemp,
-            maxOutputTokens: effectiveMaxTokens
-          }
-        });
+      const llmResponse = await this.callLLMGeneric({
+        provider: effectiveProvider,
+        model: effectiveModel,
+        systemPrompt: combinedSystemPrompt,
+        prompt: incomingText,
+        history,
+        temperature: effectiveTemp,
+        maxTokens: effectiveMaxTokens,
+        settings
+      });
 
-        const prompt = `System Instruction:\n${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}\n\nHistorial de la conversación reciente:\n${historyFormatted}\n\nCliente: ${incomingText}\n\nResponde como ${settings.agentName || 'Carlos'} (resolviendo primero cualquier duda del cliente y reenganchando con el negocio cárnico):`;
-        try {
-          const result = await model.generateContent(prompt);
-          replyText = result.response.text();
-        } catch (geminiErr) {
-          console.warn(`Error con modelo Gemini ${modelName}, usando motor inteligente directo:`, geminiErr.message);
-          replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
-        }
-      } else if (['openai', 'deepseek', 'groq', 'anthropic', 'local'].includes(effectiveProvider) && (isValidOpenAiKey || settings.apiKeyOverride || effectiveProvider === 'local')) {
-        let apiKey = settings.apiKeyOverride || settings.openaiApiKey;
-        let baseURL = settings.customEndpoint || undefined;
-
-        if (effectiveProvider === 'deepseek') {
-          apiKey = apiKey || settings.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
-          baseURL = baseURL || 'https://api.deepseek.com';
-        } else if (effectiveProvider === 'groq') {
-          apiKey = apiKey || settings.groqApiKey || process.env.GROQ_API_KEY;
-          baseURL = baseURL || 'https://api.groq.com/openai/v1';
-        } else if (effectiveProvider === 'anthropic') {
-          apiKey = apiKey || settings.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
-          baseURL = baseURL || 'https://api.anthropic.com/v1';
-        } else if (effectiveProvider === 'local') {
-          baseURL = baseURL || 'http://localhost:11434/v1';
-          apiKey = apiKey || 'ollama';
-        }
-
-        const openai = new OpenAI({ 
-          apiKey: apiKey || 'dummy-key',
-          baseURL: baseURL || undefined
-        });
-
-        const historyMessages = (history || []).slice(-8).map(m => ({
-          role: (m.sender === 'user' || m.sender === 'client') ? 'user' : 'assistant',
-          content: m.content || m.text || ''
-        }));
-
-        try {
-          const completion = await openai.chat.completions.create({
-            model: effectiveModel,
-            messages: [
-              { role: 'system', content: `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}` },
-              ...historyMessages,
-              { role: 'user', content: incomingText }
-            ],
-            temperature: effectiveTemp,
-            max_tokens: effectiveMaxTokens
-          });
-          replyText = completion.choices[0]?.message?.content || '';
-        } catch (openaiErr) {
-          console.warn(`Error con modelo ${effectiveProvider}/${effectiveModel}, usando motor inteligente directo:`, openaiErr.message);
-          replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
-        }
+      if (llmResponse && llmResponse.trim()) {
+        replyText = llmResponse.trim();
       } else {
         replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
       }

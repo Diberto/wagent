@@ -26,6 +26,7 @@ import { runStorageBenchmark } from '../services/benchmarks.js';
 import { taskQueue } from '../services/taskQueue.js';
 import * as XLSX from 'xlsx';
 import { CONFIG } from '../config/index.js';
+import { SYSTEM_AI_PROVIDERS, SYSTEM_AI_MODELS } from '../config/aiModels.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -2570,6 +2571,33 @@ export function createApiRouter(whatsappService, io) {
     } catch (err) {
       console.error('Error en PUT /api/settings:', err);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Catálogo y Diagnóstico de Modelos de Inteligencia Artificial ---
+  router.get('/ai/models', (req, res) => {
+    try {
+      res.json({
+        success: true,
+        providers: SYSTEM_AI_PROVIDERS,
+        models: SYSTEM_AI_MODELS
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/ai/test-connection', async (req, res) => {
+    try {
+      const result = await AIService.testModelConnection(req.body || {});
+      res.json(result);
+    } catch (err) {
+      console.error('Error testeando conexión de modelo IA:', err);
+      res.status(500).json({
+        success: false,
+        error: err.message,
+        isFallback: false
+      });
     }
   });
 

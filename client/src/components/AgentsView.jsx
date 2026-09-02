@@ -35,6 +35,12 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+import { 
+  SYSTEM_AI_PROVIDERS, 
+  SYSTEM_AI_MODELS, 
+  getDefaultModelForProvider 
+} from '../utils/aiModels.js';
+
 export default function AgentsView({ socket, currentUser }) {
   const [agents, setAgents] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -45,6 +51,8 @@ export default function AgentsView({ socket, currentUser }) {
 
   // Modal de Edición / Creación
   const [agentModal, setAgentModal] = useState(null); // null | { mode: 'create'|'edit', data: { ... } }
+  const [isTestingAiModel, setIsTestingAiModel] = useState(false);
+  const [aiModelTestResult, setAiModelTestResult] = useState(null);
 
   // Simulador de Chat
   const [simAgent, setSimAgent] = useState(null);
@@ -68,48 +76,9 @@ export default function AgentsView({ socket, currentUser }) {
     { url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80', label: 'Romina (Atención al Cliente)' }
   ];
 
-  // Proveedores y Presets de Modelos de IA
-  const AI_PROVIDERS = [
-    { id: 'gemini', name: 'Google Gemini', icon: '♊', desc: 'Modelos Flash & Pro ultrarrápidos con visión y contexto masivo' },
-    { id: 'openai', name: 'OpenAI GPT', icon: '🟢', desc: 'GPT-4o, GPT-4o Mini y modelos de razonamiento matemático' },
-    { id: 'anthropic', name: 'Anthropic Claude', icon: '🟣', desc: 'Claude 3.5 Sonnet / Haiku con tono humano y empatía excepcional' },
-    { id: 'deepseek', name: 'DeepSeek AI', icon: '🔵', desc: 'Modelos V3 y R1 de alto rendimiento y ultra bajo costo' },
-    { id: 'groq', name: 'Groq / Meta Llama', icon: '⚡', desc: 'Llama 3.3 70B en LPU a más de 500 tokens/segundo' },
-    { id: 'local', name: 'Servidor Local / Ollama', icon: '🖥️', desc: 'Modelos auto-alojados sin depender de APIs de terceros' }
-  ];
+  const AI_PROVIDERS = SYSTEM_AI_PROVIDERS;
+  const AI_MODEL_PRESETS = SYSTEM_AI_MODELS;
 
-  const AI_MODEL_PRESETS = {
-    gemini: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Recomendado)', desc: 'Ultra rápido y óptimo para ventas en tiempo real' },
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Nueva generación con razonamiento mejorado' },
-      { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro', desc: 'Máxima capacidad analítica para consultas complejas' },
-      { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash', desc: 'Versión estable ultraliviana' }
-    ],
-    openai: [
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Recomendado)', desc: 'Rápido, económico y altamente preciso' },
-      { id: 'gpt-4o', name: 'GPT-4o Insignia', desc: 'Máxima inteligencia y redacción natural' },
-      { id: 'o3-mini', name: 'o3-mini (Razonamiento)', desc: 'Especialista en lógica y cálculos' },
-      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', desc: 'Gran ventana de contexto y consistencia' }
-    ],
-    anthropic: [
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet (Recomendado)', desc: 'Excelente tono humano, calidez y redacción' },
-      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', desc: 'Respuesta instantánea para atención rápida' }
-    ],
-    deepseek: [
-      { id: 'deepseek-chat', name: 'DeepSeek V3 (Chat)', desc: 'Conversacional avanzado y ultra económico' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek R1 (Reasoner)', desc: 'Cadena de pensamiento para cálculos y logística' }
-    ],
-    groq: [
-      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', desc: 'Velocidad de rayo con inteligencia de 70B' },
-      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Instant)', desc: 'Baja latencia extrema' },
-      { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B (MoE)', desc: 'Arquitectura de expertos' }
-    ],
-    local: [
-      { id: 'llama3:latest', name: 'Ollama Llama 3 (Local)', desc: 'Ejecutado localmente en servidor' },
-      { id: 'mistral:latest', name: 'Ollama Mistral (Local)', desc: 'Modelo liviano local' },
-      { id: 'qwen2.5-coder:latest', name: 'Qwen 2.5 (Local)', desc: 'Gran precisión lógica' }
-    ]
-  };
 
   const fetchAgents = async () => {
     setIsLoading(true);
@@ -297,47 +266,45 @@ export default function AgentsView({ socket, currentUser }) {
     }
   };
 
-  const getModelBadge = (provider, model) => {
-    switch (provider) {
-      case 'openai':
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-            🟢 {model || 'GPT-4o Mini'}
-          </span>
-        );
-      case 'anthropic':
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-            🟣 {model || 'Claude 3.5 Sonnet'}
-          </span>
-        );
-      case 'deepseek':
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1">
-            🔵 {model || 'DeepSeek V3'}
-          </span>
-        );
-      case 'groq':
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-            ⚡ {model || 'Llama 3.3 70B'}
-          </span>
-        );
-      case 'local':
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-300 border border-slate-600 flex items-center gap-1">
-            🖥️ {model || 'Ollama Local'}
-          </span>
-        );
-      case 'gemini':
-      default:
-        return (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
-            ♊ {model || 'Gemini 2.5 Flash'}
-          </span>
-        );
+  const handleTestAgentModel = async () => {
+    if (!agentModal?.data) return;
+    setIsTestingAiModel(true);
+    setAiModelTestResult(null);
+    try {
+      const res = await fetch('/api/ai/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: agentModal.data.aiProvider || 'gemini',
+          model: agentModal.data.aiModel || 'gemini-2.5-flash',
+          apiKey: agentModal.data.apiKeyOverride || '',
+          customEndpoint: agentModal.data.customEndpoint || '',
+          temperature: agentModal.data.aiTemperature ?? 0.7
+        })
+      });
+      const data = await res.json();
+      setAiModelTestResult(data);
+    } catch (err) {
+      setAiModelTestResult({
+        success: false,
+        error: err.message || 'Error de red al intentar probar el modelo',
+        isFallback: false
+      });
+    } finally {
+      setIsTestingAiModel(false);
     }
   };
+
+  const getModelBadge = (provider, model) => {
+    const prov = SYSTEM_AI_PROVIDERS.find(p => p.id === provider) || SYSTEM_AI_PROVIDERS[0];
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-200 border border-slate-700 flex items-center gap-1.5 shadow-sm">
+        <span className="text-xs">{prov?.icon || '🤖'}</span>
+        <span className="font-mono text-purple-300">{model || prov?.name}</span>
+      </span>
+    );
+  };
+
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden">
@@ -1080,8 +1047,11 @@ export default function AgentsView({ socket, currentUser }) {
 
                 {/* Proveedor de IA */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-2">Proveedor de IA</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-slate-300">Proveedor de IA Oficial</label>
+                    <span className="text-[11px] text-purple-400 font-semibold">{SYSTEM_AI_PROVIDERS.length} Proveedores Soportados</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {AI_PROVIDERS.map(prov => {
                       const isSelected = (agentModal.data.aiProvider || 'gemini') === prov.id;
                       return (
@@ -1089,7 +1059,8 @@ export default function AgentsView({ socket, currentUser }) {
                           type="button"
                           key={prov.id}
                           onClick={() => {
-                            const defaultModel = AI_MODEL_PRESETS[prov.id]?.[0]?.id || 'gemini-2.5-flash';
+                            const defaultModel = getDefaultModelForProvider(prov.id);
+                            setAiModelTestResult(null);
                             setAgentModal({
                               ...agentModal,
                               data: {
@@ -1101,13 +1072,17 @@ export default function AgentsView({ socket, currentUser }) {
                           }}
                           className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
                             isSelected
-                              ? 'bg-purple-950/50 border-purple-500 text-white shadow-md shadow-purple-500/10'
+                              ? 'bg-purple-950/60 border-purple-500 text-white shadow-lg shadow-purple-500/10 ring-1 ring-purple-400'
                               : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-base">{prov.icon}</span>
-                            {isSelected && <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />}
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                              prov.badge.includes('Gratis') ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {prov.badge}
+                            </span>
                           </div>
                           <div>
                             <div className="text-xs font-bold text-slate-200">{prov.name}</div>
@@ -1123,16 +1098,19 @@ export default function AgentsView({ socket, currentUser }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Modelo Preconfigurado
+                      Modelo Soportado del Proveedor
                     </label>
                     <select
-                      value={agentModal.data.aiModel || 'gemini-2.5-flash'}
-                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, aiModel: e.target.value } })}
+                      value={agentModal.data.aiModel || getDefaultModelForProvider(agentModal.data.aiProvider || 'gemini')}
+                      onChange={e => {
+                        setAiModelTestResult(null);
+                        setAgentModal({ ...agentModal, data: { ...agentModal.data, aiModel: e.target.value } });
+                      }}
                       className="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-purple-500"
                     >
                       {(AI_MODEL_PRESETS[agentModal.data.aiProvider || 'gemini'] || []).map(m => (
                         <option key={m.id} value={m.id}>
-                          {m.name}
+                          {m.name} {m.isFree ? '(🎁 100% Gratis)' : ''}
                         </option>
                       ))}
                       <option value="custom">✏️ Otro / Modelo Personalizado...</option>
@@ -1141,13 +1119,16 @@ export default function AgentsView({ socket, currentUser }) {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Nombre Técnico del Modelo (String ID)
+                      Identificador Técnico del Modelo (String ID)
                     </label>
                     <input
                       type="text"
                       value={agentModal.data.aiModel || ''}
-                      onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, aiModel: e.target.value } })}
-                      placeholder="ej: gemini-2.5-flash, gpt-4o, claude-3-5-sonnet"
+                      onChange={e => {
+                        setAiModelTestResult(null);
+                        setAgentModal({ ...agentModal, data: { ...agentModal.data, aiModel: e.target.value } });
+                      }}
+                      placeholder="ej: gemini-2.5-flash, gpt-4o, claude-3-7-sonnet"
                       className="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 font-mono focus:outline-none focus:border-purple-500"
                     />
                   </div>
@@ -1213,7 +1194,7 @@ export default function AgentsView({ socket, currentUser }) {
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                      Endpoint Base Personalizado (Ollama / Local)
+                      Endpoint Base Personalizado (Ollama / Local / Proxy)
                     </label>
                     <input
                       type="text"
@@ -1223,6 +1204,62 @@ export default function AgentsView({ socket, currentUser }) {
                       className="w-full bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl text-xs text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-purple-500"
                     />
                   </div>
+                </div>
+
+                {/* DIAGNÓSTICO EN VIVO & TEST DE CONEXIÓN REAL */}
+                <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Zap size={14} className="text-amber-400" />
+                      Diagnóstico y Test de Conexión Real
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleTestAgentModel}
+                      disabled={isTestingAiModel}
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition active:scale-95 shadow-md shadow-purple-600/20"
+                    >
+                      {isTestingAiModel ? (
+                        <>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Comprobando Modelo...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={13} />
+                          <span>Probar Conexión en Vivo ⚡</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {aiModelTestResult && (
+                    <div className={`p-3 rounded-xl border text-xs animate-in fade-in ${
+                      aiModelTestResult.success
+                        ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                        : 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold mb-1">
+                        <span className="flex items-center gap-1.5">
+                          {aiModelTestResult.success ? (
+                            <>
+                              <CheckCircle2 size={15} className="text-emerald-400" />
+                              <span>Modelo Conectado y Operativo ({aiModelTestResult.provider})</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle size={15} className="text-rose-400" />
+                              <span>Error de Conexión en el Modelo</span>
+                            </>
+                          )}
+                        </span>
+                        <span className="font-mono text-[11px] opacity-80">{aiModelTestResult.latencyMs} ms</span>
+                      </div>
+                      <div className="text-[11px] font-mono whitespace-pre-wrap mt-1">
+                        {aiModelTestResult.success ? aiModelTestResult.response : aiModelTestResult.error}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
