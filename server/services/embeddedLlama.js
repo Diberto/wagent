@@ -2,7 +2,6 @@ import path from 'path';
 import fs from 'fs';
 import https from 'https';
 import { fileURLToPath } from 'url';
-import { getLlama, LlamaChatSession } from 'node-llama-cpp';
 import { CONFIG } from '../config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +15,19 @@ const MODEL_DOWNLOAD_URL = 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GG
 // Asegurar carpeta de modelos
 if (!fs.existsSync(MODELS_DIR)) {
   fs.mkdirSync(MODELS_DIR, { recursive: true });
+}
+
+// Carga perezosa y segura de node-llama-cpp
+let nodeLlamaCppModule = null;
+async function getNodeLlamaCpp() {
+  if (nodeLlamaCppModule) return nodeLlamaCppModule;
+  try {
+    nodeLlamaCppModule = await import('node-llama-cpp');
+    return nodeLlamaCppModule;
+  } catch (err) {
+    console.warn('⚠️ [EmbeddedLlama] node-llama-cpp no está disponible en este entorno:', err.message);
+    return null;
+  }
 }
 
 class EmbeddedLlamaService {
@@ -33,11 +45,16 @@ class EmbeddedLlamaService {
     };
   }
 
+  async isSupported() {
+    const mod = await getNodeLlamaCpp();
+    return mod !== null;
+  }
+
   isModelAvailable() {
     try {
       if (fs.existsSync(MODEL_PATH)) {
         const stats = fs.statSync(MODEL_PATH);
-        // El modelo Q4_K_M de 0.5B pesa ~380 MB (> 300 MB)
+        // El modelo Q4_K_M de 0.5B pesa ~380 MB (> 200 MB)
         return stats.size > 200 * 1024 * 1024;
       }
     } catch (e) {}
@@ -62,8 +79,8 @@ class EmbeddedLlamaService {
       modelName: 'Qwen 2.5 0.5B Instruct (Q4_K_M)',
       architecture: 'Qwen2.5 (0.5B params)',
       quantization: 'Q4_K_M',
-      maxContext: 512,
-      threads: 2,
+      maxContext: process.env.LLAMA_CONTEXT_SIZE ? Number(process.env.LLAMA_CONTEXT_SIZE) : 256,
+      threads: process.env.LLAMA_THREADS ? Number(process.env.LLAMA_THREADS) : 1,
       ramUsageEstimated: '~350 MB - 400 MB',
       downloadState: this.downloadState
     };
@@ -101,24 +118,21 @@ class EmbeddedLlamaService {
 
           if (res.statusCode !== 200) {
             this.downloadState.isDownloading = false;
-            this.downloadState.error = `HTTP ${res.statusCode} al descargar modelo`;
-            if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-            return resolve({ success: false, error: this.downloadState.error });
+            this.downloadState.error = `Error HTTP ${res.statusCode}`;
+            return resolve({ success: false, error: `Error HTTP ${res.statusCode}` });
           }
 
-          const total = parseInt(res.headers['content-length'] || '0', 10);
-          this.downloadState.totalBytes = total;
-          let downloaded = 0;
+          const totalBytes = parseInt(res.headers['content-length'] || '398000000', 10);
+          this.downloadState.totalBytes = totalBytes;
+          let downloadedBytes = 0;
 
           const fileStream = fs.createWriteStream(tempPath);
           res.pipe(fileStream);
 
           res.on('data', (chunk) => {
-            downloaded += chunk.length;
-            this.downloadState.downloadedBytes = downloaded;
-            if (total > 0) {
-              this.downloadState.progressPercent = Math.round((downloaded / total) * 100);
-            }
+            downloadedBytes += chunk.length;
+            this.downloadState.downloadedBytes = downloadedBytes;
+            this.downloadState.progressPercent = Math.min(100, Math.round((downloadedBytes / totalBytes) * 100));
             if (typeof onProgress === 'function') {
               onProgress(this.downloadState);
             }
@@ -159,11 +173,19 @@ class EmbeddedLlamaService {
   }
 
   /**
-   * Carga el modelo en memoria RAM limitando el contextSize a 512 tokens y 2 hilos CPU
+   * Carga el modelo en memoria RAM limitando el contextSize a 256/512 tokens y 1 hilo CPU
    */
   async getOrInitContext() {
     if (this.context && this.model) {
       return { model: this.model, context: this.context };
+    }
+
+    const mod = await getNodeLlamaCpp();
+    if (!mod) {
+      throw new Error(
+        'El módulo nativo node-llama-cpp no está disponible en este servidor. ' +
+        'Usa los proveedores en la nube (Gemini, Claude, OpenAI, DeepSeek, etc.) o compila el contenedor Docker con soporte C++.'
+      );
     }
 
     if (!this.isModelAvailable()) {
@@ -180,6 +202,8 @@ class EmbeddedLlamaService {
 
     this.isInitializing = true;
     try {
+      const { getLlama } = mod;
+
       if (!this.llama) {
         this.llama = await getLlama({
           gpu: false // CPU pura para no consumir VRAM ni fallar en servidores sin GPU
@@ -188,14 +212,18 @@ class EmbeddedLlamaService {
 
       if (!this.model) {
         this.model = await this.llama.loadModel({
-          modelPath: MODEL_PATH
+          modelPath: MODEL_PATH,
+          gpuLayers: 0 // Desactiva la GPU por completo para no consumir VRAM
         });
       }
 
+      const safeContextSize = process.env.LLAMA_CONTEXT_SIZE ? Number(process.env.LLAMA_CONTEXT_SIZE) : 256;
+      const safeThreads = process.env.LLAMA_THREADS ? Number(process.env.LLAMA_THREADS) : 1;
+
       if (!this.context) {
         this.context = await this.model.createContext({
-          contextSize: 512, // Restringido estrictamente a 512 tokens para no superar 350-400 MB RAM
-          threads: 2,       // 2 hilos para estabilidad CPU sin ahogar el proceso
+          contextSize: safeContextSize, // 256 tokens es el límite ultra-seguro para ~350MB RAM
+          threads: safeThreads,         // 1 hilo para no saturar CPU en Hostinger
           batchSize: 128
         });
       }
@@ -210,13 +238,19 @@ class EmbeddedLlamaService {
    * Ejecuta una inferencia optimizada con Qwen 2.5 0.5B
    */
   async prompt({
-    systemPrompt = 'Eres un asesor carnicero rápido y conciso.',
+    systemPrompt = 'Eres un bot de backend estructurado. Responde JSON corto o textos de una sola frase.',
     prompt = '',
     history = [],
     temperature = 0.6,
     maxTokens = 120
   }) {
     const startTime = Date.now();
+    const mod = await getNodeLlamaCpp();
+    if (!mod) {
+      throw new Error('node-llama-cpp no está instalado en este sistema.');
+    }
+
+    const { LlamaChatSession } = mod;
     const { context } = await this.getOrInitContext();
 
     const session = new LlamaChatSession({
