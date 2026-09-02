@@ -1,15 +1,15 @@
 {
-  "totalTokens": 2658,
-  "totalPromptTokens": 210,
-  "totalCompletionTokens": 2448,
-  "totalRequests": 15,
+  "totalTokens": 3958,
+  "totalPromptTokens": 315,
+  "totalCompletionTokens": 3643,
+  "totalRequests": 22,
   "byProvider": {
     "gemini": {
       "name": "gemini",
-      "totalTokens": 2658,
-      "promptTokens": 210,
-      "completionTokens": 2448,
-      "requests": 15,
+      "totalTokens": 3958,
+      "promptTokens": 315,
+      "completionTokens": 3643,
+      "requests": 22,
       "totalLatencyMs": 0,
       "avgLatencyMs": 0
     }
@@ -18,15 +18,92 @@
     "gemini-1.5-flash": {
       "name": "gemini-1.5-flash",
       "provider": "gemini",
-      "totalTokens": 2658,
-      "promptTokens": 210,
-      "completionTokens": 2448,
-      "requests": 15,
+      "totalTokens": 3958,
+      "promptTokens": 315,
+      "completionTokens": 3643,
+      "requests": 22,
       "totalLatencyMs": 0,
       "avgLatencyMs": 0
     }
   },
   "recentLogs": [
+    {
+      "id": "tok_1788337634194_88th",
+      "timestamp": "2026-09-02T08:27:14.194Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 14,
+      "completionTokens": 160,
+      "totalTokens": 174,
+      "latencyMs": 0,
+      "caller": "simulator"
+    },
+    {
+      "id": "tok_1788337634055_dg14",
+      "timestamp": "2026-09-02T08:27:14.055Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 13,
+      "completionTokens": 199,
+      "totalTokens": 212,
+      "latencyMs": 0,
+      "caller": "simulator"
+    },
+    {
+      "id": "tok_1788337633944_vq2o",
+      "timestamp": "2026-09-02T08:27:13.944Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 8,
+      "completionTokens": 163,
+      "totalTokens": 171,
+      "latencyMs": 0,
+      "caller": "simulator"
+    },
+    {
+      "id": "tok_1788337633918_hlcg",
+      "timestamp": "2026-09-02T08:27:13.918Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 14,
+      "completionTokens": 194,
+      "totalTokens": 208,
+      "latencyMs": 0,
+      "caller": "simulator"
+    },
+    {
+      "id": "tok_1788337633578_d6em",
+      "timestamp": "2026-09-02T08:27:13.578Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 10,
+      "completionTokens": 202,
+      "totalTokens": 212,
+      "latencyMs": 0,
+      "caller": "simulator"
+    },
+    {
+      "id": "tok_1788337633340_5w64",
+      "timestamp": "2026-09-02T08:27:13.340Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 39,
+      "completionTokens": 220,
+      "totalTokens": 259,
+      "latencyMs": 0,
+      "caller": "simulator"
+    },
+    {
+      "id": "tok_1788337633076_c2jc",
+      "timestamp": "2026-09-02T08:27:13.076Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 7,
+      "completionTokens": 57,
+      "totalTokens": 64,
+      "latencyMs": 0,
+      "caller": "simulator"
+    },
     {
       "id": "tok_1788336709437_gaxu",
       "timestamp": "2026-09-02T08:11:49.437Z",

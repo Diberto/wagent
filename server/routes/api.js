@@ -2694,6 +2694,40 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  router.post('/ai/embedded/unload', async (req, res) => {
+    try {
+      const result = await embeddedLlama.unloadFromMemory();
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/ai/embedded/benchmark', async (req, res) => {
+    try {
+      const result = await embeddedLlama.runBenchmark(req.body || {});
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/ai/embedded/set-default', async (req, res) => {
+    try {
+      const settings = db.getSettings() || {};
+      settings.aiProvider = 'qwen_embedded';
+      settings.aiModel = 'qwen2.5-0.5b-instruct';
+      db.saveSettings(settings);
+      res.json({
+        success: true,
+        message: 'Qwen 2.5 0.5B (node-llama-cpp) configurado como modelo predeterminado del sistema.',
+        settings
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Obtener voces personalizadas de la cuenta de ElevenLabs
   router.get('/elevenlabs/voices', async (req, res) => {
     const settings = db.getSettings();

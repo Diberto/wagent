@@ -50,7 +50,12 @@ import {
   Layout,
   Type,
   Image as ImageIcon,
-  Zap
+  Zap,
+  Cpu,
+  BarChart3,
+  Terminal,
+  Activity,
+  Gauge
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 import { 
@@ -99,6 +104,11 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [embeddedModelInfo, setEmbeddedModelInfo] = useState(null);
   const [isDownloadingEmbedded, setIsDownloadingEmbedded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isUnloadingLlama, setIsUnloadingLlama] = useState(false);
+  const [isBenchmarkingLlama, setIsBenchmarkingLlama] = useState(false);
+  const [benchmarkResult, setBenchmarkResult] = useState(null);
+  const [benchmarkPrompt, setBenchmarkPrompt] = useState('Recomiéndame 3 cortes especiales para un asado de domingo en Córdoba con amigos.');
+  const [llamaActionMessage, setLlamaActionMessage] = useState(null);
 
   const fetchTokenStats = async () => {
     setIsLoadingTokens(true);
@@ -168,6 +178,59 @@ export default function SettingsModal({ isOpen, onClose }) {
     }
   };
 
+  const handleUnloadLlama = async () => {
+    setIsUnloadingLlama(true);
+    setLlamaActionMessage(null);
+    try {
+      const res = await fetch('/api/ai/embedded/unload', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setLlamaActionMessage({ type: 'success', text: '🧹 Memoria RAM del modelo liberada con éxito.' });
+        fetchEmbeddedModelStatus();
+      } else {
+        setLlamaActionMessage({ type: 'error', text: data.error || 'No se pudo liberar la memoria.' });
+      }
+    } catch (err) {
+      setLlamaActionMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsUnloadingLlama(false);
+    }
+  };
+
+  const handleRunLlamaBenchmark = async () => {
+    setIsBenchmarkingLlama(true);
+    setBenchmarkResult(null);
+    setLlamaActionMessage(null);
+    try {
+      const res = await fetch('/api/ai/embedded/benchmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ promptText: benchmarkPrompt })
+      });
+      const data = await res.json();
+      setBenchmarkResult(data);
+      fetchEmbeddedModelStatus();
+    } catch (err) {
+      setBenchmarkResult({ success: false, error: err.message });
+    } finally {
+      setIsBenchmarkingLlama(false);
+    }
+  };
+
+  const handleSetLlamaAsDefault = async () => {
+    try {
+      const res = await fetch('/api/ai/embedded/set-default', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setSettings(prev => ({ ...prev, aiProvider: 'qwen_embedded', aiModel: 'qwen2.5-0.5b-instruct' }));
+        setLlamaActionMessage({ type: 'success', text: '✅ Qwen 2.5 0.5B configurado como Motor Predeterminado del Sistema.' });
+        fetchEmbeddedModelStatus();
+      }
+    } catch (err) {
+      setLlamaActionMessage({ type: 'error', text: err.message });
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetch('/api/settings')
@@ -179,7 +242,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         .catch(err => console.error('Error cargando configuración:', err));
 
       if (activeTab === 'tokens') fetchTokenStats();
-      if (activeTab === 'ai') fetchEmbeddedModelStatus();
+      if (activeTab === 'ai' || activeTab === 'llamacpp') fetchEmbeddedModelStatus();
     }
   }, [isOpen, activeTab]);
 
@@ -674,6 +737,7 @@ export default function SettingsModal({ isOpen, onClose }) {
 
   const tabs = [
     { id: 'ai', label: 'Motor de IA', icon: Bot },
+    { id: 'llamacpp', label: '🦙 Motor Local Llama-CPP', icon: Cpu },
     { id: 'tokens', label: '📊 Consumo & Tokens IA', icon: Zap },
     { id: 'store', label: '🎨 Tienda Online (Apple UI)', icon: Store },
     { id: 'logistics', label: 'Logística & Franjas', icon: Bike },
@@ -1045,6 +1109,390 @@ export default function SettingsModal({ isOpen, onClose }) {
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* TAB: MOTOR LOCAL LLAMA-CPP (QWEN 2.5 0.5B EMBEDDED) */}
+              {activeTab === 'llamacpp' && (
+                <div className="space-y-5 animate-in fade-in">
+                  {/* Header & Controls */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/50 via-slate-900 to-teal-950/40 border border-emerald-500/30 shadow-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                        <Cpu size={22} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                            Motor Local Embebido Llama-CPP
+                          </h3>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                            Qwen 2.5 0.5B
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Inferencia 100% offline dentro de Node.js con node-llama-cpp (C++ nativo, ~350 MB RAM).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      <button
+                        type="button"
+                        onClick={fetchEmbeddedModelStatus}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 border border-slate-700"
+                      >
+                        <RefreshCw size={13} />
+                        <span>Actualizar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleUnloadLlama}
+                        disabled={isUnloadingLlama || !embeddedModelInfo?.isLoadedInMemory}
+                        title="Libera el contexto y el modelo de la memoria RAM de Node.js"
+                        className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 border border-amber-500/30 disabled:opacity-40"
+                      >
+                        <Trash2 size={13} />
+                        <span>{isUnloadingLlama ? 'Liberando...' : 'Liberar RAM'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Feedback Action Alert */}
+                  {llamaActionMessage && (
+                    <div className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-in fade-in ${
+                      llamaActionMessage.type === 'success' 
+                        ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300' 
+                        : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {llamaActionMessage.type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                        <span>{llamaActionMessage.text}</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setLlamaActionMessage(null)}
+                        className="opacity-70 hover:opacity-100 p-0.5"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 4 Primary Status Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* 1. Estado en RAM */}
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between">
+                      <div className="text-[11px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                        <span>Estado en Memoria</span>
+                        <Activity size={13} className="text-emerald-400" />
+                      </div>
+                      <div className="flex items-center gap-2 my-1">
+                        <span className={`w-2.5 h-2.5 rounded-full ${
+                          embeddedModelInfo?.isLoadedInMemory ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                        }`} />
+                        <span className="text-xs font-bold text-white">
+                          {embeddedModelInfo?.isLoadedInMemory ? '🟢 Activo en RAM' : '💤 En Reposo (Inactivo)'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {embeddedModelInfo?.isLoadedInMemory ? 'Listo para respuesta inmediata' : 'Se carga bajo demanda en primera consulta'}
+                      </div>
+                    </div>
+
+                    {/* 2. Archivo .GGUF */}
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between">
+                      <div className="text-[11px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                        <span>Archivo .GGUF</span>
+                        <HardDriveDownload size={13} className="text-sky-400" />
+                      </div>
+                      <div className="text-xs font-bold text-white my-1">
+                        {embeddedModelInfo?.available ? (
+                          <span className="text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 size={13} /> {embeddedModelInfo?.sizeMB || 380} MB en Disco
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 flex items-center gap-1">
+                            <AlertCircle size={13} /> No Descargado
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        <code>qwen2.5-0.5b-instruct-q4_k_m</code>
+                      </div>
+                    </div>
+
+                    {/* 3. Motor C++ Nativo */}
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between">
+                      <div className="text-[11px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                        <span>Compilación C++</span>
+                        <Terminal size={13} className="text-purple-400" />
+                      </div>
+                      <div className="text-xs font-bold text-white my-1 flex items-center gap-1.5">
+                        <span className="text-purple-300">node-llama-cpp v3</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        Zero-GPU • 1 Hilo CPU • 256 ctx
+                      </div>
+                    </div>
+
+                    {/* 4. Asignación en Sistema */}
+                    <div className="p-3.5 rounded-2xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between">
+                      <div className="text-[11px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                        <span>Asignación Global</span>
+                        <Sliders size={13} className="text-amber-400" />
+                      </div>
+                      <div className="text-xs font-bold text-white my-1">
+                        {settings?.aiProvider === 'qwen_embedded' ? (
+                          <span className="text-emerald-400 font-extrabold flex items-center gap-1">
+                            🌟 Motor Predeterminado
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">
+                            Opcional / Por Agente
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {embeddedModelInfo?.systemUsage?.agentsCount || 0} agentes vinculados
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Panel de Descarga si no está descargado */}
+                  {!embeddedModelInfo?.available && (
+                    <div className="p-4 rounded-2xl bg-[#182229] border border-amber-500/40 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle size={18} className="text-amber-400" />
+                          <h4 className="text-xs font-bold text-white">Descarga Requerida del Modelo Qwen 2.5 0.5B</h4>
+                        </div>
+                        <span className="text-xs text-amber-300 font-mono font-bold">~380 MB</span>
+                      </div>
+                      <p className="text-xs text-slate-300">
+                        Para ejecutar inferencias locales offline sin depender de internet ni APIs de terceros, descarga el archivo cuantizado <code>qwen2.5-0.5b-instruct-q4_k_m.gguf</code> directamente a <code>data/models/</code>.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleDownloadEmbeddedModel}
+                        disabled={isDownloadingEmbedded || embeddedModelInfo?.downloadState?.isDownloading}
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition disabled:opacity-50"
+                      >
+                        {isDownloadingEmbedded || embeddedModelInfo?.downloadState?.isDownloading ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>Descargando desde Hugging Face ({downloadProgress || embeddedModelInfo?.downloadState?.progressPercent || 0}%)...</span>
+                          </>
+                        ) : (
+                          <>
+                            <HardDriveDownload size={14} />
+                            <span>Descargar Modelo Automáticamente desde Hugging Face (~380 MB)</span>
+                          </>
+                        )}
+                      </button>
+                      {(isDownloadingEmbedded || embeddedModelInfo?.downloadState?.isDownloading) && (
+                        <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                          <div 
+                            className="bg-emerald-500 h-full transition-all duration-300 rounded-full"
+                            style={{ width: `${downloadProgress || embeddedModelInfo?.downloadState?.progressPercent || 0}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Panel de Rendimiento & Hardware de Node.js */}
+                  <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                      <Gauge size={14} className="text-sky-400" />
+                      Parámetros de Memoria & Hardware en Tiempo Real (Perfil Anti-Crash 1 GB RAM)
+                    </h4>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono">
+                      <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Context Size</span>
+                        <span className="text-white font-bold">{embeddedModelInfo?.maxContext || 256} tokens</span>
+                        <span className="text-[9px] text-slate-500 block">Límite estricto RAM</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Hilos CPU</span>
+                        <span className="text-white font-bold">{embeddedModelInfo?.threads || 1} hilo</span>
+                        <span className="text-[9px] text-slate-500 block">Estabilidad mono-core</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Aceleración GPU</span>
+                        <span className="text-emerald-400 font-bold">Desactivada (0 layers)</span>
+                        <span className="text-[9px] text-slate-500 block">CPU Pura</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Memoria Libre SO</span>
+                        <span className="text-sky-400 font-bold">{embeddedModelInfo?.memory?.systemFreeRAM_MB || 0} MB</span>
+                        <span className="text-[9px] text-slate-500 block">De {embeddedModelInfo?.memory?.systemTotalRAM_MB || 0} MB Total</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800 flex items-center justify-between text-[11px] font-mono">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">Consumo Proceso Node.js:</span>
+                        <span className="text-white">RSS: <strong>{embeddedModelInfo?.memory?.processRssMB || 0} MB</strong></span>
+                        <span className="text-slate-500">|</span>
+                        <span className="text-white">Heap: <strong>{embeddedModelInfo?.memory?.processHeapUsedMB || 0} MB</strong></span>
+                      </div>
+                      <span className="text-emerald-400 font-semibold text-[10px]">
+                        Perfil ultra-ligero para VPS Hostinger
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Panel de Métricas de Uso Acumuladas */}
+                  <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                      <BarChart3 size={14} className="text-purple-400" />
+                      Métricas Acumuladas de Uso Local Llama-CPP
+                    </h4>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono">
+                      <div className="p-3 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Peticiones Totales</span>
+                        <span className="text-lg font-bold text-white">{embeddedModelInfo?.stats?.totalInferences || 0}</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Tokens Procesados</span>
+                        <span className="text-lg font-bold text-emerald-400">
+                          {(embeddedModelInfo?.stats?.totalTokens || 0).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Latencia Promedio</span>
+                        <span className="text-lg font-bold text-amber-400">
+                          {embeddedModelInfo?.stats?.avgLatencyMs || 0} ms
+                        </span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-[#111b21] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase">Velocidad Última</span>
+                        <span className="text-lg font-bold text-purple-400">
+                          {embeddedModelInfo?.stats?.lastTokensPerSecond || 0} tok/s
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Consola de Benchmark & Diagnóstico en Vivo */}
+                  <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <Zap size={14} className="text-amber-400" />
+                        Consola de Benchmark & Diagnóstico de Inferencia Local
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={handleSetLlamaAsDefault}
+                        disabled={settings?.aiProvider === 'qwen_embedded'}
+                        className="px-3 py-1 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40 text-xs font-bold transition disabled:opacity-40"
+                      >
+                        {settings?.aiProvider === 'qwen_embedded' ? '✅ Ya es Predeterminado' : '🚀 Establecer como Motor Principal'}
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-semibold text-slate-400">
+                        Prompt de prueba para medir latencia y velocidad (tokens/segundo):
+                      </label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={benchmarkPrompt}
+                          onChange={(e) => setBenchmarkPrompt(e.target.value)}
+                          placeholder="Escribe un prompt de prueba..."
+                          className="flex-1 px-3.5 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRunLlamaBenchmark}
+                          disabled={isBenchmarkingLlama || !embeddedModelInfo?.available}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-95 shrink-0"
+                        >
+                          {isBenchmarkingLlama ? (
+                            <>
+                              <RefreshCw size={13} className="animate-spin" />
+                              <span>Ejecutando Benchmark...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play size={13} />
+                              <span>Test de Velocidad ⚡</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Benchmark Result Card */}
+                    {benchmarkResult && (
+                      <div className={`p-3.5 rounded-xl border text-xs animate-in fade-in space-y-2 ${
+                        benchmarkResult.success
+                          ? 'bg-emerald-950/40 border-emerald-500/40 text-slate-200'
+                          : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
+                      }`}>
+                        <div className="flex items-center justify-between font-bold border-b border-slate-800 pb-1.5">
+                          <span className="flex items-center gap-1.5 text-emerald-300">
+                            {benchmarkResult.success ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                            <span>{benchmarkResult.success ? 'Benchmark Completado con Éxito' : 'Error en Benchmark'}</span>
+                          </span>
+                          {benchmarkResult.success && (
+                            <div className="flex items-center gap-3 font-mono text-[11px]">
+                              <span className="text-amber-400">⏱️ {benchmarkResult.durationMs} ms</span>
+                              <span className="text-purple-400">⚡ {benchmarkResult.tokensPerSecond} tok/s</span>
+                              <span className="text-sky-400">🪙 {benchmarkResult.tokens?.totalTokens} tokens</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="font-mono text-[11px] whitespace-pre-wrap bg-[#111b21] p-2.5 rounded-lg border border-slate-800">
+                          {benchmarkResult.success ? benchmarkResult.response : benchmarkResult.error}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Agentes Vinculados */}
+                  <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <Bot size={14} className="text-emerald-400" />
+                        Agentes Asignados a este Modelo Local
+                      </h4>
+                      <span className="text-[10px] text-slate-400">
+                        {embeddedModelInfo?.systemUsage?.agentsCount || 0} configurados
+                      </span>
+                    </div>
+
+                    {(!embeddedModelInfo?.systemUsage?.agentsList || embeddedModelInfo.systemUsage.agentsList.length === 0) ? (
+                      <div className="p-3 rounded-xl bg-[#111b21] border border-dashed border-slate-800 text-center text-xs text-slate-400">
+                        Actualmente ningún agente individual tiene asignado <code>qwen_embedded</code> de forma exclusiva. Si el sistema tiene configurado Llama-CPP como motor global, todos los agentes que hereden por defecto utilizarán este modelo.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {embeddedModelInfo.systemUsage.agentsList.map(ag => (
+                          <div key={ag.id} className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800 flex items-center justify-between">
+                            <div>
+                              <div className="text-xs font-bold text-white">{ag.name}</div>
+                              <div className="text-[10px] text-slate-400">{ag.roleLabel || ag.role}</div>
+                            </div>
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                              Activo
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

@@ -32,7 +32,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Cpu
 } from 'lucide-react';
 
 import { 
@@ -1160,6 +1161,24 @@ export default function AgentsView({ socket, currentUser }) {
                     />
                   </div>
                 </div>
+
+                {/* Info Card para Qwen 2.5 0.5B Embebido */}
+                {agentModal.data.aiProvider === 'qwen_embedded' && (
+                  <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-xs space-y-1.5 animate-in fade-in">
+                    <div className="flex items-center justify-between font-bold text-emerald-300">
+                      <span className="flex items-center gap-1.5">
+                        <Cpu size={14} className="text-emerald-400" />
+                        <span>Modelo Local C++ Embebido (node-llama-cpp)</span>
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        100% Offline / Zero API Key
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      Este agente responderá utilizando el modelo local <strong>Qwen 2.5 0.5B Instruct (Q4_K_M)</strong> ejecutado directamente en CPU pura con ~350 MB de memoria RAM sin depender de servicios en la nube ni cuotas externas.
+                    </p>
+                  </div>
+                )}
 
                 {/* Temperatura & Max Tokens Sliders */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">

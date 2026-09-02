@@ -1,8 +1,10 @@
 import path from 'path';
 import fs from 'fs';
 import https from 'https';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { CONFIG } from '../config/index.js';
+import { db } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +45,14 @@ class EmbeddedLlamaService {
       totalBytes: 0,
       error: null
     };
+    this.stats = {
+      totalInferences: 0,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      totalLatencyMs: 0,
+      lastInference: null,
+      lastTokensPerSecond: 0
+    };
   }
 
   async isSupported() {
@@ -61,7 +71,11 @@ class EmbeddedLlamaService {
     return false;
   }
 
-  getModelInfo() {
+  isLoadedInMemory() {
+    return this.context !== null && this.model !== null;
+  }
+
+  getDetailedMetrics() {
     const available = this.isModelAvailable();
     let sizeMB = 0;
     if (available) {
@@ -70,20 +84,105 @@ class EmbeddedLlamaService {
         sizeMB = Math.round(stats.size / (1024 * 1024));
       } catch (e) {}
     }
+
+    const settings = (typeof db !== 'undefined' && db?.getSettings) ? db.getSettings() : {};
+    const agents = (typeof db !== 'undefined' && db?.getAgents) ? db.getAgents() : [];
+    const agentsUsing = agents.filter(a => a.aiProvider === 'qwen_embedded' || a.aiProvider === 'embedded');
+
+    const mem = process.memoryUsage();
+    const totalRAM_MB = Math.round(os.totalmem() / (1024 * 1024));
+    const freeRAM_MB = Math.round(os.freemem() / (1024 * 1024));
+    const rssMB = Math.round(mem.rss / (1024 * 1024));
+    const heapUsedMB = Math.round(mem.heapUsed / (1024 * 1024));
+
+    const avgLatencyMs = this.stats.totalInferences > 0 
+      ? Math.round(this.stats.totalLatencyMs / this.stats.totalInferences) 
+      : 0;
+
     return {
       available,
+      isLoadedInMemory: this.isLoadedInMemory(),
+      isSupported: nodeLlamaCppModule !== null || !this.isModelAvailable(),
       modelPath: MODEL_PATH,
       filename: MODEL_FILENAME,
       sizeMB,
       downloadUrl: MODEL_DOWNLOAD_URL,
       modelName: 'Qwen 2.5 0.5B Instruct (Q4_K_M)',
-      architecture: 'Qwen2.5 (0.5B params)',
-      quantization: 'Q4_K_M',
+      architecture: 'Qwen2.5 (0.5B params / 500M)',
+      quantization: 'Q4_K_M (4-bit medium)',
       maxContext: process.env.LLAMA_CONTEXT_SIZE ? Number(process.env.LLAMA_CONTEXT_SIZE) : 256,
       threads: process.env.LLAMA_THREADS ? Number(process.env.LLAMA_THREADS) : 1,
+      gpuLayers: 0,
       ramUsageEstimated: '~350 MB - 400 MB',
+      memory: {
+        systemTotalRAM_MB: totalRAM_MB,
+        systemFreeRAM_MB: freeRAM_MB,
+        processRssMB: rssMB,
+        processHeapUsedMB: heapUsedMB,
+        estimatedModelRAM_MB: 380
+      },
+      stats: {
+        totalInferences: this.stats.totalInferences,
+        totalPromptTokens: this.stats.totalPromptTokens,
+        totalCompletionTokens: this.stats.totalCompletionTokens,
+        totalTokens: this.stats.totalPromptTokens + this.stats.totalCompletionTokens,
+        avgLatencyMs,
+        lastTokensPerSecond: this.stats.lastTokensPerSecond,
+        lastInference: this.stats.lastInference
+      },
+      systemUsage: {
+        isGlobalDefault: settings.aiProvider === 'qwen_embedded' || settings.aiProvider === 'embedded',
+        agentsCount: agentsUsing.length,
+        agentsList: agentsUsing.map(a => ({ id: a.id, name: a.name, role: a.role, roleLabel: a.roleLabel }))
+      },
       downloadState: this.downloadState
     };
+  }
+
+  getModelInfo() {
+    return this.getDetailedMetrics();
+  }
+
+  /**
+   * Libera el modelo y contexto de la memoria RAM de Node.js
+   */
+  async unloadFromMemory() {
+    try {
+      if (this.context) {
+        try {
+          if (typeof this.context.dispose === 'function') await this.context.dispose();
+        } catch (e) {}
+        this.context = null;
+      }
+      if (this.model) {
+        try {
+          if (typeof this.model.dispose === 'function') await this.model.dispose();
+        } catch (e) {}
+        this.model = null;
+      }
+      if (this.llama) {
+        try {
+          if (typeof this.llama.dispose === 'function') await this.llama.dispose();
+        } catch (e) {}
+        this.llama = null;
+      }
+
+      if (typeof global.gc === 'function') {
+        global.gc();
+      }
+
+      const memAfter = process.memoryUsage();
+      return {
+        success: true,
+        message: 'Modelo Qwen 2.5 liberado de la memoria RAM con éxito.',
+        memory: {
+          processRssMB: Math.round(memAfter.rss / (1024 * 1024)),
+          processHeapUsedMB: Math.round(memAfter.heapUsed / (1024 * 1024))
+        }
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }
 
   /**
@@ -276,9 +375,37 @@ class EmbeddedLlamaService {
     });
 
     const latencyMs = Date.now() - startTime;
+    const completionText = (response || '').trim();
+
+    // Estimar tokens para tracking interno
+    const promptTokens = Math.max(1, Math.round((prompt.length + systemPrompt.length) / 4));
+    const completionTokens = Math.max(1, Math.round(completionText.length / 4));
+    const tokensPerSec = latencyMs > 0 ? parseFloat(((completionTokens / latencyMs) * 1000).toFixed(1)) : 0;
+
+    this.stats.totalInferences += 1;
+    this.stats.totalPromptTokens += promptTokens;
+    this.stats.totalCompletionTokens += completionTokens;
+    this.stats.totalLatencyMs += latencyMs;
+    this.stats.lastTokensPerSecond = tokensPerSec;
+    this.stats.lastInference = {
+      timestamp: new Date().toISOString(),
+      promptPreview: prompt.slice(0, 60),
+      completionPreview: completionText.slice(0, 60),
+      promptTokens,
+      completionTokens,
+      latencyMs,
+      tokensPerSec
+    };
+
     return {
-      text: (response || '').trim(),
-      latencyMs
+      text: completionText,
+      latencyMs,
+      tokens: {
+        promptTokens,
+        completionTokens,
+        totalTokens: promptTokens + completionTokens
+      },
+      tokensPerSec
     };
   }
 
@@ -320,10 +447,11 @@ class EmbeddedLlamaService {
         isFallback: false,
         details: {
           runtime: 'node-llama-cpp (C++ Nativo Zero-RAM)',
-          contextSize: 512,
-          threads: 2,
+          contextSize: process.env.LLAMA_CONTEXT_SIZE ? Number(process.env.LLAMA_CONTEXT_SIZE) : 256,
+          threads: process.env.LLAMA_THREADS ? Number(process.env.LLAMA_THREADS) : 1,
           ramUsageRssMB: Math.round(mem.rss / (1024 * 1024)),
           heapUsedMB: Math.round(mem.heapUsed / (1024 * 1024)),
+          tokensPerSec: res.tokensPerSec,
           status: 'ONLINE'
         }
       };
@@ -335,6 +463,48 @@ class EmbeddedLlamaService {
         error: err.message,
         latencyMs: Date.now() - startTime,
         isFallback: false
+      };
+    }
+  }
+
+  /**
+   * Ejecuta un benchmark en vivo de velocidad y tokens/segundo
+   */
+  async runBenchmark({ promptText = 'Explica brevemente por qué el vacío y el asado de tira son los cortes favoritos en Argentina.' } = {}) {
+    const startTime = Date.now();
+    try {
+      if (!this.isModelAvailable()) {
+        return {
+          success: false,
+          error: 'El modelo no está descargado. Descárgalo primero desde el panel de Llama-CPP.'
+        };
+      }
+
+      const result = await this.prompt({
+        systemPrompt: 'Eres un experto carnicero y parrillero. Responde en un párrafo conciso de 3 a 4 oraciones.',
+        prompt: promptText,
+        temperature: 0.7,
+        maxTokens: 100
+      });
+
+      const mem = process.memoryUsage();
+      return {
+        success: true,
+        prompt: promptText,
+        response: result.text,
+        durationMs: result.latencyMs,
+        tokensPerSecond: result.tokensPerSec,
+        tokens: result.tokens,
+        memory: {
+          processRssMB: Math.round(mem.rss / (1024 * 1024)),
+          processHeapUsedMB: Math.round(mem.heapUsed / (1024 * 1024))
+        }
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: err.message,
+        durationMs: Date.now() - startTime
       };
     }
   }
