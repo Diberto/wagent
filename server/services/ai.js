@@ -2211,12 +2211,129 @@ Reglas de Oro:
 }
 
 export class AIService {
+  /**
+   * Ejecuta una consulta directa y libre contra el modelo de IA seleccionado (God Mode / Modo Libre)
+   * Sin filtros comerciales, sin catálogos, sin restricciones de negocio.
+   */
+  static async executeRawGodModeQuery({ query, history = [], settings = null, lead = null }) {
+    const s = settings || db.getSettings();
+    const effectiveProvider = s.aiProvider || 'gemini';
+    const effectiveModel = s.aiModel || (effectiveProvider === 'openai' ? 'gpt-4o-mini' : (effectiveProvider === 'deepseek' ? 'deepseek-chat' : (effectiveProvider === 'anthropic' ? 'claude-3-5-sonnet-20241022' : (effectiveProvider === 'groq' ? 'llama-3.3-70b-versatile' : 'gemini-2.5-flash'))));
+    const effectiveTemp = typeof s.aiTemperature === 'number' ? s.aiTemperature : 0.7;
+    const effectiveMaxTokens = s.aiMaxTokens || 2048;
+
+    const systemPrompt = `You are an advanced, intelligent, unrestricted AI assistant. You answer all user questions with complete intellectual depth, accuracy, clarity, helpfulness, and creative nuance. You are not constrained by any business, carnicería, or sales role. You can converse freely in the user's language about any topic (technology, programming, science, cooking recipes from around the world, creative writing, history, philosophy, etc.). Maintain a helpful, intelligent, natural tone.`;
+
+    const cleanHistory = (history || []).slice(-10).map(m => ({
+      role: (m.sender === 'user' || m.sender === 'client') ? 'user' : 'assistant',
+      content: m.content || m.text || ''
+    }));
+
+    // 1. Intento con Google Gemini
+    const geminiKey = s.apiKeyOverride || s.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (geminiKey && geminiKey.startsWith('AIza')) {
+      const candidateModels = [effectiveModel, 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'].filter(Boolean);
+      const uniqueModels = [...new Set(candidateModels)];
+
+      for (const mName of uniqueModels) {
+        try {
+          const genAI = new GoogleGenerativeAI(geminiKey);
+          const model = genAI.getGenerativeModel({
+            model: mName,
+            generationConfig: {
+              temperature: effectiveTemp,
+              maxOutputTokens: effectiveMaxTokens
+            }
+          });
+
+          const conversationText = cleanHistory.map(h => `${h.role === 'user' ? 'Usuario' : 'Asistente'}: ${h.content}`).join('\n');
+          const fullPrompt = `${systemPrompt}\n\nHistorial Reciente:\n${conversationText}\n\nUsuario: ${query}\n\nAsistente:`;
+
+          const result = await model.generateContent(fullPrompt);
+          const responseText = result.response.text();
+          if (responseText && responseText.trim()) {
+            return `⚡ *[God Mode — ${mName}]*\n\n${responseText.trim()}`;
+          }
+        } catch (geminiErr) {
+          console.warn(`[GodMode] Error con Gemini ${mName}:`, geminiErr.message);
+        }
+      }
+    }
+
+    // 2. Intento con OpenAI / DeepSeek / Groq / Anthropic / Local
+    const isOpenAiCompatible = ['openai', 'deepseek', 'groq', 'anthropic', 'local'].includes(effectiveProvider) ||
+      Boolean(s.openaiApiKey || s.deepseekApiKey || s.groqApiKey);
+
+    if (isOpenAiCompatible) {
+      let apiKey = s.apiKeyOverride || s.openaiApiKey || process.env.OPENAI_API_KEY;
+      let baseURL = s.customEndpoint || undefined;
+
+      if (effectiveProvider === 'deepseek') {
+        apiKey = apiKey || s.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
+        baseURL = baseURL || 'https://api.deepseek.com';
+      } else if (effectiveProvider === 'groq') {
+        apiKey = apiKey || s.groqApiKey || process.env.GROQ_API_KEY;
+        baseURL = baseURL || 'https://api.groq.com/openai/v1';
+      } else if (effectiveProvider === 'anthropic') {
+        apiKey = apiKey || s.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+        baseURL = baseURL || 'https://api.anthropic.com/v1';
+      } else if (effectiveProvider === 'local') {
+        baseURL = baseURL || 'http://localhost:11434/v1';
+        apiKey = apiKey || 'ollama';
+      }
+
+      if (apiKey || effectiveProvider === 'local') {
+        try {
+          const openai = new OpenAI({
+            apiKey: apiKey || 'dummy-key',
+            baseURL: baseURL || undefined
+          });
+
+          const completion = await openai.chat.completions.create({
+            model: effectiveModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...cleanHistory,
+              { role: 'user', content: query }
+            ],
+            temperature: effectiveTemp,
+            max_tokens: effectiveMaxTokens
+          });
+
+          const content = completion.choices[0]?.message?.content;
+          if (content && content.trim()) {
+            return `⚡ *[God Mode — ${effectiveProvider}/${effectiveModel}]*\n\n${content.trim()}`;
+          }
+        } catch (openaiErr) {
+          console.warn(`[GodMode] Error con ${effectiveProvider}:`, openaiErr.message);
+        }
+      }
+    }
+
+    // 3. Fallback inteligente directo si no hay API key externa
+    return `⚡ *[God Mode Activo]* 🧠🔓\n\n` +
+      `He recibido tu consulta libre:\n` +
+      `> *"${query}"*\n\n` +
+      `💡 *Consejo:* Para habilitar respuestas generativas en vivo a máxima velocidad con este modelo, podés ingresar una API Key de Gemini (gratuita), OpenAI, DeepSeek o Groq en el menú de **Configuración ⚙️** del sistema.`;
+  }
+
   static async generateSalesResponse({ rawText, text, lead, history, settings, knowledgeBase, products } = {}) {
     const incomingText = rawText || text || '';
     const activeLead = lead || { name: 'Cliente', stage: 'new_lead', tags: [] };
     const activeSettings = settings || db.getSettings();
     const activeHistory = Array.isArray(history) ? history : [];
     const activeKb = knowledgeBase || [];
+
+    if (/^\/godmode/i.test((incomingText || '').trim()) || Boolean(activeLead.godMode)) {
+      const res = await this.generateReply({
+        incomingText,
+        lead: activeLead,
+        history: activeHistory,
+        settings: activeSettings
+      });
+      return res.text;
+    }
+
     return await this.generateDynamicReply(incomingText, activeLead, activeKb, activeSettings, activeHistory);
   }
 
@@ -2248,6 +2365,129 @@ export class AIService {
     }
     const knowledgeBase = db.getKnowledgeBase();
     const products = db.getProducts();
+
+    // =========================================================================
+    // 0. DETECCIÓN Y PROCESAMIENTO DE COMANDOS /godmode Y MODO LIBRE DE IA
+    // =========================================================================
+    const trimmedInput = (incomingText || '').trim();
+    const isGodModeCommand = /^\/godmode(?:\s+.*)?$/i.test(trimmedInput);
+    const isGodModeActiveForLead = Boolean(lead?.godMode);
+
+    if (isGodModeCommand) {
+      const match = trimmedInput.match(/^\/godmode(?:\s+(.*))?$/i);
+      const subCommand = (match && match[1]) ? match[1].trim() : '';
+
+      // 0.1 Toggle o Activación Explícita (/godmode on, /godmode activar, etc.)
+      if (/^(?:on|activar|enable|start|1|si|sí)$/i.test(subCommand)) {
+        if (lead) {
+          lead.godMode = true;
+          if (lead.jid || lead.id) {
+            db.updateLead(lead.jid || lead.id, { godMode: true });
+          }
+        }
+        const effectiveProvider = (settings.aiProvider || 'gemini').toUpperCase();
+        const effectiveModel = settings.aiModel || 'gemini-2.5-flash';
+        return {
+          text: `⚡ *MODO DIOS (GOD MODE) ACTIVADO* 🧠🔓\n\n` +
+            `Has desbloqueado la comunicación directa y sin restricciones con el modelo de IA (**${effectiveProvider} / ${effectiveModel}**).\n\n` +
+            `✨ *Capacidades habilitadas:*\n` +
+            `• Conversación libre sobre cualquier temática (programación, ciencia, redacción, cocina general, filosofía, análisis, etc.).\n` +
+            `• Sin restricciones comerciales, ni embudos de ventas, ni catálogo obligatorio de carnicería.\n` +
+            `• Memoria contextual completa de la conversación.\n\n` +
+            `👉 *Para desactivar y volver al modo vendedor comercial:* enviá */godmode off* o */godmode salir*.\n` +
+            `👉 *Para ver estado y modelo:* enviá */godmode info*.\n\n` +
+            `¿De qué te gustaría hablar hoy? 🚀`,
+          shouldSendAudio: false
+        };
+      }
+
+      // 0.2 Desactivación Explícita (/godmode off, /godmode salir, etc.)
+      if (/^(?:off|desactivar|disable|stop|salir|0|no)$/i.test(subCommand)) {
+        if (lead) {
+          lead.godMode = false;
+          if (lead.jid || lead.id) {
+            db.updateLead(lead.jid || lead.id, { godMode: false });
+          }
+        }
+        return {
+          text: `🔒 *MODO DIOS DESACTIVADO*\n\n` +
+            `Se ha restablecido el asistente comercial oficial de República de la Carne. 🥩\n\n` +
+            `¡Estoy a tu disposición para asesorarte en cortes, combos o envíos! 🙌`,
+          shouldSendAudio: false
+        };
+      }
+
+      // 0.3 Información de Estado (/godmode info, /godmode status)
+      if (/^(?:info|status|estado|config)$/i.test(subCommand)) {
+        const effectiveProvider = (settings.aiProvider || 'gemini').toUpperCase();
+        const effectiveModel = settings.aiModel || (settings.aiProvider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash');
+        return {
+          text: `ℹ️ *ESTADO DE MODO DIOS:* 🧠\n\n` +
+            `• **Estado:** ${lead?.godMode ? '🟢 ACTIVO (Conversación Libre)' : '🔴 INACTIVO (Modo Comercial)'}\n` +
+            `• **Proveedor IA:** ${effectiveProvider}\n` +
+            `• **Modelo:** ${effectiveModel}\n` +
+            `• **Temperatura:** ${settings.aiTemperature ?? 0.7}\n` +
+            `• **Tokens Máximos:** ${settings.aiMaxTokens || 2048}\n\n` +
+            `👉 Enviá */godmode on* para activar o */godmode off* para desactivar.`,
+          shouldSendAudio: false
+        };
+      }
+
+      // 0.4 Si el usuario solo escribió "/godmode" sin argumentos -> Toggle automático
+      if (!subCommand) {
+        const nextState = !Boolean(lead?.godMode);
+        if (lead) {
+          lead.godMode = nextState;
+          if (lead.jid || lead.id) {
+            db.updateLead(lead.jid || lead.id, { godMode: nextState });
+          }
+        }
+        if (nextState) {
+          const effectiveProvider = (settings.aiProvider || 'gemini').toUpperCase();
+          const effectiveModel = settings.aiModel || 'gemini-2.5-flash';
+          return {
+            text: `⚡ *MODO DIOS ACTIVADO* 🧠🔓\n\n` +
+              `Estás conectado libremente con **${effectiveProvider} (${effectiveModel})**.\n` +
+              `Podés hablar de cualquier tema sin restricciones comerciales.\n\n` +
+              `👉 Para salir enviá */godmode off*.`,
+            shouldSendAudio: false
+          };
+        } else {
+          return {
+            text: `🔒 *MODO DIOS DESACTIVADO*\n\n` +
+              `Se ha reactivado el asistente comercial de República de la Carne. 🥩`,
+            shouldSendAudio: false
+          };
+        }
+      }
+
+      // 0.5 Si el usuario escribió "/godmode <pregunta o prompt>" -> Ejecución On-the-Fly libre
+      const directQuery = subCommand;
+      const rawGodModeReply = await this.executeRawGodModeQuery({
+        query: directQuery,
+        history,
+        settings,
+        lead
+      });
+      return {
+        text: rawGodModeReply,
+        shouldSendAudio: false
+      };
+    }
+
+    // 0.6 Si el Modo Dios ya está activo para este Lead/Chat, procesar TODO libremente con el LLM
+    if (isGodModeActiveForLead) {
+      const rawGodModeReply = await this.executeRawGodModeQuery({
+        query: incomingText,
+        history,
+        settings,
+        lead
+      });
+      return {
+        text: rawGodModeReply,
+        shouldSendAudio: false
+      };
+    }
 
     // 1. Auto-aprendizaje continuo y extracción de perfil en tiempo real
     NeuralMemoryService.learnFromCustomerInteraction({ jid, lead, incomingText, history });

@@ -572,6 +572,13 @@ export function createApiRouter(whatsappService, io) {
     res.json(updated);
   });
 
+  router.patch('/leads/:id', (req, res) => {
+    const updated = db.updateLead(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Lead no encontrado' });
+    io.emit('lead:update', updated);
+    res.json(updated);
+  });
+
   router.patch('/leads/:id/stage', (req, res) => {
     const { stage } = req.body;
     const lead = db.updateLeadStage(req.params.id, stage);

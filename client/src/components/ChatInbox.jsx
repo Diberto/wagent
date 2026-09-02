@@ -531,6 +531,24 @@ export default function ChatInbox({
     }
   };
 
+  const handleToggleGodMode = async () => {
+    if (!selectedLead) return;
+    const nextState = !Boolean(selectedLead.godMode);
+    try {
+      const res = await fetch(`/api/leads/${encodeURIComponent(selectedLead.id || selectedLead.jid)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ godMode: nextState })
+      });
+      if (res.ok) {
+        setSelectedLead(prev => ({ ...prev, godMode: nextState }));
+        if (onUpdateLead) onUpdateLead({ ...selectedLead, godMode: nextState });
+      }
+    } catch (err) {
+      console.error('Error alternando God Mode:', err);
+    }
+  };
+
   const handleToggleOrderPrepared = async (order) => {
     if (!order) return;
     const nextVal = !Boolean(order.isPrepared);
@@ -1179,6 +1197,20 @@ export default function ChatInbox({
                 <Trash2 size={14} />
               </button>
 
+              {/* Botón God Mode (Modo Dios IA Libre) */}
+              <button
+                onClick={handleToggleGodMode}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95 shadow-sm ${
+                  selectedLead.godMode
+                    ? 'bg-purple-600 text-white border-purple-400 font-extrabold shadow-purple-500/30 ring-2 ring-purple-400/50'
+                    : 'bg-[#182229] hover:bg-[#202c33] text-purple-400 border-purple-500/40'
+                }`}
+                title="Activar/Desactivar Modo Dios (Conversación Libre con el Modelo de IA sin restricciones de venta)"
+              >
+                <Sparkles size={13} className={selectedLead.godMode ? 'text-amber-300' : 'text-purple-400'} />
+                <span>{selectedLead.godMode ? '⚡ God Mode ON' : '⚡ God Mode'}</span>
+              </button>
+
               {/* Toggle IA por Chat */}
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl border transition-all ${
                 selectedLead.aiEnabled
@@ -1202,6 +1234,23 @@ export default function ChatInbox({
               </div>
             </div>
           </div>
+
+          {/* Banner de Modo Dios Activo */}
+          {selectedLead.godMode && (
+            <div className="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-purple-900/60 border-b border-purple-500/40 px-5 py-2 flex items-center justify-between text-xs text-purple-200 flex-shrink-0 animate-fadeIn shadow-inner">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                <span className="font-bold text-white">Modo Dios (God Mode) Activo:</span>
+                <span className="text-purple-200 hidden sm:inline">El contacto está conversando directamente y sin restricciones con el modelo de IA.</span>
+              </div>
+              <button
+                onClick={handleToggleGodMode}
+                className="text-[11px] font-bold text-amber-300 hover:text-white underline ml-2 shrink-0"
+              >
+                Desactivar (/godmode off)
+              </button>
+            </div>
+          )}
 
           {/* Banner de Pedido Activo / Histórico del Cliente */}
           {latestOrder && (
@@ -1502,6 +1551,28 @@ export default function ChatInbox({
                   >
                     <Zap size={13} />
                     <span>Respuestas Rápidas</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedLead?.godMode) {
+                        onSendMessage(selectedLead.jid, '/godmode off');
+                        setSelectedLead(prev => ({ ...prev, godMode: false }));
+                      } else {
+                        onSendMessage(selectedLead.jid, '/godmode on');
+                        setSelectedLead(prev => ({ ...prev, godMode: true }));
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl shrink-0 transition text-xs font-bold border ${
+                      selectedLead?.godMode
+                        ? 'bg-purple-600 text-white border-purple-400 shadow-purple-500/30 shadow-md animate-pulse'
+                        : 'bg-[#182229] hover:bg-[#202c33] border-purple-500/40 text-purple-400 hover:text-purple-300'
+                    }`}
+                    title="Alternar Modo Dios (Conversación libre sin restricciones con el modelo de IA)"
+                  >
+                    <Sparkles size={12} className={selectedLead?.godMode ? 'text-amber-300' : 'text-purple-400'} />
+                    <span>{selectedLead?.godMode ? '⚡ Salir God Mode' : '⚡ /godmode'}</span>
                   </button>
 
                   <button
