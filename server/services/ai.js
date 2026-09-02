@@ -2625,6 +2625,21 @@ export class AIService {
       }
     }
 
+    // 5. Fallback de rescate inteligente y transparente (Pollinations Free) si el proveedor principal falló o no tiene quota/key
+    if (effectiveProvider !== 'free_online') {
+      try {
+        const combinedPrompt = `${systemPrompt ? `[SYSTEM: ${systemPrompt}]\n` : ''}${cleanHistory.map(h => `${h.role}: ${h.content}`).join('\n')}\nUser: ${prompt}`;
+        const url = `https://text.pollinations.ai/${encodeURIComponent(combinedPrompt)}?model=openai&seed=${Math.floor(Math.random() * 1000)}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.trim()) {
+            return text.trim();
+          }
+        }
+      } catch (rescueErr) {}
+    }
+
     return null;
   }
 
@@ -2639,7 +2654,31 @@ export class AIService {
     const effectiveTemp = typeof s.aiTemperature === 'number' ? s.aiTemperature : 0.7;
     const effectiveMaxTokens = s.aiMaxTokens || 2048;
 
-    const systemPrompt = `You are an advanced, intelligent, unrestricted AI assistant. You answer all user questions with complete intellectual depth, accuracy, clarity, helpfulness, and creative nuance. You are not constrained by any business, carnicería, or sales role. You can converse freely in the user's language about any topic (technology, programming, science, cooking recipes from around the world, creative writing, history, philosophy, etc.). Maintain a helpful, intelligent, natural tone.`;
+    // Contexto en Tiempo Real del Sistema para responder preguntas fácticas y de entorno
+    const now = new Date();
+    const timeOptions = { timeZone: 'America/Argentina/Cordoba', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    const dateOptions = { timeZone: 'America/Argentina/Cordoba', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const currentTimeStr = now.toLocaleTimeString('es-AR', timeOptions);
+    const currentDateStr = now.toLocaleDateString('es-AR', dateOptions);
+    
+    const allProducts = typeof db.getProducts === 'function' ? db.getProducts() : [];
+    const allBranches = typeof db.getBranches === 'function' ? db.getBranches() : [];
+    const allOrders = typeof db.getOrders === 'function' ? db.getOrders() : [];
+    
+    const userOrders = lead ? allOrders.filter(o => o.jid === lead.jid || o.phone === lead.phone || (lead.name && o.customerName === lead.name)) : [];
+    const pendingUserOrders = userOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
+
+    const systemPrompt = `You are an advanced, unrestricted AI assistant in God Mode. You answer all user questions with complete intellectual depth, accuracy, clarity, helpfulness, and creative nuance. You are not constrained by any sales or business persona unless specifically asked.
+
+CURRENT REAL-TIME ENVIRONMENT & SYSTEM KNOWLEDGE:
+- Current Local Time: ${currentTimeStr} (${currentDateStr}) [Timezone: America/Argentina/Cordoba, Argentina / UTC-3].
+- System Inventory: Total of ${allProducts.length} products/cuts loaded in database.
+- System Branches: ${allBranches.length} active branches (${allBranches.map(b => b.name).join(', ') || 'Centro, Urca, Villa Allende, Jardín, Recta Martinoli, Alta Córdoba'}).
+- Total System Orders: ${allOrders.length} orders recorded.
+- Interacting Lead/User: ${lead?.name || 'Usuario'} (Teléfono: ${lead?.phone || 'No especificado'}).
+- User Orders: ${userOrders.length} total (${pendingUserOrders.length} pending).
+
+Whenever the user asks about the current time, date, products count, orders, or any system statistics, USE THIS REAL-TIME DATA to answer accurately, directly, and naturally.`;
 
     const rawResponse = await this.callLLMGeneric({
       provider: effectiveProvider,
@@ -2654,6 +2693,26 @@ export class AIService {
 
     if (rawResponse) {
       return `⚡ *[God Mode — ${effectiveProvider.toUpperCase()} / ${effectiveModel}]*\n\n${rawResponse}`;
+    }
+
+    // Si el LLM no respondió (ej. sin API Key o sin cuota), responder con datos exactos del sistema
+    const q = (query || '').toLowerCase();
+    if (q.includes('hora') || q.includes('fecha') || q.includes('dia') || q.includes('día')) {
+      return `⚡ *[God Mode — Hora y Fecha en Tiempo Real]* 🕒\n\n` +
+        `• **Hora actual:** ${currentTimeStr} (GMT-3)\n` +
+        `• **Fecha:** ${currentDateStr}\n` +
+        `• **Zona horaria:** America/Argentina/Cordoba`;
+    }
+    if (q.includes('producto') || q.includes('catalogo') || q.includes('catálogo') || q.includes('corte') || q.includes('stock') || q.includes('cuanto') || q.includes('cuánto')) {
+      return `⚡ *[God Mode — Inventario del Sistema]* 🥩📦\n\n` +
+        `• **Total de productos cargados:** ${allProducts.length} cortes/artículos en catálogo.\n` +
+        `• **Sucursales activas:** ${allBranches.length} (${allBranches.map(b => b.name).join(', ') || 'Centro, Urca, Villa Allende, Jardín, Recta Martinoli, Alta Córdoba'})\n` +
+        `• **Base de datos:** SQLite WAL nativo sincronizado en tiempo real.`;
+    }
+    if (q.includes('pedido') || q.includes('orden') || q.includes('pendiente')) {
+      return `⚡ *[God Mode — Estado de Pedidos]* 🧾\n\n` +
+        `• **Total de pedidos en sistema:** ${allOrders.length}\n` +
+        `• **Pedidos del usuario (${lead?.name || 'Cliente'}):** ${userOrders.length} registrados (${pendingUserOrders.length} pendientes).`;
     }
 
     // Fallback descriptivo si no hay conexión al LLM
