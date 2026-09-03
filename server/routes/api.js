@@ -102,6 +102,210 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // Exportar recetas a CSV o JSON
+  router.get('/recipes/export', (req, res) => {
+    try {
+      const format = (req.query.format || 'csv').toLowerCase();
+      const recipes = db.getRecipes();
+
+      if (format === 'json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="recetas_${Date.now()}.json"`);
+        return res.send(JSON.stringify(recipes, null, 2));
+      }
+
+      // Formato CSV con UTF-8 BOM para Excel
+      const headers = ['ID', 'Titulo', 'Categoria', 'Descripcion', 'TiempoMinutos', 'Dificultad', 'Porciones', 'GramosPorPersona', 'CortesSugeridos', 'CortesReemplazo', 'Ingredientes', 'Instrucciones'];
+      const escapeCsv = (val) => {
+        if (val === null || val === undefined) return '""';
+        const str = Array.isArray(val) ? val.map(x => typeof x === 'object' ? (x.name || x.plu || JSON.stringify(x)) : String(x)).join(' | ') : String(val);
+        return `"${str.replace(/"/g, '""')}"`;
+      };
+
+      const rows = [headers.join(';')];
+      for (const r of recipes) {
+        rows.push([
+          escapeCsv(r.id),
+          escapeCsv(r.title || r.name),
+          escapeCsv(r.category),
+          escapeCsv(r.description),
+          escapeCsv(r.prepTimeMinutes),
+          escapeCsv(r.difficulty),
+          escapeCsv(r.servingsDefault),
+          escapeCsv(r.gramsPerPerson),
+          escapeCsv(r.suggestedCuts),
+          escapeCsv(r.replacementCuts),
+          escapeCsv(r.ingredients),
+          escapeCsv(r.instructions)
+        ].join(';'));
+      }
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="recetas_${Date.now()}.csv"`);
+      return res.send('\uFEFF' + rows.join('\r\n'));
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Importar recetas desde CSV o JSON
+  router.post('/recipes/import', (req, res) => {
+    try {
+      const { recipes: inputRecipes, csvData } = req.body || {};
+      let itemsToImport = [];
+
+      if (Array.isArray(inputRecipes)) {
+        itemsToImport = inputRecipes;
+      } else if (typeof csvData === 'string') {
+        const lines = csvData.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length > 1) {
+          const headerLine = lines[0];
+          const sep = headerLine.includes(';') ? ';' : ',';
+          for (let i = 1; i < lines.length; i++) {
+            const parts = lines[i].split(sep).map(p => p.replace(/^"|"$/g, '').trim());
+            if (parts.length >= 2 && parts[1]) {
+              itemsToImport.push({
+                title: parts[1] || parts[0],
+                category: parts[2] || 'Tradicionales',
+                description: parts[3] || '',
+                prepTimeMinutes: parseInt(parts[4], 10) || 45,
+                difficulty: parts[5] || 'Media',
+                servingsDefault: parseInt(parts[6], 10) || 4,
+                gramsPerPerson: parseInt(parts[7], 10) || 250,
+                suggestedCuts: (parts[8] || '').split('|').map(s => ({ name: s.trim(), isPrimary: true })).filter(x => x.name),
+                replacementCuts: (parts[9] || '').split('|').map(s => ({ name: s.trim() })).filter(x => x.name),
+                ingredients: (parts[10] || '').split('|').map(s => s.trim()).filter(Boolean),
+                instructions: (parts[11] || '').split('|').map(s => s.trim()).filter(Boolean),
+                isFeatured: true
+              });
+            }
+          }
+        }
+      }
+
+      let count = 0;
+      for (const rec of itemsToImport) {
+        if (!rec.title && !rec.name) continue;
+        db.saveRecipe({
+          ...rec,
+          id: rec.id || `rec_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          title: rec.title || rec.name,
+          updatedAt: new Date().toISOString()
+        });
+        count++;
+      }
+
+      io.emit('recipes:updated', db.getRecipes());
+      res.json({ success: true, count, message: `${count} recetas importadas correctamente.` });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Búsqueda y Adaptación de Recetas con IA al Catálogo Oficial
+  router.post('/recipes/search-web', async (req, res) => {
+    try {
+      const { query } = req.body;
+      if (!query || !query.trim()) {
+        return res.status(400).json({ error: 'Debes ingresar un nombre de receta a buscar' });
+      }
+
+      const catalog = db.getProducts().filter(p => p.isAvailable !== false);
+      const catalogSample = catalog.slice(0, 80).map(p => ({ plu: p.plu, name: p.name, category: p.category, price: p.price }));
+
+      const settings = db.getSettings() || {};
+      let adaptedRecipe = null;
+
+      // Intentar usar Gemini si hay API key configurada
+      const geminiKey = settings.geminiApiKey || process.env.GEMINI_API_KEY;
+      if (geminiKey) {
+        try {
+          const { GoogleGenerativeAI } = await import('@google/generative-ai');
+          const genAI = new GoogleGenerativeAI(geminiKey);
+          const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+          const prompt = `Eres un Maestro Carnicero y Chef Argentino experto. 
+Busca o diseña la receta auténtica para: "${query}".
+Adapta los cortes de carne necesarios al Catálogo Oficial de nuestra carnicería.
+Aquí tienes una muestra de cortes disponibles: ${JSON.stringify(catalogSample.map(p => `${p.plu}: ${p.name}`))}.
+
+Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto adicional ni backticks:
+{
+  "title": "Nombre de la Receta",
+  "category": "Guisos y Olla",
+  "description": "Breve descripción apetitosa y tradicional",
+  "prepTimeMinutes": 45,
+  "difficulty": "Media",
+  "servingsDefault": 4,
+  "gramsPerPerson": 250,
+  "suggestedCuts": [
+    { "name": "Nombre corte del catálogo", "plu": "PLU correspondiente", "isPrimary": true, "note": "Por qué se recomienda" }
+  ],
+  "replacementCuts": [
+    { "name": "Corte alternativo", "plu": "PLU o vacío", "note": "Alternativa económica" }
+  ],
+  "ingredients": ["1 kg de corte", "2 cebollas"],
+  "instructions": ["Paso 1", "Paso 2"],
+  "isFeatured": true
+}`;
+
+          const result = await model.generateContent(prompt);
+          const text = result.response.text();
+          const cleanJson = text.replace(/```json|```/g, '').trim();
+          adaptedRecipe = JSON.parse(cleanJson);
+        } catch (aiErr) {
+          console.warn('Fallo llamada Gemini para receta, usando fallback experto:', aiErr.message);
+        }
+      }
+
+      // Fallback culinario inteligente si no hay Gemini o falló
+      if (!adaptedRecipe) {
+        const qLower = query.toLowerCase();
+        let matchedCut = catalog.find(p => qLower.includes((p.name || '').toLowerCase())) || catalog[0] || { name: 'Corte Vacuno Seleccionado', plu: '2020' };
+        
+        let cat = 'Tradicionales';
+        if (qLower.includes('guiso') || qLower.includes('locro') || qLower.includes('olla') || qLower.includes('lenteja')) cat = 'Guisos y Olla';
+        else if (qLower.includes('milanesa') || qLower.includes('frito') || qLower.includes('suprema')) cat = 'Milanesas y Fritos';
+        else if (qLower.includes('horno') || qLower.includes('asado') || qLower.includes('vacio') || qLower.includes('costillar')) cat = 'Horno y Asaderas';
+        else if (qLower.includes('bife') || qLower.includes('costeleta') || qLower.includes('entraña')) cat = 'Minutas y Plancha';
+
+        adaptedRecipe = {
+          title: query.charAt(0).toUpperCase() + query.slice(1),
+          category: cat,
+          description: `Receta tradicional argentina de ${query}, adaptada con cortes frescos de carnicería premium.`,
+          prepTimeMinutes: 45,
+          difficulty: 'Media',
+          servingsDefault: 4,
+          gramsPerPerson: 250,
+          suggestedCuts: [
+            { name: matchedCut.name, plu: matchedCut.plu || '', isPrimary: true, note: 'Corte principal recomendado por el maestro carnicero' }
+          ],
+          replacementCuts: [
+            { name: 'Corte Alternativo Magro', plu: '', note: 'Opción económica de cocción lenta' }
+          ],
+          ingredients: [
+            `1 kg de ${matchedCut.name}`,
+            '2 cebollas medianas picadas fino',
+            '1 pimiento rojo picado',
+            '2 dientes de ajo picados',
+            'Sal entrefina, pimienta y pimentón dulce al gusto'
+          ],
+          instructions: [
+            `Cortar el/la ${matchedCut.name} en trozos parejos según la preparación.`,
+            'Sellar la carne a fuego vivo en cacerola o plancha con un hilo de aceite.',
+            'Añadir las verduras picadas y rehogar hasta transparentar.',
+            'Cocinar a fuego moderado hasta lograr el punto tierno deseado y servir caliente.'
+          ],
+          isFeatured: true
+        };
+      }
+
+      res.json({ success: true, recipe: adaptedRecipe });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   router.get('/recipes/:id', (req, res) => {
     try {
       const recipe = db.getRecipe(req.params.id);
@@ -2049,6 +2253,95 @@ export function createApiRouter(whatsappService, io) {
     res.json(newCustomer);
   });
 
+  // Exportar base de clientes a CSV o JSON
+  router.get('/customers/export', (req, res) => {
+    try {
+      const format = (req.query.format || 'csv').toLowerCase();
+      const leads = db.getLeads();
+      const customers = leads.map(l => db.getCustomerProfile(l.id));
+
+      if (format === 'json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="clientes_${Date.now()}.json"`);
+        return res.send(JSON.stringify(customers, null, 2));
+      }
+
+      // Formato CSV con UTF-8 BOM para apertura perfecta en Excel
+      const headers = ['ID', 'Nombre', 'Telefono', 'Email', 'Direccion', 'Sucursal', 'Notas', 'TotalPedidos', 'TotalGastado', 'NivelTier', 'FechaCreacion'];
+      const escapeCsv = (val) => {
+        if (val === null || val === undefined) return '""';
+        return `"${String(val).replace(/"/g, '""')}"`;
+      };
+
+      const rows = [headers.join(';')];
+      for (const c of customers) {
+        rows.push([
+          escapeCsv(c.id),
+          escapeCsv(c.name),
+          escapeCsv(c.phone),
+          escapeCsv(c.email || ''),
+          escapeCsv(c.address || c.shippingAddress || ''),
+          escapeCsv(c.branchId || c.preferredBranch || ''),
+          escapeCsv(c.notes || ''),
+          escapeCsv(c.ordersCount || (c.orders ? c.orders.length : 0)),
+          escapeCsv(c.totalSpent || 0),
+          escapeCsv(c.tier || 'Estándar'),
+          escapeCsv(c.createdAt || '')
+        ].join(';'));
+      }
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="clientes_${Date.now()}.csv"`);
+      return res.send('\uFEFF' + rows.join('\r\n'));
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Importar base de clientes desde CSV o JSON
+  router.post('/customers/import', (req, res) => {
+    try {
+      const { customers: inputCustomers, csvData } = req.body || {};
+      let itemsToImport = [];
+
+      if (Array.isArray(inputCustomers)) {
+        itemsToImport = inputCustomers;
+      } else if (typeof csvData === 'string') {
+        const lines = csvData.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length > 1) {
+          const sep = lines[0].includes(';') ? ';' : ',';
+          for (let i = 1; i < lines.length; i++) {
+            const parts = lines[i].split(sep).map(p => p.replace(/^"|"$/g, '').trim());
+            if (parts.length >= 2) {
+              itemsToImport.push({
+                name: parts[1] || parts[0],
+                phone: parts[2] || parts[1],
+                email: parts[3] || '',
+                address: parts[4] || '',
+                branchId: parts[5] || '',
+                notes: parts[6] || ''
+              });
+            }
+          }
+        }
+      }
+
+      let imported = 0;
+      for (const c of itemsToImport) {
+        if (!c.phone && !c.name) continue;
+        const saved = db.findOrCreateLead(c);
+        if (saved) {
+          imported++;
+          io.emit('lead:update', saved);
+        }
+      }
+
+      res.json({ success: true, count: imported, message: `${imported} clientes procesados exitosamente.` });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   router.get('/customers/:id', (req, res) => {
     const profile = db.getCustomerProfile(req.params.id);
     if (!profile) return res.status(404).json({ error: 'Cliente no encontrado' });
@@ -2073,6 +2366,83 @@ export function createApiRouter(whatsappService, io) {
     db.deleteLead(req.params.id);
     io.emit('lead:delete', { id: req.params.id });
     res.json({ success: true });
+  });
+
+  // --- 5.2.2 Cajas & Turnos POS (Apertura y Cierre de Caja) ---
+  router.get('/pos/shifts', (req, res) => {
+    try {
+      const { branchId, status } = req.query;
+      const shifts = db.getShifts({ branchId, status });
+      res.json(shifts);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/pos/shift/current', (req, res) => {
+    try {
+      const { branchId } = req.query;
+      const shift = db.getActiveShift(branchId || 'main');
+      res.json({ active: !!shift, shift: shift || null });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/pos/shift/open', (req, res) => {
+    try {
+      const { branchId, branchName, userId, userName, initialCash, notes } = req.body;
+      const shift = db.openShift({ branchId, branchName, userId, userName, initialCash, notes });
+      io.emit('pos:shift:opened', shift);
+      res.json({ success: true, shift });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/pos/shift/close', (req, res) => {
+    try {
+      const { shiftId, closedByUserId, closedByUserName, finalCashDeclared, notes } = req.body;
+      const shift = db.closeShift(shiftId, { closedByUserId, closedByUserName, finalCashDeclared, notes });
+      io.emit('pos:shift:closed', shift);
+      res.json({ success: true, shift });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Registro de Venta POS (Caja o Derivado a Reparto)
+  router.post('/pos/sale', (req, res) => {
+    try {
+      const saleData = req.body;
+      const isDelivery = saleData.orderType === 'delivery';
+
+      const newOrder = db.saveOrder({
+        ...saleData,
+        source: 'pos',
+        channel: 'pos',
+        status: isDelivery ? 'confirmed' : 'completed',
+        isPaid: saleData.isPaid !== false,
+        createdAt: new Date().toISOString()
+      });
+
+      // Asociar a turno de caja
+      if (saleData.shiftId) {
+        db.recordShiftSale(saleData.shiftId, newOrder);
+      } else if (saleData.branchId) {
+        const activeShift = db.getActiveShift(saleData.branchId);
+        if (activeShift) {
+          db.recordShiftSale(activeShift.id, newOrder);
+        }
+      }
+
+      io.emit('order:new', newOrder);
+      io.emit('orders:sync', db.getOrders());
+
+      res.status(201).json({ success: true, order: newOrder });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // --- 5.2.1 Branches (Sucursales) Management ---
@@ -2283,6 +2653,76 @@ export function createApiRouter(whatsappService, io) {
       res.json({ success: true, importedCount: count, total: all.length, message: `¡${count} productos importados y sincronizados con éxito!` });
     } catch (err) {
       console.error('Error importando productos:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- 🏷️ Cupones de Descuento Avanzados ---
+  router.get('/coupons', (req, res) => {
+    try {
+      res.json(db.getCoupons());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/coupons/:id', (req, res) => {
+    try {
+      const coupon = db.getCoupon(req.params.id);
+      if (!coupon) return res.status(404).json({ error: 'Cupón no encontrado' });
+      res.json(coupon);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/coupons', (req, res) => {
+    try {
+      const saved = db.saveCoupon(req.body);
+      io.emit('coupons:updated', db.getCoupons());
+      res.status(201).json({ success: true, coupon: saved });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/coupons/:id', (req, res) => {
+    try {
+      const saved = db.saveCoupon({ ...req.body, id: req.params.id });
+      io.emit('coupons:updated', db.getCoupons());
+      res.json({ success: true, coupon: saved });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/coupons/:id', (req, res) => {
+    try {
+      const success = db.deleteCoupon(req.params.id);
+      io.emit('coupons:updated', db.getCoupons());
+      res.json({ success });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/coupons/validate', (req, res) => {
+    try {
+      const { code, orderAmount = 0, channel = 'all', userIdentifier = null, activePromos = [] } = req.body;
+      const result = db.validateCoupon(code, orderAmount, channel, userIdentifier, activePromos);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/coupons/use', (req, res) => {
+    try {
+      const { code, userIdentifier = null } = req.body;
+      const success = db.useCoupon(code, userIdentifier);
+      io.emit('coupons:updated', db.getCoupons());
+      res.json({ success });
+    } catch (err) {
       res.status(500).json({ error: err.message });
     }
   });

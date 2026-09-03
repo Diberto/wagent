@@ -30,7 +30,10 @@ import {
   FileText,
   UserCheck2,
   Navigation,
-  Compass
+  Compass,
+  Download,
+  Upload,
+  FileSpreadsheet
 } from 'lucide-react';
 import ClientLocationMap from './ClientLocationMap';
 
@@ -50,6 +53,69 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [dossierTab, setDossierTab] = useState('orders'); // 'orders' | 'payments' | 'custom_fields'
   const [mapPicker, setMapPicker] = useState(null); // null | { address, customerName, target: 'edit' | 'create' }
   const [selectedCustomerIds, setSelectedCustomerIds] = useState([]);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importRawText, setImportRawText] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const handleExportCustomers = (format = 'csv') => {
+    setShowExportMenu(false);
+    window.open(`/api/customers/export?format=${format}`, '_blank');
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportFile(file);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setImportRawText(evt.target.result);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExecuteImport = async () => {
+    if (!importRawText && !importFile) return;
+    setIsImporting(true);
+    setImportStatus(null);
+    try {
+      let payload = {};
+      if (importFile?.name?.endsWith('.json') || importRawText.trim().startsWith('[')) {
+        try {
+          payload.customers = JSON.parse(importRawText);
+        } catch (e) {
+          payload.csvData = importRawText;
+        }
+      } else {
+        payload.csvData = importRawText;
+      }
+
+      const res = await fetch('/api/customers/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setImportStatus({ success: true, message: data.message || `${data.count || 0} clientes procesados exitosamente.` });
+        await fetchCustomers();
+        setTimeout(() => {
+          setImportModalOpen(false);
+          setImportFile(null);
+          setImportRawText('');
+          setImportStatus(null);
+        }, 1500);
+      } else {
+        setImportStatus({ success: false, message: data.error || 'Error al importar clientes' });
+      }
+    } catch (err) {
+      setImportStatus({ success: false, message: err.message });
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const fetchCustomers = async () => {
     setIsLoading(true);
@@ -479,7 +545,43 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#182229] hover:bg-[#202c33] border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition"
+                title="Exportar base de datos de clientes"
+              >
+                <Download size={13} className="text-emerald-400" />
+                Exportar
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-1 w-36 bg-[#182229] border border-slate-700 rounded-xl shadow-2xl py-1 z-30 animate-in fade-in">
+                  <button
+                    onClick={() => handleExportCustomers('csv')}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                  >
+                    <FileSpreadsheet size={13} className="text-emerald-400" /> Excel (CSV)
+                  </button>
+                  <button
+                    onClick={() => handleExportCustomers('json')}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                  >
+                    <FileText size={13} className="text-sky-400" /> JSON Puro
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => { setImportModalOpen(true); setImportStatus(null); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#182229] hover:bg-[#202c33] border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition"
+              title="Importar base de clientes"
+            >
+              <Upload size={13} className="text-sky-400" />
+              Importar
+            </button>
+
             <button
               onClick={() => setCreateModalOpen(true)}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-md transition"
@@ -1799,6 +1901,98 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
             >
               <X size={15} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Importación de Clientes */}
+      {importModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#182229] border border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-4 border-b border-slate-700/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <Upload size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Importar Base de Datos de Clientes</h3>
+                  <p className="text-[11px] text-slate-400">Soporta archivos CSV (Excel) o JSON estructurado</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setImportModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center hover:border-emerald-500/60 transition bg-[#111b21]">
+                <Upload size={28} className="mx-auto text-emerald-400 mb-2" />
+                <label className="cursor-pointer">
+                  <span className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg transition">
+                    Seleccionar Archivo (.csv, .json)
+                  </span>
+                  <input
+                    type="file"
+                    accept=".csv, .json, text/csv, application/json"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+                {importFile && (
+                  <p className="mt-2 text-xs text-emerald-400 font-mono">
+                    📄 {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  O pegar contenido de datos (CSV con cabecera o JSON):
+                </label>
+                <textarea
+                  value={importRawText}
+                  onChange={(e) => setImportRawText(e.target.value)}
+                  placeholder="Nombre;Telefono;Email;Direccion&#10;Juan Perez;5491112345678;juan@mail.com;Av San Martin 123"
+                  rows={5}
+                  className="w-full bg-[#111b21] border border-slate-700 rounded-xl p-3 text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {importStatus && (
+                <div className={`p-3 rounded-xl text-xs font-medium ${importStatus.success ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50' : 'bg-rose-950/60 text-rose-400 border border-rose-800/50'}`}>
+                  {importStatus.message}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-700/60 bg-[#111b21] flex justify-end gap-2">
+              <button
+                onClick={() => setImportModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleExecuteImport}
+                disabled={isImporting || (!importFile && !importRawText.trim())}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isImporting ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    Importando...
+                  </>
+                ) : (
+                  <>
+                    <Upload size={14} />
+                    Comenzar Importación
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

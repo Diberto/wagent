@@ -12,6 +12,7 @@ import { db } from './services/database.js';
 import { WhatsAppManager } from './services/whatsapp.js';
 import { BackupService } from './services/backup.js';
 import { createApiRouter } from './routes/api.js';
+import { connectDB } from '../db.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -143,6 +144,9 @@ server.listen(PORT, async () => {
     console.log('Credenciales de sesión encontradas. Conectando a WhatsApp...');
     whatsapp.initializePrimary();
   }
+
+  // Inicializar conexión con MongoDB Atlas si está configurado en Hostinger
+  connectDB().catch(err => console.warn('Aviso MongoDB:', err.message));
 
   // Inicializar sistema de respaldos automáticos programados
   BackupService.initAutoBackupScheduler();

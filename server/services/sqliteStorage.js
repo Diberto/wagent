@@ -127,6 +127,18 @@ class SQLiteStorage {
         data TEXT NOT NULL
       );
 
+      -- Cajas y Turnos POS (Apertura y Cierre)
+      CREATE TABLE IF NOT EXISTS cash_registers (
+        id TEXT PRIMARY KEY,
+        branch_id TEXT NOT NULL,
+        user_id TEXT,
+        status TEXT DEFAULT 'open',
+        opened_at TEXT NOT NULL,
+        closed_at TEXT,
+        data TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_cash_registers_branch ON cash_registers(branch_id, status);
+
       -- Cola de Tareas Asíncronas
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
@@ -240,6 +252,22 @@ class SQLiteStorage {
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           is_active = excluded.is_active,
+          data = excluded.data
+      `),
+
+      // Cash Registers & Shifts (Apertura y Cierre de Caja)
+      getAllShifts: this.db.prepare('SELECT data FROM cash_registers ORDER BY opened_at DESC'),
+      getShiftById: this.db.prepare('SELECT data FROM cash_registers WHERE id = ?'),
+      getActiveShiftByBranch: this.db.prepare("SELECT data FROM cash_registers WHERE branch_id = ? AND status = 'open' ORDER BY opened_at DESC LIMIT 1"),
+      upsertShift: this.db.prepare(`
+        INSERT INTO cash_registers (id, branch_id, user_id, status, opened_at, closed_at, data)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          branch_id = excluded.branch_id,
+          user_id = excluded.user_id,
+          status = excluded.status,
+          opened_at = excluded.opened_at,
+          closed_at = excluded.closed_at,
           data = excluded.data
       `),
 
@@ -522,6 +550,52 @@ class SQLiteStorage {
   saveBranches(branches) {
     for (const b of branches) this.saveBranch(b);
     return branches;
+  }
+
+  // Cajas y Turnos POS
+  getShifts() {
+    if (this.isNative) {
+      const rows = this.stmts.getAllShifts.all();
+      return rows.map(r => JSON.parse(r.data));
+    }
+    return this.fallbackData.cash_registers || [];
+  }
+
+  getShiftById(id) {
+    if (this.isNative) {
+      const row = this.stmts.getShiftById.get(String(id));
+      return row ? JSON.parse(row.data) : null;
+    }
+    return (this.fallbackData.cash_registers || []).find(s => String(s.id) === String(id)) || null;
+  }
+
+  getActiveShift(branchId) {
+    if (this.isNative) {
+      const row = this.stmts.getActiveShiftByBranch.get(String(branchId));
+      return row ? JSON.parse(row.data) : null;
+    }
+    return (this.fallbackData.cash_registers || []).find(s => s.branchId === branchId && s.status === 'open') || null;
+  }
+
+  saveShift(s) {
+    if (!s.id) s.id = `shift_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    if (this.isNative) {
+      this.stmts.upsertShift.run(
+        String(s.id),
+        String(s.branchId || 'main'),
+        String(s.userId || ''),
+        String(s.status || 'open'),
+        String(s.openedAt || new Date().toISOString()),
+        s.closedAt ? String(s.closedAt) : null,
+        JSON.stringify(s)
+      );
+    } else {
+      if (!this.fallbackData.cash_registers) this.fallbackData.cash_registers = [];
+      const idx = this.fallbackData.cash_registers.findIndex(x => x.id === s.id);
+      if (idx >= 0) this.fallbackData.cash_registers[idx] = s;
+      else this.fallbackData.cash_registers.unshift(s);
+    }
+    return s;
   }
 
   getKV(key, defaultValue = null) {

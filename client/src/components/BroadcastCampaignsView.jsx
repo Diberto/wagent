@@ -30,6 +30,9 @@ import {
 export default function BroadcastCampaignsView({ socket }) {
   const [campaigns, setCampaigns] = useState([]);
   const [productsList, setProductsList] = useState([]);
+  const [couponsList, setCouponsList] = useState([]);
+  const [selectedCoupon, setSelectedCoupon] = useState(null);
+  const [selectedPosProduct, setSelectedPosProduct] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -88,6 +91,16 @@ export default function BroadcastCampaignsView({ socket }) {
     } catch (err) {}
   };
 
+  const fetchCoupons = async () => {
+    try {
+      const res = await fetch('/api/coupons');
+      if (res.ok) {
+        const data = await res.json();
+        setCouponsList(Array.isArray(data) ? data.filter(c => c.isActive !== false) : []);
+      }
+    } catch (err) {}
+  };
+
   const fetchAudienceCount = async (segment) => {
     try {
       const res = await fetch(`/api/campaigns/audience-count?segment=${segment}`);
@@ -111,6 +124,7 @@ export default function BroadcastCampaignsView({ socket }) {
   useEffect(() => {
     fetchCampaigns();
     fetchProducts();
+    fetchCoupons();
     fetchAudienceCount('all');
     fetchAudienceCount('vip');
     fetchAudienceCount('frequent');
@@ -603,27 +617,93 @@ export default function BroadcastCampaignsView({ socket }) {
                     })}
                   </div>
 
-                  {selectedProducts.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const numIcons = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-                        const lines = selectedProducts.map((p, idx) => {
-                          const icon = numIcons[idx] || `[${idx + 1}]`;
-                          const priceFmt = `$${Number(p.price).toLocaleString('es-AR')}`;
-                          const unitLabel = p.unit === 'kg' ? '/kg' : p.unit === 'combo' ? '(promo 4kg + vino)' : `/${p.unit}`;
-                          return `${icon} *${p.name}:* ${priceFmt} ${unitLabel}`;
-                        }).join('\n');
+                  <div className="flex items-center gap-2 pt-1">
+                    {selectedProducts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const numIcons = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+                          const lines = selectedProducts.map((p, idx) => {
+                            const icon = numIcons[idx] || `[${idx + 1}]`;
+                            const priceFmt = `$${Number(p.price).toLocaleString('es-AR')}`;
+                            const unitLabel = p.unit === 'kg' ? '/kg' : p.unit === 'combo' ? '(promo 4kg + vino)' : `/${p.unit}`;
+                            return `${icon} *${p.name}:* ${priceFmt} ${unitLabel}`;
+                          }).join('\n');
 
-                        const newTemplate = `${formData.messageTemplate}\n\n🔥 *OFERTAS DESTACADAS:*\n${lines}\n\n👉 Respondé con el número de opción o corte que quieras y te lo preparamos! 🥩📦`;
-                        setFormData({ ...formData, messageTemplate: newTemplate });
-                        updatePreview(newTemplate, formData.segment);
-                      }}
-                      className="w-full py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                    >
-                      <Sparkles size={13} />
-                      <span>Insertar {selectedProducts.length} Cortes Seleccionados en el Mensaje</span>
-                    </button>
+                          const newTemplate = `${formData.messageTemplate}\n\n🔥 *OFERTAS DESTACADAS:*\n${lines}\n\n👉 Respondé con el número de opción o corte que quieras y te lo preparamos! 🥩📦`;
+                          setFormData({ ...formData, messageTemplate: newTemplate });
+                          updatePreview(newTemplate, formData.segment);
+                        }}
+                        className="flex-1 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5"
+                      >
+                        <Sparkles size={13} />
+                        <span>Insertar Lista ({selectedProducts.length})</span>
+                      </button>
+                    )}
+
+                    {selectedProducts.length === 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const prod = selectedProducts[0];
+                          setSelectedPosProduct(prod);
+                          const cardText = `\n━━━━━━━━━━━━━━━━━━━━━\n🥩 *PROMO EXCLUSIVA POS*\n🏷️ *Corte:* ${prod.name.toUpperCase()}\n💰 *Precio Especial:* $${Number(prod.price).toLocaleString('es-AR')}/${prod.unit || 'kg'}\n🔖 *Código PLU:* #${prod.plu || prod.id}\n━━━━━━━━━━━━━━━━━━━━━`;
+                          const updated = `${formData.messageTemplate}\n${cardText}`;
+                          setFormData({ ...formData, messageTemplate: updated });
+                          updatePreview(updated, formData.segment);
+                        }}
+                        className="py-1.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5"
+                      >
+                        <span>💳 Formato Tarjeta POS</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Selector de Cupones de Descuento */}
+                <div className="p-3 bg-[#182229] border border-slate-700/80 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                      <Zap size={13} />
+                      Incluir Código o Cupón de Descuento:
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {couponsList.length} cupones activos
+                    </span>
+                  </div>
+
+                  {couponsList.length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic">No hay cupones activos configurados en el sistema.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {couponsList.slice(0, 4).map(cup => (
+                        <div
+                          key={cup.id}
+                          className="bg-[#111b21] border border-slate-800 rounded-xl p-2.5 flex items-center justify-between gap-2 hover:border-amber-500/40 transition"
+                        >
+                          <div>
+                            <div className="text-xs font-mono font-bold text-white tracking-wide">{cup.code}</div>
+                            <div className="text-[10px] text-amber-400 font-semibold">
+                              {cup.discountType === 'percent' ? `${cup.discountValue}% OFF` : `$${cup.discountValue} OFF`}
+                              {cup.combinable ? ' • Combinable' : ''}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCoupon(cup);
+                              const couponText = `\n🎁 *CUPÓN EXCLUSIVO:* Usá el código 👉 *${cup.code}* para obtener *${cup.discountType === 'percent' ? `${cup.discountValue}% OFF` : `$${cup.discountValue} OFF`}* en tu compra!\n${cup.durationHours ? `⏱️ ¡Válido solo por las próximas ${cup.durationHours} horas!` : ''}`;
+                              const updated = `${formData.messageTemplate}\n${couponText}`;
+                              setFormData({ ...formData, messageTemplate: updated });
+                              updatePreview(updated, formData.segment);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[10px] font-bold border border-amber-500/30 transition"
+                          >
+                            + Insertar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
 

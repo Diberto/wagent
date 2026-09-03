@@ -176,7 +176,9 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         fiscalCondition: 'CF',
         cuit: '',
         role: defaultRole.id,
+        roles: [defaultRole.id],
         branchId: '',
+        branches: [],
         driverId: '',
         pin: '1234',
         status: 'active',
@@ -188,6 +190,9 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
   };
 
   const handleOpenEditUser = (user) => {
+    const userRoles = Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role || 'cajero'];
+    const userBranches = Array.isArray(user.branches) && user.branches.length > 0 ? user.branches : (user.branchId ? [user.branchId] : []);
+
     setUserModal({
       mode: 'edit',
       data: {
@@ -197,8 +202,10 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         email: user.email || '',
         fiscalCondition: user.fiscalCondition || 'CF',
         cuit: user.cuit || '',
-        role: user.role || 'cajero',
-        branchId: user.branchId || '',
+        role: userRoles[0] || 'cajero',
+        roles: userRoles,
+        branchId: userBranches[0] || '',
+        branches: userBranches,
         driverId: user.driverId || '',
         pin: user.pin || '1234',
         status: user.status || 'active',
@@ -340,7 +347,8 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
       (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.username || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.email || '').toLowerCase().includes(search.toLowerCase());
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    const userRoles = Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role || 'cajero'];
+    const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
     return matchesSearch && matchesRole;
   });
 
@@ -491,16 +499,26 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                         </div>
                       </div>
 
-                      {getRoleBadge(user.role)}
+                      <div className="flex flex-wrap gap-1 justify-end max-w-[150px]">
+                        {(Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role || 'cajero']).map(rId => (
+                          <React.Fragment key={rId}>
+                            {getRoleBadge(rId)}
+                          </React.Fragment>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Meta info: Branch / Driver / Permissions */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 space-y-0.5">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Sucursal:</span>
-                        <div className="text-slate-200 font-semibold truncate flex items-center gap-1">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Sucursal(es):</span>
+                        <div className="text-slate-200 font-semibold truncate flex items-center gap-1" title={Array.isArray(user.branches) && user.branches.length > 0 ? user.branches.map(bId => branches.find(b => b.id === bId)?.name || bId).join(', ') : (branch?.name || 'Todas / Central')}>
                           <Store size={12} className="text-emerald-400 shrink-0" />
-                          <span>{branch?.name || 'Todas / Central'}</span>
+                          <span className="truncate">
+                            {Array.isArray(user.branches) && user.branches.length > 0
+                              ? user.branches.map(bId => branches.find(b => b.id === bId)?.name || bId).join(', ')
+                              : (branch?.name || 'Todas / Central')}
+                          </span>
                         </div>
                       </div>
 
@@ -735,49 +753,96 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                 </div>
               </div>
 
-              {/* Role & Branch Linking */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-[#111b21] rounded-2xl border border-slate-800">
+              {/* Multi-Role & Multi-Branch Linking */}
+              <div className="space-y-3 p-3.5 bg-[#111b21] rounded-2xl border border-slate-800">
+                {/* Roles simultáneos */}
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Rol del Perfil:</label>
-                  <select
-                    value={userModal.data.role}
-                    onChange={(e) => handleRoleChangeInModal(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white font-bold focus:outline-none focus:border-purple-500"
-                  >
-                    {roles.map(r => (
-                      <option key={r.id} value={r.id}>
-                        {r.id === 'admin' ? '👑' : r.id === 'gerencia' ? '📊' : r.id === 'encargado' ? '🏪' : r.id === 'cajero' ? '💳' : r.id === 'repartidor' ? '🛵' : r.id === 'cliente' ? '🛒' : '👤'} {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Sucursal Asignada:</label>
-                  <select
-                    value={userModal.data.branchId || ''}
-                    onChange={(e) => setUserModal({
-                      ...userModal,
-                      data: { ...userModal.data, branchId: e.target.value }
+                  <label className="block text-slate-300 font-semibold mb-1.5 text-xs flex items-center justify-between">
+                    <span>👑 Roles Simultáneos del Usuario:</span>
+                    <span className="text-[10px] text-purple-400 font-mono">{(userModal.data.roles || []).length} seleccionados</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {roles.map(r => {
+                      const isSelected = (userModal.data.roles || []).includes(r.id);
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => {
+                            const current = userModal.data.roles || [];
+                            let next = isSelected ? current.filter(x => x !== r.id) : [...current, r.id];
+                            if (next.length === 0) next = [r.id];
+                            setUserModal(prev => ({
+                              ...prev,
+                              data: {
+                                ...prev.data,
+                                role: next[0],
+                                roles: next
+                              }
+                            }));
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-purple-600/30 text-purple-200 border-purple-500 shadow-md shadow-purple-600/20'
+                              : 'bg-[#182229] text-slate-400 border-slate-700/80 hover:text-white hover:border-slate-600'
+                          }`}
+                        >
+                          {isSelected && <Check size={12} className="text-purple-400" />}
+                          <span>{r.id === 'admin' ? '👑' : r.id === 'cajero' ? '💳' : r.id === 'repartidor' ? '🛵' : '👤'} {r.name}</span>
+                        </button>
+                      );
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="">🏢 Todas las Sucursales / Casa Central</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>📍 {b.name} ({b.address})</option>
-                    ))}
-                  </select>
+                  </div>
+                </div>
+
+                {/* Sucursales asignadas (Multi-sucursal) */}
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1.5 text-xs flex items-center justify-between">
+                    <span>🏪 Sucursales Asignadas (Multi-Sucursal):</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">{(userModal.data.branches || []).length} asignadas</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {branches.map(b => {
+                      const isSelected = (userModal.data.branches || []).includes(b.id);
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => {
+                            const current = userModal.data.branches || [];
+                            const next = isSelected ? current.filter(x => x !== b.id) : [...current, b.id];
+                            setUserModal(prev => ({
+                              ...prev,
+                              data: {
+                                ...prev.data,
+                                branchId: next[0] || '',
+                                branches: next
+                              }
+                            }));
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-emerald-600/30 text-emerald-200 border-emerald-500 shadow-md shadow-emerald-600/20'
+                              : 'bg-[#182229] text-slate-400 border-slate-700/80 hover:text-white hover:border-slate-600'
+                          }`}
+                        >
+                          {isSelected && <Check size={12} className="text-emerald-400" />}
+                          <span>📍 {b.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Repartidor Vinculado:</label>
+                  <label className="block text-slate-300 font-semibold mb-1 text-xs">Repartidor Vinculado:</label>
                   <select
                     value={userModal.data.driverId || ''}
                     onChange={(e) => setUserModal({
                       ...userModal,
                       data: { ...userModal.data, driverId: e.target.value }
                     })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white text-xs focus:outline-none focus:border-purple-500"
                   >
                     <option value="">Sin vincular a repartidor</option>
                     {drivers.map(d => (

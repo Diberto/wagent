@@ -12,6 +12,9 @@ const EMPTY_FORM = {
   discountValue: '',
   minOrderAmount: '',
   maxUses: '',
+  maxUsesPerUser: '1',
+  durationHours: '',
+  combinable: false,
   isActive: true,
   startDate: '',
   startTime: '00:00',
@@ -62,6 +65,9 @@ export default function CouponsView({ apiBaseUrl = '' }) {
       discountValue: c.discountValue ?? '',
       minOrderAmount: c.minOrderAmount || '',
       maxUses: c.maxUses ?? '',
+      maxUsesPerUser: c.maxUsesPerUser ?? 1,
+      durationHours: c.durationHours || '',
+      combinable: Boolean(c.combinable),
       isActive: c.isActive !== false,
       startDate: c.startDate || '',
       startTime: c.startTime || '00:00',
@@ -81,6 +87,9 @@ export default function CouponsView({ apiBaseUrl = '' }) {
         discountValue: Number(form.discountValue) || 0,
         minOrderAmount: form.minOrderAmount !== '' ? Number(form.minOrderAmount) : 0,
         maxUses: form.maxUses !== '' ? Number(form.maxUses) : null,
+        maxUsesPerUser: form.maxUsesPerUser !== '' ? Number(form.maxUsesPerUser) : 1,
+        durationHours: form.durationHours !== '' ? Number(form.durationHours) : null,
+        combinable: Boolean(form.combinable),
       };
       const url = editingId ? `${apiBaseUrl}/api/coupons/${editingId}` : `${apiBaseUrl}/api/coupons`;
       const res = await fetch(url, {
@@ -259,15 +268,24 @@ export default function CouponsView({ apiBaseUrl = '' }) {
 
                   <div className="text-[11px] text-slate-400 space-y-1">
                     {c.minOrderAmount > 0 && <p>Minimo: <span className="text-slate-300 font-semibold">${FMT(c.minOrderAmount)}</span></p>}
-                    <p>Usos: <span className="text-slate-300 font-semibold">{c.usedCount || 0}{c.maxUses != null ? `/${c.maxUses}` : ' (ilimitado)'}</span></p>
-                    {c.appliesTo !== 'all' && (
-                      <p className="flex items-center gap-1">
-                        {c.appliesTo === 'web' ? <Globe size={10} /> : <Smartphone size={10} />}
-                        Solo {c.appliesTo === 'web' ? 'Tienda Web' : 'WhatsApp'}
-                      </p>
+                    <p>Usos globales: <span className="text-slate-300 font-semibold">{c.usedCount || 0}{c.maxUses != null ? `/${c.maxUses}` : ' (ilimitado)'}</span></p>
+                    <p>Límite por usuario: <span className="text-slate-300 font-semibold">{c.maxUsesPerUser || 1} uso(s)</span></p>
+                    {c.durationHours && (
+                      <p className="text-amber-400 font-medium">⏱️ Duración: {c.durationHours} horas</p>
                     )}
+                    <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${c.combinable ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'}`}>
+                        {c.combinable ? '🔗 Combinable' : '🚫 No combinable'}
+                      </span>
+                      {c.appliesTo !== 'all' && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 flex items-center gap-1">
+                          {c.appliesTo === 'web' ? <Globe size={9} /> : <Smartphone size={9} />}
+                          Solo {c.appliesTo === 'web' ? 'Web' : 'WhatsApp'}
+                        </span>
+                      )}
+                    </div>
                     {(c.startDate || c.endDate) && (
-                      <p className="flex items-center gap-1">
+                      <p className="flex items-center gap-1 pt-1">
                         <Calendar size={10} />
                         {c.startDate ? `Desde ${c.startDate} ${c.startTime}` : ''}
                         {c.startDate && c.endDate ? ' - ' : ''}
@@ -351,18 +369,41 @@ export default function CouponsView({ apiBaseUrl = '' }) {
                   <input type="number" min="0" value={form.minOrderAmount} onChange={(e) => setForm(p => ({ ...p, minOrderAmount: e.target.value }))} placeholder="0 = sin minimo" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-400 mb-1 font-semibold uppercase">Max usos</label>
+                  <label className="block text-[10px] text-slate-400 mb-1 font-semibold uppercase">Max usos globales</label>
                   <input type="number" min="1" value={form.maxUses} onChange={(e) => setForm(p => ({ ...p, maxUses: e.target.value }))} placeholder="Vacio = ilimitado" className={inputCls} />
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-1 font-semibold uppercase">Max usos por usuario</label>
+                  <input type="number" min="1" value={form.maxUsesPerUser} onChange={(e) => setForm(p => ({ ...p, maxUsesPerUser: e.target.value }))} placeholder="Ej: 1 por cliente" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-1 font-semibold uppercase">Duración en horas (opcional)</label>
+                  <input type="number" min="1" value={form.durationHours} onChange={(e) => setForm(p => ({ ...p, durationHours: e.target.value }))} placeholder="Ej: 24, 48 (desde creación)" className={inputCls} />
+                </div>
+              </div>
+
               <div className="p-3 bg-[#111b21] rounded-2xl border border-slate-700 space-y-3">
-                <label className="block text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1.5"><Calendar size={11} /> Vigencia (opcional)</label>
+                <label className="block text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1.5"><Calendar size={11} /> Vigencia por Calendario (opcional)</label>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="block text-[10px] text-slate-500 mb-1">Fecha inicio</label><input type="date" value={form.startDate} onChange={(e) => setForm(p => ({ ...p, startDate: e.target.value }))} className={inputCls} /></div>
                   <div><label className="block text-[10px] text-slate-500 mb-1">Hora inicio</label><input type="time" value={form.startTime} onChange={(e) => setForm(p => ({ ...p, startTime: e.target.value }))} className={inputCls} /></div>
                   <div><label className="block text-[10px] text-slate-500 mb-1">Fecha fin</label><input type="date" value={form.endDate} onChange={(e) => setForm(p => ({ ...p, endDate: e.target.value }))} className={inputCls} /></div>
                   <div><label className="block text-[10px] text-slate-500 mb-1">Hora fin</label><input type="time" value={form.endTime} onChange={(e) => setForm(p => ({ ...p, endTime: e.target.value }))} className={inputCls} /></div>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-[#111b21] rounded-2xl border border-slate-700">
+                <div>
+                  <span className="font-bold text-white block">Combinable con otras promos</span>
+                  <span className="text-[10px] text-slate-400">Permite aplicar junto a otros cupones y descuentos automáticos</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={form.combinable} onChange={(e) => setForm(p => ({ ...p, combinable: e.target.checked }))} className="sr-only peer" />
+                  <div className="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
               </div>
               <div className="flex items-center justify-between p-3 bg-[#111b21] rounded-2xl border border-slate-700">
                 <div><span className="font-bold text-white block">Cupon Activo</span><span className="text-[10px] text-slate-400">Disponible para usar si esta activo y en vigencia</span></div>

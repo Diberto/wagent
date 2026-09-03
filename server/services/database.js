@@ -1058,6 +1058,9 @@ class DatabaseService {
             status: isAvailable ? 'active' : 'inactive',
             isAvailableDelivery: isAvailable,
             isAvailableCounter: isAvailable,
+            showInPos: isAvailable,
+            showInWhatsApp: isAvailable,
+            showInWeb: isAvailable,
             minOrder: unit === 'kg' ? 0.5 : 1,
             description: description || `${name} - Categoría: ${category}`
           });
@@ -1088,10 +1091,13 @@ class DatabaseService {
 
   getProducts() {
     const db = this.readDb();
-    if (!db.products || db.products.length === 0) {
-      return this.seedMasterProducts();
-    }
-    return db.products;
+    const prods = (!db.products || db.products.length === 0) ? this.seedMasterProducts() : db.products;
+    return prods.map(p => ({
+      ...p,
+      showInPos: p.showInPos !== undefined ? p.showInPos : (p.isAvailable !== false),
+      showInWhatsApp: p.showInWhatsApp !== undefined ? p.showInWhatsApp : (p.isAvailable !== false),
+      showInWeb: p.showInWeb !== undefined ? p.showInWeb : (p.isAvailable !== false)
+    }));
   }
 
   parseBarcode(barcode) {
@@ -3220,7 +3226,16 @@ class DatabaseService {
     if (!db.users) db.users = [];
 
     const roles = this.getRoles();
-    const roleDef = roles.find(r => r.id === data.role) || roles[0];
+    const rolesList = Array.isArray(data.roles) && data.roles.length > 0 
+      ? data.roles 
+      : [data.role || 'cajero'];
+    const primaryRole = rolesList[0] || data.role || 'cajero';
+    const roleDef = roles.find(r => r.id === primaryRole) || roles[0];
+
+    const branchesList = Array.isArray(data.branches) && data.branches.length > 0
+      ? data.branches
+      : (data.branchId ? [data.branchId] : []);
+    const primaryBranch = branchesList[0] || data.branchId || null;
 
     const initials = (data.name || 'U').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
@@ -3229,8 +3244,10 @@ class DatabaseService {
       name: data.name || 'Nuevo Usuario',
       username: data.username || `user_${Date.now().toString().slice(-4)}`,
       email: data.email || '',
-      role: data.role || 'cajero',
-      branchId: data.branchId || null,
+      role: primaryRole,
+      roles: rolesList,
+      branchId: primaryBranch,
+      branches: branchesList,
       driverId: data.driverId || null,
       // Unified identity fields
       phone: data.phone ? normalizePhoneNumber(data.phone) : '',
@@ -3258,10 +3275,25 @@ class DatabaseService {
     const idx = db.users.findIndex(u => u.id === id);
     if (idx === -1) return null;
 
+    const current = db.users[idx];
+    const rolesList = Array.isArray(updates.roles) && updates.roles.length > 0
+      ? updates.roles
+      : (updates.role ? [updates.role] : current.roles || [current.role || 'cajero']);
+    const primaryRole = rolesList[0] || updates.role || current.role || 'cajero';
+
+    const branchesList = Array.isArray(updates.branches)
+      ? updates.branches
+      : (updates.branchId ? [updates.branchId] : current.branches || (current.branchId ? [current.branchId] : []));
+    const primaryBranch = branchesList[0] || updates.branchId || current.branchId || null;
+
     const updated = {
-      ...db.users[idx],
+      ...current,
       ...updates,
-      phone: updates.phone ? normalizePhoneNumber(updates.phone) : db.users[idx].phone || '',
+      role: primaryRole,
+      roles: rolesList,
+      branchId: primaryBranch,
+      branches: branchesList,
+      phone: updates.phone ? normalizePhoneNumber(updates.phone) : current.phone || '',
       updatedAt: new Date().toISOString()
     };
 
@@ -3926,6 +3958,9 @@ class DatabaseService {
       ttsProvider: agentData.ttsProvider || 'elevenlabs',
       voiceId: agentData.voiceId || 'ErXwobaYiN019PkySvjV',
       assignedBranches: Array.isArray(agentData.assignedBranches) ? agentData.assignedBranches : ['all'],
+      isAI: agentData.isAI !== false, // Identifica si este perfil es un Agente de IA o un Operador Humano
+      whatsappSessionId: agentData.whatsappSessionId || 'default', // Sesión o número de WhatsApp asignado
+      phoneNumber: agentData.phoneNumber ? normalizePhoneNumber(agentData.phoneNumber) : '',
       isActive: agentData.isActive !== false,
       isDefault: !!agentData.isDefault,
       createdAt: new Date().toISOString(),
@@ -4086,6 +4121,8 @@ class DatabaseService {
 
   // ─── CUPONES DE DESCUENTO ────────────────────────────────────────────────────
 
+  // ─── CUPONES DE DESCUENTO AVANZADOS ──────────────────────────────────────────
+
   getCoupons() {
     const db = this.readDb();
     return Array.isArray(db.coupons) ? db.coupons : [];
@@ -4104,10 +4141,37 @@ class DatabaseService {
     const upper = String(couponData.code || '').toUpperCase().replace(/\s+/g, '').trim();
     if (!upper) throw new Error('El código de descuento es obligatorio');
 
+    // Manejo de caducidad por duración (horas) o fecha/hora fija
+    let endDate = couponData.endDate || null;
+    let endTime = couponData.endTime || '23:59';
+    let validUntil = couponData.validUntil || null;
+
+    if (couponData.durationHours && Number(couponData.durationHours) > 0) {
+      const expires = new Date(Date.now() + Number(couponData.durationHours) * 3600 * 1000);
+      validUntil = expires.toISOString();
+      endDate = expires.toISOString().slice(0, 10);
+      endTime = expires.toTimeString().slice(0, 5);
+    } else if (endDate) {
+      validUntil = new Date(`${endDate}T${endTime || '23:59'}:59`).toISOString();
+    }
+
     let saved;
     const existing = db.coupons.findIndex(c => c.id === couponData.id);
     if (existing >= 0) {
-      saved = { ...db.coupons[existing], ...couponData, code: upper, updatedAt: new Date().toISOString() };
+      saved = {
+        ...db.coupons[existing],
+        ...couponData,
+        code: upper,
+        endDate,
+        endTime,
+        validUntil,
+        durationHours: couponData.durationHours ? Number(couponData.durationHours) : null,
+        maxUses: couponData.maxUses != null && couponData.maxUses !== '' ? Number(couponData.maxUses) : null,
+        maxUsesPerUser: couponData.maxUsesPerUser != null && couponData.maxUsesPerUser !== '' ? Number(couponData.maxUsesPerUser) : null,
+        combinable: couponData.combinable === true,
+        userUsages: db.coupons[existing].userUsages || {},
+        updatedAt: new Date().toISOString()
+      };
       db.coupons[existing] = saved;
     } else {
       // Verificar que el código no exista
@@ -4120,14 +4184,19 @@ class DatabaseService {
         discountType: couponData.discountType || 'percent', // 'percent' | 'fixed'
         discountValue: Number(couponData.discountValue) || 0,
         minOrderAmount: Number(couponData.minOrderAmount) || 0,
-        maxUses: couponData.maxUses != null ? Number(couponData.maxUses) : null, // null = ilimitado
+        maxUses: couponData.maxUses != null && couponData.maxUses !== '' ? Number(couponData.maxUses) : null, // null = ilimitado
+        maxUsesPerUser: couponData.maxUsesPerUser != null && couponData.maxUsesPerUser !== '' ? Number(couponData.maxUsesPerUser) : null, // usos por usuario
         usedCount: 0,
+        userUsages: {}, // { [userIdOrPhone]: count }
+        combinable: couponData.combinable === true, // Si se puede combinar con otras promos o cupones
+        durationHours: couponData.durationHours ? Number(couponData.durationHours) : null,
+        validUntil,
         isActive: couponData.isActive !== false,
         startDate: couponData.startDate || null,
         startTime: couponData.startTime || '00:00',
-        endDate: couponData.endDate || null,
-        endTime: couponData.endTime || '23:59',
-        appliesTo: couponData.appliesTo || 'all', // 'all' | 'web' | 'whatsapp'
+        endDate,
+        endTime,
+        appliesTo: couponData.appliesTo || 'all', // 'all' | 'web' | 'whatsapp' | 'pos'
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -4145,29 +4214,57 @@ class DatabaseService {
     return true;
   }
 
-  validateCoupon(code, orderAmount = 0, channel = 'all') {
+  validateCoupon(code, orderAmount = 0, channel = 'all', userIdentifier = null, activePromos = []) {
     const upper = String(code || '').toUpperCase().replace(/\s+/g, '').trim();
     const coupon = this.getCoupon(upper);
     if (!coupon) return { valid: false, error: 'Código de descuento no válido' };
     if (!coupon.isActive) return { valid: false, error: 'Este cupón no está activo' };
 
     const now = new Date();
+
+    // 1. Validación de fecha y hora de inicio
     if (coupon.startDate) {
       const start = new Date(`${coupon.startDate}T${coupon.startTime || '00:00'}:00`);
-      if (now < start) return { valid: false, error: `El cupón válido a partir del ${coupon.startDate}` };
+      if (now < start) return { valid: false, error: `El cupón es válido a partir del ${coupon.startDate} ${coupon.startTime || ''}` };
     }
-    if (coupon.endDate) {
+
+    // 2. Validación de fecha y hora de caducidad / duración
+    if (coupon.validUntil) {
+      const expiry = new Date(coupon.validUntil);
+      if (now > expiry) return { valid: false, error: 'El cupón ha expirado' };
+    } else if (coupon.endDate) {
       const end = new Date(`${coupon.endDate}T${coupon.endTime || '23:59'}:59`);
       if (now > end) return { valid: false, error: 'El cupón ha expirado' };
     }
+
+    // 3. Cantidad total de usos
     if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
-      return { valid: false, error: 'El cupón ha alcanzado su límite de usos' };
+      return { valid: false, error: 'El cupón ha alcanzado su límite total de usos' };
     }
+
+    // 4. Cantidad de usos por usuario / teléfono
+    if (coupon.maxUsesPerUser != null && userIdentifier) {
+      const cleanUser = String(userIdentifier).replace(/\D/g, '') || String(userIdentifier).trim();
+      const usages = (coupon.userUsages && coupon.userUsages[cleanUser]) || 0;
+      if (usages >= coupon.maxUsesPerUser) {
+        return { valid: false, error: `Has alcanzado el límite máximo (${coupon.maxUsesPerUser}) de usos para este cupón` };
+      }
+    }
+
+    // 5. Combinabilidad con otros cupones o promociones
+    if (Array.isArray(activePromos) && activePromos.length > 0 && !coupon.combinable) {
+      return { valid: false, error: 'Este cupón no es combinable con otras promociones o códigos activos' };
+    }
+
+    // 6. Monto mínimo
     if (coupon.minOrderAmount > 0 && orderAmount < coupon.minOrderAmount) {
       return { valid: false, error: `Monto mínimo de pedido: $${coupon.minOrderAmount.toLocaleString('es-AR')}` };
     }
+
+    // 7. Canal (all, web, whatsapp, pos)
     if (coupon.appliesTo !== 'all' && coupon.appliesTo !== channel) {
-      return { valid: false, error: `Este cupón solo aplica para ${coupon.appliesTo === 'web' ? 'Tienda Web' : 'WhatsApp'}` };
+      const channelNames = { web: 'Tienda Web', whatsapp: 'WhatsApp', pos: 'Caja POS' };
+      return { valid: false, error: `Este cupón solo aplica para ${channelNames[coupon.appliesTo] || coupon.appliesTo}` };
     }
 
     let discountAmount = 0;
@@ -4182,19 +4279,157 @@ class DatabaseService {
       coupon,
       discountAmount,
       finalAmount: Math.max(0, orderAmount - discountAmount),
+      combinable: !!coupon.combinable,
       message: `Cupón "${upper}" aplicado: ${coupon.discountType === 'percent' ? `${coupon.discountValue}% off` : `$${coupon.discountValue.toLocaleString('es-AR')} de descuento`}`
     };
   }
 
-  useCoupon(code) {
+  useCoupon(code, userIdentifier = null) {
     const db = this.readDb();
     if (!Array.isArray(db.coupons)) return false;
     const idx = db.coupons.findIndex(c => c.code === String(code).toUpperCase().trim());
     if (idx < 0) return false;
+
     db.coupons[idx].usedCount = (db.coupons[idx].usedCount || 0) + 1;
+    if (userIdentifier) {
+      const cleanUser = String(userIdentifier).replace(/\D/g, '') || String(userIdentifier).trim();
+      if (!db.coupons[idx].userUsages) db.coupons[idx].userUsages = {};
+      db.coupons[idx].userUsages[cleanUser] = (db.coupons[idx].userUsages[cleanUser] || 0) + 1;
+    }
     db.coupons[idx].updatedAt = new Date().toISOString();
     this.writeDb(db);
     return true;
+  }
+
+  // ─── CAJAS & TURNOS POS (APERTURA Y CIERRE DE CAJA) ──────────────────────────
+
+  getShifts(filter = {}) {
+    let shifts = sqliteStorage.getShifts();
+    if (filter.branchId) {
+      shifts = shifts.filter(s => s.branchId === filter.branchId);
+    }
+    if (filter.status) {
+      shifts = shifts.filter(s => s.status === filter.status);
+    }
+    return shifts;
+  }
+
+  getShift(id) {
+    return sqliteStorage.getShiftById(id);
+  }
+
+  getActiveShift(branchId) {
+    return sqliteStorage.getActiveShift(branchId);
+  }
+
+  openShift({ branchId, branchName, userId, userName, initialCash = 0, notes = '' }) {
+    // Verificar si ya hay una caja abierta para esta sucursal
+    const existing = this.getActiveShift(branchId);
+    if (existing) {
+      return existing; // Retornar el turno abierto existente
+    }
+
+    const shift = {
+      id: `shift_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      branchId: branchId || 'main',
+      branchName: branchName || 'Sucursal Principal',
+      userId: userId || 'user',
+      userName: userName || 'Cajero',
+      openedAt: new Date().toISOString(),
+      closedAt: null,
+      status: 'open',
+      initialCash: Number(initialCash) || 0,
+      salesCount: 0,
+      totalSalesAmount: 0,
+      paymentSummary: {
+        efectivo: 0,
+        debito: 0,
+        credito: 0,
+        qr: 0,
+        transferencia: 0
+      },
+      sales: [],
+      notes: notes || '',
+      closingNotes: '',
+      expectedCash: Number(initialCash) || 0,
+      finalCashDeclared: null,
+      cashDifference: null
+    };
+
+    sqliteStorage.saveShift(shift);
+    if (this.io) {
+      this.io.emit('pos:shift:opened', shift);
+    }
+    return shift;
+  }
+
+  recordShiftSale(shiftId, saleData) {
+    const shift = this.getShift(shiftId);
+    if (!shift || shift.status !== 'open') return null;
+
+    shift.salesCount = (shift.salesCount || 0) + 1;
+    const amount = Number(saleData.total) || 0;
+    shift.totalSalesAmount = (shift.totalSalesAmount || 0) + amount;
+
+    // Clasificar pago
+    const method = String(saleData.paymentMethod || 'efectivo').toLowerCase();
+    if (!shift.paymentSummary) {
+      shift.paymentSummary = { efectivo: 0, debito: 0, credito: 0, qr: 0, transferencia: 0 };
+    }
+
+    if (method.includes('efectivo') || method === 'cash') {
+      shift.paymentSummary.efectivo = (shift.paymentSummary.efectivo || 0) + amount;
+    } else if (method.includes('debito') || method.includes('débito')) {
+      shift.paymentSummary.debito = (shift.paymentSummary.debito || 0) + amount;
+    } else if (method.includes('credito') || method.includes('crédito')) {
+      shift.paymentSummary.credito = (shift.paymentSummary.credito || 0) + amount;
+    } else if (method.includes('qr') || method.includes('mp') || method.includes('mercado')) {
+      shift.paymentSummary.qr = (shift.paymentSummary.qr || 0) + amount;
+    } else {
+      shift.paymentSummary.transferencia = (shift.paymentSummary.transferencia || 0) + amount;
+    }
+
+    if (!Array.isArray(shift.sales)) shift.sales = [];
+    shift.sales.push({
+      orderId: saleData.id,
+      customerName: saleData.customerName || 'Venta Mostrador',
+      total: amount,
+      paymentMethod: saleData.paymentMethod,
+      orderType: saleData.orderType || 'counter',
+      timestamp: new Date().toISOString()
+    });
+
+    shift.expectedCash = (shift.initialCash || 0) + (shift.paymentSummary.efectivo || 0);
+
+    sqliteStorage.saveShift(shift);
+    if (this.io) {
+      this.io.emit('pos:shift:updated', shift);
+    }
+    return shift;
+  }
+
+  closeShift(shiftId, { closedByUserId, closedByUserName, finalCashDeclared = 0, notes = '' }) {
+    const shift = this.getShift(shiftId);
+    if (!shift) throw new Error('Turno de caja no encontrado');
+
+    const expectedCash = (shift.initialCash || 0) + (shift.paymentSummary?.efectivo || 0);
+    const declared = Number(finalCashDeclared) || 0;
+    const diff = declared - expectedCash;
+
+    shift.status = 'closed';
+    shift.closedAt = new Date().toISOString();
+    shift.closedByUserId = closedByUserId || shift.userId;
+    shift.closedByUserName = closedByUserName || shift.userName;
+    shift.finalCashDeclared = declared;
+    shift.expectedCash = expectedCash;
+    shift.cashDifference = diff;
+    shift.closingNotes = notes || '';
+
+    sqliteStorage.saveShift(shift);
+    if (this.io) {
+      this.io.emit('pos:shift:closed', shift);
+    }
+    return shift;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

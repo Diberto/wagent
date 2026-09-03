@@ -122,21 +122,37 @@ export default function NeuralMemoryView({ socket }) {
     fetchContextPreview();
   }, []);
 
-  // Real-time socket sync for active conversation mental map
+  // Real-time socket sync for active conversation mental map & synaptic firing
   useEffect(() => {
     if (!socket) return;
     const handleNewMsg = (data) => {
       if (selectedChatId !== 'global' && data?.chatId === selectedChatId) {
         fetchMap(selectedChatId);
       }
+      setActivatedNodes(prev => [...new Set([...prev, 'node_brand', 'node_catalog'])]);
+      setTimeout(() => setActivatedNodes([]), 2500);
     };
+
+    const handleSynapticFire = (eventData) => {
+      const nodeIds = eventData?.activatedNodeIds || ['node_brand', 'node_catalog', 'node_branches'];
+      setActivatedNodes(nodeIds);
+      setTimeout(() => setActivatedNodes([]), 3500);
+    };
+
     socket.on('message:new', handleNewMsg);
+    socket.on('neural:fire', handleSynapticFire);
+    socket.on('order:new', () => handleSynapticFire({ activatedNodeIds: ['node_catalog', 'node_branches'] }));
+    socket.on('pos:sale', () => handleSynapticFire({ activatedNodeIds: ['node_catalog', 'node_brand'] }));
     socket.on('lead:updated', () => {
       fetchAvailableChats();
       if (selectedChatId !== 'global') fetchMap(selectedChatId);
     });
+
     return () => {
       socket.off('message:new', handleNewMsg);
+      socket.off('neural:fire', handleSynapticFire);
+      socket.off('order:new');
+      socket.off('pos:sale');
       socket.off('lead:updated');
     };
   }, [socket, selectedChatId]);

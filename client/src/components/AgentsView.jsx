@@ -411,6 +411,9 @@ export default function AgentsView({ socket, currentUser }) {
                 ttsProvider: 'elevenlabs',
                 voiceId: 'ErXwobaYiN019PkySvjV',
                 assignedBranches: ['all'],
+                isAI: true,
+                phoneNumber: '',
+                whatsappSessionId: 'default',
                 isActive: true,
                 isDefault: false
               }
@@ -506,8 +509,21 @@ export default function AgentsView({ socket, currentUser }) {
                             {agent.roleLabel || 'Asesor Comercial'}
                           </p>
                           <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border ${
+                              agent.isAI !== false 
+                                ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' 
+                                : 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                            }`}>
+                              {agent.isAI !== false ? <Bot size={10} /> : <User size={10} />}
+                              {agent.isAI !== false ? 'Perfil IA' : 'Humano'}
+                            </span>
+                            {agent.phoneNumber && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                📱 {agent.phoneNumber}
+                              </span>
+                            )}
                             {getRoleBadge(agent.role)}
-                            {getModelBadge(agent.aiProvider, agent.aiModel)}
+                            {agent.isAI !== false && getModelBadge(agent.aiProvider, agent.aiModel)}
                           </div>
                         </div>
                       </div>
@@ -939,6 +955,63 @@ export default function AgentsView({ socket, currentUser }) {
 
             {/* Modal Form */}
             <form onSubmit={handleSaveModal} className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Toggle Tipo de Perfil: Inteligencia Artificial (IA) vs Humano */}
+              <div className="flex items-center justify-between p-3.5 bg-slate-950/80 border border-slate-800 rounded-2xl">
+                <div>
+                  <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                    {agentModal.data.isAI !== false ? <Bot size={15} className="text-purple-400" /> : <User size={15} className="text-sky-400" />}
+                    {agentModal.data.isAI !== false ? 'Perfil de Inteligencia Artificial (IA)' : 'Perfil de Agente / Operador Humano'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">
+                    {agentModal.data.isAI !== false 
+                      ? 'El bot responderá de forma autónoma con el modelo de IA seleccionado.' 
+                      : 'Perfil asignado a un operador humano sin respuestas automáticas neuronales.'}
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-3">
+                  <input
+                    type="checkbox"
+                    checked={agentModal.data.isAI !== false}
+                    onChange={(e) => setAgentModal({
+                      ...agentModal,
+                      data: { ...agentModal.data, isAI: e.target.checked }
+                    })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+
+              {/* Multi-Agente WhatsApp & Asignación de Número */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-950/80 border border-slate-800 rounded-2xl">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    📱 Número WhatsApp Asignado:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: +54 9 351 123-4567 o vacío (todos)"
+                    value={agentModal.data.phoneNumber || ''}
+                    onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, phoneNumber: e.target.value } })}
+                    className="w-full bg-[#111b21] border border-slate-700 px-3.5 py-2 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">Permite múltiples agentes con el mismo o distinto número</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    🔌 Sesión / Instancia Baileys:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="default, ventas_norte, caja_central..."
+                    value={agentModal.data.whatsappSessionId || 'default'}
+                    onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, whatsappSessionId: e.target.value } })}
+                    className="w-full bg-[#111b21] border border-slate-700 px-3.5 py-2 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-0.5 block">ID de sesión multi-instancia de WhatsApp</span>
+                </div>
+              </div>
+
               {/* Name & Role */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

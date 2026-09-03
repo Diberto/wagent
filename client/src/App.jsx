@@ -33,8 +33,13 @@ const socket = io();
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState(() => {
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/tienda')) {
-      return 'storefront';
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/tienda')) {
+        return 'storefront';
+      }
+      if (window.location.pathname.startsWith('/pos')) {
+        return 'pos';
+      }
     }
     return 'inbox';
   });
@@ -368,18 +373,23 @@ export default function App() {
   };
 
   const totalUnreadCount = leads.reduce((sum, l) => sum + (l.unreadCount || 0), 0);
+  const isPosStandalone = typeof window !== 'undefined' && window.location.pathname.startsWith('/pos');
 
   return (
     <div className="flex flex-col h-screen bg-[#0b141a] text-slate-100 overflow-hidden select-none">
       
-      {/* Top Navbar (Solo visible en vistas de Administración / Operador, NO en la Tienda Web del Cliente) */}
-      {currentTab !== 'storefront' && (
+      {/* Top Navbar (Solo visible en vistas de Administración / Operador, NO en la Tienda Web del Cliente ni en el POS Autónomo /pos) */}
+      {currentTab !== 'storefront' && !isPosStandalone && (
         <Navbar
           currentTab={currentTab}
           setCurrentTab={(tab) => {
             if (tab === 'storefront') {
               window.history.pushState({}, '', '/tienda');
-            } else if (window.location.pathname.startsWith('/tienda')) {
+            } else if (tab === 'pos-standalone') {
+              window.history.pushState({}, '', '/pos');
+              setCurrentTab('pos');
+              return;
+            } else if (window.location.pathname.startsWith('/tienda') || window.location.pathname.startsWith('/pos')) {
               window.history.pushState({}, '', '/');
             }
             setCurrentTab(tab);
@@ -435,7 +445,20 @@ export default function App() {
         )}
 
         {currentTab === 'pos' && (
-          <POSView socket={socket} />
+          <POSView 
+            socket={socket}
+            currentUser={currentUser}
+            allUsers={allUsers}
+            onSwitchUser={(user) => {
+              setCurrentUser(user);
+              localStorage.setItem('wagent_user', JSON.stringify(user));
+            }}
+            isStandalone={isPosStandalone}
+            onExitStandalone={() => {
+              window.history.pushState({}, '', '/');
+              setCurrentTab('inbox');
+            }}
+          />
         )}
 
         {currentTab === 'orders' && (
@@ -551,7 +574,7 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet screens < lg solo en panel Admin) */}
-      {currentTab !== 'storefront' && (
+      {currentTab !== 'storefront' && !isPosStandalone && (
         <div className="lg:hidden h-14 bg-[#111b21]/95 border-t border-slate-800 flex items-center justify-around px-2 z-30 sticky bottom-0 backdrop-blur-md">
           <button
             onClick={() => setCurrentTab('inbox')}
