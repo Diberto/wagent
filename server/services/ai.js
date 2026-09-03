@@ -34,38 +34,38 @@ import {
 } from '../config/aiModels.js';
 
 /**
- * Mapa de keywords de bÃºsqueda para productos conocidos.
- * Se aplica como capa de mejora sobre los productos dinÃ¡micos de la DB.
- * Las keywords NO contienen precios ni nombres â€” solo alias de bÃºsqueda.
+ * Mapa de keywords de búsqueda para productos conocidos.
+ * Se aplica como capa de mejora sobre los productos dinámicos de la DB.
+ * Las keywords NO contienen precios ni nombres — solo alias de búsqueda.
  */
 const PRODUCT_KEYWORDS_MAP = {
   'combo asadazo': ['combo asadazo', 'combo "asadazo"', 'combo asado', 'asadazo', 'azadazo', 'asasazo', 'asadaso', 'azadaso', 'combo parrillero', 'combo 4kg', 'combo 4 kg', 'combo'],
   'tapa de cuadril': ['tapa de cuadril', 'tapa cuadril', 'colita de cuadril', 'cuadril', 'picanha'],
-  'vacÃ­o': ['vacio especial', 'vacÃ­o especial', 'vacio tierno', 'vacÃ­o tierno', 'vacio', 'vacÃ­o'],
+  'vacío': ['vacio especial', 'vacío especial', 'vacio tierno', 'vacío tierno', 'vacio', 'vacío'],
   'costillar': ['costillar de novillito', 'asado de tira novillito', 'costillar', 'asado de tira', 'tira de asado', 'costilla novillito', 'costillar novillito', 'tira novillito', 'costilla'],
   'bife de chorizo': ['bife de chorizo', 'bife chorizo', 'bifes de chorizo', 'ojo de bife', 'bife de lomo'],
-  'entraÃ±a': ['entraÃ±a fina', 'entrana fina', 'entraÃ±a', 'entrana', 'entrecot', 'enrecor'],
+  'entraña': ['entraña fina', 'entrana fina', 'entraña', 'entrana', 'entrecot', 'enrecor'],
   'matambrito de cerdo': ['matambre de cerdo', 'matambrito de cerdo', 'matambre cerdo', 'matambrito cerdo', 'matambrito'],
   'matambre vacuno': ['matambre de vaca', 'matambre vacuno', 'matambre'],
   'bondiola': ['bondiola de cerdo', 'bondiola cerdo', 'bondiola'],
   'costeletas de cerdo': ['costeleta de cerdo', 'costeletas de cerdo', 'costeleta cerdo', 'costeletas cerdo', 'chuleta de cerdo', 'chuletas de cerdo'],
   'costeletas de ternera': ['costeleta de ternera', 'costeletas de ternera', 'costeleta ternera', 'costeletas ternera', 'costeleta', 'costeletas'],
   'chorizo': ['chorizo criollo puro cerdo', 'chorizo de cerdo', 'chorizos de cerdo', 'chorizo cerdo', 'chorizos cerdo', 'chori de cerdo', 'choris de cerdo', 'chorizo criollo', 'chori criollo', 'chorizo puro cerdo', 'chorizo', 'chorizos', 'chori', 'choris'],
-  'morcilla': ['morcilla bombon', 'morcilla bombÃ³n', 'morcillas bombon', 'morcillas bombÃ³n', 'morcilla', 'morcillas'],
+  'morcilla': ['morcilla bombon', 'morcilla bombón', 'morcillas bombon', 'morcillas bombón', 'morcilla', 'morcillas'],
   'mollejas': ['molleja de corazon', 'mollejas de corazon', 'molleja', 'mollejas'],
   'chinchulines': ['chinchulin', 'chinchulines', 'chinchu'],
   'molida especial': ['carne molida especial', 'molida especial', 'picada especial', 'carne picada especial', 'molida de primera', 'molida magra', 'picada de primera', 'picada magra'],
-  'molida intermedia': ['carne molida intermedia', 'molida intermedia', 'carne molida comun', 'molida comun', 'carne molida comÃºn', 'molida comÃºn', 'carne molida', 'carne picada', 'molida', 'picada'],
+  'molida intermedia': ['carne molida intermedia', 'molida intermedia', 'carne molida comun', 'molida comun', 'carne molida común', 'molida común', 'carne molida', 'carne picada', 'molida', 'picada'],
   'milanesas': ['milanesas de ternera', 'milanesa de ternera', 'milanesas', 'milanesa'],
   'pata muslo': ['pata muslo', 'pollo fresco', 'pollo', 'suprema de pollo', 'pechuga'],
-  'carbÃ³n': ['carbon quebracho', 'carbÃ³n quebracho', 'bolsa de carbon', 'bolsa de carbÃ³n', 'carbon', 'carbÃ³n'],
+  'carbón': ['carbon quebracho', 'carbón quebracho', 'bolsa de carbon', 'bolsa de carbón', 'carbon', 'carbón'],
   'vino': ['vino howlmande', 'howlmande malbec', 'vino', 'howlmande', 'malbec']
 };
 
 /**
- * Obtiene el catÃ¡logo dinÃ¡mico de productos SIEMPRE desde la base de datos.
- * Enriquece cada producto con keywords de bÃºsqueda si tiene coincidencia en el mapa.
- * Esta es la ÃšNICA fuente de verdad para productos en todo el sistema.
+ * Obtiene el catálogo dinámico de productos SIEMPRE desde la base de datos.
+ * Enriquece cada producto con keywords de búsqueda si tiene coincidencia en el mapa.
+ * Esta es la ÚNICA fuente de verdad para productos en todo el sistema.
  */
 function getDynamicCatalog() {
   const products = db.getProducts() || [];
@@ -83,38 +83,38 @@ function getDynamicCatalog() {
   });
 }
 
-// Alias para compatibilidad â€” siempre lee de la DB dinÃ¡mica
+// Alias para compatibilidad — siempre lee de la DB dinámica
 const MASTER_CATALOG = null; // DEPRECATED: usar getDynamicCatalog()
 
 
 export const OFFICIAL_BRANCHES_MENU = [
-  { id: 'branch_urca_1', name: 'Urca Central', address: 'Av. JosÃ© Roque Funes 1115', keywords: ['urca central', 'funes', 'urca 1', 'roque funes'] },
-  { id: 'branch_urca_2', name: 'Urca 2 â€“ Alto Tejeda', address: 'Av. MenÃ©ndez Pidal 3575', keywords: ['urca 2', 'alto tejeda', 'pidal', 'menendez pidal'] },
-  { id: 'branch_intercountry', name: 'Intercountry â€“ Corteza Mall', address: 'Av. Los Ãlamos 1015', keywords: ['intercountry', 'corteza mall', 'los alamos', 'alamos'] },
-  { id: 'branch_duarte_quiros', name: 'Duarte QuirÃ³s', address: 'Av. Duarte QuirÃ³s 5130', keywords: ['duarte quiros', 'quiros', 'duarte'] },
-  { id: 'branch_villa_allende', name: 'Villa Allende â€“ Mercadito de la Villa', address: 'Av. Figueroa Alcorta 480', keywords: ['villa allende', 'allende', 'alcorta', 'figueroa alcorta'] },
-  { id: 'branch_san_isidro', name: 'Country San Isidro â€“ Alto Tejeda', address: 'Av. Padre Luchesse km 2', keywords: ['san isidro', 'luchesse', 'padre luchesse', 'country san isidro'] }
+  { id: 'branch_urca_1', name: 'Urca Central', address: 'Av. José Roque Funes 1115', keywords: ['urca central', 'funes', 'urca 1', 'roque funes'] },
+  { id: 'branch_urca_2', name: 'Urca 2 – Alto Tejeda', address: 'Av. Menéndez Pidal 3575', keywords: ['urca 2', 'alto tejeda', 'pidal', 'menendez pidal'] },
+  { id: 'branch_intercountry', name: 'Intercountry – Corteza Mall', address: 'Av. Los Álamos 1015', keywords: ['intercountry', 'corteza mall', 'los alamos', 'alamos'] },
+  { id: 'branch_duarte_quiros', name: 'Duarte Quirós', address: 'Av. Duarte Quirós 5130', keywords: ['duarte quiros', 'quiros', 'duarte'] },
+  { id: 'branch_villa_allende', name: 'Villa Allende – Mercadito de la Villa', address: 'Av. Figueroa Alcorta 480', keywords: ['villa allende', 'allende', 'alcorta', 'figueroa alcorta'] },
+  { id: 'branch_san_isidro', name: 'Country San Isidro – Alto Tejeda', address: 'Av. Padre Luchesse km 2', keywords: ['san isidro', 'luchesse', 'padre luchesse', 'country san isidro'] }
 ];
 
 export function formatBranchMenu() {
-  const numIcons = ['1ï¸âƒ£', '2ï¸âƒ£', '3ï¸âƒ£', '4ï¸âƒ£', '5ï¸âƒ£', '6ï¸âƒ£'];
-  return OFFICIAL_BRANCHES_MENU.map((b, idx) => `${numIcons[idx]} *${b.name}* (ðŸ“ ${b.address})`).join('\n');
+  const numIcons = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
+  return OFFICIAL_BRANCHES_MENU.map((b, idx) => `${numIcons[idx]} *${b.name}* (📍 ${b.address})`).join('\n');
 }
 
 /**
- * Parsea dinÃ¡micamente la opciÃ³n de asesoramiento de asado recomendada (OpciÃ³n 1, 2 o 3)
+ * Parsea dinámicamente la opción de asesoramiento de asado recomendada (Opción 1, 2 o 3)
  * desde el mensaje previo del agente, extrayendo los cortes, cantidades exactas y total.
  */
 export function parseAsadoOptionFromMessage(msg, optNum, catalog = null) {
   if (!msg || typeof msg !== 'string') return null;
-  const parts = msg.split(/(?:1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£)/);
+  const parts = msg.split(/(?:1️⃣|2️⃣|3️⃣)/);
   if (parts.length <= optNum) return null;
 
   const catList = (catalog && catalog.length > 0) ? catalog : getDynamicCatalog();
   const rawBlock = parts[optNum];
   const lines = rawBlock.split('\n').map(l => l.trim()).filter(Boolean);
 
-  let title = `OpciÃ³n ${optNum}`;
+  let title = `Opción ${optNum}`;
   const firstLine = lines[0] || '';
   const titleClean = firstLine.replace(/^[*_#\s]+|[*_#:\s]+$/g, '').trim();
   if (titleClean) {
@@ -130,29 +130,29 @@ export function parseAsadoOptionFromMessage(msg, optNum, catalog = null) {
       total = parseInt(totalMatch[1].replace(/\D/g, ''), 10);
     }
 
-    if (line.startsWith('â€¢') || line.startsWith('* ') || line.startsWith('- ')) {
-      const clean = line.replace(/^[â€¢*\-\s]+/, '').trim();
-      if (/total|complemento|opcional|respondÃ©|cÃ³mo seguimos/i.test(clean)) continue;
+    if (line.startsWith('•') || line.startsWith('* ') || line.startsWith('- ')) {
+      const clean = line.replace(/^[•*\-\s]+/, '').trim();
+      if (/total|complemento|opcional|respondé|cómo seguimos/i.test(clean)) continue;
       
       let formatted = clean;
       const priceParens = clean.match(/\(\s*\$([\d.,]+)\s*\)/);
       if (priceParens) {
-        formatted = clean.replace(/\s*\(\s*\$([\d.,]+)\s*\)/, (m, p1) => ` â€” $${p1}`);
-      } else if (!/(?:â€”|-|:)\s*\$?[\d.,]+/i.test(clean)) {
+        formatted = clean.replace(/\s*\(\s*\$([\d.,]+)\s*\)/, (m, p1) => ` — $${p1}`);
+      } else if (!/(?:—|-|:)\s*\$?[\d.,]+/i.test(clean)) {
         const prod = matchBestProduct(clean, catList);
         if (prod) {
           const parsed = parseQuantityAndMode(clean, prod);
           const sub = Math.round((prod.price || 0) * (parsed.quantity || 1));
-          formatted = `${clean} â€” $${sub.toLocaleString('es-AR')}`;
+          formatted = `${clean} — $${sub.toLocaleString('es-AR')}`;
         }
       }
-      items.push(`â€¢ ${formatted}`);
+      items.push(`• ${formatted}`);
     }
   }
 
   if (total === 0 && items.length > 0) {
     for (const itm of items) {
-      const pMatch = itm.match(/â€”\s*\$([\d.,]+)/);
+      const pMatch = itm.match(/—\s*\$([\d.,]+)/);
       if (pMatch) {
         total += parseInt(pMatch[1].replace(/\D/g, ''), 10);
       }
@@ -163,16 +163,16 @@ export function parseAsadoOptionFromMessage(msg, optNum, catalog = null) {
 }
 
 /**
- * Detecta si la consulta del cliente menciona un corte de carne genÃ©rico o ambiguo
- * con 2 o mÃ¡s opciones disponibles en el catÃ¡logo activo (ej: "cuadril", "matambre", "chorizo", "milanesas", "costilla")
- * y retorna la lista de opciones para que el agente consulte y aclare antes de asumir un corte errÃ³neo.
+ * Detecta si la consulta del cliente menciona un corte de carne genérico o ambiguo
+ * con 2 o más opciones disponibles en el catálogo activo (ej: "cuadril", "matambre", "chorizo", "milanesas", "costilla")
+ * y retorna la lista de opciones para que el agente consulte y aclare antes de asumir un corte erróneo.
  */
 export function findAmbiguousProducts(chunk, dynamicCatalog = null) {
   const c = (chunk || '').toLowerCase().trim();
   if (!c) return null;
 
-  // Si el texto contiene mÃºltiples productos o especificaciÃ³n clara de pedido con cantidades, no interrumpir con desambiguaciÃ³n genÃ©rica
-  const hasMultipleProductsOrQuantities = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?))/i.test(c) && /(?:y\b|con\b|adem[aÃ¡]s|m[aÃ¡]s|,)/i.test(c);
+  // Si el texto contiene múltiples productos o especificación clara de pedido con cantidades, no interrumpir con desambiguación genérica
+  const hasMultipleProductsOrQuantities = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?))/i.test(c) && /(?:y\b|con\b|adem[aá]s|m[aá]s|,)/i.test(c);
   if (hasMultipleProductsOrQuantities) return null;
 
   const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : getDynamicCatalog();
@@ -229,7 +229,7 @@ export function findAmbiguousProducts(chunk, dynamicCatalog = null) {
       exactRegex: /\b(?:asado de tira|costillar|costillar novillito|costeletas? de ternera|costeletas? de cerdo)\b/i,
       filter: p => {
         const n = (p.name || '').toLowerCase();
-        if (n.includes('entraÃ±a')) return false;
+        if (n.includes('entraña')) return false;
         return n.includes('costillar') || n.includes('costilla') || n.includes('costeleta') || n.includes('asado de tira');
       }
     }
@@ -251,8 +251,8 @@ export function findAmbiguousProducts(chunk, dynamicCatalog = null) {
 }
 
 /**
- * Encuentra el producto que mejor encaja en un texto buscando coincidencia por PLU, cÃ³digo, nÃºmero de opciÃ³n o palabras clave
- * garantizando que NUNCA se seleccionen productos con precio $0, snacks o artÃ­culos de verdulerÃ­a por error.
+ * Encuentra el producto que mejor encaja en un texto buscando coincidencia por PLU, código, número de opción o palabras clave
+ * garantizando que NUNCA se seleccionen productos con precio $0, snacks o artículos de verdulería por error.
  */
 export function matchBestProduct(chunk, dynamicCatalog = null) {
   const c = (chunk || '').toLowerCase().trim();
@@ -260,7 +260,7 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
 
   const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : getDynamicCatalog();
 
-  // 1. Filtrar solo productos vÃ¡lidos para venta por WhatsApp (precio > 0, disponibles y carnicerÃ­a)
+  // 1. Filtrar solo productos válidos para venta por WhatsApp (precio > 0, disponibles y carnicería)
   const isExplicitSnackMention = /papas?\s+pehuamar|pehuamar|lays|doritos|3d queso|tryms|chizitos|saladix/i.test(c);
   const isExplicitVerduraMention = /acelga|achicoria|lechuga|tomate|rucula|espinaca/i.test(c);
 
@@ -271,26 +271,26 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
 
     const cat = p.category || '';
     if (cat === 'Snacks' && !isExplicitSnackMention) return false;
-    if (cat === 'VerdulerÃ­a y Frutas' && !isExplicitVerduraMention) return false;
-    if (cat === 'General' && /bolsa|caja|rollo|seÃ±a|sea|tarjeta|carton/i.test(p.name)) return false;
+    if (cat === 'Verdulería y Frutas' && !isExplicitVerduraMention) return false;
+    if (cat === 'General' && /bolsa|caja|rollo|seña|sea|tarjeta|carton/i.test(p.name)) return false;
     if (/pehuamar|lays|doritos|3d queso|tryms/i.test(p.name) && !isExplicitSnackMention) return false;
 
     return true;
   });
 
-  // 2. Coincidencia directa por PLU ("PLU 4", "cÃ³digo 49", "#1")
-  const pluMatch = c.match(/(?:plu|c[oÃ³]digo|cod\.?|corte)\s*#?\s*([0-9]{1,5})/i);
+  // 2. Coincidencia directa por PLU ("PLU 4", "código 49", "#1")
+  const pluMatch = c.match(/(?:plu|c[oó]digo|cod\.?|corte)\s*#?\s*([0-9]{1,5})/i);
   if (pluMatch) {
     const requestedPlu = pluMatch[1];
     const foundByPlu = eligibleCatalog.find(p => p.plu && (String(p.plu).trim() === requestedPlu || parseInt(p.plu, 10) === parseInt(requestedPlu, 10)));
-    const isDirectPluCommand = /^(?:plu|c[oÃ³]digo|cod\.?|corte)?\s*#?\s*[0-9]{1,5}\s*$/i.test(c) || /^(?:quiero|dame|pasame|precio\s+del?|el)\s+(?:plu|c[oÃ³]digo|cod\.?)\s*#?\s*[0-9]{1,5}$/i.test(c);
+    const isDirectPluCommand = /^(?:plu|c[oó]digo|cod\.?|corte)?\s*#?\s*[0-9]{1,5}\s*$/i.test(c) || /^(?:quiero|dame|pasame|precio\s+del?|el)\s+(?:plu|c[oó]digo|cod\.?)\s*#?\s*[0-9]{1,5}$/i.test(c);
     if (foundByPlu && (isDirectPluCommand || c.includes(foundByPlu.name.toLowerCase()))) {
       return foundByPlu;
     }
   }
 
-  // 3. Coincidencia por nÃºmero ordinal en menÃº ("opciÃ³n 1", "combo 2")
-  const explicitProductNumMatch = c.match(/(?:combo|item|opci[oÃ³]n\s+de\s+corte|opci[oÃ³]n)\s+([1-9]|1[0-9]|20)/i);
+  // 3. Coincidencia por número ordinal en menú ("opción 1", "combo 2")
+  const explicitProductNumMatch = c.match(/(?:combo|item|opci[oó]n\s+de\s+corte|opci[oó]n)\s+([1-9]|1[0-9]|20)/i);
   if (explicitProductNumMatch) {
     const idx = parseInt(explicitProductNumMatch[1], 10) - 1;
     const featured = getFeaturedWhatsAppOffers(eligibleCatalog);
@@ -299,7 +299,7 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     }
   }
 
-  // 4. Scoring semÃ¡ntico de relevancia
+  // 4. Scoring semántico de relevancia
   let bestMatch = null;
   let bestScore = 0;
 
@@ -309,19 +309,19 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     let score = 0;
 
     const isComboAsadazoQuery = /(?:combo\s+asadazo|asadazo)/i.test(c);
-    const isCarbonQuery = /(?:carb[oÃ³]n|bolsa\s+de\s+carb[oÃ³]n|le[Ã±n]a)/i.test(c);
+    const isCarbonQuery = /(?:carb[oó]n|bolsa\s+de\s+carb[oó]n|le[ñn]a)/i.test(c);
     const isChorizoQuery = /(?:chorizo|chorizos|chori|choris)/i.test(c);
     const isCerdoQuery = /(?:cerdo|cero|puro cerdo)/i.test(c);
     const isMatambreQuery = /(?:matambre|matambrito)/i.test(c);
-    const isVacioQuery = /(?:vacio|vacÃ­o)/i.test(c);
+    const isVacioQuery = /(?:vacio|vacío)/i.test(c);
     const isCostillaQuery = /(?:asado de tira|costillar|tira novillito|costilla|costillas|\btira\b|\basado\b)/i.test(c) && !isComboAsadazoQuery;
     const isBifeChorizoQuery = /(?:bife de chorizo|bife chorizo|bifes)/i.test(c);
     const isTapaCuadrilQuery = /(?:tapa de cuadril|tapa cuadril|picanha)/i.test(c);
-    const isEntranaQuery = /(?:entraÃ±a|entrana)/i.test(c);
+    const isEntranaQuery = /(?:entraña|entrana)/i.test(c);
 
-    // CarbÃ³n
+    // Carbón
     if (isCarbonQuery) {
-      if (pName.includes('carbÃ³n') || pName.includes('carbon') || prod.id === 'prod_carbon') {
+      if (pName.includes('carbón') || pName.includes('carbon') || prod.id === 'prod_carbon') {
         score += 850;
       }
     }
@@ -367,14 +367,14 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
       }
     }
 
-    // VacÃ­o
-    if (isVacioQuery && (pName.includes('vacio') || pName.includes('vacÃ­o'))) {
+    // Vacío
+    if (isVacioQuery && (pName.includes('vacio') || pName.includes('vacío'))) {
       score += 400;
     }
 
     // Costillar / Asado de Tira Novillito
     if (isCostillaQuery) {
-      if (pName.includes('asado de tira') || pName.includes('costillar / asado de tira') || pName.includes('costillar') || (pName.includes('costilla') && !pName.includes('entraÃ±a'))) {
+      if (pName.includes('asado de tira') || pName.includes('costillar / asado de tira') || pName.includes('costillar') || (pName.includes('costilla') && !pName.includes('entraña'))) {
         score += 500;
         if (c.includes('asado') && pName.includes('asado')) score += 300;
         if (c.includes('novillito') && pName.includes('novillito')) score += 200;
@@ -393,13 +393,13 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
       }
     }
 
-    // EntraÃ±a
-    if (isEntranaQuery && (pName.includes('entraÃ±a') || pName.includes('entrana'))) {
+    // Entraña
+    if (isEntranaQuery && (pName.includes('entraña') || pName.includes('entrana'))) {
       score += 450;
     }
 
     // Exact & base string containment
-    const cleanPName = pName.replace(/\(.*?\)/g, '').replace(/[â€œâ€"']/g, '').trim();
+    const cleanPName = pName.replace(/\(.*?\)/g, '').replace(/[“”"']/g, '').trim();
     const basePName = cleanPName.replace(/\b(?:seleccionad[oa]|premium|tiernizad[oa]|especial|preparad[oa]s?|fresc[oa]s?)\b/gi, '').trim();
     if (cleanPName.length >= 3 && c.includes(cleanPName)) {
       score += cleanPName.length * 12;
@@ -416,7 +416,7 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
       }
     }
 
-    // Bonus por categorÃ­as cÃ¡rnicas prioritarias (solo si ya tuvo coincidencia positiva)
+    // Bonus por categorías cárnicas prioritarias (solo si ya tuvo coincidencia positiva)
     if (score > 0 && ['parrilla y vacuno', 'cerdo', 'achuras y embutidos', 'elaborados y milanesas', 'pollo', 'combos y promociones'].includes(pCat)) {
       score += 50;
     }
@@ -427,13 +427,13 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     }
   }
 
-  // Ya no hay fallback a catÃ¡logo hardcodeado â€” db.getProducts() es la fuente Ãºnica de verdad
+  // Ya no hay fallback a catálogo hardcodeado — db.getProducts() es la fuente única de verdad
 
   return bestMatch;
 }
 
 /**
- * Busca productos en el catÃ¡logo maestro por tÃ©rmino o palabra clave
+ * Busca productos en el catálogo maestro por término o palabra clave
  */
 export function searchCatalogProducts(query, catalog = null, limit = 8) {
   const q = (query || '').toLowerCase().trim();
@@ -457,27 +457,27 @@ export function searchCatalogProducts(query, catalog = null, limit = 8) {
 }
 
 /**
- * Encuentra productos sustitutos o similares recomendados cuando un corte no estÃ¡ disponible o no existe en catÃ¡logo
+ * Encuentra productos sustitutos o similares recomendados cuando un corte no está disponible o no existe en catálogo
  */
 export function findSimilarProductOrAlternative(requestedText, catalog = null) {
   const currentCatalog = (Array.isArray(catalog) && catalog.length > 0) ? catalog : (db.getProducts() || []);
   const availableList = currentCatalog.filter(p => p.isAvailable !== false && Number(p.price) > 0);
   const t = (requestedText || '').toLowerCase().trim();
 
-  // Mapeo experto de cortes cÃ¡rnicos similares / sustitutos ideales
+  // Mapeo experto de cortes cárnicos similares / sustitutos ideales
   const SIMILARITY_RULES = [
     { pattern: /\b(?:lomo|bife de lomo|solomillo|filet mignon|filet)\b/i, targetKeywords: ['bife de chorizo', 'tapa de cuadril', 'colita de cuadril'] },
     { pattern: /\b(?:ojo de bife|bife ancho|t-bone|tbone|ribeye|tomahawk|bife angosto)\b/i, targetKeywords: ['bife de chorizo', 'costillar', 'asado de tira'] },
-    { pattern: /\b(?:picanha|picaÃ±a|colita de cuadril|colita)\b/i, targetKeywords: ['tapa de cuadril', 'bife de chorizo'] },
+    { pattern: /\b(?:picanha|picaña|colita de cuadril|colita)\b/i, targetKeywords: ['tapa de cuadril', 'bife de chorizo'] },
     { pattern: /\b(?:tapa de asado|falda|asado con cuero|pecho|marucha)\b/i, targetKeywords: ['costillar', 'asado de tira', 'vacio'] },
-    { pattern: /\b(?:entraÃ±a|entrana)\b/i, targetKeywords: ['vacio', 'matambrito de cerdo', 'bife de chorizo'] },
+    { pattern: /\b(?:entraña|entrana)\b/i, targetKeywords: ['vacio', 'matambrito de cerdo', 'bife de chorizo'] },
     { pattern: /\b(?:matambre vacuno|matambre de vaca)\b/i, targetKeywords: ['matambrito de cerdo', 'vacio'] },
     { pattern: /\b(?:matambre de cerdo|matambrito)\b/i, targetKeywords: ['matambre vacuno', 'bondiola de cerdo', 'costeletas de cerdo'] },
     { pattern: /\b(?:bondiola|carre|pechito de cerdo)\b/i, targetKeywords: ['matambrito de cerdo', 'costeletas de cerdo'] },
-    { pattern: /\b(?:osobuco|garrÃ³n|peceto|roast beef|palomita|paleta)\b/i, targetKeywords: ['carne molida', 'matambre vacuno', 'tapa de cuadril'] },
+    { pattern: /\b(?:osobuco|garrón|peceto|roast beef|palomita|paleta)\b/i, targetKeywords: ['carne molida', 'matambre vacuno', 'tapa de cuadril'] },
     { pattern: /\b(?:suprema|pechuga|milanesas de pollo)\b/i, targetKeywords: ['milanesas de ternera', 'pata muslo'] },
-    { pattern: /\b(?:molleja|chinchulin|riÃ±on|chinchulines|chunchullo)\b/i, targetKeywords: ['chorizo criollo', 'morcilla bombÃ³n', 'matambrito de cerdo'] },
-    { pattern: /\b(?:morcilla|chori)\b/i, targetKeywords: ['chorizo criollo', 'morcilla bombÃ³n'] }
+    { pattern: /\b(?:molleja|chinchulin|riñon|chinchulines|chunchullo)\b/i, targetKeywords: ['chorizo criollo', 'morcilla bombón', 'matambrito de cerdo'] },
+    { pattern: /\b(?:morcilla|chori)\b/i, targetKeywords: ['chorizo criollo', 'morcilla bombón'] }
   ];
 
   for (const rule of SIMILARITY_RULES) {
@@ -489,7 +489,7 @@ export function findSimilarProductOrAlternative(requestedText, catalog = null) {
     }
   }
 
-  // Si existe en catÃ¡logo un producto con ese nombre pero no disponible o sin stock
+  // Si existe en catálogo un producto con ese nombre pero no disponible o sin stock
   const unavailableMatch = currentCatalog.find(p => 
     (p.isAvailable === false || Number(p.stock) === 0) &&
     (p.name.toLowerCase().includes(t) || t.includes(p.name.toLowerCase()))
@@ -500,7 +500,7 @@ export function findSimilarProductOrAlternative(requestedText, catalog = null) {
     if (sameCategory.length > 0) return sameCategory[0];
   }
 
-  // BÃºsqueda por palabras coincidentes
+  // Búsqueda por palabras coincidentes
   for (const p of availableList) {
     const words = p.name.toLowerCase().split(/\s+/);
     for (const w of words) {
@@ -514,28 +514,28 @@ export function findSimilarProductOrAlternative(requestedText, catalog = null) {
 }
 
 /**
- * Limpia y divide un mensaje con mÃºltiples productos de forma inteligente,
- * corrigiendo errores tipogrÃ¡ficos comunes y separando lÃ­mites numÃ©ricos.
+ * Limpia y divide un mensaje con múltiples productos de forma inteligente,
+ * corrigiendo errores tipográficos comunes y separando límites numéricos.
  */
 export function cleanAndSplitMultiProductMessage(text) {
   if (!text || typeof text !== 'string') return [];
   let s = text.trim();
   
-  // Normalizar errores tipogrÃ¡ficos frecuentes
+  // Normalizar errores tipográficos frecuentes
   s = s.replace(/\bchorizos?\s+de\s+cero\b/gi, 'chorizos de cerdo')
        .replace(/\bperonas\b/gi, 'personas')
        .replace(/\b(costillas?|tira\s+de\s+asado)\b/gi, 'costillar')
-       .replace(/\bcarb[oÃ³]n\b/gi, 'carbÃ³n');
+       .replace(/\bcarb[oó]n\b/gi, 'carbón');
 
-  // Insertar separador cuando un nuevo nÃºmero/cantidad comienza despuÃ©s de palabras de producto
+  // Insertar separador cuando un nuevo número/cantidad comienza después de palabras de producto
   // Ej: "2 kilos de costillas 1 kilo de matambre" -> "2 kilos de costillas , 1 kilo de matambre"
-  s = s.replace(/([a-zÃ¡Ã©Ã­Ã³ÃºÃ±]+)\s+(\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?))/gi, '$1 , $2');
+  s = s.replace(/([a-záéíóúñ]+)\s+(\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?))/gi, '$1 , $2');
 
-  // Separar cuando aparece un nÃºmero solo seguido de nombre de corte comÃºn
-  s = s.replace(/([a-zÃ¡Ã©Ã­Ã³ÃºÃ±]+)\s+(\d+)\s+(costillar|costillas?|vacio|vacÃ­o|matambre|matambrito|chorizo|chori|morcilla|milanesa|carbÃ³n|carbon|vino)/gi, '$1 , $2 $3');
+  // Separar cuando aparece un número solo seguido de nombre de corte común
+  s = s.replace(/([a-záéíóúñ]+)\s+(\d+)\s+(costillar|costillas?|vacio|vacío|matambre|matambrito|chorizo|chori|morcilla|milanesa|carbón|carbon|vino)/gi, '$1 , $2 $3');
 
-  // Separar por conectores ("y", ",", ".", "con", "mÃ¡s", "mas", "ademÃ¡s", "ademas", saltos de lÃ­nea)
-  const rawChunks = s.split(/\n+|(?:,\s*|\.\s+)(?![0-9])|\s+y\s+|\s+con\s+|\s+m[aÃ¡]s\s+|\s+mas\s+|\s+adem[aÃ¡]s\s+|\s+ademas\s+/i);
+  // Separar por conectores ("y", ",", ".", "con", "más", "mas", "además", "ademas", saltos de línea)
+  const rawChunks = s.split(/\n+|(?:,\s*|\.\s+)(?![0-9])|\s+y\s+|\s+con\s+|\s+m[aá]s\s+|\s+mas\s+|\s+adem[aá]s\s+|\s+ademas\s+/i);
 
   const finalChunks = [];
   for (const chunk of rawChunks) {
@@ -548,7 +548,7 @@ export function cleanAndSplitMultiProductMessage(text) {
 }
 
 /**
- * Encuentra todos los productos del catÃ¡logo mencionados en un texto
+ * Encuentra todos los productos del catálogo mencionados en un texto
  */
 export function findAllMentionedProducts(text, catalog = null) {
   if (!text || typeof text !== 'string') return [];
@@ -566,7 +566,7 @@ export function findAllMentionedProducts(text, catalog = null) {
     }
   }
 
-  // Si por chunks no encontrÃ³ o encontrÃ³ pocos, probar con matchBestProduct directo
+  // Si por chunks no encontró o encontró pocos, probar con matchBestProduct directo
   if (found.length === 0) {
     const directMatch = matchBestProduct(text, list);
     if (directMatch) found.push(directMatch);
@@ -576,7 +576,7 @@ export function findAllMentionedProducts(text, catalog = null) {
 }
 
 /**
- * Genera la consulta interactiva de cantidad (peso en kg vs unidades/bifes) segÃºn el tipo de producto solicitado
+ * Genera la consulta interactiva de cantidad (peso en kg vs unidades/bifes) según el tipo de producto solicitado
  */
 export function formatProductQuantityPrompt(matchedProducts, clientName) {
   const prods = Array.isArray(matchedProducts) ? matchedProducts : [matchedProducts];
@@ -591,60 +591,60 @@ export function formatProductQuantityPrompt(matchedProducts, clientName) {
 
     // 1. Combos o Promociones
     if (u === 'combo' || /combo/i.test(name)) {
-      return `Â¡Espectacular elecciÃ³n ${clientName}! â­ Te preparo *${name}*${pluTag} (${priceFormatted}).\n\n` +
-        `ðŸ‘‰ *Â¿QuÃ© cantidad de combos te gustarÃ­a encargar?*\n` +
-        `â€¢ PodÃ©s indicarme la cantidad de combos (ej: *1 combo*, *2 combos*).\n\n` +
-        `Â¡Apenas me confirmes la cantidad te lo dejo registrado al instante! ðŸ™Œ [[STAGE:proposal]]`;
+      return `¡Espectacular elección ${clientName}! ⭐ Te preparo *${name}*${pluTag} (${priceFormatted}).\n\n` +
+        `👉 *¿Qué cantidad de combos te gustaría encargar?*\n` +
+        `• Podés indicarme la cantidad de combos (ej: *1 combo*, *2 combos*).\n\n` +
+        `¡Apenas me confirmes la cantidad te lo dejo registrado al instante! 🙌 [[STAGE:proposal]]`;
     }
 
-    // 2. AlmacÃ©n / CarbÃ³n / Vinos / Bebidas / Complementos
-    if (u === 'bolsa' || u === 'botella' || u === 'paquete' || /carbÃ³n|carbon|vino|bebida|salsa|chimichurri/i.test(name)) {
+    // 2. Almacén / Carbón / Vinos / Bebidas / Complementos
+    if (u === 'bolsa' || u === 'botella' || u === 'paquete' || /carbón|carbon|vino|bebida|salsa|chimichurri/i.test(name)) {
       const unitName = u === 'bolsa' ? 'bolsas' : (u === 'botella' ? 'botellas' : 'unidades');
-      return `Â¡Genial ${clientName}! ðŸªµ Sumamos *${name}*${pluTag} (${priceFormatted} / ${u}).\n\n` +
-        `ðŸ‘‰ *Â¿CuÃ¡ntas ${unitName} te gustarÃ­a que te agreguemos?* (ej: *1*, *2*, *3*).\n\n` +
-        `Â¡Avisame la cantidad para sumarlo a tu pedido! ðŸ™Œ [[STAGE:proposal]]`;
+      return `¡Genial ${clientName}! 🪵 Sumamos *${name}*${pluTag} (${priceFormatted} / ${u}).\n\n` +
+        `👉 *¿Cuántas ${unitName} te gustaría que te agreguemos?* (ej: *1*, *2*, *3*).\n\n` +
+        `¡Avisame la cantidad para sumarlo a tu pedido! 🙌 [[STAGE:proposal]]`;
     }
 
     // 3. Embutidos / Achuras / Hamburguesas / Milanesas / Pollo / Costeletas
     if (/chorizo|chori|morcilla|hamburguesa|milanesa|costeleta|pata muslo|achura|molleja|chinchul/i.test(name)) {
-      return `Â¡De diez ${clientName}! ðŸŒ­ Tenemos *${name}*${pluTag} sÃºper fresco (${priceFormatted} / ${u}).\n\n` +
-        `ðŸ‘‰ *Â¿QuÃ© cantidad te preparamos?*\n` +
-        `â€¢ ðŸ”¢ **Por Unidades:** Â¿CuÃ¡ntas unidades precisÃ¡s? (ej: *4 unidades*, *6 chorizos*, *8 milanesas*)\n` +
-        `â€¢ âš–ï¸ **Por Kilos:** Â¿O preferÃ­s por peso? (ej: *1 kg*, *1.5 kg*, *2 kg* o *medio kilo*)\n\n` +
-        `Â¡Decime la cantidad que prefieras y te lo calculo al instante! ðŸ™Œ [[STAGE:proposal]]`;
+      return `¡De diez ${clientName}! 🌭 Tenemos *${name}*${pluTag} súper fresco (${priceFormatted} / ${u}).\n\n` +
+        `👉 *¿Qué cantidad te preparamos?*\n` +
+        `• 🔢 **Por Unidades:** ¿Cuántas unidades precisás? (ej: *4 unidades*, *6 chorizos*, *8 milanesas*)\n` +
+        `• ⚖️ **Por Kilos:** ¿O preferís por peso? (ej: *1 kg*, *1.5 kg*, *2 kg* o *medio kilo*)\n\n` +
+        `¡Decime la cantidad que prefieras y te lo calculo al instante! 🙌 [[STAGE:proposal]]`;
     }
 
-    // 4. Carnes y cortes tradicionales (VacÃ­o, Asado, Costillar, Bife, Matambre, EntraÃ±a, Tapa, Lomo, etc.)
-    return `Â¡Excelente elecciÃ³n ${clientName}! ðŸ¥© Te preparo *${name}*${pluTag} (${priceFormatted} / ${u}).\n\n` +
-      `ðŸ‘‰ *Â¿QuÃ© cantidad te gustarÃ­a que te separemos?*\n` +
-      `â€¢ âš–ï¸ **Por Peso en Kilos:** Â¿CuÃ¡ntos kilos o gramos? (ej: *1 kg*, *1.5 kg*, *2 kg* o *medio kilo*)\n` +
-      `â€¢ ðŸ¥© **Por Unidades / Bifes / Porciones:** Â¿CuÃ¡ntos bifes o comensales? (ej: *4 bifes*, *6 tiras*, *para 4 personas*)\n\n` +
-      `Â¡Apenas me indiques la cantidad te lo dejo registrado al instante! ðŸ™Œ [[STAGE:proposal]]`;
+    // 4. Carnes y cortes tradicionales (Vacío, Asado, Costillar, Bife, Matambre, Entraña, Tapa, Lomo, etc.)
+    return `¡Excelente elección ${clientName}! 🥩 Te preparo *${name}*${pluTag} (${priceFormatted} / ${u}).\n\n` +
+      `👉 *¿Qué cantidad te gustaría que te separemos?*\n` +
+      `• ⚖️ **Por Peso en Kilos:** ¿Cuántos kilos o gramos? (ej: *1 kg*, *1.5 kg*, *2 kg* o *medio kilo*)\n` +
+      `• 🥩 **Por Unidades / Bifes / Porciones:** ¿Cuántos bifes o comensales? (ej: *4 bifes*, *6 tiras*, *para 4 personas*)\n\n` +
+      `¡Apenas me indiques la cantidad te lo dejo registrado al instante! 🙌 [[STAGE:proposal]]`;
   }
 
-  // Si el cliente nombrÃ³ 2 o mÃ¡s productos sin cantidad (ej: "vacio y chorizos", "asado, matambre y carbon")
+  // Si el cliente nombró 2 o más productos sin cantidad (ej: "vacio y chorizos", "asado, matambre y carbon")
   const productQuestions = prods.map(p => {
     const u = (p.unit || 'kg').toLowerCase();
     const priceFormatted = `$${Number(p.price || 0).toLocaleString('es-AR')}`;
     if (/chorizo|chori|morcilla|hamburguesa|milanesa/i.test(p.name)) {
-      return `â€¢ ðŸŒ­ *${p.name}* (${priceFormatted}/${u}) âž” Â¿CuÃ¡ntas **unidades** (ej: *6 unidades*) o **kilos** (ej: *1 kg*)?`;
+      return `• 🌭 *${p.name}* (${priceFormatted}/${u}) ➔ ¿Cuántas **unidades** (ej: *6 unidades*) o **kilos** (ej: *1 kg*)?`;
     }
-    if (/carbÃ³n|carbon|vino|bebida/i.test(p.name)) {
-      return `â€¢ ðŸªµ *${p.name}* (${priceFormatted}) âž” Â¿CuÃ¡ntas **bolsas / botellas**? (ej: *1*, *2*)`;
+    if (/carbón|carbon|vino|bebida/i.test(p.name)) {
+      return `• 🪵 *${p.name}* (${priceFormatted}) ➔ ¿Cuántas **bolsas / botellas**? (ej: *1*, *2*)`;
     }
     if (/combo/i.test(p.name)) {
-      return `â€¢ â­ *${p.name}* (${priceFormatted}) âž” Â¿CuÃ¡ntos **combos**? (ej: *1 combo*)`;
+      return `• ⭐ *${p.name}* (${priceFormatted}) ➔ ¿Cuántos **combos**? (ej: *1 combo*)`;
     }
-    return `â€¢ ðŸ¥© *${p.name}* (${priceFormatted}/${u}) âž” Â¿CuÃ¡ntos **kilos** (ej: *1.5 kg*, *2 kg*) o **bifes / porciones** (ej: *4 bifes*)?`;
+    return `• 🥩 *${p.name}* (${priceFormatted}/${u}) ➔ ¿Cuántos **kilos** (ej: *1.5 kg*, *2 kg*) o **bifes / porciones** (ej: *4 bifes*)?`;
   }).join('\n');
 
-  return `Â¡Excelente selecciÃ³n ${clientName}! ðŸ¥© Te anoto los productos pedidos:\n\n` +
+  return `¡Excelente selección ${clientName}! 🥩 Te anoto los productos pedidos:\n\n` +
     `${productQuestions}\n\n` +
-    `ðŸ‘‰ *Indicame las cantidades de cada uno* (ej: *2 kg de vacÃ­o y 6 chorizos*) y te armo el pedido con el total exacto. ðŸ™Œ [[STAGE:proposal]]`;
+    `👉 *Indicame las cantidades de cada uno* (ej: *2 kg de vacío y 6 chorizos*) y te armo el pedido con el total exacto. 🙌 [[STAGE:proposal]]`;
 }
 
 /**
- * Obtiene cortes y productos filtrados por categorÃ­a para venta en WhatsApp
+ * Obtiene cortes y productos filtrados por categoría para venta en WhatsApp
  */
 export function getCatalogByCategory(categoryQuery, catalog = null, limit = 8) {
   const cq = (categoryQuery || '').toLowerCase().trim();
@@ -670,14 +670,14 @@ export function getCatalogByCategory(categoryQuery, catalog = null, limit = 8) {
 }
 
 /**
- * Encuentra el Ãºltimo producto del catÃ¡logo mencionado en el historial de mensajes
+ * Encuentra el último producto del catálogo mencionado en el historial de mensajes
  */
 function findLastMentionedProduct(history) {
   if (!history || !Array.isArray(history) || history.length === 0) return null;
   for (let i = history.length - 1; i >= 0; i--) {
     const msg = history[i];
     const content = msg.content || '';
-    const chunks = content.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+mÃ¡s\s+|\s+mas\s+/i);
+    const chunks = content.split(/[\n,\.]+|\s+y\s+|\s+con\s+|\s+más\s+|\s+mas\s+/i);
     for (const chunk of chunks) {
       const prod = matchBestProduct(chunk);
       if (prod) {
@@ -693,10 +693,10 @@ function findLastMentionedProduct(history) {
  */
 export function parseQuantityAndMode(str, prod = null) {
   const rawS = (str || '').toLowerCase();
-  // Limpiar precios y notas explicativas entre parÃ©ntesis (ej: "(~0.75 kg - $3.750)", "($17.250)")
+  // Limpiar precios y notas explicativas entre paréntesis (ej: "(~0.75 kg - $3.750)", "($17.250)")
   const s = rawS.replace(/\([^\)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
   
-  // DetecciÃ³n explÃ­cita de kilos vs unidades
+  // Detección explícita de kilos vs unidades
   const hasKgMention = /(?:kilo|kilos|kg|kgs|grs|gramos)\b/i.test(s);
   const isUnitMention = !hasKgMention && /(?:unidades?|\bun\b|chorizos?|chori|choris|morcillas?|bifes?|costeletas?|chuletas?|piezas?|patas?)/i.test(s);
 
@@ -710,8 +710,8 @@ export function parseQuantityAndMode(str, prod = null) {
     /pollo|pata/i.test(prod?.name || s) ? 3 : 1
   );
 
-  // Verificar si el nÃºmero en el texto es en realidad una referencia a opciÃ³n de menÃº (ej: "el combo 2", "combo 2", "opcion 3", "el corte 4", "el 8", "la 1")
-  const isMenuOptionRef = /(?:el\s+combo|la\s+opci[oÃ³]n|el\s+corte|la\s+promo|combo|opci[oÃ³]n|corte|promo|el|la)\s+([1-9]|1[0-9]|20)\b/i.test(s) &&
+  // Verificar si el número en el texto es en realidad una referencia a opción de menú (ej: "el combo 2", "combo 2", "opcion 3", "el corte 4", "el 8", "la 1")
+  const isMenuOptionRef = /(?:el\s+combo|la\s+opci[oó]n|el\s+corte|la\s+promo|combo|opci[oó]n|corte|promo|el|la)\s+([1-9]|1[0-9]|20)\b/i.test(s) &&
     !/(?:\b(?:[2-9]|1[0-9])\s+(?:kg|kilos?|combos?|unidades?|piezas?|bolsas?|botellas?|de\s+los\s+combos?))/i.test(s);
 
   let num = 1;
@@ -738,7 +738,7 @@ export function parseQuantityAndMode(str, prod = null) {
   else if (/(?:doce\b)/i.test(s)) num = 12;
   else if (/(?:un\s+solo|una\s+sola|1\s+solo|uno\s+solo|solo\s+un|solo\s+1|\bun\b|\buno\b|\buna\b)/i.test(s)) num = 1;
 
-  // Si se pidiÃ³ por unidades y el producto se calcula por kg (ej: chorizos, morcillas)
+  // Si se pidió por unidades y el producto se calcula por kg (ej: chorizos, morcillas)
   if (isUnitMention && unitsPerKg > 1 && prod?.unit !== 'combo' && prod?.unit !== 'bolsa' && prod?.unit !== 'botella') {
     const estimatedKg = Number((num / unitsPerKg).toFixed(2));
     return {
@@ -751,7 +751,7 @@ export function parseQuantityAndMode(str, prod = null) {
   }
 
   const isCombo = (prod?.unit || '').toLowerCase() === 'combo' || /combo/i.test(prod?.name || '');
-  const isBolsa = (prod?.unit || '').toLowerCase() === 'bolsa' || /bolsa|carb[oÃ³]n/i.test(prod?.name || '');
+  const isBolsa = (prod?.unit || '').toLowerCase() === 'bolsa' || /bolsa|carb[oó]n/i.test(prod?.name || '');
   const isBotella = (prod?.unit || '').toLowerCase() === 'botella' || /botella|vino/i.test(prod?.name || '');
 
   let label = `${num} ${prod?.unit || 'kg'}`;
@@ -780,12 +780,12 @@ export function isGarbageName(name) {
   const n = name.toLowerCase().trim();
   if (n.length < 3 || n.length > 40) return true;
   if (/[0-9]/.test(n)) return true;
-  const blacklist = /domicilio|casa|repartidor|efectivo|transferencia|combo|asadazo|envio|pedido|asado|hola|gracias|confirmar|ok|quiero|tal cual|eso asi|contacto|desconocido|cliente|recuerda|funes|locelso|duarte|quiros|urca|cocinar|familia|somos|para|kilo|kg|opcion|opciÃ³n/i;
+  const blacklist = /domicilio|casa|repartidor|efectivo|transferencia|combo|asadazo|envio|pedido|asado|hola|gracias|confirmar|ok|quiero|tal cual|eso asi|contacto|desconocido|cliente|recuerda|funes|locelso|duarte|quiros|urca|cocinar|familia|somos|para|kilo|kg|opcion|opción/i;
   return blacklist.test(n);
 }
 
 /**
- * Validador de direcciones reales vs intenciones genÃ©ricas
+ * Validador de direcciones reales vs intenciones genéricas
  */
 export function isGarbageAddress(addr) {
   if (!addr || typeof addr !== 'string') return true;
@@ -793,21 +793,21 @@ export function isGarbageAddress(addr) {
   if (a.length < 4) return true;
 
   // Frases conversacionales, intenciones de comida, recetas o charlas cotidianas
-  if (/(?:quisiera|quiero\s+cocinar|cocinar|hacer\s+algo|comer|receta|plato|comida|familia|somos\s+\d+|comemos|personas|amigos|invitados|asado|asadito|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|precio|cuanto|cuÃ¡nto|horario|hola|buenas|gracias|chau|opcion|opciÃ³n|combo|promo|abierto|delivery|envio|envÃ­o|solo|nada\s+mas)\b/i.test(a)) {
-    // Solo permitir si explÃ­citamente tiene prefijo formal de calle/altura como 'calle', 'av', 'barrio' con nÃºmero de calle
-    const hasExplicitStreetPrefix = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|nÂ°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro)\b/i.test(a);
+  if (/(?:quisiera|quiero\s+cocinar|cocinar|hacer\s+algo|comer|receta|plato|comida|familia|somos\s+\d+|comemos|personas|amigos|invitados|asado|asadito|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|precio|cuanto|cuánto|horario|hola|buenas|gracias|chau|opcion|opción|combo|promo|abierto|delivery|envio|envío|solo|nada\s+mas)\b/i.test(a)) {
+    // Solo permitir si explícitamente tiene prefijo formal de calle/altura como 'calle', 'av', 'barrio' con número de calle
+    const hasExplicitStreetPrefix = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro)\b/i.test(a);
     if (!hasExplicitStreetPrefix || !/[0-9]{2,5}/.test(a)) {
       return true;
     }
   }
 
-  // Si no contiene nÃºmero de calle (altura) ni calles reconocidas de CÃ³rdoba
+  // Si no contiene número de calle (altura) ni calles reconocidas de Córdoba
   if (!/[0-9]{1,5}/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon|cerro|urca|tejeda/i.test(a)) {
     return true;
   }
 
-  // Si es solo una palabra o texto genÃ©rico
-  if (/^(?:mi domicilio|mi casa|a mi domicilio|domicilio|ok quiero|para envio|para envÃ­o|en mi casa|a casa|para casa)$/i.test(a)) {
+  // Si es solo una palabra o texto genérico
+  if (/^(?:mi domicilio|mi casa|a mi domicilio|domicilio|ok quiero|para envio|para envío|en mi casa|a casa|para casa)$/i.test(a)) {
     return true;
   }
 
@@ -815,7 +815,7 @@ export function isGarbageAddress(addr) {
 }
 
 /**
- * Extrae y aÃ­sla con precisiÃ³n exclusivamente la direcciÃ³n real (Calle, NÃºmero, Piso, Barrio)
+ * Extrae y aísla con precisión exclusivamente la dirección real (Calle, Número, Piso, Barrio)
  * descartando introducciones conversacionales, saludos, nombres y frases accesorias.
  */
 export function extractCleanAddress(rawText) {
@@ -824,36 +824,36 @@ export function extractCleanAddress(rawText) {
 
   let a = rawText.trim();
 
-  // 0. Extraer segmento especÃ­fico si viene introducido en medio del texto conversacional
-  const midMatch = a.match(/(?:(?:y\s+)?(?:la\s+direcci[oÃ³]n|mi\s+direcci[oÃ³]n|mi\s+domicilio|la\s+dir|mi\s+dir)(?:\s+(?:de\s+entrega|de\s+env[iÃ­]o|para\s+el\s+env[iÃ­]o))?\s*(?:es|ser[iÃ­]a)?\s*[:=;\-â€“â€”]?|direcci[oÃ³]n\s*[:=]|domicilio\s*[:=]|vivo\s+en|estoy\s+en|mand[aÃ¡]melo\s+a|mandamelo\s+a|envi[aÃ¡]melo\s+a|enviamelo\s+a|mandalo\s+a|mandar\s+a|enviar\s+a|envialo\s+a|mandame\s+a|enviame\s+a|entregar\s+en|para\s+el\s+env[iÃ­]o\s+a|para\s+el\s+envio\s+a|para\s+el\s+repartidor\s+a)\s*[:=;\-â€“â€”]?\s*(.+)$/i);
+  // 0. Extraer segmento específico si viene introducido en medio del texto conversacional
+  const midMatch = a.match(/(?:(?:y\s+)?(?:la\s+direcci[oó]n|mi\s+direcci[oó]n|mi\s+domicilio|la\s+dir|mi\s+dir)(?:\s+(?:de\s+entrega|de\s+env[ií]o|para\s+el\s+env[ií]o))?\s*(?:es|ser[ií]a)?\s*[:=;\-–—]?|direcci[oó]n\s*[:=]|domicilio\s*[:=]|vivo\s+en|estoy\s+en|mand[aá]melo\s+a|mandamelo\s+a|envi[aá]melo\s+a|enviamelo\s+a|mandalo\s+a|mandar\s+a|enviar\s+a|envialo\s+a|mandame\s+a|enviame\s+a|entregar\s+en|para\s+el\s+env[ií]o\s+a|para\s+el\s+envio\s+a|para\s+el\s+repartidor\s+a)\s*[:=;\-–—]?\s*(.+)$/i);
   if (midMatch && midMatch[1]) {
     a = midMatch[1].trim();
   }
 
   // 1. Quitar saludos iniciales y menciones de Carlos
-  a = a.replace(/^(?:hola,?\s*)?(?:buen(?:os)?\s*d[iÃ­]as?|buenas\s*tardes|buenas\s*noches|buenas|carlos)?\s*[,:;-]?\s*/gi, '');
+  a = a.replace(/^(?:hola,?\s*)?(?:buen(?:os)?\s*d[ií]as?|buenas\s*tardes|buenas\s*noches|buenas|carlos)?\s*[,:;-]?\s*/gi, '');
 
-  // 2. Quitar frases conversacionales introductorias completas de direcciÃ³n
-  a = a.replace(/^(?:te\s+paso|te\s+dejo|te\s+mando|te\s+envio|te\s+envÃ­o|anot[aÃ¡]|anotame|guard[aÃ¡]|registra|registrame|cambia|cambiame|modifica|modificame|actualiza|actualizame)?\s*(?:mi|la)?\s*(?:nueva\s*)?(?:direcci[oÃ³]n|domicilio|dir)\s*(?:de\s+entrega|de\s+env[iÃ­]o|para\s+el\s+env[iÃ­]o|para\s+el\s+repartidor)?\s*(?:es|ser[iÃ­]a)?\s*[:=;\-â€“â€”]?\s*/gi, '');
+  // 2. Quitar frases conversacionales introductorias completas de dirección
+  a = a.replace(/^(?:te\s+paso|te\s+dejo|te\s+mando|te\s+envio|te\s+envío|anot[aá]|anotame|guard[aá]|registra|registrame|cambia|cambiame|modifica|modificame|actualiza|actualizame)?\s*(?:mi|la)?\s*(?:nueva\s*)?(?:direcci[oó]n|domicilio|dir)\s*(?:de\s+entrega|de\s+env[ií]o|para\s+el\s+env[ií]o|para\s+el\s+repartidor)?\s*(?:es|ser[ií]a)?\s*[:=;\-–—]?\s*/gi, '');
 
-  a = a.replace(/^(?:la\s+direcci[oÃ³]n\s+(?:de\s+entrega\s+)?es|mi\s+direcci[oÃ³]n\s+(?:de\s+entrega\s+)?es|mi\s+domicilio\s+es|vivo\s+en|estoy\s+en|mand[aÃ¡]melo\s+a|mandamelo\s+a|envi[aÃ¡]melo\s+a|enviamelo\s+a|mandalo\s+a|mandar\s+a|enviar\s+a|envialo\s+a|mandame\s+a|enviame\s+a|entregar\s+en|para\s+el\s+env[iÃ­]o\s+a|para\s+el\s+envio\s+a|para\s+el\s+repartidor\s+a)\s*[:=;\-â€“â€”]?\s*/gi, '');
+  a = a.replace(/^(?:la\s+direcci[oó]n\s+(?:de\s+entrega\s+)?es|mi\s+direcci[oó]n\s+(?:de\s+entrega\s+)?es|mi\s+domicilio\s+es|vivo\s+en|estoy\s+en|mand[aá]melo\s+a|mandamelo\s+a|envi[aá]melo\s+a|enviamelo\s+a|mandalo\s+a|mandar\s+a|enviar\s+a|envialo\s+a|mandame\s+a|enviame\s+a|entregar\s+en|para\s+el\s+env[ií]o\s+a|para\s+el\s+envio\s+a|para\s+el\s+repartidor\s+a)\s*[:=;\-–—]?\s*/gi, '');
 
-  a = a.replace(/^(?:ser[iÃ­]a\s+en|ser[iÃ­]a\s+a|seria\s+en|es\s+en|es\s+a|a\s+la\s+calle|calle)\s*[:=;\-â€“â€”]?\s*/gi, '');
+  a = a.replace(/^(?:ser[ií]a\s+en|ser[ií]a\s+a|seria\s+en|es\s+en|es\s+a|a\s+la\s+calle|calle)\s*[:=;\-–—]?\s*/gi, '');
 
   // 3. Quitar menciones de combos o pedidos al inicio
   a = a.replace(/^(?:quiero|mandame|enviame|traeme|armame)?\s*(?:un\s*)?(?:combo\s*)?(?:asadazo\s*)?(?:para|\ba\b)?\s*/gi, '');
-  a = a.replace(/^(?:a\s+mi\s+domicilio|al\s+domicilio|para\s+env[iÃ­]o|para\s+envio),?\s*/gi, '');
+  a = a.replace(/^(?:a\s+mi\s+domicilio|al\s+domicilio|para\s+env[ií]o|para\s+envio),?\s*/gi, '');
 
   // 4. Quitar datos del cliente o notas de pago que vengan al final
-  a = a.replace(/[,.]?\s*(?:a\s+nombre\s+de|nombre:?|soy|para)\s+[A-Za-zÃÃ‰ÃÃ“ÃšÃ¡Ã©Ã­Ã³ÃºÃ±Ã‘\s]+$/gi, '');
+  a = a.replace(/[,.]?\s*(?:a\s+nombre\s+de|nombre:?|soy|para)\s+[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/gi, '');
   a = a.replace(/[,.]?\s*(?:abono|pago|pagar|abonar)\s+(?:con|en|por)\s+.*$/gi, '');
   a = a.replace(/[,.]?\s*(?:en\s+efectivo|al\s+repartidor|por\s+transferencia|con\s+mp|con\s+tarjeta).*$/gi, '');
   a = a.replace(/[,.]?\s*(?:por\s+favor|gracias|muchas\s+gracias|joya|de\s+diez|avisame|ok).*$/gi, '');
 
-  // 5. Limpieza de puntuaciÃ³n y espacios iniciales y finales
-  a = a.replace(/^[:=;\-\s,â€“â€”!]+/, '').replace(/[:=;\-\s,â€“â€”!]+$/, '').trim();
+  // 5. Limpieza de puntuación y espacios iniciales y finales
+  a = a.replace(/^[:=;\-\s,–—!]+/, '').replace(/[:=;\-\s,–—!]+$/, '').trim();
 
-  // Si despuÃ©s de la limpieza quedÃ³ una direcciÃ³n vÃ¡lida
+  // Si después de la limpieza quedó una dirección válida
   if (a.length >= 4 && !isGarbageAddress(a)) {
     return a;
   }
@@ -871,11 +871,11 @@ export function parseProductsFromItems(items, catalog = null) {
 
   for (const rawItem of items) {
     if (!rawItem || typeof rawItem !== 'string') continue;
-    const cleanItem = rawItem.replace(/^(?:[â€¢*\-\s]+|(?:\d+\.\s*))/, '').trim();
+    const cleanItem = rawItem.replace(/^(?:[•*\-\s]+|(?:\d+\.\s*))/, '').trim();
     if (!cleanItem) continue;
 
-    // 1. Unidades (ej: "4 Unidades de CHORIZO DE CERDO â€” $7.380" o "6 chorizos â€” $3.000")
-    const unitMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:Unidades\s+de\s+|unidades?\s+de\s+|un\s+de\s+|unidades?\s+|un\s+)?(.+?)\s+(?:â€”|-|:)\s+\$?([0-9\.]+)/i);
+    // 1. Unidades (ej: "4 Unidades de CHORIZO DE CERDO — $7.380" o "6 chorizos — $3.000")
+    const unitMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:Unidades\s+de\s+|unidades?\s+de\s+|un\s+de\s+|unidades?\s+|un\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
     if (unitMatch && /(?:Unidades|unidades|un\b)/i.test(cleanItem.slice(0, 20))) {
       const unitCount = parseFloat(unitMatch[1].replace(',', '.'));
       const name = unitMatch[2].trim();
@@ -896,8 +896,8 @@ export function parseProductsFromItems(items, catalog = null) {
       continue;
     }
 
-    // 2. Kilos (ej: "1 kg VacÃ­o Especial Seleccionado â€” $11.500" o "1.5 kilos de asado â€” $15.000")
-    const kgMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:kg|kilos?|kilo)\s+(?:de\s+)?(.+?)\s+(?:â€”|-|:)\s+\$?([0-9\.]+)/i);
+    // 2. Kilos (ej: "1 kg Vacío Especial Seleccionado — $11.500" o "1.5 kilos de asado — $15.000")
+    const kgMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:kg|kilos?|kilo)\s+(?:de\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
     if (kgMatch) {
       const quantity = parseFloat(kgMatch[1].replace(',', '.'));
       const name = kgMatch[2].trim();
@@ -916,8 +916,8 @@ export function parseProductsFromItems(items, catalog = null) {
       continue;
     }
 
-    // 3. GenÃ©rico / Combos / Bolsas / Botellas (ej: "1 bolsa CarbÃ³n Quebracho Blanco (Bolsa Grande) â€” $2.200", "1 combo Asadazo â€” $39.999")
-    const genericMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:([a-zÃ¡Ã©Ã­Ã³ÃºÃ±]+)\s+)?(.+?)\s+(?:â€”|-|:)\s+\$?([0-9\.]+)/i);
+    // 3. Genérico / Combos / Bolsas / Botellas (ej: "1 bolsa Carbón Quebracho Blanco (Bolsa Grande) — $2.200", "1 combo Asadazo — $39.999")
+    const genericMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:([a-záéíóúñ]+)\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
     if (genericMatch) {
       const quantity = parseFloat(genericMatch[1].replace(',', '.'));
       const unit = (genericMatch[2] || 'unidad').trim();
@@ -937,7 +937,7 @@ export function parseProductsFromItems(items, catalog = null) {
       continue;
     }
 
-    // 4. Formato con precio entre parÃ©ntesis: (ej: "1 kg de VacÃ­o Especial Seleccionado ($11.500)")
+    // 4. Formato con precio entre paréntesis: (ej: "1 kg de Vacío Especial Seleccionado ($11.500)")
     const parenMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s*(?:(kg|kilos?|unidades?|bolsas?|combos?)\s+(?:de\s+)?)?(.+?)\s*\(\s*\$?([0-9\.]+)\s*\)/i);
     if (parenMatch) {
       const quantity = parseFloat(parenMatch[1].replace(',', '.'));
@@ -958,7 +958,7 @@ export function parseProductsFromItems(items, catalog = null) {
       continue;
     }
 
-    // 5. Formato sin precio explÃ­cito (ej: "1.5 kg de VacÃ­o Especial", "6 Chorizos Criollos", "1 Bolsa de CarbÃ³n")
+    // 5. Formato sin precio explícito (ej: "1.5 kg de Vacío Especial", "6 Chorizos Criollos", "1 Bolsa de Carbón")
     const catProd = matchBestProduct(cleanItem, catList);
     if (catProd) {
       const parsed = parseQuantityAndMode(cleanItem, catProd);
@@ -980,8 +980,8 @@ export function parseProductsFromItems(items, catalog = null) {
 }
 
 /**
- * Modifica atÃ³micamente los cortes de un pedido existente preservando los cortes previos,
- * incrementando cantidades en caso de suma o quitando/reemplazando segÃºn la solicitud.
+ * Modifica atómicamente los cortes de un pedido existente preservando los cortes previos,
+ * incrementando cantidades en caso de suma o quitando/reemplazando según la solicitud.
  */
 export function applyItemModificationToOrder(existingOrder, rawText, catalog = null, lead = null) {
   const catList = (catalog && catalog.length > 0) ? catalog : (db.getProducts() || []);
@@ -990,15 +990,15 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     : parseProductsFromItems(existingOrder.items || [], catList);
 
   const t = (rawText || '').toLowerCase().trim();
-  const isAddition = /(?:agrega|agreg[aÃ¡]|agregar|agregame|agregale|suma|sum[aÃ¡]|sumar|sumale|sumame|ponele|pon[eÃ©]|sumar\s+\d+|mas\s+\d+|mÃ¡s\s+\d+|sumar\s+\d+\s+chorizo|mas\s+chorizo|mÃ¡s\s+chorizo|sumale\s+tambiÃ©n)/i.test(t);
-  const isRemoval = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aÃ¡](?:le|lo|me)?|quit[aÃ¡](?:le|lo|me)?|sin|elimin[aÃ¡](?:r|le|lo|me)?|borr[aÃ¡](?:r|le|lo|me)?|tach[aÃ¡](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zÃ±Ã¡Ã©Ã­Ã³Ãº\s]+)/i.test(t);
+  const isAddition = /(?:agrega|agreg[aá]|agregar|agregame|agregale|suma|sum[aá]|sumar|sumale|sumame|ponele|pon[eé]|sumar\s+\d+|mas\s+\d+|más\s+\d+|sumar\s+\d+\s+chorizo|mas\s+chorizo|más\s+chorizo|sumale\s+también)/i.test(t);
+  const isRemoval = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?|tach[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.test(t);
 
-  // DetecciÃ³n exhaustiva de reemplazos
+  // Detección exhaustiva de reemplazos
   let oldQuery = null;
   let newQuery = null;
 
-  const replacePattern1 = t.match(/(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:cambi[aÃ¡](?:me|le|lo)?|reemplaz[aÃ¡](?:me|le|lo)?)\s+(?:por|poneme|quiero)\s+(.+)/i);
-  const replacePattern2 = t.match(/(?:cambi[aÃ¡](?:me|le|lo)?|reemplaz[aÃ¡](?:me|le|lo)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i);
+  const replacePattern1 = t.match(/(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:cambi[aá](?:me|le|lo)?|reemplaz[aá](?:me|le|lo)?)\s+(?:por|poneme|quiero)\s+(.+)/i);
+  const replacePattern2 = t.match(/(?:cambi[aá](?:me|le|lo)?|reemplaz[aá](?:me|le|lo)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i);
   const replacePattern3 = t.match(/en\s+vez\s+de\s+(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:poneme|quiero|dame|ponele|por)\s+(.+)/i);
   const replacePattern4 = t.match(/(?:el\s+|la\s+|los\s+|las\s+)?(.+?)\s+(?:quiero\s+que\s+sea|que\s+sea)\s+(?:de\s+)?(.+)/i);
   const replacePattern5 = t.match(/(?:cambialo|reemplazalo)\s+por\s+(.+)/i);
@@ -1027,7 +1027,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     const n2 = (p2.name || '').toLowerCase().trim();
     if (n1 === n2) return true;
 
-    // Distinguir explÃ­citamente Bife de Chorizo de Chorizo criollo/embutido
+    // Distinguir explícitamente Bife de Chorizo de Chorizo criollo/embutido
     const isBife1 = /bife\s+de\s+chorizo/i.test(n1);
     const isBife2 = /bife\s+de\s+chorizo/i.test(n2);
     if (isBife1 !== isBife2) return false;
@@ -1052,20 +1052,20 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     const cutFamilies = [
       /chorizo(?!\s*de\s*bife)/i,
       /morcill/i,
-      /vac[iÃ­]o/i,
+      /vac[ií]o/i,
       /costillar|asado\s+de\s+tira/i,
       /costelet/i,
       /bife\s+de\s+chorizo/i,
       /matambre\s+vacuno/i,
       /matambrito\s+de\s+cerdo/i,
       /tapa\s+de\s+cuadril|picanha/i,
-      /entra[Ã±n]a/i,
+      /entra[ñn]a/i,
       /peceto/i,
       /nalga/i,
       /bola\s+de\s+lomo/i,
       /falda/i,
       /milanes/i,
-      /carb[oÃ³]n/i,
+      /carb[oó]n/i,
       /vino/i
     ];
     for (const fam of cutFamilies) {
@@ -1075,7 +1075,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
   };
 
   if (newQuery) {
-    // Caso Reemplazo especÃ­fico (preservando el resto de los productos intactos)
+    // Caso Reemplazo específico (preservando el resto de los productos intactos)
     let oldProd = null;
     let oldIdx = -1;
 
@@ -1085,7 +1085,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
         oldIdx = currentProds.findIndex(p => isSameProductOrCut(p, oldProd));
       }
     } else {
-      // Reemplazo sin especificar antiguo (reemplazar producto de categorÃ­a similar o primer corte)
+      // Reemplazo sin especificar antiguo (reemplazar producto de categoría similar o primer corte)
       const targetNewProd = matchBestProduct(newQuery, catList);
       if (targetNewProd) {
         oldIdx = currentProds.findIndex(p => isSameProductOrCut(p, targetNewProd));
@@ -1098,7 +1098,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
     if (extractedNew.products.length > 0) {
       const newProdToAdd = extractedNew.products[0];
 
-      // Si el cliente no indicÃ³ cantidad para el nuevo corte, heredar la cantidad del corte anterior
+      // Si el cliente no indicó cantidad para el nuevo corte, heredar la cantidad del corte anterior
       const hasExplicitQtyInNewQuery = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?)|medio\s+kilo|1\/2\s*kg)/i.test(newQuery);
       if (oldProd && !hasExplicitQtyInNewQuery) {
         newProdToAdd.quantity = oldProd.quantity || 1;
@@ -1135,7 +1135,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
       }
     }
   } else if (isRemoval) {
-    const removeQuery = t.replace(/(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aÃ¡](?:le|lo|me)?|quit[aÃ¡](?:le|lo|me)?|sin|elimin[aÃ¡](?:r|le|lo|me)?|borr[aÃ¡](?:r|le|lo|me)?|tach[aÃ¡](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?/i, '').trim();
+    const removeQuery = t.replace(/(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aá](?:le|lo|me)?|quit[aá](?:le|lo|me)?|sin|elimin[aá](?:r|le|lo|me)?|borr[aá](?:r|le|lo|me)?|tach[aá](?:r|le|lo|me)?)\s+(?:el\s+|la\s+|los\s+|las\s+)?/i, '').trim();
     const cleanRemove = removeQuery.toLowerCase();
     let idx = currentProds.findIndex(p => {
       const pn = (p.name || '').toLowerCase();
@@ -1145,7 +1145,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
       if (/matambre.*cerdo|matambrito/i.test(cleanRemove) && /matambre.*cerdo|matambrito/i.test(pn)) return true;
       if (/matambre.*vaca|matambre.*vacuno/i.test(cleanRemove) && /matambre.*vaca|matambre.*vacuno/i.test(pn)) return true;
       if (/chorizo/i.test(cleanRemove) && !/bife/i.test(cleanRemove) && /chorizo/i.test(pn) && !/bife/i.test(pn)) return true;
-      if (/carbon|carbÃ³n/i.test(cleanRemove) && /carbon|carbÃ³n/i.test(pn)) return true;
+      if (/carbon|carbón/i.test(cleanRemove) && /carbon|carbón/i.test(pn)) return true;
       return false;
     });
 
@@ -1160,7 +1160,7 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
       currentProds.splice(idx, 1);
     }
   } else {
-    // Ajuste de producto existente o reemplazo especÃ­fico
+    // Ajuste de producto existente o reemplazo específico
     const extracted = extractItemsFromHistoryAndText([], rawText, catList, lead);
     if (extracted.products.length > 0 && currentProds.length > 0) {
       for (const np of extracted.products) {
@@ -1191,14 +1191,14 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
   for (const prod of currentProds) {
     const sub = prod.subtotal || Math.round((prod.price || 0) * (prod.quantity || 1));
     if (prod.unit === 'kg' && prod.isUnitMode && prod.unitCount > 0) {
-      items.push(`â€¢ ${prod.unitCount} Unidades de ${prod.name} â€” $${sub.toLocaleString('es-AR')}`);
+      items.push(`• ${prod.unitCount} Unidades de ${prod.name} — $${sub.toLocaleString('es-AR')}`);
     } else if (prod.unit !== 'kg') {
       const cleanProdName = prod.name.toLowerCase().startsWith(prod.unit.toLowerCase()) 
         ? prod.name 
         : `${prod.unit} ${prod.name}`;
-      items.push(`â€¢ ${prod.quantity} ${cleanProdName} â€” $${sub.toLocaleString('es-AR')}`);
+      items.push(`• ${prod.quantity} ${cleanProdName} — $${sub.toLocaleString('es-AR')}`);
     } else {
-      items.push(`â€¢ ${prod.quantity} kg ${prod.name} â€” $${sub.toLocaleString('es-AR')}`);
+      items.push(`• ${prod.quantity} kg ${prod.name} — $${sub.toLocaleString('es-AR')}`);
     }
     total += sub;
   }
@@ -1207,21 +1207,21 @@ export function applyItemModificationToOrder(existingOrder, rawText, catalog = n
 }
 
 /**
- * Extrae los productos y cantidades definidos dentro de una opciÃ³n numerada del mensaje previo del bot
+ * Extrae los productos y cantidades definidos dentro de una opción numerada del mensaje previo del bot
  */
 export function extractOptionItemsFromAgentMessage(optionNum, agentMessage, catalog) {
   if (!agentMessage || !optionNum) return [];
   const lines = agentMessage.split('\n');
-  const optEmoji = ['1ï¸âƒ£', '2ï¸âƒ£', '3ï¸âƒ£', '4ï¸âƒ£', '5ï¸âƒ£', '6ï¸âƒ£', '7ï¸âƒ£', '8ï¸âƒ£', '9ï¸âƒ£', 'ðŸ”Ÿ'][optionNum - 1] || `${optionNum}ï¸âƒ£`;
-  const optHeaderRegex = new RegExp(`(?:${optEmoji}|\\b${optionNum}[\\.\\)\\:\\-]|\\bOpci[oÃ³]n\\s+${optionNum}\\b)`, 'i');
+  const optEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][optionNum - 1] || `${optionNum}️⃣`;
+  const optHeaderRegex = new RegExp(`(?:${optEmoji}|\\b${optionNum}[\\.\\)\\:\\-]|\\bOpci[oó]n\\s+${optionNum}\\b)`, 'i');
   
   let inOptionBlock = false;
   let optionLines = [];
 
   for (const line of lines) {
     const isHeaderOfThisOption = optHeaderRegex.test(line);
-    const isHeaderOfOtherOption = /(?:[1-9]|1[0-9])ï¸âƒ£|\b(?:[1-9]|1[0-9])[\\.\\)\\:\\-]\s+\*|\bOpci[oÃ³]n\s+[1-9]\b/i.test(line) && !isHeaderOfThisOption;
-    const isClosingOrTotal = /ðŸ’°|\bTotal:|\bSubtotal:|\bÂ¿Con cu[aÃ¡]l\b|\bÂ¿Por d[oÃ³]nde\b|\bÂ¿C[oÃ³]mo prefer[iÃ­]s\b/i.test(line);
+    const isHeaderOfOtherOption = /(?:[1-9]|1[0-9])️⃣|\b(?:[1-9]|1[0-9])[\\.\\)\\:\\-]\s+\*|\bOpci[oó]n\s+[1-9]\b/i.test(line) && !isHeaderOfThisOption;
+    const isClosingOrTotal = /💰|\bTotal:|\bSubtotal:|\b¿Con cu[aá]l\b|\b¿Por d[oó]nde\b|\b¿C[oó]mo prefer[ií]s\b/i.test(line);
 
     if (isHeaderOfThisOption) {
       inOptionBlock = true;
@@ -1238,9 +1238,9 @@ export function extractOptionItemsFromAgentMessage(optionNum, agentMessage, cata
   }
 
   const items = [];
-  // 1. Extraer Ã­tems con viÃ±etas dentro del bloque de esta opciÃ³n
+  // 1. Extraer ítems con viñetas dentro del bloque de esta opción
   for (const line of optionLines) {
-    const cleanLine = line.replace(/^[â€¢\-\*\s]+/, '').trim();
+    const cleanLine = line.replace(/^[•\-\*\s]+/, '').trim();
     if (!cleanLine) continue;
     const prod = matchBestProduct(cleanLine, catalog);
     if (prod && !items.some(it => it.prod.id === prod.id || it.prod.name.toLowerCase() === prod.name.toLowerCase())) {
@@ -1256,9 +1256,9 @@ export function extractOptionItemsFromAgentMessage(optionNum, agentMessage, cata
     }
   }
 
-  // 2. Si no habÃ­a viÃ±etas internas pero el encabezado contenÃ­a un producto (ej: 1ï¸âƒ£ [PLU 4] Costillar...)
+  // 2. Si no había viñetas internas pero el encabezado contenía un producto (ej: 1️⃣ [PLU 4] Costillar...)
   if (items.length === 0 && optionLines.length > 0) {
-    const headerLine = optionLines[0].replace(/^(?:[1-9]ï¸âƒ£|\b[1-9][\.\)\:\-]\s*|\bOpci[oÃ³]n\s+[1-9]\b)/i, '').trim();
+    const headerLine = optionLines[0].replace(/^(?:[1-9]️⃣|\b[1-9][\.\)\:\-]\s*|\bOpci[oó]n\s+[1-9]\b)/i, '').trim();
     const prod = matchBestProduct(headerLine, catalog);
     if (prod) {
       const parsed = parseQuantityAndMode(headerLine, prod);
@@ -1277,29 +1277,29 @@ export function extractOptionItemsFromAgentMessage(optionNum, agentMessage, cata
 }
 
 /**
- * Extrae con precisiÃ³n los cortes y cantidades pedidos a lo largo de la conversaciÃ³n actual, sin duplicar
+ * Extrae con precisión los cortes y cantidades pedidos a lo largo de la conversación actual, sin duplicar
  */
 export function extractItemsFromHistoryAndText(history, text, products, lead = null) {
-  const isCorrection = /corregi|corregÃ­|corrije|corrijÃ­|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste|te dije|te ped[iÃ­]|era solo|dije/i.test(text || '');
-  const isAddition = /agrega|agregÃ¡|agregar|agregame|agregale|suma|sumÃ¡|sumar|sumale|sumame|sumar|ademas|ademÃ¡s|tambien|tambiÃ©n|sumale tambiÃ©n|mas los|mÃ¡s los|mas 1|mas 2|y los|y las|y 1|y 2/i.test(text || '');
-  const isHardReset = /est[aÃ¡]\s+mal|no\s+es\s+eso|te\s+equivocaste|eso\s+no\s+es|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrÃ¡ todo|armar un nuevo|pedir otra cosa/i.test(text || '');
+  const isCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|corregilo|corrijelo|arregla|arreglame|cambia|cambiame|modifica|modificame|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de|me equivoque|te equivocaste|te dije|te ped[ií]|era solo|dije/i.test(text || '');
+  const isAddition = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2/i.test(text || '');
+  const isHardReset = /est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|eso\s+no\s+es|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrá todo|armar un nuevo|pedir otra cosa/i.test(text || '');
 
   const catalog = (products && products.length > 0) ? products : getDynamicCatalog();
   const historyArr = history || [];
 
-  // Encontrar el inicio de la sesiÃ³n actual de pedido en el historial
+  // Encontrar el inicio de la sesión actual de pedido en el historial
   let lastBoundaryIdx = -1;
   let boundaryIsUserStart = false;
   for (let i = historyArr.length - 1; i >= 0; i--) {
     const m = historyArr[i];
     if (m.sender === 'bot' || m.sender === 'agent' || m.fromMe) {
-      if (/(?:Ya generamos tu orden de compra|Hemos cancelado tu pedido|cancelado tu pedido|No registrÃ¡s ningÃºn pedido activo|Marcamos tu pedido .* como âœ… Entregado|Â¿Te gustarÃ­a armar otro pedido\?|disculpame la confusiÃ³n)/i.test(m.content || '')) {
+      if (/(?:Ya generamos tu orden de compra|Hemos cancelado tu pedido|cancelado tu pedido|No registrás ningún pedido activo|Marcamos tu pedido .* como ✅ Entregado|¿Te gustaría armar otro pedido\?|disculpame la confusión)/i.test(m.content || '')) {
         lastBoundaryIdx = i;
         boundaryIsUserStart = false;
         break;
       }
     } else if (m.sender === 'user') {
-      if (/est[aÃ¡]\s+mal|no\s+es\s+eso|te\s+equivocaste|cancela.*ped|cancelar.*ped|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|pedir otra cosa/i.test(m.content || '')) {
+      if (/est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|cancela.*ped|cancelar.*ped|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|pedir otra cosa/i.test(m.content || '')) {
         lastBoundaryIdx = i;
         boundaryIsUserStart = true;
         break;
@@ -1307,7 +1307,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     }
   }
 
-  // Tomar solo mensajes pertenecientes a la sesiÃ³n activa
+  // Tomar solo mensajes pertenecientes a la sesión activa
   const relevantHistory = isHardReset
     ? []
     : (lastBoundaryIdx >= 0 
@@ -1344,26 +1344,26 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     if (!msg) continue;
     const cleanMsg = msg.replace(/[,\.!\?]+/g, ' ').trim();
     const isPureGreeting = /^(hola|buen|buenas|que tal|saludos|hey|alo|buenos dias|buenas tardes|buenas noches)$/i.test(cleanMsg);
-    const isPureConfirm = /^(s[iÃ­]|correcto|confirmar|confirmo|dale|est[aÃ¡] bien|perfecto|de diez|avanza|ok|ok dale|si dale|s[iÃ­] dale)$/i.test(cleanMsg);
+    const isPureConfirm = /^(s[ií]|correcto|confirmar|confirmo|dale|est[aá] bien|perfecto|de diez|avanza|ok|ok dale|si dale|s[ií] dale)$/i.test(cleanMsg);
     const isPureAddress = !isPureGreeting && !isPureConfirm && !/(?:kilo|kg|combo|asadazo|chori|morcilla|carne|corte|promo|costill|vacio|unidad|chorizo)/i.test(msg) && (/(?:calle|av\.|avenida|bv\.|funes|locelso|pidal|quiros|alamos|alcorta|luchesse)/i.test(msg) || /^[a-zA-Z\s]+\s+[0-9]{2,5}$/.test(msg));
 
     if (isPureGreeting || isPureConfirm || isPureAddress) {
       continue;
     }
 
-    // Si el mensaje es un reinicio o cancelaciÃ³n de pedido anterior
-    const isMsgReset = /est[aÃ¡]\s+mal|no\s+es\s+eso|te\s+equivocaste|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrÃ¡ todo|armar un nuevo|cancelar el pedido|cancela el pedido|pedir otra cosa/i.test(msg);
+    // Si el mensaje es un reinicio o cancelación de pedido anterior
+    const isMsgReset = /est[aá]\s+mal|no\s+es\s+eso|te\s+equivocaste|nuevo ped|otro ped|(?:empezar|empecemos|arrancar|arranquemos|hacer|hacelo)\s+de\s+cero|empecemos de nuevo|arranquemos de nuevo|borra todo|borrá todo|armar un nuevo|cancelar el pedido|cancela el pedido|pedir otra cosa/i.test(msg);
     if (isMsgReset) {
       activeItemsMap.clear();
       continue;
     }
 
-    // DetecciÃ³n de aceptaciÃ³n de propuesta de sustituciÃ³n (bot ofreciÃ³ alternativa disponible ante corte no disponible)
+    // Detección de aceptación de propuesta de sustitución (bot ofreció alternativa disponible ante corte no disponible)
     const isSubOfferInPrev = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(prevAgentMsg);
     if (isSubOfferInPrev) {
-      const isAffirmativeSub = /^(?:s[iÃ­]|dale|bueno|perfecto|joya|de diez|si dale|dale si|si quiero|ese me sirve|quiero ese|si por favor|si claro|avanza|anotamelo|anÃ³tamelo|pasame ese|cambiame por ese|si ese|ese est[aÃ¡] bien|me sirve ese|dale pasame|si preparame|preparame ese)$/i.test(cleanMsg) ||
-        /(?:si quiero|dale si|si dale|pasame ese|quiero ese|cambiame por ese|anotame ese|anÃ³tame ese|prepÃ¡rame ese|preparame ese|si dale, preparame|preparame \d+)/i.test(cleanMsg);
-      const isNegativeSub = /^(?:no|no gracias|no dej[aÃ¡]|no deja|dejalo as[iÃ­]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)\b/i.test(cleanMsg);
+      const isAffirmativeSub = /^(?:s[ií]|dale|bueno|perfecto|joya|de diez|si dale|dale si|si quiero|ese me sirve|quiero ese|si por favor|si claro|avanza|anotamelo|anótamelo|pasame ese|cambiame por ese|si ese|ese est[aá] bien|me sirve ese|dale pasame|si preparame|preparame ese)$/i.test(cleanMsg) ||
+        /(?:si quiero|dale si|si dale|pasame ese|quiero ese|cambiame por ese|anotame ese|anótame ese|prepárame ese|preparame ese|si dale, preparame|preparame \d+)/i.test(cleanMsg);
+      const isNegativeSub = /^(?:no|no gracias|no dej[aá]|no deja|dejalo as[ií]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)\b/i.test(cleanMsg);
 
       // Eliminar de activeItemsMap cualquier corte no disponible previo
       for (const [key] of activeItemsMap.entries()) {
@@ -1404,15 +1404,15 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    // Si el mensaje es una consulta o pedido inicial de un corte fuera de catÃ¡logo / no disponible
-    const isUnavailableInquiry = /^(?:hola|buenas|que tal|buen d[iÃ­]a)?\s*(?:ten[eÃ©]s|hay|tenes|tenÃ©s|vendes|vend[eÃ©]s)?\s*(?:\d+\s*(?:kg|kilos?)?\s+de\s+)?(?:lomo|ojo de bife|bife ancho|t-bone|picanha|colita de cuadril|osobuco|molleja)\??$/i.test(cleanMsg) ||
-      (/(?:lomo|ojo de bife|bife ancho|t-bone|picanha|colita de cuadril|osobuco|molleja)/i.test(cleanMsg) && /(?:ten[eÃ©]s|vendes|vend[eÃ©]s|hay|cuanto|precio|sale|cuesta)\b/i.test(cleanMsg));
+    // Si el mensaje es una consulta o pedido inicial de un corte fuera de catálogo / no disponible
+    const isUnavailableInquiry = /^(?:hola|buenas|que tal|buen d[ií]a)?\s*(?:ten[eé]s|hay|tenes|tenés|vendes|vend[eé]s)?\s*(?:\d+\s*(?:kg|kilos?)?\s+de\s+)?(?:lomo|ojo de bife|bife ancho|t-bone|picanha|colita de cuadril|osobuco|molleja)\??$/i.test(cleanMsg) ||
+      (/(?:lomo|ojo de bife|bife ancho|t-bone|picanha|colita de cuadril|osobuco|molleja)/i.test(cleanMsg) && /(?:ten[eé]s|vendes|vend[eé]s|hay|cuanto|precio|sale|cuesta)\b/i.test(cleanMsg));
     if (isUnavailableInquiry) {
       continue;
     }
 
-    // DetecciÃ³n de reemplazo de Ã­tems (ej: "cambiame el asado por 2 kg de vacÃ­o", "en vez de chorizos poneme morcillas")
-    const isReplaceMatch = /(?:cambi[aÃ¡](?:me)?|en\s+vez\s+(?:de|del)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(cleanMsg);
+    // Detección de reemplazo de ítems (ej: "cambiame el asado por 2 kg de vacío", "en vez de chorizos poneme morcillas")
+    const isReplaceMatch = /(?:cambi[aá](?:me)?|en\s+vez\s+(?:de|del)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(cleanMsg);
     if (isReplaceMatch) {
       const oldQuery = isReplaceMatch[1].trim().toLowerCase().replace(/^(?:el|la|los|las)\s+/, '').trim();
       const newQuery = isReplaceMatch[2].trim();
@@ -1427,8 +1427,8 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
           (/matambre/i.test(oldQuery) && /matambre/i.test(lowerKey)) ||
           (/costilla|costillar|asado/i.test(oldQuery) && /costilla|costillar|asado/i.test(lowerKey)) ||
           (/chorizo/i.test(oldQuery) && !/bife/i.test(oldQuery) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
-          (/vacio|vacÃ­o/i.test(oldQuery) && /vacio|vacÃ­o/i.test(lowerKey)) ||
-          (/carbon|carbÃ³n/i.test(oldQuery) && /carbon|carbÃ³n/i.test(lowerKey))
+          (/vacio|vacío/i.test(oldQuery) && /vacio|vacío/i.test(lowerKey)) ||
+          (/carbon|carbón/i.test(oldQuery) && /carbon|carbón/i.test(lowerKey))
         ) {
           activeItemsMap.delete(key);
         }
@@ -1449,8 +1449,8 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       continue;
     }
 
-    // DetecciÃ³n de eliminaciÃ³n explÃ­cita de un Ã­tem (ej: "sacÃ¡ el carbÃ³n", "sin chorizos", "no quiero el bife de chorizo")
-    const isRemoveMatch = /^(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aÃ¡]|sacame|quit[aÃ¡]|quitame|sin\s+|elimin[aÃ¡]|borr[aÃ¡])\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zÃ±Ã¡Ã©Ã­Ã³Ãº\s]+)$/i.exec(cleanMsg);
+    // Detección de eliminación explícita de un ítem (ej: "sacá el carbón", "sin chorizos", "no quiero el bife de chorizo")
+    const isRemoveMatch = /^(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sac[aá]|sacame|quit[aá]|quitame|sin\s+|elimin[aá]|borr[aá])\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)$/i.exec(cleanMsg);
     if (isRemoveMatch && !/pedido|todo|nada/i.test(cleanMsg)) {
       const removeQuery = isRemoveMatch[1].trim();
       const cleanRemove = removeQuery.toLowerCase();
@@ -1462,24 +1462,24 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
             (/matambre.*cerdo|matambrito/i.test(cleanRemove) && /matambre.*cerdo|matambrito/i.test(lowerKey)) ||
             (/matambre.*vaca|matambre.*vacuno/i.test(cleanRemove) && /matambre.*vaca|matambre.*vacuno/i.test(lowerKey)) ||
             (/chorizo/i.test(cleanRemove) && !/bife/i.test(cleanRemove) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
-            (/carbon|carbÃ³n/i.test(cleanRemove) && /carbon|carbÃ³n/i.test(lowerKey))) {
+            (/carbon|carbón/i.test(cleanRemove) && /carbon|carbón/i.test(lowerKey))) {
           activeItemsMap.delete(key);
         }
       }
       continue;
     }
 
-    // DetecciÃ³n de selecciÃ³n de opciones de Asado / MenÃº Recomendado / CatÃ¡logo numerado
-    const optionSelectionMatch = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oÃ³]n\s*([1-9]|1[0-9]|20)\b|^(?:[1-9]|1[0-9]|20|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|7ï¸âƒ£|8ï¸âƒ£|9ï¸âƒ£|ðŸ”Ÿ|la\s+[1-9]|el\s+[1-9]|clasica|clÃ¡sica|combo|asadazo|gourmet)$/i.exec(cleanMsg);
-    const isOptionsOfferedInPrev = /1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|MirÃ¡ las opciones|Te armÃ© 3 opciones|Â¿Con cuÃ¡l opciÃ³n/i.test(prevAgentMsg);
+    // Detección de selección de opciones de Asado / Menú Recomendado / Catálogo numerado
+    const optionSelectionMatch = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-9]|1[0-9]|20)\b|^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|la\s+[1-9]|el\s+[1-9]|clasica|clásica|combo|asadazo|gourmet)$/i.exec(cleanMsg);
+    const isOptionsOfferedInPrev = /1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|Mirá las opciones|Te armé 3 opciones|¿Con cuál opción/i.test(prevAgentMsg);
 
     if (optionSelectionMatch && isOptionsOfferedInPrev) {
       let selectedOptionNum = 1;
       if (optionSelectionMatch[1]) {
         selectedOptionNum = parseInt(optionSelectionMatch[1], 10);
-      } else if (/2|2ï¸âƒ£|combo|asadazo/i.test(cleanMsg)) {
+      } else if (/2|2️⃣|combo|asadazo/i.test(cleanMsg)) {
         selectedOptionNum = 2;
-      } else if (/3|3ï¸âƒ£|gourmet/i.test(cleanMsg)) {
+      } else if (/3|3️⃣|gourmet/i.test(cleanMsg)) {
         selectedOptionNum = 3;
       } else {
         const numMatch = cleanMsg.match(/([1-9]|1[0-9]|20)/);
@@ -1493,11 +1493,11 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
           activeItemsMap.set(itm.prod.name, itm);
         }
 
-        // Â¿El mensaje tiene instrucciones adicionales de suma, resta o modificaciÃ³n combinada?
-        // Ejemplo: "quiero la opcion 1 pero suma 2 chorizos de cerdo", "la 1 y sacale el carbon", "la 1 pero en vez de vacÃ­o poneme matambre"
-        const hasExtraClause = /(?:pero\s+|y\s+|mas\s+|mÃ¡s\s+|con\s+|ademas\s+|ademÃ¡s\s+|sin\s+|en\s+vez|cambia)/i.test(cleanMsg);
+        // ¿El mensaje tiene instrucciones adicionales de suma, resta o modificación combinada?
+        // Ejemplo: "quiero la opcion 1 pero suma 2 chorizos de cerdo", "la 1 y sacale el carbon", "la 1 pero en vez de vacío poneme matambre"
+        const hasExtraClause = /(?:pero\s+|y\s+|mas\s+|más\s+|con\s+|ademas\s+|además\s+|sin\s+|en\s+vez|cambia)/i.test(cleanMsg);
         if (hasExtraClause) {
-          // 1. DetecciÃ³n de reemplazo en la misma frase (ej: "en vez de vacio poneme 2 kg de matambre", "cambia el vacio por matambre")
+          // 1. Detección de reemplazo en la misma frase (ej: "en vez de vacio poneme 2 kg de matambre", "cambia el vacio por matambre")
           const replaceSubMatch = /(?:pero\s+|y\s+)?(?:en\s+vez\s+(?:de|del)?|cambia(?:me)?)\s+(.+?)\s+(?:por|poneme|quiero)\s+(.+)/i.exec(cleanMsg);
           if (replaceSubMatch) {
             const oldQ = replaceSubMatch[1].trim().toLowerCase().replace(/^(?:el|la|los|las)\s+/, '').trim();
@@ -1507,10 +1507,10 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
               const lowerKey = key.toLowerCase();
               if ((oldProd && (key === oldProd.name || lowerKey.includes(oldProd.name.toLowerCase()) || oldProd.name.toLowerCase().includes(lowerKey))) ||
                   lowerKey.includes(oldQ) || oldQ.includes(lowerKey) ||
-                  (/vacio|vacÃ­o/i.test(oldQ) && /vacio|vacÃ­o/i.test(lowerKey)) ||
+                  (/vacio|vacío/i.test(oldQ) && /vacio|vacío/i.test(lowerKey)) ||
                   (/costilla|asado/i.test(oldQ) && /costilla|asado/i.test(lowerKey)) ||
                   (/chorizo/i.test(oldQ) && /chorizo/i.test(lowerKey)) ||
-                  (/carbon|carbÃ³n/i.test(oldQ) && /carbon|carbÃ³n/i.test(lowerKey))) {
+                  (/carbon|carbón/i.test(oldQ) && /carbon|carbón/i.test(lowerKey))) {
                 activeItemsMap.delete(key);
               }
             }
@@ -1529,23 +1529,23 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
             }
           }
 
-          // 2. DetecciÃ³n de remociÃ³n adicional en la misma frase (ej: "pero sin carbÃ³n", "sacale los chorizos")
-          const removeSubMatch = /(?:pero\s+|y\s+)?(?:sacale|sacame|sin|quitar|quita|quitale|quitame|no\s+le\s+pongas|no\s+quiero)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zÃ±Ã¡Ã©Ã­Ã³Ãº\s]+)/i.exec(cleanMsg);
+          // 2. Detección de remoción adicional en la misma frase (ej: "pero sin carbón", "sacale los chorizos")
+          const removeSubMatch = /(?:pero\s+|y\s+)?(?:sacale|sacame|sin|quitar|quita|quitale|quitame|no\s+le\s+pongas|no\s+quiero)\s+(?:el\s+|la\s+|los\s+|las\s+)?([a-zñáéíóú\s]+)/i.exec(cleanMsg);
           if (removeSubMatch) {
             const cutToRemove = removeSubMatch[1].trim().toLowerCase();
             for (const key of Array.from(activeItemsMap.keys())) {
               const lowerKey = key.toLowerCase();
               if (lowerKey.includes(cutToRemove) || cutToRemove.includes(lowerKey) ||
-                  (/carbon|carbÃ³n/i.test(cutToRemove) && /carbon|carbÃ³n/i.test(lowerKey)) ||
+                  (/carbon|carbón/i.test(cutToRemove) && /carbon|carbón/i.test(lowerKey)) ||
                   (/chorizo/i.test(cutToRemove) && !/bife/i.test(cutToRemove) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
-                  (/vacio|vacÃ­o/i.test(cutToRemove) && /vacio|vacÃ­o/i.test(lowerKey))) {
+                  (/vacio|vacío/i.test(cutToRemove) && /vacio|vacío/i.test(lowerKey))) {
                 activeItemsMap.delete(key);
               }
             }
           }
 
-          // 3. DetecciÃ³n de suma/adiciÃ³n en la misma frase (ej: "pero suma 2 chorizos de cerdo", "y agregale 1 bolsa de carbÃ³n")
-          const addSubMatch = /(?:pero\s+|y\s+|con\s+|ademas\s+|ademÃ¡s\s+)?(?:suma|sumale|sumame|sumar|agrega|agregale|agregame|agregar|ponele|poneme|mas|mÃ¡s)\s+(.+)/i.exec(cleanMsg);
+          // 3. Detección de suma/adición en la misma frase (ej: "pero suma 2 chorizos de cerdo", "y agregale 1 bolsa de carbón")
+          const addSubMatch = /(?:pero\s+|y\s+|con\s+|ademas\s+|además\s+)?(?:suma|sumale|sumame|sumar|agrega|agregale|agregame|agregar|ponele|poneme|mas|más)\s+(.+)/i.exec(cleanMsg);
           if (addSubMatch) {
             const addQuery = addSubMatch[1].trim();
             const addedProd = matchBestProduct(addQuery, catalog);
@@ -1581,23 +1581,23 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    // DetecciÃ³n de respuesta directa a consulta previa de cantidad de un producto
-    const isQuantityPromptInPrev = /Â¿QuÃ© cantidad|Â¿CuÃ¡ntos kilos|Â¿CuÃ¡ntas unidades|Â¿QuÃ© cantidad de combos|Â¿CuÃ¡ntas bolsas|Â¿CuÃ¡ntas botellas|Â¿QuÃ© cantidad te preparamos|Por Unidades:.*Por Kilos/i.test(prevAgentMsg);
+    // Detección de respuesta directa a consulta previa de cantidad de un producto
+    const isQuantityPromptInPrev = /¿Qué cantidad|¿Cuántos kilos|¿Cuántas unidades|¿Qué cantidad de combos|¿Cuántas bolsas|¿Cuántas botellas|¿Qué cantidad te preparamos|Por Unidades:.*Por Kilos/i.test(prevAgentMsg);
     if (isQuantityPromptInPrev) {
       const targetProd = matchBestProduct(prevAgentMsg, catalog);
       const mentionedDifferentProd = matchBestProduct(msg, catalog);
-      const isAdditionOrDifferentCut = (mentionedDifferentProd && mentionedDifferentProd.name !== targetProd?.name) || (/agrega|agregÃ¡|suma|sumÃ¡|sumale|sumame|ponele|y\b|tambien|tambiÃ©n|mas\b/i.test(msg) && mentionedDifferentProd);
+      const isAdditionOrDifferentCut = (mentionedDifferentProd && mentionedDifferentProd.name !== targetProd?.name) || (/agrega|agregá|suma|sumá|sumale|sumame|ponele|y\b|tambien|también|mas\b/i.test(msg) && mentionedDifferentProd);
 
       if (targetProd && !isAdditionOrDifferentCut) {
         const parsed = parseQuantityAndMode(msg, targetProd);
         
-        // Limpiar cualquier Ã­tem genÃ©rico similar antes de asentar
+        // Limpiar cualquier ítem genérico similar antes de asentar
         for (const key of Array.from(activeItemsMap.keys())) {
           const lowerKey = key.toLowerCase();
           const lowerTarget = targetProd.name.toLowerCase();
           if (key !== targetProd.name) {
             if ((/chorizo|chori/i.test(lowerKey) && /chorizo|chori/i.test(lowerTarget)) ||
-                (/vacio|vacÃ­o/i.test(lowerKey) && /vacio|vacÃ­o/i.test(lowerTarget)) ||
+                (/vacio|vacío/i.test(lowerKey) && /vacio|vacío/i.test(lowerTarget)) ||
                 (/cuadril|tapa/i.test(lowerKey) && /cuadril|tapa/i.test(lowerTarget)) ||
                 (/matambre/i.test(lowerKey) && /matambre/i.test(lowerTarget)) ||
                 (/costilla|asado/i.test(lowerKey) && /costilla|asado/i.test(lowerTarget)) ||
@@ -1617,7 +1617,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
         });
         continue;
       } else if (targetProd && isAdditionOrDifferentCut) {
-        // Si el cliente en vez de dar la cantidad del producto actual, pidiÃ³ SUMAR otro producto (ej: "agrega 6 chorizos")
+        // Si el cliente en vez de dar la cantidad del producto actual, pidió SUMAR otro producto (ej: "agrega 6 chorizos")
         // Asentamos el producto previo con su cantidad por defecto (1 combo / 1 kg) si no estaba ya asentado
         if (!activeItemsMap.has(targetProd.name)) {
           const isCombo = (targetProd.unit || '').toLowerCase() === 'combo';
@@ -1638,11 +1638,11 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    // DetecciÃ³n de selecciÃ³n por nÃºmero de catÃ¡logo o desambiguaciÃ³n (ej: "1", "2", "la 1", "opciÃ³n 1")
-    const isSingleCatalogNumber = /^(?:[1-9]|1[0-9]|20|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|7ï¸âƒ£|8ï¸âƒ£|9ï¸âƒ£|ðŸ”Ÿ|la\s+[1-9]|el\s+[1-9]|opci[oÃ³]n\s+[1-9])$/i.test(cleanMsg);
+    // Detección de selección por número de catálogo o desambiguación (ej: "1", "2", "la 1", "opción 1")
+    const isSingleCatalogNumber = /^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|la\s+[1-9]|el\s+[1-9]|opci[oó]n\s+[1-9])$/i.test(cleanMsg);
     if (isSingleCatalogNumber && !isQuantityPromptInPrev) {
-      const isCatalogOfferedInPrev = /1ï¸âƒ£.*(?:Combo|Tapa|VacÃ­o|Vacio|Costillar|Bife|EntraÃ±a|Matambrito|Matambre|Milanesa|Chorizo|Chori|Pata)|OFERTAS Y CORTES|cortes estrella|mejores promos|MirÃ¡ las opciones especiales|cortes y combos que estÃ¡n saliendo|En mostrador tenemos varias opciones|Â¿CuÃ¡l de estas opciones preferÃ­s/i.test(prevAgentMsg);
-      const isNonCatalogPrompt = /Â¿CÃ³mo preferÃ­s abonar|1ï¸âƒ£.*Efectivo|FICHA DE REGISTRO|Â¿Confirmamos estos datos|Â¿CÃ³mo preferÃ­s recibir tu pedido|1ï¸âƒ£.*Env[iÃ­]o a Domicilio|1ï¸âƒ£.*Coordinar \*EnvÃ­o a Domicilio\*|ElegÃ­ la sucursal|1ï¸âƒ£.*Urca Central|Â¿PrecisÃ¡s algo de tu pedido\?|1ï¸âƒ£.*Consultar estado|Opciones rÃ¡pidas/i.test(prevAgentMsg);
+      const isCatalogOfferedInPrev = /1️⃣.*(?:Combo|Tapa|Vacío|Vacio|Costillar|Bife|Entraña|Matambrito|Matambre|Milanesa|Chorizo|Chori|Pata)|OFERTAS Y CORTES|cortes estrella|mejores promos|Mirá las opciones especiales|cortes y combos que están saliendo|En mostrador tenemos varias opciones|¿Cuál de estas opciones preferís/i.test(prevAgentMsg);
+      const isNonCatalogPrompt = /¿Cómo preferís abonar|1️⃣.*Efectivo|FICHA DE REGISTRO|¿Confirmamos estos datos|¿Cómo preferís recibir tu pedido|1️⃣.*Env[ií]o a Domicilio|1️⃣.*Coordinar \*Envío a Domicilio\*|Elegí la sucursal|1️⃣.*Urca Central|¿Precisás algo de tu pedido\?|1️⃣.*Consultar estado|Opciones rápidas/i.test(prevAgentMsg);
 
       if (isCatalogOfferedInPrev && !isNonCatalogPrompt) {
         const numMatch = cleanMsg.match(/([1-9]|1[0-9]|20)/);
@@ -1652,7 +1652,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
         let displayedList = [];
         const lines = prevAgentMsg.split('\n');
         for (const line of lines) {
-          if (/[1-9]ï¸âƒ£|\[\d+\]/.test(line)) {
+          if (/[1-9]️⃣|\[\d+\]/.test(line)) {
             const matchedProd = matchBestProduct(line, catalog);
             if (matchedProd && !displayedList.some(p => p.id === matchedProd.id || p.name === matchedProd.name)) {
               displayedList.push(matchedProd);
@@ -1670,7 +1670,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
             ? parseQuantityAndMode(cleanMsg, chosenProd) 
             : { quantity: 1, isUnitMode: (chosenProd.unit || '').toLowerCase() === 'combo', unitCount: 1, unitsPerKg: chosenProd.unitsPerKg || 1, label: (chosenProd.unit || '').toLowerCase() === 'combo' ? '1 combo' : '1 kg' };
 
-          // Si no traÃ­a cantidad explÃ­cita en este mensaje, buscar si venÃ­a pidiendo una cantidad previa
+          // Si no traía cantidad explícita en este mensaje, buscar si venía pidiendo una cantidad previa
           if (!hasExplicitQtyInMsg) {
             for (let uIdx = msgIdx - 1; uIdx >= 0; uIdx--) {
               const uMsg = userMessagesWithContext[uIdx].content || '';
@@ -1685,13 +1685,13 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
             }
           }
 
-          // Si el mensaje fue solo el nÃºmero de opciÃ³n sin cantidad y es el Ãºltimo mensaje, no fijar 1 kg prematuro
+          // Si el mensaje fue solo el número de opción sin cantidad y es el último mensaje, no fijar 1 kg prematuro
           const isLastUserMsg = msgIdx === userMessagesWithContext.length - 1;
           if (!hasExplicitQtyInMsg && isLastUserMsg) {
             continue;
           }
 
-          // Si en activeItemsMap habÃ­a un producto genÃ©rico previo similar, reemplazarlo
+          // Si en activeItemsMap había un producto genérico previo similar, reemplazarlo
           for (const key of Array.from(activeItemsMap.keys())) {
             if (key !== chosenProd.name && (/chorizo|chori/i.test(key) && /chorizo|chori/i.test(chosenProd.name))) {
               activeItemsMap.delete(key);
@@ -1713,10 +1713,10 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    // Si el bot anterior ya tenÃ­a un resumen de pedido y el usuario estÃ¡ sumando productos o respondiendo a "sumar cortes"
-    const isSumarCutsPrompt = /Â¿QuÃ© te gustarÃ­a modificar|Â¿QuÃ© otros cortes o complementos te gustarÃ­a sumar|Sumar mÃ¡s cortes o complementos|1ï¸âƒ£.*Cambiar o sumar cortes/i.test(prevAgentMsg);
+    // Si el bot anterior ya tenía un resumen de pedido y el usuario está sumando productos o respondiendo a "sumar cortes"
+    const isSumarCutsPrompt = /¿Qué te gustaría modificar|¿Qué otros cortes o complementos te gustaría sumar|Sumar más cortes o complementos|1️⃣.*Cambiar o sumar cortes/i.test(prevAgentMsg);
     if (isSumarCutsPrompt && activeItemsMap.size === 0) {
-      // Buscar el Ãºltimo resumen de pedido en el historial del bot
+      // Buscar el último resumen de pedido en el historial del bot
       for (let hIdx = relevantHistory.length - 1; hIdx >= 0; hIdx--) {
         const histMsg = relevantHistory[hIdx];
         if (histMsg.sender === 'bot' || histMsg.sender === 'agent' || histMsg.fromMe) {
@@ -1724,7 +1724,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
           if (/Detalle de tu pedido|Detalle de cortes/i.test(histContent)) {
             const lines = histContent.split('\n');
             for (const line of lines) {
-              if (line.trim().startsWith('â€¢') || line.trim().startsWith('*')) {
+              if (line.trim().startsWith('•') || line.trim().startsWith('*')) {
                 const prod = matchBestProduct(line, catalog);
                 if (prod && !activeItemsMap.has(prod.name)) {
                   const parsed = parseQuantityAndMode(line, prod);
@@ -1738,19 +1738,19 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    const isMsgAbsoluteOverride = /te dije|te ped[iÃ­]|era solo|dije que|solo quiero|quiero solo|no entendes|no entendÃ©s|dije/i.test(msg);
+    const isMsgAbsoluteOverride = /te dije|te ped[ií]|era solo|dije que|solo quiero|quiero solo|no entendes|no entendés|dije/i.test(msg);
     if (isMsgAbsoluteOverride) {
       activeItemsMap.clear();
     }
 
-    const isMsgCorrection = /corregi|corregÃ­|corrije|corrijÃ­|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas/i.test(msg);
+    const isMsgCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas/i.test(msg);
     const chunks = cleanAndSplitMultiProductMessage(msg);
 
     for (const chunk of chunks) {
       if (!chunk || !chunk.trim()) continue;
-      const isChunkRemoval = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sacale|sacame|saca|sacÃ¡|sin\s+|sin\s+el|sin\s+la|sin\s+los|sin\s+las|quitale|quitame|quita|quitÃ¡|elimina|eliminame|borra|borrame|cancela\s+el|cancela\s+la)/i.test(chunk);
+      const isChunkRemoval = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sacale|sacame|saca|sacá|sin\s+|sin\s+el|sin\s+la|sin\s+los|sin\s+las|quitale|quitame|quita|quitá|elimina|eliminame|borra|borrame|cancela\s+el|cancela\s+la)/i.test(chunk);
       const isChunkReplacement = /cambia|cambiame|en vez de|reemplaza/i.test(chunk);
-      const isChunkAddition = /agrega|agregÃ¡|suma|sumÃ¡|sumar|ponele|mÃ¡s|mas|y\b/i.test(chunk || '');
+      const isChunkAddition = /agrega|agregá|suma|sumá|sumar|ponele|más|mas|y\b/i.test(chunk || '');
       let prod = null;
       if (isChunkReplacement || isChunkRemoval) {
         for (const [existingName, existingItem] of activeItemsMap.entries()) {
@@ -1763,14 +1763,14 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
         }
       }
       if (!prod && prevAgentMsg) {
-        const optionNumMatch = chunk.match(/(?:el\s+combo|la\s+opci[oÃ³]n|el\s+corte|la\s+promo|combo|opci[oÃ³]n|corte|promo|el|la)\s+([1-9]|1[0-9]|20)\b/i) ||
+        const optionNumMatch = chunk.match(/(?:el\s+combo|la\s+opci[oó]n|el\s+corte|la\s+promo|combo|opci[oó]n|corte|promo|el|la)\s+([1-9]|1[0-9]|20)\b/i) ||
           chunk.trim().match(/^([1-9]|1[0-9]|20)$/);
         if (optionNumMatch) {
           const optIdx = parseInt(optionNumMatch[1], 10) - 1;
           let displayedList = [];
           const pLines = prevAgentMsg.split('\n');
           for (const pLine of pLines) {
-            if (/[1-9]ï¸âƒ£|\[\d+\]/.test(pLine)) {
+            if (/[1-9]️⃣|\[\d+\]/.test(pLine)) {
               const matchedProd = matchBestProduct(pLine, catalog);
               if (matchedProd && !displayedList.some(p => p.id === matchedProd.id || p.name === matchedProd.name)) {
                 displayedList.push(matchedProd);
@@ -1816,8 +1816,8 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
               (/matambre/i.test(oldQuery) && /matambre/i.test(lowerKey)) ||
               (/costilla|costillar|asado/i.test(oldQuery) && /costilla|costillar|asado/i.test(lowerKey)) ||
               (/chorizo/i.test(oldQuery) && !/bife/i.test(oldQuery) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
-              (/vacio|vacÃ­o/i.test(oldQuery) && /vacio|vacÃ­o/i.test(lowerKey)) ||
-              (/carbon|carbÃ³n/i.test(oldQuery) && /carbon|carbÃ³n/i.test(lowerKey))
+              (/vacio|vacío/i.test(oldQuery) && /vacio|vacío/i.test(lowerKey)) ||
+              (/carbon|carbón/i.test(oldQuery) && /carbon|carbón/i.test(lowerKey))
             ) {
               activeItemsMap.delete(key);
             }
@@ -1844,8 +1844,8 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
                 (/matambre/i.test(oldQuery) && /matambre/i.test(lowerKey)) ||
                 (/costilla|costillar|asado/i.test(oldQuery) && /costilla|costillar|asado/i.test(lowerKey)) ||
                 (/chorizo/i.test(oldQuery) && !/bife/i.test(oldQuery) && /chorizo/i.test(lowerKey) && !/bife/i.test(lowerKey)) ||
-                (/vacio|vacÃ­o/i.test(oldQuery) && /vacio|vacÃ­o/i.test(lowerKey)) ||
-                (/carbon|carbÃ³n/i.test(oldQuery) && /carbon|carbÃ³n/i.test(lowerKey))
+                (/vacio|vacío/i.test(oldQuery) && /vacio|vacío/i.test(lowerKey)) ||
+                (/carbon|carbón/i.test(oldQuery) && /carbon|carbón/i.test(lowerKey))
               ) {
                 activeItemsMap.delete(key);
               }
@@ -1876,7 +1876,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    // Detectar si el mensaje actual menciona algÃºn producto del catÃ¡logo
+    // Detectar si el mensaje actual menciona algún producto del catálogo
     const matchedAnyProdInMsg = matchBestProduct(msg, catalog);
 
     // Si el usuario responde solo con cantidad (ej: "2 kg", "1.5 kilos", "6 unidades", "medio kilo", "4 bifes")
@@ -1892,7 +1892,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       }
     }
 
-    // Solo modificar cantidad del Ãºnico Ã­tem si el mensaje es una orden de cambio de cantidad y NO menciona otro producto distinto
+    // Solo modificar cantidad del único ítem si el mensaje es una orden de cambio de cantidad y NO menciona otro producto distinto
     const singleItem = activeItemsMap.size === 1 ? Array.from(activeItemsMap.values())[0] : null;
     const isOnlyQuantityChange = singleItem && (!matchedAnyProdInMsg || matchedAnyProdInMsg.name === singleItem.prod.name);
 
@@ -1911,7 +1911,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
           const lines = histContent.split('\n');
           for (const line of lines) {
             const cleanLine = line.trim();
-            if (cleanLine.startsWith('â€¢') || (cleanLine.startsWith('*') && !cleanLine.startsWith('**') && !cleanLine.startsWith('*FICHA') && !cleanLine.startsWith('*Destinatario') && !cleanLine.startsWith('*TelÃ©fono') && !cleanLine.startsWith('*DirecciÃ³n') && !cleanLine.startsWith('*Detalle') && !cleanLine.startsWith('*Total') && !cleanLine.startsWith('*Paso') && !cleanLine.startsWith('*Opciones'))) {
+            if (cleanLine.startsWith('•') || (cleanLine.startsWith('*') && !cleanLine.startsWith('**') && !cleanLine.startsWith('*FICHA') && !cleanLine.startsWith('*Destinatario') && !cleanLine.startsWith('*Teléfono') && !cleanLine.startsWith('*Dirección') && !cleanLine.startsWith('*Detalle') && !cleanLine.startsWith('*Total') && !cleanLine.startsWith('*Paso') && !cleanLine.startsWith('*Opciones'))) {
               const prod = matchBestProduct(cleanLine, catalog);
               if (prod && !activeItemsMap.has(prod.name)) {
                 const parsed = parseQuantityAndMode(cleanLine, prod);
@@ -1936,14 +1936,14 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     const sub = Math.round(unitPrice * quantity);
 
     if (prod.unit === 'kg' && isUnitMode && unitCount > 0) {
-      items.push(`â€¢ ${unitCount} Unidades de ${prod.name} â€” $${sub.toLocaleString('es-AR')}`);
+      items.push(`• ${unitCount} Unidades de ${prod.name} — $${sub.toLocaleString('es-AR')}`);
     } else if (prod.unit !== 'kg') {
       const cleanProdName = prod.name.toLowerCase().startsWith(prod.unit.toLowerCase()) 
         ? prod.name 
         : `${prod.unit} ${prod.name}`;
-      items.push(`â€¢ ${quantity} ${cleanProdName} â€” $${sub.toLocaleString('es-AR')}`);
+      items.push(`• ${quantity} ${cleanProdName} — $${sub.toLocaleString('es-AR')}`);
     } else {
-      items.push(`â€¢ ${quantity} kg ${prod.name} â€” $${sub.toLocaleString('es-AR')}`);
+      items.push(`• ${quantity} kg ${prod.name} — $${sub.toLocaleString('es-AR')}`);
     }
 
     structuredProducts.push({
@@ -1964,7 +1964,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
 }
 
 /**
- * Obtiene el Carrito CanÃ³nico del Grafo de Memoria (Working Memory Cart State)
+ * Obtiene el Carrito Canónico del Grafo de Memoria (Working Memory Cart State)
  * Garantiza coherencia absoluta entre turnos sin alucinaciones ni productos fantasma.
  */
 export function getCanonicalCart(lead, history = [], rawText = '', products = null) {
@@ -1972,7 +1972,7 @@ export function getCanonicalCart(lead, history = [], rawText = '', products = nu
   
   const tClean = (rawText || '').toLowerCase();
   const isCancel = /(?:cancelar|cancelo|cancela|cancelame|anular|anula|anulame|no quiero nada|cancelar el pedido|cancelar mi pedido|cancelo el pedido|ya no quiero el pedido)/i.test(tClean) ||
-    (/(?:cancelar el pedido|cancelo el pedido|ya no quiero el pedido)/i.test((history && history.length > 0 ? (history[history.length - 1]?.content || '') : '')) && !/(?:1|2|si|sÃ­|confirmar|volver|no|dale)/i.test(tClean));
+    (/(?:cancelar el pedido|cancelo el pedido|ya no quiero el pedido)/i.test((history && history.length > 0 ? (history[history.length - 1]?.content || '') : '')) && !/(?:1|2|si|sí|confirmar|volver|no|dale)/i.test(tClean));
 
   if (isCancel) {
     if (lead) {
@@ -1985,7 +1985,7 @@ export function getCanonicalCart(lead, history = [], rawText = '', products = nu
   // 1. Extraer del turno actual y del historial
   let { items, total, products: structuredProducts, addedItems } = extractItemsFromHistoryAndText(history, rawText, catList, lead);
 
-  // 2. Si la extracciÃ³n del turno no encontrÃ³ nada (ej: el usuario solo enviÃ³ su direcciÃ³n o dijo "sÃ­"),
+  // 2. Si la extracción del turno no encontró nada (ej: el usuario solo envió su dirección o dijo "sí"),
   // recurrir al estado guardado en el nodo de memoria del lead o al pedido activo
   if ((!items || items.length === 0) && lead) {
     if (lead.draftCart && Array.isArray(lead.draftCart.items) && lead.draftCart.items.length > 0) {
@@ -2010,7 +2010,7 @@ export function getCanonicalCart(lead, history = [], rawText = '', products = nu
     }
   }
 
-  // 3. Si tenemos Ã­tems vÃ¡lidos, persistir en el nodo del lead para los siguientes pasos
+  // 3. Si tenemos ítems válidos, persistir en el nodo del lead para los siguientes pasos
   if (items && items.length > 0 && lead) {
     lead.draftCart = {
       items,
@@ -2030,40 +2030,40 @@ export function getCanonicalCart(lead, history = [], rawText = '', products = nu
 
 /**
  * Construye el prompt completo del sistema combinando instrucciones generales, contexto regional,
- * modismos locales, reglas de negocio y cortes vigentes del catÃ¡logo.
+ * modismos locales, reglas de negocio y cortes vigentes del catálogo.
  */
 export function buildFullSystemPrompt(settings, catalog = null) {
   const agentName = settings.agentName || 'Carlos';
-  const agentRole = settings.agentRole || 'Maestro Carnicero de RepÃºblica de la Carne';
-  const businessName = settings.businessName || 'RepÃºblica de la Carne';
+  const agentRole = settings.agentRole || 'Maestro Carnicero de República de la Carne';
+  const businessName = settings.businessName || 'República de la Carne';
   const country = settings.country || 'Argentina';
-  const region = settings.region || 'CÃ³rdoba Capital y Alrededores';
+  const region = settings.region || 'Córdoba Capital y Alrededores';
   const currency = settings.currency || 'Pesos Argentinos ($ ARS)';
-  const slang = settings.slang || 'CordobÃ©s / Argentino amigable y experto (Â¡De diez!, Â¡De una!, asado, achuras, cortes del dÃ­a)';
-  const businessRules = settings.businessRules || 'EnvÃ­os en el dÃ­a dentro de CÃ³rdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, pagos en efectivo, transferencia o Mercado Pago.';
+  const slang = settings.slang || 'Cordobés / Argentino amigable y experto (¡De diez!, ¡De una!, asado, achuras, cortes del día)';
+  const businessRules = settings.businessRules || 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, pagos en efectivo, transferencia o Mercado Pago.';
   const customPrompt = settings.systemPrompt || '';
 
   const activeProducts = (catalog || db.getProducts() || [])
     .filter(p => p.isAvailable !== false && p.price > 0)
     .slice(0, 45)
-    .map(p => `â€¢ [PLU ${p.plu || '-'}] ${p.name}: $${Number(p.price).toLocaleString('es-AR')}/${p.unit || 'kg'}`)
+    .map(p => `• [PLU ${p.plu || '-'}] ${p.name}: $${Number(p.price).toLocaleString('es-AR')}/${p.unit || 'kg'}`)
     .join('\n');
 
   // Obtener recetas tradicionales activas
   const recipesList = (db.getRecipes ? db.getRecipes() : [])
     .slice(0, 8)
-    .map(r => `â€¢ ${r.title} (${r.category}): Cortes: ${r.suggestedCuts.map(c => c.name).join(', ')} | PorciÃ³n: ~${r.gramsPerPerson || 250}g/pers`)
+    .map(r => `• ${r.title} (${r.category}): Cortes: ${r.suggestedCuts.map(c => c.name).join(', ')} | Porción: ~${r.gramsPerPerson || 250}g/pers`)
     .join('\n');
 
-  // ConfiguraciÃ³n de Personalidad del Agente
+  // Configuración de Personalidad del Agente
   const personalityMode = settings.agentPersonalityMode || 'balanced';
   let personalityDirective = '';
   if (personalityMode === 'strict_sales') {
-    personalityDirective = `â€¢ MODO BOT DE VENTAS ESTRICTO (100% Comercial): SÃ© directo, conciso y enfocado en la cotizaciÃ³n, elecciÃ³n de cortes y confirmaciÃ³n del pedido. Evita saludos largos o desvÃ­os informales.`;
+    personalityDirective = `• MODO BOT DE VENTAS ESTRICTO (100% Comercial): Sé directo, conciso y enfocado en la cotización, elección de cortes y confirmación del pedido. Evita saludos largos o desvíos informales.`;
   } else if (personalityMode === 'human_empathetic') {
-    personalityDirective = `â€¢ MODO HUMANO EMPÃTICO (ConversaciÃ³n CÃ¡lida con Encauce): Si el cliente comparte anÃ©cdotas, habla del clima, su familia o situaciones cotidianas, responde primero con 1 o 2 frases cÃ¡lidas y humanas, y luego retoma de forma natural y fluida el asesoramiento carnicero para ayudarlo con su comida.`;
+    personalityDirective = `• MODO HUMANO EMPÁTICO (Conversación Cálida con Encauce): Si el cliente comparte anécdotas, habla del clima, su familia o situaciones cotidianas, responde primero con 1 o 2 frases cálidas y humanas, y luego retoma de forma natural y fluida el asesoramiento carnicero para ayudarlo con su comida.`;
   } else {
-    personalityDirective = `â€¢ MODO ASESOR EQUILIBRADO (Experto CordobÃ©s): Trato cordial, enÃ©rgico y amable de mostrador carnicero. Asesora con paciencia en recetas y cortes, guiando con naturalidad hacia la propuesta de compra.`;
+    personalityDirective = `• MODO ASESOR EQUILIBRADO (Experto Cordobés): Trato cordial, enérgico y amable de mostrador carnicero. Asesora con paciencia en recetas y cortes, guiando con naturalidad hacia la propuesta de compra.`;
   }
 
   // Contexto en Tiempo Real del Servidor
@@ -2076,11 +2076,11 @@ export function buildFullSystemPrompt(settings, catalog = null) {
   return `Eres ${agentName}, ${agentRole} de "${businessName}".
 
 Contexto Regional y Negocio:
-â€¢ PaÃ­s y RegiÃ³n: ${country} (${region})
-â€¢ Fecha y Hora Actual: ${currentTimeStr} (${currentDateStr}) [Zona Horaria: America/Argentina/Cordoba, Argentina / UTC-3]
-â€¢ Moneda de Venta: ${currency} (todos los precios son exactos en moneda local)
-â€¢ Tono y Modismos: ${slang}
-â€¢ Directivas de Negocio: ${businessRules}
+• País y Región: ${country} (${region})
+• Fecha y Hora Actual: ${currentTimeStr} (${currentDateStr}) [Zona Horaria: America/Argentina/Cordoba, Argentina / UTC-3]
+• Moneda de Venta: ${currency} (todos los precios son exactos en moneda local)
+• Tono y Modismos: ${slang}
+• Directivas de Negocio: ${businessRules}
 
 Directiva de Personalidad:
 ${personalityDirective}
@@ -2088,33 +2088,33 @@ ${personalityDirective}
 Directivas del Sistema:
 ${customPrompt}
 
-CatÃ¡logo Oficial de Cortes y Precios Vigentes:
+Catálogo Oficial de Cortes y Precios Vigentes:
 ${activeProducts}
 
 Recetas Tradicionales Argentinas y Cortes Vinculados:
 ${recipesList}
 
-Reglas de Oro y Asesoramiento de Ã‰lite:
-- Asesoramiento Consultivo y Combos Estructurados: Cuando el cliente consulte por "ofertas", "juntada con amigos", "comida", "asado" o quÃ© llevar, compÃ³rtate como un verdadero maestro carnicero de mostrador. Proponle opciones ricas y estructuradas con formato prolijo (negrita, viÃ±etas y emojis):
-  * OpciÃ³n 1: Combo Asadazo Parrillero (Costillar / Tira + VacÃ­o + Chorizos + Morcillas).
-  * OpciÃ³n 2: Combo Cerdo & Achuras (Pechito con manta + Matambre de cerdo + Chorizos).
-  * OpciÃ³n 3: Promo MenÃº Semanal / Cocina Diaria (Nalga para milanesas + Carne picada especial + Costeletas).
-- CÃ¡lculo Preciso de Raciones: Para asados calcula entre 500g y 600g por persona (sumando cortes y achuras). Para comidas de olla, horno o milanesas calcula 250g a 300g por persona. Explica la distribuciÃ³n en: (1) La Previa / Achuras, (2) El Plato Fuerte y (3) AcompaÃ±amientos / Bebidas / CarbÃ³n.
-- AtenciÃ³n Consultiva Integral y Reenganche de Ventas: Si el cliente hace cualquier pregunta (la hora, pedidos pendientes, medios de pago, sucursales, envÃ­os a domicilio, o charla casual), responde PRIMERO a su consulta con total amabilidad, precisiÃ³n y empatÃ­a, y LUEGO reengancha con entusiasmo hacia la propuesta de compra para armar su pedido.
-- Consulta de la Hora: Si el cliente pregunta quÃ© hora es o si estÃ¡n abiertos, indÃ­cale la hora actual exacta (${currentTimeStr}) y comenta alegremente que estÃ¡s firme en mostrador para prepararle los mejores cortes.
-- AclaraciÃ³n de Precios por Kilo y Pesaje Variable: En todo detalle de pedido o resumen de compra, aclara al inicio que los precios son por kilo ("ðŸ“‹ Detalle de tu pedido (precios por kilo segÃºn corte):") e incluye obligatoriamente luego del monto final la nota: "*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*".
-- SustituciÃ³n de Cortes Agotados o Fuera de CatÃ¡logo: Si el cliente solicita un producto que no estÃ¡ disponible, ofrÃ©cele de inmediato una alternativa similar del catÃ¡logo con su precio por kilo.
-- DesambiguaciÃ³n: Si el cliente pide un corte general o ambiguo con mÃºltiples variedades, ofrece opciones numeradas con precios claros para que elija.
+Reglas de Oro y Asesoramiento de Élite:
+- Asesoramiento Consultivo y Combos Estructurados: Cuando el cliente consulte por "ofertas", "juntada con amigos", "comida", "asado" o qué llevar, compórtate como un verdadero maestro carnicero de mostrador. Proponle opciones ricas y estructuradas con formato prolijo (negrita, viñetas y emojis):
+  * Opción 1: Combo Asadazo Parrillero (Costillar / Tira + Vacío + Chorizos + Morcillas).
+  * Opción 2: Combo Cerdo & Achuras (Pechito con manta + Matambre de cerdo + Chorizos).
+  * Opción 3: Promo Menú Semanal / Cocina Diaria (Nalga para milanesas + Carne picada especial + Costeletas).
+- Cálculo Preciso de Raciones: Para asados calcula entre 500g y 600g por persona (sumando cortes y achuras). Para comidas de olla, horno o milanesas calcula 250g a 300g por persona. Explica la distribución en: (1) La Previa / Achuras, (2) El Plato Fuerte y (3) Acompañamientos / Bebidas / Carbón.
+- Atención Consultiva Integral y Reenganche de Ventas: Si el cliente hace cualquier pregunta (la hora, pedidos pendientes, medios de pago, sucursales, envíos a domicilio, o charla casual), responde PRIMERO a su consulta con total amabilidad, precisión y empatía, y LUEGO reengancha con entusiasmo hacia la propuesta de compra para armar su pedido.
+- Consulta de la Hora: Si el cliente pregunta qué hora es o si están abiertos, indícale la hora actual exacta (${currentTimeStr}) y comenta alegremente que estás firme en mostrador para prepararle los mejores cortes.
+- Aclaración de Precios por Kilo y Pesaje Variable: En todo detalle de pedido o resumen de compra, aclara al inicio que los precios son por kilo ("📋 Detalle de tu pedido (precios por kilo según corte):") e incluye obligatoriamente luego del monto final la nota: "*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*".
+- Sustitución de Cortes Agotados o Fuera de Catálogo: Si el cliente solicita un producto que no está disponible, ofrécele de inmediato una alternativa similar del catálogo con su precio por kilo.
+- Desambiguación: Si el cliente pide un corte general o ambiguo con múltiples variedades, ofrece opciones numeradas con precios claros para que elija.
 - Fraccionamiento por Unidades: Cuando el cliente pida productos que se venden por unidad (chorizos, morcillas, costeletas, milanesas) indicando unidades (ej: "6 chorizos", "4 costeletas"), en el detalle del pedido SIEMPRE muestra "X Unidades de [Nombre]" y NUNCA "kg".
-- Consulta de Pago Previa al Cierre: Antes de cerrar el pedido final, consulta cÃ³mo pagarÃ¡ (1ï¸âƒ£ Efectivo contraentrega, 2ï¸âƒ£ Transferencia Alias: republica.carne.mp, 3ï¸âƒ£ Link de Mercado Pago).
+- Consulta de Pago Previa al Cierre: Antes de cerrar el pedido final, consulta cómo pagará (1️⃣ Efectivo contraentrega, 2️⃣ Transferencia Alias: republica.carne.mp, 3️⃣ Link de Mercado Pago).
 - Condiciones Obligatorias: No cierres un pedido sin validar: (1) cortes o combo definidos con precio, (2) modalidad de entrega (Domicilio o Sucursal), (3) medio de pago y (4) nombre del cliente.`;
 }
 
 export class AIService {
   /**
    * Ejecuta un test real directo contra el proveedor y modelo especificado
-   * Devuelve latencia, texto de respuesta, tokens y detalles tÃ©cnicos reales.
-   * Si falla, devuelve el error exacto del API (cÃ³digo HTTP, mensaje, detalles) sin enmascararlo con fallbacks.
+   * Devuelve latencia, texto de respuesta, tokens y detalles técnicos reales.
+   * Si falla, devuelve el error exacto del API (código HTTP, mensaje, detalles) sin enmascararlo con fallbacks.
    */
   static async testModelConnection({ provider, model, apiKey, customEndpoint, temperature = 0.7, maxTokens = 150 }) {
     const s = db.getSettings() || {};
@@ -2127,7 +2127,7 @@ export class AIService {
       effectiveModel = s.aiModel || getDefaultModelForProvider(effectiveProvider);
     }
     const effectiveTemp = typeof temperature === 'number' ? temperature : 0.7;
-    const testPrompt = "Hola, responde Ãºnicamente con: 'CONEXION_EXITOSA: [Nombre del modelo] funcionando correctamente.' y una frase corta de saludo.";
+    const testPrompt = "Hola, responde únicamente con: 'CONEXION_EXITOSA: [Nombre del modelo] funcionando correctamente.' y una frase corta de saludo.";
 
     const startTime = Date.now();
 
@@ -2156,7 +2156,7 @@ export class AIService {
             success: false,
             provider: 'Google Gemini',
             model: effectiveModel,
-            error: 'API Key de Google Gemini invÃ¡lida o faltante (debe comenzar con "AIzaSy..."). ConfigÃºrala en Ajustes o en el Agente.',
+            error: 'API Key de Google Gemini inválida o faltante (debe comenzar con "AIzaSy..."). Configúrala en Ajustes o en el Agente.',
             latencyMs: Date.now() - startTime,
             isFallback: false
           };
@@ -2205,7 +2205,7 @@ export class AIService {
             success: false,
             provider: 'Anthropic Claude',
             model: effectiveModel,
-            error: 'API Key de Anthropic Claude invÃ¡lida o faltante (debe comenzar con "sk-ant-..."). ConfigÃºrala en Ajustes o en el Agente.',
+            error: 'API Key de Anthropic Claude inválida o faltante (debe comenzar con "sk-ant-..."). Configúrala en Ajustes o en el Agente.',
             latencyMs: Date.now() - startTime,
             isFallback: false
           };
@@ -2269,7 +2269,7 @@ export class AIService {
             success: false,
             provider: 'Modelos Gratuitos Online (Pollinations)',
             model: effectiveModel,
-            error: `Error HTTP ${res.status} conectando al servicio pÃºblico de IA gratuita.`,
+            error: `Error HTTP ${res.status} conectando al servicio público de IA gratuita.`,
             latencyMs,
             isFallback: false
           };
@@ -2327,7 +2327,7 @@ export class AIService {
           success: false,
           provider: effectiveProvider,
           model: effectiveModel,
-          error: `API Key faltante para el proveedor ${effectiveProvider}. ConfigÃºrala en Ajustes o en el Agente.`,
+          error: `API Key faltante para el proveedor ${effectiveProvider}. Configúrala en Ajustes o en el Agente.`,
           latencyMs: Date.now() - startTime,
           isFallback: false
         };
@@ -2433,7 +2433,7 @@ export class AIService {
             return res.text.trim();
           }
         } else {
-          console.warn('[AIService] Qwen 2.5 0.5B no estÃ¡ descargado aÃºn en data/models/.');
+          console.warn('[AIService] Qwen 2.5 0.5B no está descargado aún en data/models/.');
         }
       } catch (qwenErr) {
         console.warn(`[AIService] Fallo con Qwen Embebido:`, qwenErr.message);
@@ -2625,7 +2625,7 @@ export class AIService {
       }
     }
 
-    // 5. Fallback de rescate inteligente y transparente (Pollinations Free) si el proveedor principal fallÃ³ o no tiene quota/key
+    // 5. Fallback de rescate inteligente y transparente (Pollinations Free) si el proveedor principal falló o no tiene quota/key
     if (effectiveProvider !== 'free_online') {
       try {
         const combinedPrompt = `${systemPrompt ? `[SYSTEM: ${systemPrompt}]\n` : ''}${cleanHistory.map(h => `${h.role}: ${h.content}`).join('\n')}\nUser: ${prompt}`;
@@ -2645,7 +2645,7 @@ export class AIService {
 
   /**
    * Ejecuta una consulta directa y libre contra el modelo de IA seleccionado (God Mode / Modo Libre)
-   * Sin filtros comerciales, sin catÃ¡logos, sin restricciones de negocio.
+   * Sin filtros comerciales, sin catálogos, sin restricciones de negocio.
    */
   static async executeRawGodModeQuery({ query, history = [], settings = null, lead = null }) {
     const s = settings || db.getSettings();
@@ -2654,7 +2654,7 @@ export class AIService {
     const effectiveTemp = typeof s.aiTemperature === 'number' ? s.aiTemperature : 0.7;
     const effectiveMaxTokens = s.aiMaxTokens || 2048;
 
-    // Contexto en Tiempo Real del Sistema para responder preguntas fÃ¡cticas y de entorno
+    // Contexto en Tiempo Real del Sistema para responder preguntas fácticas y de entorno
     const now = new Date();
     const timeOptions = { timeZone: 'America/Argentina/Cordoba', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
     const dateOptions = { timeZone: 'America/Argentina/Cordoba', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -2673,9 +2673,9 @@ export class AIService {
 CURRENT REAL-TIME ENVIRONMENT & SYSTEM KNOWLEDGE:
 - Current Local Time: ${currentTimeStr} (${currentDateStr}) [Timezone: America/Argentina/Cordoba, Argentina / UTC-3].
 - System Inventory: Total of ${allProducts.length} products/cuts loaded in database.
-- System Branches: ${allBranches.length} active branches (${allBranches.map(b => b.name).join(', ') || 'Centro, Urca, Villa Allende, JardÃ­n, Recta Martinoli, Alta CÃ³rdoba'}).
+- System Branches: ${allBranches.length} active branches (${allBranches.map(b => b.name).join(', ') || 'Centro, Urca, Villa Allende, Jardín, Recta Martinoli, Alta Córdoba'}).
 - Total System Orders: ${allOrders.length} orders recorded.
-- Interacting Lead/User: ${lead?.name || 'Usuario'} (TelÃ©fono: ${lead?.phone || 'No especificado'}).
+- Interacting Lead/User: ${lead?.name || 'Usuario'} (Teléfono: ${lead?.phone || 'No especificado'}).
 - User Orders: ${userOrders.length} total (${pendingUserOrders.length} pending).
 
 Whenever the user asks about the current time, date, products count, orders, or any system statistics, USE THIS REAL-TIME DATA to answer accurately, directly, and naturally.`;
@@ -2692,34 +2692,34 @@ Whenever the user asks about the current time, date, products count, orders, or 
     });
 
     if (rawResponse) {
-      return `âš¡ *[God Mode â€” ${effectiveProvider.toUpperCase()} / ${effectiveModel}]*\n\n${rawResponse}`;
+      return `⚡ *[God Mode — ${effectiveProvider.toUpperCase()} / ${effectiveModel}]*\n\n${rawResponse}`;
     }
 
-    // Si el LLM no respondiÃ³ (ej. sin API Key o sin cuota), responder con datos exactos del sistema
+    // Si el LLM no respondió (ej. sin API Key o sin cuota), responder con datos exactos del sistema
     const q = (query || '').toLowerCase();
-    if (q.includes('hora') || q.includes('fecha') || q.includes('dia') || q.includes('dÃ­a')) {
-      return `âš¡ *[God Mode â€” Hora y Fecha en Tiempo Real]* ðŸ•’\n\n` +
-        `â€¢ **Hora actual:** ${currentTimeStr} (GMT-3)\n` +
-        `â€¢ **Fecha:** ${currentDateStr}\n` +
-        `â€¢ **Zona horaria:** America/Argentina/Cordoba`;
+    if (q.includes('hora') || q.includes('fecha') || q.includes('dia') || q.includes('día')) {
+      return `⚡ *[God Mode — Hora y Fecha en Tiempo Real]* 🕒\n\n` +
+        `• **Hora actual:** ${currentTimeStr} (GMT-3)\n` +
+        `• **Fecha:** ${currentDateStr}\n` +
+        `• **Zona horaria:** America/Argentina/Cordoba`;
     }
-    if (q.includes('producto') || q.includes('catalogo') || q.includes('catÃ¡logo') || q.includes('corte') || q.includes('stock') || q.includes('cuanto') || q.includes('cuÃ¡nto')) {
-      return `âš¡ *[God Mode â€” Inventario del Sistema]* ðŸ¥©ðŸ“¦\n\n` +
-        `â€¢ **Total de productos cargados:** ${allProducts.length} cortes/artÃ­culos en catÃ¡logo.\n` +
-        `â€¢ **Sucursales activas:** ${allBranches.length} (${allBranches.map(b => b.name).join(', ') || 'Centro, Urca, Villa Allende, JardÃ­n, Recta Martinoli, Alta CÃ³rdoba'})\n` +
-        `â€¢ **Base de datos:** SQLite WAL nativo sincronizado en tiempo real.`;
+    if (q.includes('producto') || q.includes('catalogo') || q.includes('catálogo') || q.includes('corte') || q.includes('stock') || q.includes('cuanto') || q.includes('cuánto')) {
+      return `⚡ *[God Mode — Inventario del Sistema]* 🥩📦\n\n` +
+        `• **Total de productos cargados:** ${allProducts.length} cortes/artículos en catálogo.\n` +
+        `• **Sucursales activas:** ${allBranches.length} (${allBranches.map(b => b.name).join(', ') || 'Centro, Urca, Villa Allende, Jardín, Recta Martinoli, Alta Córdoba'})\n` +
+        `• **Base de datos:** SQLite WAL nativo sincronizado en tiempo real.`;
     }
     if (q.includes('pedido') || q.includes('orden') || q.includes('pendiente')) {
-      return `âš¡ *[God Mode â€” Estado de Pedidos]* ðŸ§¾\n\n` +
-        `â€¢ **Total de pedidos en sistema:** ${allOrders.length}\n` +
-        `â€¢ **Pedidos del usuario (${lead?.name || 'Cliente'}):** ${userOrders.length} registrados (${pendingUserOrders.length} pendientes).`;
+      return `⚡ *[God Mode — Estado de Pedidos]* 🧾\n\n` +
+        `• **Total de pedidos en sistema:** ${allOrders.length}\n` +
+        `• **Pedidos del usuario (${lead?.name || 'Cliente'}):** ${userOrders.length} registrados (${pendingUserOrders.length} pendientes).`;
     }
 
-    // Fallback descriptivo si no hay conexiÃ³n al LLM
-    return `âš¡ *[God Mode Activo]* ðŸ§ ðŸ”“\n\n` +
+    // Fallback descriptivo si no hay conexión al LLM
+    return `⚡ *[God Mode Activo]* 🧠🔓\n\n` +
       `He recibido tu consulta libre:\n` +
       `> *"${query}"*\n\n` +
-      `ðŸ’¡ *Consejo:* PodÃ©s activar un modelo gratuito online (Pollinations AI) o ingresar una API Key de Gemini / NVIDIA / OpenAI / Claude / DeepSeek / Groq en **Ajustes âš™ï¸** o en tu **Agente** para respuestas generativas ultra veloces.`;
+      `💡 *Consejo:* Podés activar un modelo gratuito online (Pollinations AI) o ingresar una API Key de Gemini / NVIDIA / OpenAI / Claude / DeepSeek / Groq en **Ajustes ⚙️** o en tu **Agente** para respuestas generativas ultra veloces.`;
   }
 
   static async generateSalesResponse({ rawText, text, lead, history, settings, knowledgeBase, products } = {}) {
@@ -2793,7 +2793,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
     const products = db.getProducts();
 
     // =========================================================================
-    // 0. DETECCIÃ“N Y PROCESAMIENTO DE COMANDOS /godmode Y MODO LIBRE DE IA
+    // 0. DETECCIÓN Y PROCESAMIENTO DE COMANDOS /godmode Y MODO LIBRE DE IA
     // =========================================================================
     const trimmedInput = (incomingText || '').trim();
     const isGodModeCommand = /^\/godmode(?:\s+.*)?$/i.test(trimmedInput);
@@ -2803,8 +2803,8 @@ Whenever the user asks about the current time, date, products count, orders, or 
       const match = trimmedInput.match(/^\/godmode(?:\s+(.*))?$/i);
       const subCommand = (match && match[1]) ? match[1].trim() : '';
 
-      // 0.1 Toggle o ActivaciÃ³n ExplÃ­cita (/godmode on, /godmode activar, etc.)
-      if (/^(?:on|activar|enable|start|1|si|sÃ­)$/i.test(subCommand)) {
+      // 0.1 Toggle o Activación Explícita (/godmode on, /godmode activar, etc.)
+      if (/^(?:on|activar|enable|start|1|si|sí)$/i.test(subCommand)) {
         if (lead) {
           lead.godMode = true;
           if (lead.jid || lead.id) {
@@ -2814,20 +2814,20 @@ Whenever the user asks about the current time, date, products count, orders, or 
         const effectiveProvider = (settings.aiProvider || 'gemini').toUpperCase();
         const effectiveModel = settings.aiModel || 'gemini-2.5-flash';
         return {
-          text: `âš¡ *MODO DIOS (GOD MODE) ACTIVADO* ðŸ§ ðŸ”“\n\n` +
-            `Has desbloqueado la comunicaciÃ³n directa y sin restricciones con el modelo de IA (**${effectiveProvider} / ${effectiveModel}**).\n\n` +
-            `âœ¨ *Capacidades habilitadas:*\n` +
-            `â€¢ ConversaciÃ³n libre sobre cualquier temÃ¡tica (programaciÃ³n, ciencia, redacciÃ³n, cocina general, filosofÃ­a, anÃ¡lisis, etc.).\n` +
-            `â€¢ Sin restricciones comerciales, ni embudos de ventas, ni catÃ¡logo obligatorio de carnicerÃ­a.\n` +
-            `â€¢ Memoria contextual completa de la conversaciÃ³n.\n\n` +
-            `ðŸ‘‰ *Para desactivar y volver al modo vendedor comercial:* enviÃ¡ */godmode off* o */godmode salir*.\n` +
-            `ðŸ‘‰ *Para ver estado y modelo:* enviÃ¡ */godmode info*.\n\n` +
-            `Â¿De quÃ© te gustarÃ­a hablar hoy? ðŸš€`,
+          text: `⚡ *MODO DIOS (GOD MODE) ACTIVADO* 🧠🔓\n\n` +
+            `Has desbloqueado la comunicación directa y sin restricciones con el modelo de IA (**${effectiveProvider} / ${effectiveModel}**).\n\n` +
+            `✨ *Capacidades habilitadas:*\n` +
+            `• Conversación libre sobre cualquier temática (programación, ciencia, redacción, cocina general, filosofía, análisis, etc.).\n` +
+            `• Sin restricciones comerciales, ni embudos de ventas, ni catálogo obligatorio de carnicería.\n` +
+            `• Memoria contextual completa de la conversación.\n\n` +
+            `👉 *Para desactivar y volver al modo vendedor comercial:* enviá */godmode off* o */godmode salir*.\n` +
+            `👉 *Para ver estado y modelo:* enviá */godmode info*.\n\n` +
+            `¿De qué te gustaría hablar hoy? 🚀`,
           shouldSendAudio: false
         };
       }
 
-      // 0.2 DesactivaciÃ³n ExplÃ­cita (/godmode off, /godmode salir, etc.)
+      // 0.2 Desactivación Explícita (/godmode off, /godmode salir, etc.)
       if (/^(?:off|desactivar|disable|stop|salir|0|no)$/i.test(subCommand)) {
         if (lead) {
           lead.godMode = false;
@@ -2836,30 +2836,30 @@ Whenever the user asks about the current time, date, products count, orders, or 
           }
         }
         return {
-          text: `ðŸ”’ *MODO DIOS DESACTIVADO*\n\n` +
-            `Se ha restablecido el asistente comercial oficial de RepÃºblica de la Carne. ðŸ¥©\n\n` +
-            `Â¡Estoy a tu disposiciÃ³n para asesorarte en cortes, combos o envÃ­os! ðŸ™Œ`,
+          text: `🔒 *MODO DIOS DESACTIVADO*\n\n` +
+            `Se ha restablecido el asistente comercial oficial de República de la Carne. 🥩\n\n` +
+            `¡Estoy a tu disposición para asesorarte en cortes, combos o envíos! 🙌`,
           shouldSendAudio: false
         };
       }
 
-      // 0.3 InformaciÃ³n de Estado (/godmode info, /godmode status)
+      // 0.3 Información de Estado (/godmode info, /godmode status)
       if (/^(?:info|status|estado|config)$/i.test(subCommand)) {
         const effectiveProvider = (settings.aiProvider || 'gemini').toUpperCase();
         const effectiveModel = settings.aiModel || (settings.aiProvider === 'openai' ? 'gpt-4o-mini' : 'gemini-2.5-flash');
         return {
-          text: `â„¹ï¸ *ESTADO DE MODO DIOS:* ðŸ§ \n\n` +
-            `â€¢ **Estado:** ${lead?.godMode ? 'ðŸŸ¢ ACTIVO (ConversaciÃ³n Libre)' : 'ðŸ”´ INACTIVO (Modo Comercial)'}\n` +
-            `â€¢ **Proveedor IA:** ${effectiveProvider}\n` +
-            `â€¢ **Modelo:** ${effectiveModel}\n` +
-            `â€¢ **Temperatura:** ${settings.aiTemperature ?? 0.7}\n` +
-            `â€¢ **Tokens MÃ¡ximos:** ${settings.aiMaxTokens || 2048}\n\n` +
-            `ðŸ‘‰ EnviÃ¡ */godmode on* para activar o */godmode off* para desactivar.`,
+          text: `ℹ️ *ESTADO DE MODO DIOS:* 🧠\n\n` +
+            `• **Estado:** ${lead?.godMode ? '🟢 ACTIVO (Conversación Libre)' : '🔴 INACTIVO (Modo Comercial)'}\n` +
+            `• **Proveedor IA:** ${effectiveProvider}\n` +
+            `• **Modelo:** ${effectiveModel}\n` +
+            `• **Temperatura:** ${settings.aiTemperature ?? 0.7}\n` +
+            `• **Tokens Máximos:** ${settings.aiMaxTokens || 2048}\n\n` +
+            `👉 Enviá */godmode on* para activar o */godmode off* para desactivar.`,
           shouldSendAudio: false
         };
       }
 
-      // 0.4 Si el usuario solo escribiÃ³ "/godmode" sin argumentos -> Toggle automÃ¡tico
+      // 0.4 Si el usuario solo escribió "/godmode" sin argumentos -> Toggle automático
       if (!subCommand) {
         const nextState = !Boolean(lead?.godMode);
         if (lead) {
@@ -2872,22 +2872,22 @@ Whenever the user asks about the current time, date, products count, orders, or 
           const effectiveProvider = (settings.aiProvider || 'gemini').toUpperCase();
           const effectiveModel = settings.aiModel || 'gemini-2.5-flash';
           return {
-            text: `âš¡ *MODO DIOS ACTIVADO* ðŸ§ ðŸ”“\n\n` +
-              `EstÃ¡s conectado libremente con **${effectiveProvider} (${effectiveModel})**.\n` +
-              `PodÃ©s hablar de cualquier tema sin restricciones comerciales.\n\n` +
-              `ðŸ‘‰ Para salir enviÃ¡ */godmode off*.`,
+            text: `⚡ *MODO DIOS ACTIVADO* 🧠🔓\n\n` +
+              `Estás conectado libremente con **${effectiveProvider} (${effectiveModel})**.\n` +
+              `Podés hablar de cualquier tema sin restricciones comerciales.\n\n` +
+              `👉 Para salir enviá */godmode off*.`,
             shouldSendAudio: false
           };
         } else {
           return {
-            text: `ðŸ”’ *MODO DIOS DESACTIVADO*\n\n` +
-              `Se ha reactivado el asistente comercial de RepÃºblica de la Carne. ðŸ¥©`,
+            text: `🔒 *MODO DIOS DESACTIVADO*\n\n` +
+              `Se ha reactivado el asistente comercial de República de la Carne. 🥩`,
             shouldSendAudio: false
           };
         }
       }
 
-      // 0.5 Si el usuario escribiÃ³ "/godmode <pregunta o prompt>" -> EjecuciÃ³n On-the-Fly libre
+      // 0.5 Si el usuario escribió "/godmode <pregunta o prompt>" -> Ejecución On-the-Fly libre
       const directQuery = subCommand;
       const rawGodModeReply = await this.executeRawGodModeQuery({
         query: directQuery,
@@ -2901,7 +2901,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
       };
     }
 
-    // 0.6 Si el Modo Dios ya estÃ¡ activo para este Lead/Chat, procesar TODO libremente con el LLM
+    // 0.6 Si el Modo Dios ya está activo para este Lead/Chat, procesar TODO libremente con el LLM
     if (isGodModeActiveForLead) {
       const rawGodModeReply = await this.executeRawGodModeQuery({
         query: incomingText,
@@ -2915,7 +2915,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
       };
     }
 
-    // 1. Auto-aprendizaje continuo y extracciÃ³n de perfil en tiempo real
+    // 1. Auto-aprendizaje continuo y extracción de perfil en tiempo real
     NeuralMemoryService.learnFromCustomerInteraction({ jid, lead, incomingText, history });
 
     // 2. Obtener Vector Cognitivo de la Red Neuronal / Mapa Mental
@@ -2932,17 +2932,17 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
       const activeLeadOrders = db.getOrdersByJid(jid || lead?.id || lead) || [];
       const activeOrd = db.getActiveOrdersByJid(jid || lead?.id || lead)[0] || null;
-      let orderStatusContext = 'Estado de Pedidos del Cliente: No tiene pedidos activos ni pendientes registrados en carnicerÃ­a.';
+      let orderStatusContext = 'Estado de Pedidos del Cliente: No tiene pedidos activos ni pendientes registrados en carnicería.';
       if (activeOrd) {
         orderStatusContext = `Estado de Pedidos del Cliente: Tiene el Pedido Activo #${activeOrd.id} (${activeOrd.status}) con los cortes: ${Array.isArray(activeOrd.items) ? activeOrd.items.join(', ') : activeOrd.items}, Total: $${activeOrd.totalAmount}.`;
       } else if (lead?.draftCart && Array.isArray(lead.draftCart.items) && lead.draftCart.items.length > 0) {
         orderStatusContext = `Estado de Pedidos del Cliente: Tiene un borrador de pedido pendiente de confirmar con: ${lead.draftCart.items.join(', ')}, Total: $${lead.draftCart.total}.`;
       } else if (activeLeadOrders.length > 0) {
-        orderStatusContext = `Estado de Pedidos del Cliente: No tiene pedidos pendientes actuales. Su Ãºltima compra registrada fue el Pedido #${activeLeadOrders[0].id} (entregado).`;
+        orderStatusContext = `Estado de Pedidos del Cliente: No tiene pedidos pendientes actuales. Su última compra registrada fue el Pedido #${activeLeadOrders[0].id} (entregado).`;
       }
 
-      // Si es un comando estrictamente atÃ³mico (ej: solo un dÃ­gito o palabra clave de confirmaciÃ³n/cancelaciÃ³n directa)
-      const isPureAtomicAction = /^(?:1|2|3|4|5|6|s[iÃ­]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eÃ©]|ya me lleg[oÃ³]|ac[aÃ¡] est[aÃ¡] el comprobante)$/i.test(incomingText.trim());
+      // Si es un comando estrictamente atómico (ej: solo un dígito o palabra clave de confirmación/cancelación directa)
+      const isPureAtomicAction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim());
 
       let effectiveProvider = settings.aiProvider || 'gemini';
       if (effectiveProvider === 'system_default') {
@@ -2988,7 +2988,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
     // Limpiar COMPLETAMENTE cualquier tag interno [[...]] de la respuesta
     replyText = replyText.replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
 
-    // SincronizaciÃ³n garantizada del pedido y persistencia en DB y SQLite WAL
+    // Sincronización garantizada del pedido y persistencia en DB y SQLite WAL
     try {
       OrderSyncEngine.syncOrderFromTurn({
         jid,
@@ -2999,7 +2999,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         stage: suggestedStage
       });
     } catch (orderSyncErr) {
-      console.warn('âš ï¸ [AIService] Error en sincronizaciÃ³n de pedido:', orderSyncErr.message);
+      console.warn('⚠️ [AIService] Error en sincronización de pedido:', orderSyncErr.message);
     }
 
     // Registro garantizado de consumo de tokens en turnos de IA
@@ -3043,7 +3043,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
   }
 
   /**
-   * Generador de respuestas dinÃ¡micas, Ã¡giles, coherentes y altamente consultivas
+   * Generador de respuestas dinámicas, ágiles, coherentes y altamente consultivas
    */
   static async generateDynamicReply(text, leadOrName, knowledgeBase, settings, historyOverride = null) {
     const t = (text || '').toLowerCase().trim();
@@ -3086,42 +3086,42 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
     const getOrderStatusLabel = (st) => {
       switch (st) {
-        case 'pending': return 'â³ Pendiente de preparaciÃ³n';
-        case 'preparing': return 'ðŸ¥© En preparaciÃ³n en carnicerÃ­a';
+        case 'pending': return '⏳ Pendiente de preparación';
+        case 'preparing': return '🥩 En preparación en carnicería';
         case 'ready':
-        case 'ready_for_pickup': return 'âœ¨ Â¡Listo y Preparado para retirar / despachar!';
-        case 'in_transit': return 'ðŸ›µ En camino con repartidor';
-        case 'delivered': return 'âœ… Entregado';
-        case 'cancelled': return 'âŒ Cancelado';
+        case 'ready_for_pickup': return '✨ ¡Listo y Preparado para retirar / despachar!';
+        case 'in_transit': return '🛵 En camino con repartidor';
+        case 'delivered': return '✅ Entregado';
+        case 'cancelled': return '❌ Cancelado';
         default: return st;
       }
     };
 
     // =========================================================================
-    // 0. GESTIÃ“N INTEGRAL DE PEDIDOS ACTIVOS: MODIFICACIÃ“N, SUCURSAL, PAGO, CANCELACIÃ“N Y ESTADO
+    // 0. GESTIÓN INTEGRAL DE PEDIDOS ACTIVOS: MODIFICACIÓN, SUCURSAL, PAGO, CANCELACIÓN Y ESTADO
     const rawLastAgent = (history || []).slice().reverse().find(m => m.sender === 'bot' || m.sender === 'agent' || m.fromMe)?.content || '';
     const lastAgentMessage = typeof rawLastAgent === 'object' ? (rawLastAgent.text || '') : String(rawLastAgent || '');
 
-    // DetecciÃ³n contextual si el Ãºltimo mensaje fue un menÃº interactivo
-    const wasWelcomeMenuOffered = /Opciones r[aÃ¡]pidas:[\s\S]*1ï¸âƒ£.*Ver ofertas|Â¿Por d[oÃ³]nde arrancamos\?/i.test(lastAgentMessage);
-    const wasBranchMenuOffered = !wasWelcomeMenuOffered && (/ElegÃ­ la sucursal de retiro|SELECCIÃ“N DE SUCURSAL|1ï¸âƒ£ \*URCA CENTRAL\*|2ï¸âƒ£ \*URCA 2/i.test(lastAgentMessage));
-    const wasModMenuOffered = /Â¿QuÃ© te gustarÃ­a modificar de tu pedido|1ï¸âƒ£ Cambiar o sumar cortes/i.test(lastAgentMessage);
-    const wasDeliveryTypeOffered = /1ï¸âƒ£ \*?Env[iÃ­]o a Domicilio\*?|1ï¸âƒ£.*Coordinar \*EnvÃ­o a Domicilio\*|Â¿CÃ³mo preferÃ­s recibir tu pedido|Â¿CÃ³mo seguimos con tu pedido\?|Â¿PreferÃ­s que te lo enviemos a domicilio|Â¿Te lo mandamos a tu casa/i.test(lastAgentMessage);
-    const wasInTransitChoiceOffered = /1ï¸âƒ£ Cancelar el pedido|Opciones disponibles:[\s\S]*1ï¸âƒ£ Cancelar/i.test(lastAgentMessage);
-    const wasDataConfirmOffered = /FICHA DE REGISTRO|Â¿Confirmamos estos datos para agendarte|1ï¸âƒ£ Confirmar datos/i.test(lastAgentMessage);
+    // Detección contextual si el último mensaje fue un menú interactivo
+    const wasWelcomeMenuOffered = /Opciones r[aá]pidas:[\s\S]*1️⃣.*Ver ofertas|¿Por d[oó]nde arrancamos\?/i.test(lastAgentMessage);
+    const wasBranchMenuOffered = !wasWelcomeMenuOffered && (/Elegí la sucursal de retiro|SELECCIÓN DE SUCURSAL|1️⃣ \*URCA CENTRAL\*|2️⃣ \*URCA 2/i.test(lastAgentMessage));
+    const wasModMenuOffered = /¿Qué te gustaría modificar de tu pedido|1️⃣ Cambiar o sumar cortes/i.test(lastAgentMessage);
+    const wasDeliveryTypeOffered = /1️⃣ \*?Env[ií]o a Domicilio\*?|1️⃣.*Coordinar \*Envío a Domicilio\*|¿Cómo preferís recibir tu pedido|¿Cómo seguimos con tu pedido\?|¿Preferís que te lo enviemos a domicilio|¿Te lo mandamos a tu casa/i.test(lastAgentMessage);
+    const wasInTransitChoiceOffered = /1️⃣ Cancelar el pedido|Opciones disponibles:[\s\S]*1️⃣ Cancelar/i.test(lastAgentMessage);
+    const wasDataConfirmOffered = /FICHA DE REGISTRO|¿Confirmamos estos datos para agendarte|1️⃣ Confirmar datos/i.test(lastAgentMessage);
     const wasActiveOrderHelpOffered = !wasDataConfirmOffered && (
-      /Tu pedido \*\*#ORD-.* ya estÃ¡ confirmado|Opciones:\s*\n?1ï¸âƒ£\s*Modificar algÃºn dato o cortes|Â¿PrecisÃ¡s algo de tu pedido\?|TenÃ©s un pedido activo en curso|Â¿QuerÃ©s consultar el estado \/ modificarlo/i.test(lastAgentMessage)
+      /Tu pedido \*\*#ORD-.* ya está confirmado|Opciones:\s*\n?1️⃣\s*Modificar algún dato o cortes|¿Precisás algo de tu pedido\?|Tenés un pedido activo en curso|¿Querés consultar el estado \/ modificarlo/i.test(lastAgentMessage)
     );
-    const wasAsadoProposalOffered = /1ï¸âƒ£\s*[*_]*(?:OpciÃ³n|Milanesas|Bifes|Pastel|Plato|Guiso|Asado)|[*_]*Te\s+arm[eÃ©]\s+3\s+opciones|[*_]*Te\s+propongo\s+3\s+platazos|Â¿Cu[aÃ¡]l de estas opciones te gustar[iÃ­]a|Â¿Con cu[aÃ¡]l opci[oÃ³]n|OpciÃ³n ClÃ¡sica|OpciÃ³n Combo|OpciÃ³n Parrillera/i.test(lastAgentMessage);
+    const wasAsadoProposalOffered = /1️⃣\s*[*_]*(?:Opción|Milanesas|Bifes|Pastel|Plato|Guiso|Asado)|[*_]*Te\s+arm[eé]\s+3\s+opciones|[*_]*Te\s+propongo\s+3\s+platazos|¿Cu[aá]l de estas opciones te gustar[ií]a|¿Con cu[aá]l opci[oó]n|Opción Clásica|Opción Combo|Opción Parrillera/i.test(lastAgentMessage);
     const wasSubstitutionOffered = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(lastAgentMessage);
-    const wasQuantityPrompt = /Â¿QuÃ© cantidad|Â¿CuÃ¡ntos kilos|Â¿CuÃ¡ntas unidades|Â¿QuÃ© cantidad te preparamos|Â¿CuÃ¡ntas bolsas|Â¿CuÃ¡ntas botellas|Â¿QuÃ© cantidad de combos|Por Unidades:.*Por Kilos/i.test(lastAgentMessage);
-    const wasPaymentMethodOffered = /(?:c[oÃ³]mo prefer[iÃ­]s abonar|1ï¸âƒ£\s*\*?Efectivo|2ï¸âƒ£\s*\*?Transferencia|3ï¸âƒ£\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oÃ³]mo prefer[iÃ­]s abonar)/i.test(lastAgentMessage);
-    const wasReadyToDispatchQuestion = /(?:lo dejamos listo para despachar|lo dejamos listo|dejamos listo para despachar|Â¿PrecisÃ¡s realizar algÃºn otro cambio)/i.test(lastAgentMessage);
-    const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasQuantityPrompt && !wasPaymentMethodOffered && (/1ï¸âƒ£|2ï¸âƒ£|1\..*Combo|OFERTAS Y CORTES|cortes estrella del dÃ­a|mejores promos/i.test(lastAgentMessage)) &&
+    const wasQuantityPrompt = /¿Qué cantidad|¿Cuántos kilos|¿Cuántas unidades|¿Qué cantidad te preparamos|¿Cuántas bolsas|¿Cuántas botellas|¿Qué cantidad de combos|Por Unidades:.*Por Kilos/i.test(lastAgentMessage);
+    const wasPaymentMethodOffered = /(?:c[oó]mo prefer[ií]s abonar|1️⃣\s*\*?Efectivo|2️⃣\s*\*?Transferencia|3️⃣\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oó]mo prefer[ií]s abonar)/i.test(lastAgentMessage);
+    const wasReadyToDispatchQuestion = /(?:lo dejamos listo para despachar|lo dejamos listo|dejamos listo para despachar|¿Precisás realizar algún otro cambio)/i.test(lastAgentMessage);
+    const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasQuantityPrompt && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
       !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered;
 
-    // 0.00000 ACLARACIÃ“N DE EQUIVOCACIÃ“N O DESACUERDO DEL CLIENTE ("pero yo no te pedÃ­ eso", "no pedÃ­ nada", etc.)
-    const isBotCorrectionOrMisunderstanding = /(?:yo\s+no\s+(?:te\s+)?ped[iÃ­]|no\s+(?:te\s+)?ped[iÃ­]\s+eso|no\s+es\s+lo\s+que\s+ped[iÃ­]|no\s+te\s+ped[iÃ­]\s+nada|te\s+equivocaste|no\s+dije\s+eso|yo\s+no\s+dije|no\s+quiero\s+eso|no\s+te\s+encargu[eÃ©]|no\s+compr[eÃ©]\s+nada|no\s+ped[iÃ­]\s+nada|no\s+era\s+eso|pero\s+yo\s+no|yo\s+no\s+pedi)/i.test(t);
+    // 0.00000 ACLARACIÓN DE EQUIVOCACIÓN O DESACUERDO DEL CLIENTE ("pero yo no te pedí eso", "no pedí nada", etc.)
+    const isBotCorrectionOrMisunderstanding = /(?:yo\s+no\s+(?:te\s+)?ped[ií]|no\s+(?:te\s+)?ped[ií]\s+eso|no\s+es\s+lo\s+que\s+ped[ií]|no\s+te\s+ped[ií]\s+nada|te\s+equivocaste|no\s+dije\s+eso|yo\s+no\s+dije|no\s+quiero\s+eso|no\s+te\s+encargu[eé]|no\s+compr[eé]\s+nada|no\s+ped[ií]\s+nada|no\s+era\s+eso|pero\s+yo\s+no|yo\s+no\s+pedi)/i.test(t);
 
     if (isBotCorrectionOrMisunderstanding) {
       if (currentActiveOrder && ['pending', 'preparing', 'draft'].includes(currentActiveOrder.status)) {
@@ -3134,14 +3134,14 @@ Whenever the user asks about the current time, date, products count, orders, or 
           db.updateLead(lead.jid || lead.id, { draftCart: null, currentOrder: null });
         }
       }
-      return `Â¡TenÃ©s toda la razÃ³n ${clientName}, mil disculpas! ðŸ™ Me adelantÃ© sin querer. Quedate sÃºper tranquilo que no hay ningÃºn pedido agendado ni cobrado, solo te estaba dando ideas de cortes y precios.\n\n` +
-        `Contame con calma quÃ© tenÃ­as en mente para cocinar o compartir (Â¿preferÃ­s asado, milanesas, bifes o algÃºn corte en particular?) y lo armamos juntos a tu gusto y sin ningÃºn apuro. ðŸ˜‰ðŸ¥©`;
+      return `¡Tenés toda la razón ${clientName}, mil disculpas! 🙏 Me adelanté sin querer. Quedate súper tranquilo que no hay ningún pedido agendado ni cobrado, solo te estaba dando ideas de cortes y precios.\n\n` +
+        `Contame con calma qué tenías en mente para cocinar o compartir (¿preferís asado, milanesas, bifes o algún corte en particular?) y lo armamos juntos a tu gusto y sin ningún apuro. 😉🥩`;
     }
 
-    // 0.00001 CANCELACIÃ“N GENERAL DE PEDIDO / PROCESO
+    // 0.00001 CANCELACIÓN GENERAL DE PEDIDO / PROCESO
     const isCancelIntent = /(?:cancelar|cancelo|cancela|cancelame|anular|anula|anulame|no quiero nada|no quiero comprar nada|cancelar el pedido|cancelar mi pedido|cancelo el pedido|ya no quiero el pedido|no voy a querer|no quiero nada gracias)/i.test(t) ||
-      (wasDataConfirmOffered && /^(?:3|3ï¸âƒ£|cancelar|cancelo)$/i.test(t.trim())) ||
-      (wasInTransitChoiceOffered && /^(?:1|1ï¸âƒ£|cancelar)$/i.test(t.trim()));
+      (wasDataConfirmOffered && /^(?:3|3️⃣|cancelar|cancelo)$/i.test(t.trim())) ||
+      (wasInTransitChoiceOffered && /^(?:1|1️⃣|cancelar)$/i.test(t.trim()));
 
     if (isCancelIntent) {
       if (currentActiveOrder) {
@@ -3158,9 +3158,9 @@ Whenever the user asks about the current time, date, products count, orders, or 
     }
 
     // 0.00005 CONSULTAS DE ESTADO DE PEDIDOS / PENDIENTES / HISTORIAL
-    const isOrderQueryEarly = /(?:que|quÃ©|cuales|cuÃ¡les|tengo|hay)\s+(?:mis\s+|el\s+|alg[uÃº]n\s+)?(?:pedidos?|compras?|ordenes?|Ã³rdenes?).*(?:pendiente|activos?|en curso|tengo|hice|anotado|guardado|listo)/i.test(t) ||
-      /(?:consultar|ver|estado|seguimiento|donde est[aÃ¡]|dÃ³nde est[aÃ¡]|cuando llega|a que hora llega|como va|mis|mi)\s+(?:de\s+mi\s+|el\s+)?(?:pedidos?|compras?|ordenes?|Ã³rdenes?|env[iÃ­]o|despacho)/i.test(t) ||
-      /(?:que|quÃ©)\s+(?:pedidos?\s+tengo|tengo\s+pedid[oa]|te\s+ped[iÃ­]|ped[iÃ­]|tengo\s+pendiente)/i.test(t) ||
+    const isOrderQueryEarly = /(?:que|qué|cuales|cuáles|tengo|hay)\s+(?:mis\s+|el\s+|alg[uú]n\s+)?(?:pedidos?|compras?|ordenes?|órdenes?).*(?:pendiente|activos?|en curso|tengo|hice|anotado|guardado|listo)/i.test(t) ||
+      /(?:consultar|ver|estado|seguimiento|donde est[aá]|dónde est[aá]|cuando llega|a que hora llega|como va|mis|mi)\s+(?:de\s+mi\s+|el\s+)?(?:pedidos?|compras?|ordenes?|órdenes?|env[ií]o|despacho)/i.test(t) ||
+      /(?:que|qué)\s+(?:pedidos?\s+tengo|tengo\s+pedid[oa]|te\s+ped[ií]|ped[ií]|tengo\s+pendiente)/i.test(t) ||
       /^(?:mis pedidos|mi pedido|estado del pedido|pedido pendiente|pedidos pendientes|ver pedido|ver orden)$/i.test(t);
 
     if (isOrderQueryEarly) {
@@ -3168,45 +3168,45 @@ Whenever the user asks about the current time, date, products count, orders, or 
     }
 
     // 0.00006 CONSULTAS DIRECTAS DE HORA Y ESTADO DEL MOSTRADOR
-    if (/(?:qu[eÃ©]\s+hora\s+es|qu[eÃ©]\s+hora\s+ten[eÃ©]s|hora\s+actual|a\s+qu[eÃ©]\s+hora\s+abren|est[aÃ¡]n\s+abiertos|horarios?|a\s+que\s+hora\s+cierran)/i.test(t)) {
+    if (/(?:qu[eé]\s+hora\s+es|qu[eé]\s+hora\s+ten[eé]s|hora\s+actual|a\s+qu[eé]\s+hora\s+abren|est[aá]n\s+abiertos|horarios?|a\s+que\s+hora\s+cierran)/i.test(t)) {
       const now = new Date();
       const currentTimeStr = now.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Cordoba', hour12: false, hour: '2-digit', minute: '2-digit' });
-      return `Â¡Hola ${clientName}! ðŸ‘‹ AcÃ¡ en mostrador son las **${currentTimeStr} hs** y estamos a pleno atendiendo y preparando pedidos.\n\n` +
-        `ðŸ¥© Contame: Â¿tenÃ­as ganas de prender el fuego para un asadito o buscÃ¡s cortes para la comida de hoy? Â¡Te dejamos todo listo para entrega en el dÃ­a o retiro por sucursal! ðŸ›µðŸ”ª [[STAGE:proposal]]`;
+      return `¡Hola ${clientName}! 👋 Acá en mostrador son las **${currentTimeStr} hs** y estamos a pleno atendiendo y preparando pedidos.\n\n` +
+        `🥩 Contame: ¿tenías ganas de prender el fuego para un asadito o buscás cortes para la comida de hoy? ¡Te dejamos todo listo para entrega en el día o retiro por sucursal! 🛵🔪 [[STAGE:proposal]]`;
     }
 
     // 0.00007 CONSULTAS DIRECTAS DE OFERTAS, COMBOS Y CARTELERA
-    if (/(?:ofertas?|promos?|promociones?|lista\s+de\s+ofertas?|qu[eÃ©]\s+ofertas?\s+hay|qu[eÃ©]\s+promos?\s+ten[eÃ©]s|cartelera|pizarra|combos?\s+parrilleros?|combos?)/i.test(t) && !wasBranchMenuOffered && !wasModMenuOffered) {
+    if (/(?:ofertas?|promos?|promociones?|lista\s+de\s+ofertas?|qu[eé]\s+ofertas?\s+hay|qu[eé]\s+promos?\s+ten[eé]s|cartelera|pizarra|combos?\s+parrilleros?|combos?)/i.test(t) && !wasBranchMenuOffered && !wasModMenuOffered) {
       const catalogToOffer = getFeaturedWhatsAppOffers(products);
       const formattedCatalog = formatNumberedCatalog(catalogToOffer);
-      return `ðŸ”¥ *OFERTAS Y COMBOS DESTACADOS EN REPÃšBLICA DE LA CARNE:* ðŸ¥©\n\n` +
+      return `🔥 *OFERTAS Y COMBOS DESTACADOS EN REPÚBLICA DE LA CARNE:* 🥩\n\n` +
         `${formattedCatalog}\n\n` +
-        `ðŸ‘‰ *Â¿Para cuÃ¡ntas personas estÃ¡s calculando o quÃ© cortes te gustarÃ­a que te preparemos?* Te dejamos el combo listo para entrega en el dÃ­a o retiro por sucursal. ðŸ›µðŸ™Œ [[STAGE:proposal]]`;
+        `👉 *¿Para cuántas personas estás calculando o qué cortes te gustaría que te preparemos?* Te dejamos el combo listo para entrega en el día o retiro por sucursal. 🛵🙌 [[STAGE:proposal]]`;
     }
 
     // 0.00008 JUNTADAS, COMIDA CON AMIGOS Y PLANES DE ASADO
-    if (/(?:comida\s+con\s+(?:unos\s+)?amigos|juntada\s+con\s+amigos|juntada|asado\s+con\s+amigos|reuni[oÃ³]n|hacer\s+un\s+asado|armar\s+un\s+asado|asado\s+para\s+amigos)/i.test(t)) {
-      return `Â¡QuÃ© lindo plan ${clientName}! ðŸ¥©ðŸ”¥ La juntada con amigos es sagrada y acÃ¡ en RepÃºblica de la Carne te armamos la combinaciÃ³n perfecta para quedar de diez:\n\n` +
-        `ðŸ”¥ *1. Combo Asadazo Parrillero:* Costillar / Tira de asado + VacÃ­o seleccionado + Chorizos criollos + Morcillas bombÃ³n.\n` +
-        `ðŸ– *2. Combo Cerdo & Achuras:* Pechito con manta + Matambre tierno de cerdo + Chorizos caseros.\n` +
-        `ðŸ¥© *3. Cortes Premium a la Carta:* Ojo de bife, entraÃ±a fresca o matambrito crocante.\n\n` +
-        `ðŸ’¡ *CÃ¡lculo parrillero:* Calculamos **500g a 600g por persona** para que coman abundante y no falte nada.\n\n` +
-        `ðŸ‘‰ Contame: **Â¿CuÃ¡ntos son en total para la comida?** (ej: 'somos 4', 'somos 6', 'somos 10') y te calculo los kilos exactos y el total para dejÃ¡rtelo listo. ðŸ”ªðŸ›µ [[STAGE:proposal]]`;
+    if (/(?:comida\s+con\s+(?:unos\s+)?amigos|juntada\s+con\s+amigos|juntada|asado\s+con\s+amigos|reuni[oó]n|hacer\s+un\s+asado|armar\s+un\s+asado|asado\s+para\s+amigos)/i.test(t)) {
+      return `¡Qué lindo plan ${clientName}! 🥩🔥 La juntada con amigos es sagrada y acá en República de la Carne te armamos la combinación perfecta para quedar de diez:\n\n` +
+        `🔥 *1. Combo Asadazo Parrillero:* Costillar / Tira de asado + Vacío seleccionado + Chorizos criollos + Morcillas bombón.\n` +
+        `🍖 *2. Combo Cerdo & Achuras:* Pechito con manta + Matambre tierno de cerdo + Chorizos caseros.\n` +
+        `🥩 *3. Cortes Premium a la Carta:* Ojo de bife, entraña fresca o matambrito crocante.\n\n` +
+        `💡 *Cálculo parrillero:* Calculamos **500g a 600g por persona** para que coman abundante y no falte nada.\n\n` +
+        `👉 Contame: **¿Cuántos son en total para la comida?** (ej: 'somos 4', 'somos 6', 'somos 10') y te calculo los kilos exactos y el total para dejártelo listo. 🔪🛵 [[STAGE:proposal]]`;
     }
 
     // 0.000085 COMIDA CASERA / COCINAR EN CASA / PLATOS FAMILIARES
-    const isHomeCooking = /(?:cocinar\s+(?:algo\s+)?en\s+casa|comida\s+casera|platos?\s+familiares?|no\s+quiero\s+asado|cocinar\s+con\s+mi\s+familia|comida\s+para\s+mi\s+familia|men[uÃº]\s+semanal)/i.test(t);
+    const isHomeCooking = /(?:cocinar\s+(?:algo\s+)?en\s+casa|comida\s+casera|platos?\s+familiares?|no\s+quiero\s+asado|cocinar\s+con\s+mi\s+familia|comida\s+para\s+mi\s+familia|men[uú]\s+semanal)/i.test(t);
     if (isHomeCooking) {
-      return `Â¡QuÃ© linda idea ${clientName}! ðŸ ðŸ¥˜ Para cocinar en casa y compartir con la familia calculamos **~250g a 300g por persona**. Te propongo 3 platazos caseros espectaculares:\n\n` +
-        `1ï¸âƒ£ **Milanesas Caseras:** Nalga tierna o Bola de Lomo cortadas finitas listas para empanar.\n` +
-        `2ï¸âƒ£ **Bifes a la Plancha:** Costeletas con hueso o Bife de Chorizo jugoso con papas o ensalada.\n` +
-        `3ï¸âƒ£ **Pastel de Papa o Guiso Carrero:** Picada especial magra, Roast Beef o Osobuco tierno de novillito.\n\n` +
-        `ðŸ‘‰ Contame cuÃ¡l de estas opciones te gustarÃ­a armar o cuÃ¡ntos kilos te preparamos. Â¡Hacemos envÃ­os directos en el dÃ­a! ðŸ›µðŸ¥© [[STAGE:proposal]]`;
+      return `¡Qué linda idea ${clientName}! 🏠🥘 Para cocinar en casa y compartir con la familia calculamos **~250g a 300g por persona**. Te propongo 3 platazos caseros espectaculares:\n\n` +
+        `1️⃣ **Milanesas Caseras:** Nalga tierna o Bola de Lomo cortadas finitas listas para empanar.\n` +
+        `2️⃣ **Bifes a la Plancha:** Costeletas con hueso o Bife de Chorizo jugoso con papas o ensalada.\n` +
+        `3️⃣ **Pastel de Papa o Guiso Carrero:** Picada especial magra, Roast Beef o Osobuco tierno de novillito.\n\n` +
+        `👉 Contame cuál de estas opciones te gustaría armar o cuántos kilos te preparamos. ¡Hacemos envíos directos en el día! 🛵🥩 [[STAGE:proposal]]`;
     }
 
-    // 0.00009 CÃLCULO DE COMENSALES ("somos 4", "somos 6", "para 4 personas", etc. sin pedido explÃ­cito de cortes)
+    // 0.00009 CÁLCULO DE COMENSALES ("somos 4", "somos 6", "para 4 personas", etc. sin pedido explícito de cortes)
     const comensalesMatch = t.match(/(?:somos|para|seremos|calculo|calculamos|vamos\s+a\s+ser)\s+(\d{1,2})\s*(?:personas?|amigos?|comensales?|adultos?)?/) || t.match(/^(\d{1,2})\s*(?:personas?|amigos?|comensales?|adultos?)$/);
-    const hasExplicitProductOrder = /(?:kilos?|kg|unidades?|\d+\s*(?:chorizos?|matambre|costilla|vacio|vacÃ­o|bifes?|tira|carbon|carbÃ³n))/i.test(t);
+    const hasExplicitProductOrder = /(?:kilos?|kg|unidades?|\d+\s*(?:chorizos?|matambre|costilla|vacio|vacío|bifes?|tira|carbon|carbón))/i.test(t);
     if (comensalesMatch && !hasExplicitProductOrder && !isHomeCooking) {
       const cantPersonas = parseInt(comensalesMatch[1], 10);
       if (cantPersonas > 0 && cantPersonas <= 50) {
@@ -3216,32 +3216,32 @@ Whenever the user asks about the current time, date, products count, orders, or 
         const tiraKg = ((cantPersonas * 0.25)).toFixed(1);
         const vacioKg = ((cantPersonas * 0.20)).toFixed(1);
 
-        return `Â¡Espectacular ${clientName}! ðŸ¥©ðŸ”¥ Para **${cantPersonas} personas** el cÃ¡lculo clÃ¡sico para comer abundante y que nadie se quede con las ganas es **~${kgTotal} kg en total**:\n\n` +
-          `ðŸ”¥ *La DistribuciÃ³n Parrillera Recomendada:*\n` +
-          `1ï¸âƒ£ **La Previa / Achuras:**\n` +
-          `   â€¢ ${choris} Chorizos criollos puro cerdo\n` +
-          `   â€¢ ${morcis} Morcillas bombÃ³n de la casa\n\n` +
-          `2ï¸âƒ£ **El Plato Fuerte:**\n` +
-          `   â€¢ ${tiraKg} kg de Costillar / Asado de Tira de novillito\n` +
-          `   â€¢ ${vacioKg} kg de VacÃ­o especial tierno\n\n` +
-          `3ï¸âƒ£ **AcompaÃ±amiento:**\n` +
-          `   â€¢ 1 Bolsa de CarbÃ³n vegetal de primera calidad\n\n` +
-          `ðŸ‘‰ Â¿Te gustarÃ­a que te preparemos este combo para entrega a domicilio o retiro por sucursal? ðŸ›µðŸª [[STAGE:proposal]]`;
+        return `¡Espectacular ${clientName}! 🥩🔥 Para **${cantPersonas} personas** el cálculo clásico para comer abundante y que nadie se quede con las ganas es **~${kgTotal} kg en total**:\n\n` +
+          `🔥 *La Distribución Parrillera Recomendada:*\n` +
+          `1️⃣ **La Previa / Achuras:**\n` +
+          `   • ${choris} Chorizos criollos puro cerdo\n` +
+          `   • ${morcis} Morcillas bombón de la casa\n\n` +
+          `2️⃣ **El Plato Fuerte:**\n` +
+          `   • ${tiraKg} kg de Costillar / Asado de Tira de novillito\n` +
+          `   • ${vacioKg} kg de Vacío especial tierno\n\n` +
+          `3️⃣ **Acompañamiento:**\n` +
+          `   • 1 Bolsa de Carbón vegetal de primera calidad\n\n` +
+          `👉 ¿Te gustaría que te preparemos este combo para entrega a domicilio o retiro por sucursal? 🛵🏪 [[STAGE:proposal]]`;
       }
     }
 
-    // 0.0001 RESPUESTAS AL MENÃš DE BIENVENIDA / OPCIONES RÃPIDAS
+    // 0.0001 RESPUESTAS AL MENÚ DE BIENVENIDA / OPCIONES RÁPIDAS
     if (wasWelcomeMenuOffered) {
-      if (/^(?:1|1ï¸âƒ£|uno|el 1|la 1|opci[oÃ³]n 1|ofertas?|combos?|promos?|ver ofertas|precios?)$/i.test(t.trim())) {
+      if (/^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|ofertas?|combos?|promos?|ver ofertas|precios?)$/i.test(t.trim())) {
         const catalogToOffer = getFeaturedWhatsAppOffers(products);
         const formattedCatalog = formatNumberedCatalog(catalogToOffer);
-        return `ðŸ”¥ *OFERTAS Y CORTES DESTACADOS EN REPÃšBLICA DE LA CARNE:* ðŸ¥©\n\n` +
+        return `🔥 *OFERTAS Y CORTES DESTACADOS EN REPÚBLICA DE LA CARNE:* 🥩\n\n` +
           `${formattedCatalog}\n\n` +
-          `ðŸ‘‰ Decime quÃ© nÃºmero de opciÃ³n o quÃ© cortes te gustarÃ­a que te preparemos, o la cantidad en kilos/unidades. ðŸ¥©ðŸšš [[STAGE:proposal]]`;
+          `👉 Decime qué número de opción o qué cortes te gustaría que te preparemos, o la cantidad en kilos/unidades. 🥩🚚 [[STAGE:proposal]]`;
       }
 
-      if (/^(?:2|2ï¸âƒ£|dos|el 2|la 2|opci[oÃ³]n 2|asado|asesoramiento|personas?|calcular|calculo)$/i.test(t.trim())) {
-        return `ðŸ¥© *ASESORAMIENTO EXPERTO PARA TU ASADO:* ðŸ”¥\n\n` +
+      if (/^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|asado|asesoramiento|personas?|calcular|calculo)$/i.test(t.trim())) {
+        return `🥩 *ASESORAMIENTO EXPERTO PARA TU ASADO:* 🔥\n\n` +
           `Para que el asado salga perfecto y no sobre ni falte, calculamos **500g a 600g de carne por persona** (combinando cortes principales y achuras).\n\n` +
           `👉 *Ejemplo para 6 personas (3.5 kg total):*\n` +
           `• 1.5 kg Vacío Seleccionado\n` +
@@ -3249,40 +3249,39 @@ Whenever the user asks about the current time, date, products count, orders, or 
           `• 6 Chorizos Criollos Puro Cerdo (~0.75 kg)\n` +
           `• 1 Bolsa de Carbón Quebracho\n\n` +
           `👉 Contame: **¿Para cuántas personas es tu comida?** (ej: 'somos 8', 'somos 12') y te armo la propuesta personalizada con el pesaje exacto y precios de lista del día. 🙌 [[STAGE:proposal]]`;
-
       }
 
-      if (/^(?:3|3ï¸âƒ£|tres|el 3|la 3|opci[oÃ³]n 3|sucursales|sedes|direcciones|horarios|donde estan)$/i.test(t.trim())) {
-        return `ðŸª *NUESTRAS 6 SUCURSALES EN CÃ“RDOBA:* ðŸ¥©\n\n` +
-          `1ï¸âƒ£ **URCA CENTRAL:** Av. JosÃ© Roque Funes 1115 (ðŸ“ž +54 9 3513 906947)\n` +
-          `   *Lunes a SÃ¡bado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-          `2ï¸âƒ£ **URCA 2 â€“ ALTO TEJEDA:** Av. MenÃ©ndez Pidal 3575 (ðŸ“ž +54 9 3518 623195)\n` +
-          `   *Lunes a SÃ¡bado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-          `3ï¸âƒ£ **INTERCOUNTRY â€“ CORTEZA MALL:** Av. Los Ãlamos 1015 (ðŸ“ž +54 9 3518 623194)\n` +
+      if (/^(?:3|3️⃣|tres|el 3|la 3|opci[oó]n 3|sucursales|sedes|direcciones|horarios|donde estan)$/i.test(t.trim())) {
+        return `🏪 *NUESTRAS 6 SUCURSALES EN CÓRDOBA:* 🥩\n\n` +
+          `1️⃣ **URCA CENTRAL:** Av. José Roque Funes 1115 (📞 +54 9 3513 906947)\n` +
+          `   *Lunes a Sábado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+          `2️⃣ **URCA 2 – ALTO TEJEDA:** Av. Menéndez Pidal 3575 (📞 +54 9 3518 623195)\n` +
+          `   *Lunes a Sábado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+          `3️⃣ **INTERCOUNTRY – CORTEZA MALL:** Av. Los Álamos 1015 (📞 +54 9 3518 623194)\n` +
           `   *Lunes a Domingo:* 9:00 a 21:00 hs\n\n` +
-          `4ï¸âƒ£ **DUARTE QUIRÃ“S:** Av. Duarte QuirÃ³s 5130 (ðŸ“ž +54 9 3518 156595)\n` +
-          `   *Lunes a SÃ¡bado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-          `5ï¸âƒ£ **VILLA ALLENDE â€“ MERCADITO DE LA VILLA:** Av. Figueroa Alcorta 480 (ðŸ“ž +54 9 3513 540031)\n` +
-          `   *Lunes a SÃ¡bado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-          `6ï¸âƒ£ **COUNTRY SAN ISIDRO:** Av. Padre Luchesse km 2 (ðŸ“ž +54 9 3518 769099)\n` +
-          `   *Lunes a MiÃ©rcoles:* 07:00 a 00:00 hs | *Jueves a SÃ¡bado:* 07:00 a 01:00 hs\n\n` +
-          `ðŸ›µ *TambiÃ©n hacemos envÃ­os directos a domicilio en el dÃ­a a todo CÃ³rdoba.* Â¿QuerÃ©s que te preparemos un pedido? ðŸ™Œ [[STAGE:proposal]]`;
+          `4️⃣ **DUARTE QUIRÓS:** Av. Duarte Quirós 5130 (📞 +54 9 3518 156595)\n` +
+          `   *Lunes a Sábado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+          `5️⃣ **VILLA ALLENDE – MERCADITO DE LA VILLA:** Av. Figueroa Alcorta 480 (📞 +54 9 3513 540031)\n` +
+          `   *Lunes a Sábado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+          `6️⃣ **COUNTRY SAN ISIDRO:** Av. Padre Luchesse km 2 (📞 +54 9 3518 769099)\n` +
+          `   *Lunes a Miércoles:* 07:00 a 00:00 hs | *Jueves a Sábado:* 07:00 a 01:00 hs\n\n` +
+          `🛵 *También hacemos envíos directos a domicilio en el día a todo Córdoba.* ¿Querés que te preparemos un pedido? 🙌 [[STAGE:proposal]]`;
       }
     }
 
-    // 0.00012 RESPUESTAS A PROPUESTAS DE SUSTITUCIÃ“N / CORTE SIMILAR
+    // 0.00012 RESPUESTAS A PROPUESTAS DE SUSTITUCIÓN / CORTE SIMILAR
     if (wasSubstitutionOffered) {
-      const isAffirmative = /^(?:s[iÃ­]|dale|bueno|perfecto|joya|de diez|si dale|dale si|si quiero|ese me sirve|quiero ese|si por favor|si claro|avanza|anotamelo|anÃ³tamelo|pasame ese|cambiame por ese|si ese|ese est[aÃ¡] bien|me sirve ese|dale pasame|si preparame)$/i.test(cleanConfirmText) ||
-        /(?:si quiero|dale si|si dale|pasame ese|quiero ese|cambiame por ese|anotame ese|anÃ³tame ese|prepÃ¡rame ese|preparame ese)/i.test(t);
-      const isNegative = /^(?:no|no gracias|no dej[aÃ¡]|no deja|dejalo as[iÃ­]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)$/i.test(cleanConfirmText);
+      const isAffirmative = /^(?:s[ií]|dale|bueno|perfecto|joya|de diez|si dale|dale si|si quiero|ese me sirve|quiero ese|si por favor|si claro|avanza|anotamelo|anótamelo|pasame ese|cambiame por ese|si ese|ese est[aá] bien|me sirve ese|dale pasame|si preparame)$/i.test(cleanConfirmText) ||
+        /(?:si quiero|dale si|si dale|pasame ese|quiero ese|cambiame por ese|anotame ese|anótame ese|prepárame ese|preparame ese)/i.test(t);
+      const isNegative = /^(?:no|no gracias|no dej[aá]|no deja|dejalo as[ií]|no por ahora|paso|ninguno|no ese no|solo lo otro|dejame solo lo otro|no, solo lo otro)$/i.test(cleanConfirmText);
       const hasQtyExplicit = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?)|medio\s+kilo|1\/2\s*kg)/i.test(t);
 
       if (isAffirmative || hasQtyExplicit) {
-        // Encontrar el producto que se ofreciÃ³ como sustituto en lastAgentMessage
+        // Encontrar el producto que se ofreció como sustituto en lastAgentMessage
         const offeredProd = matchBestProduct(lastAgentMessage, products);
         if (offeredProd) {
           let parsedQty = parseQuantityAndMode(rawText, offeredProd);
-          // Si el usuario dijo solo "sÃ­" sin nÃºmero, buscar si en el mensaje anterior del usuario o en lastAgentMessage habÃ­a una cantidad propuesta
+          // Si el usuario dijo solo "sí" sin número, buscar si en el mensaje anterior del usuario o en lastAgentMessage había una cantidad propuesta
           if ((!parsedQty.quantity || parsedQty.quantity === 1) && !/(?:\d|medio)/.test(t)) {
             const rawUserPrev = (history || []).slice().reverse().find(m => m.sender === 'user')?.content || '';
             const prevUserQty = parseQuantityAndMode(rawUserPrev, offeredProd);
@@ -3327,40 +3326,40 @@ Whenever the user asks about the current time, date, products count, orders, or 
           const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
           const formattedTotal = `$${Number(finalTotal > 0 ? finalTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}`;
 
-          return `Â¡De diez ${clientName}! ðŸ¥© Sumamos *${offeredProd.name}* a tu pedido:\n\n` +
-            `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte)${orderNotice}:*\n` +
+          return `¡De diez ${clientName}! 🥩 Sumamos *${offeredProd.name}* a tu pedido:\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
             `${finalItems.join('\n')}\n\n` +
-            `ðŸ’° *Subtotal acumulado:* **${formattedTotal}**\n` +
-            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-            `ðŸ‘‰ *Â¿CÃ³mo seguimos con tu pedido?*\n` +
-            `1ï¸âƒ£ Coordinar *EnvÃ­o a Domicilio* en el dÃ­a ðŸ›µ\n` +
-            `2ï¸âƒ£ Elegir *Retiro por Sucursal* (6 sedes en CÃ³rdoba) ðŸª\n` +
-            `3ï¸âƒ£ Sumar mÃ¡s cortes o complementos (chorizos, carbÃ³n, vino) ðŸ¥©\n\n` +
-            `ðŸ‘‰ *RespondÃ© 1, 2 o 3 (o escribÃ­ "delivery", "sucursal" o los cortes).* ðŸ™Œ [[STAGE:proposal]]`;
+            `💰 *Subtotal acumulado:* **${formattedTotal}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `👉 *¿Cómo seguimos con tu pedido?*\n` +
+            `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+            `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+            `3️⃣ Sumar más cortes o complementos (chorizos, carbón, vino) 🥩\n\n` +
+            `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌 [[STAGE:proposal]]`;
         }
       } else if (isNegative) {
         const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
         if (historyItems.length > 0) {
           const formattedTotal = `$${Number(historyTotal).toLocaleString('es-AR')}`;
-          return `Â¡Entendido ${clientName}! ðŸ‘ Mantenemos tu pedido con los cortes seleccionados:\n\n` +
-            `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte):*\n` +
+          return `¡Entendido ${clientName}! 👍 Mantenemos tu pedido con los cortes seleccionados:\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
             `${historyItems.join('\n')}\n\n` +
-            `ðŸ’° *Subtotal acumulado:* **${formattedTotal}**\n` +
-            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-            `ðŸ‘‰ *Â¿CÃ³mo seguimos con tu pedido?*\n` +
-            `1ï¸âƒ£ Coordinar *EnvÃ­o a Domicilio* en el dÃ­a ðŸ›µ\n` +
-            `2ï¸âƒ£ Elegir *Retiro por Sucursal* (6 sedes en CÃ³rdoba) ðŸª\n` +
-            `3ï¸âƒ£ Sumar otros cortes o complementos ðŸ¥©\n\n` +
-            `ðŸ‘‰ *RespondÃ© 1, 2 o 3.* ðŸ™Œ [[STAGE:proposal]]`;
+            `💰 *Subtotal acumulado:* **${formattedTotal}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `👉 *¿Cómo seguimos con tu pedido?*\n` +
+            `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+            `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+            `3️⃣ Sumar otros cortes o complementos 🥩\n\n` +
+            `👉 *Respondé 1, 2 o 3.* 🙌 [[STAGE:proposal]]`;
         }
-        return `Â¡De diez ${clientName}! Â¿QuÃ© otro corte te gustarÃ­a que te preparemos o consultamos del catÃ¡logo? ðŸ¥©`;
+        return `¡De diez ${clientName}! ¿Qué otro corte te gustaría que te preparemos o consultamos del catálogo? 🥩`;
       }
     }
 
     // 0.00013 RESPUESTAS DIRECTAS A CONSULTAS DE CANTIDAD O PESO DE UN PRODUCTO
     if (wasQuantityPrompt) {
       const hasQtyInText = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b(?:uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+)\b)/i.test(t);
-      if (hasQtyInText && !/(?:cancelar|anular|estado|donde est[aÃ¡]|dÃ³nde est[aÃ¡]|cambiar sucursal)/i.test(t)) {
+      if (hasQtyInText && !/(?:cancelar|anular|estado|donde est[aá]|dónde est[aá]|cambiar sucursal)/i.test(t)) {
         const targetProd = matchBestProduct(lastAgentMessage, products);
         if (targetProd) {
           const parsedQty = parseQuantityAndMode(rawText, targetProd);
@@ -3401,31 +3400,31 @@ Whenever the user asks about the current time, date, products count, orders, or 
           const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
           const formattedTotal = `$${Number(finalTotal > 0 ? finalTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}`;
 
-          return `Â¡Anotado ${clientName}! ðŸ¥© Actualizamos tu pedido:\n\n` +
-            `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte)${orderNotice}:*\n` +
+          return `¡Anotado ${clientName}! 🥩 Actualizamos tu pedido:\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
             `${finalItems.join('\n')}\n\n` +
-            `ðŸ’° *Subtotal acumulado:* **${formattedTotal}**\n` +
-            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-            `ðŸ‘‰ *Â¿CÃ³mo seguimos con tu pedido?*\n` +
-            `1ï¸âƒ£ Coordinar *EnvÃ­o a Domicilio* en el dÃ­a ðŸ›µ\n` +
-            `2ï¸âƒ£ Elegir *Retiro por Sucursal* (6 sedes en CÃ³rdoba) ðŸª\n` +
-            `3ï¸âƒ£ Sumar mÃ¡s cortes o complementos (chorizos, carbÃ³n, vino) ðŸ¥©\n\n` +
-            `ðŸ‘‰ *RespondÃ© 1, 2 o 3 (o escribÃ­ "delivery", "sucursal" o los cortes).* ðŸ™Œ [[STAGE:proposal]]`;
+            `💰 *Subtotal acumulado:* **${formattedTotal}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `👉 *¿Cómo seguimos con tu pedido?*\n` +
+            `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+            `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+            `3️⃣ Sumar más cortes o complementos (chorizos, carbón, vino) 🥩\n\n` +
+            `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌 [[STAGE:proposal]]`;
         }
       }
     }
 
-    // 0.00014 DETECCIÃ“N DE PRODUCTO SOLICITADO NO DISPONIBLE O FUERA DE CATÃLOGO + SUGERENCIA DE REEMPLAZO SIMILAR
+    // 0.00014 DETECCIÓN DE PRODUCTO SOLICITADO NO DISPONIBLE O FUERA DE CATÁLOGO + SUGERENCIA DE REEMPLAZO SIMILAR
     const outOfCatalogCuts = [
       { pattern: /\b(?:ojo de bife|bife ancho|t-bone|tbone|ribeye|bife angosto)\b/i, name: 'Ojo de Bife / Ribeye' },
-      { pattern: /\b(?:picanha|picaÃ±a)\b/i, name: 'Picanha' },
+      { pattern: /\b(?:picanha|picaña)\b/i, name: 'Picanha' },
       { pattern: /\b(?:asado con cuero|pecho)\b/i, name: 'Asado con Cuero' },
-      { pattern: /\b(?:garrÃ³n)\b/i, name: 'GarrÃ³n' },
+      { pattern: /\b(?:garrón)\b/i, name: 'Garrón' },
       { pattern: /\b(?:chunchullo)\b/i, name: 'Chunchullo' }
     ];
 
     const requestedUnavailable = outOfCatalogCuts.find(c => c.pattern.test(t) && !products.some(p => c.pattern.test(p.name) && p.price > 0));
-    const isExplicitCutsOrOrderAsk = /(?:ten[eÃ©]s|vendes|vend[eÃ©]s|hay|quiero|mandame|mandÃ¡melo|traeme|armame|separame|preparame|cuanto|precio|sale|cuesta|kilos?|kg)\b/i.test(t) || requestedUnavailable;
+    const isExplicitCutsOrOrderAsk = /(?:ten[eé]s|vendes|vend[eé]s|hay|quiero|mandame|mandámelo|traeme|armame|separame|preparame|cuanto|precio|sale|cuesta|kilos?|kg)\b/i.test(t) || requestedUnavailable;
 
     if (requestedUnavailable && isExplicitCutsOrOrderAsk && !wasAsadoProposalOffered && !wasSubstitutionOffered) {
       const similarProd = findSimilarProductOrAlternative(t, products);
@@ -3434,23 +3433,23 @@ Whenever the user asks about the current time, date, products count, orders, or 
         const qtyMatch = t.match(/(\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?)|medio\s+kilo|1\/2\s*kg)/i);
         const qtyText = qtyMatch ? qtyMatch[1] : '';
 
-        return `Â¡Hola ${clientName}! ðŸ¥© DisculpÃ¡, en este momento no tenemos **${requestedUnavailable.name}**, pero te podemos ofrecer **${similarProd.name}** a **$${Number(similarProd.price).toLocaleString('es-AR')}/${similarProd.unit || 'kg'}** que estÃ¡ excelente y reciÃ©n ingresado de cÃ¡mara.\n\n` +
-          `ðŸ‘‰ *Â¿Te gustarÃ­a llevar ${similarProd.name} en su reemplazo?* ${hasQty ? `Â¿Te preparamos los **${qtyText}**?` : 'Contame quÃ© cantidad te preparamos (kilos o unidades) y te lo sumo a tu pedido.'} ðŸ™Œ [[STAGE:proposal]]`;
+        return `¡Hola ${clientName}! 🥩 Disculpá, en este momento no tenemos **${requestedUnavailable.name}**, pero te podemos ofrecer **${similarProd.name}** a **$${Number(similarProd.price).toLocaleString('es-AR')}/${similarProd.unit || 'kg'}** que está excelente y recién ingresado de cámara.\n\n` +
+          `👉 *¿Te gustaría llevar ${similarProd.name} en su reemplazo?* ${hasQty ? `¿Te preparamos los **${qtyText}**?` : 'Contame qué cantidad te preparamos (kilos o unidades) y te lo sumo a tu pedido.'} 🙌 [[STAGE:proposal]]`;
       }
     }
 
-    // 0.00015 ASESORAMIENTO CULINARIO Y CÃLCULO DE ASADO POR COMENSALES
+    // 0.00015 ASESORAMIENTO CULINARIO Y CÁLCULO DE ASADO POR COMENSALES
     const peopleMatchEarly = t.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asadito\s+para|asado\s+para|un\s+asado\s+para|un\s+asadito\s+para)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
       t.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos|peronas)/i);
     const isAsadoIntentEarly = /(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|parrillita|fuego|brasas)/i.test(t);
-    const isCulinaryQueryEarly = /(?:recomendas|recomendÃ¡s|para guiso|para estofado|para milanesas|para horno)/i.test(t);
+    const isCulinaryQueryEarly = /(?:recomendas|recomendás|para guiso|para estofado|para milanesas|para horno)/i.test(t);
 
     const isAsadoCalcRequestEarly = (peopleMatchEarly && isAsadoIntentEarly) || 
-      (peopleMatchEarly && /(?:cuanto|cuÃ¡nto|calculo|calcular|para comer|para hacer|somos|es para)/i.test(t)) ||
+      (peopleMatchEarly && /(?:cuanto|cuánto|calculo|calcular|para comer|para hacer|somos|es para)/i.test(t)) ||
       /^(?:un\s+)?asadito\s+para\s+\d+/i.test(t) ||
       isCulinaryQueryEarly;
 
-    const hasSpecificCutsWithQtyEarly = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b(?:una|un|dos|tres|cuatro|cinco|seis)\s+bolsas?)\s+(?:de\s+)?(?:costillar|costilla|vacio|vacÃ­o|matambre|chorizo|chori|morcilla|milanesa|cuadril|tapa|lomo|bife|molida|pollo|carbon|carbÃ³n|cerdo|novillito)/i.test(t) ||
+    const hasSpecificCutsWithQtyEarly = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b(?:una|un|dos|tres|cuatro|cinco|seis)\s+bolsas?)\s+(?:de\s+)?(?:costillar|costilla|vacio|vacío|matambre|chorizo|chori|morcilla|milanesa|cuadril|tapa|lomo|bife|molida|pollo|carbon|carbón|cerdo|novillito)/i.test(t) ||
       (/(?:quiero|dame|mandame|anotame|separame|preparame)\s+(?:\d+|medio|un|una)\s*(?:kg|kilo|unidades?|bolsa|botella|paquete|tira|bife|de)/i.test(t) && /(?:costilla|matambre|chorizo|vacio|carbon|cuadril|milanesa|bife)/i.test(t));
 
     if (isAsadoCalcRequestEarly && !hasSpecificCutsWithQtyEarly) {
@@ -3458,35 +3457,35 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (advice) return advice;
     }
 
-    // 0.0002 RESPUESTAS A PROPUESTAS DE ASADO / MENÃšS RECOMENDADOS (OpciÃ³n 1, 2 o 3)
+    // 0.0002 RESPUESTAS A PROPUESTAS DE ASADO / MENÚS RECOMENDADOS (Opción 1, 2 o 3)
     if (wasAsadoProposalOffered) {
       let selectedOptNum = null;
       let modificationText = '';
 
       // 1. Validar que NO sea una cantidad de producto (ej: "1 kilo...", "1 kg...", "2 bolsas...", "1 de matambre...", "1 tira...")
-      const isProductQuantityDictation = /^(?:quiero\s+|dame\s+|anotame\s+|separame\s+)?([1-3]|uno|dos|tres)\s*(?:kilos?|kg|k\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|unidades?|un\b|de\s+[a-zÃ±Ã¡Ã©Ã­Ã³Ãº]+|[a-zÃ±Ã¡Ã©Ã­Ã³Ãº]+\s+de\s+[a-zÃ±Ã¡Ã©Ã­Ã³Ãº]+)/i.test(t);
+      const isProductQuantityDictation = /^(?:quiero\s+|dame\s+|anotame\s+|separame\s+)?([1-3]|uno|dos|tres)\s*(?:kilos?|kg|k\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|unidades?|un\b|de\s+[a-zñáéíóú]+|[a-zñáéíóú]+\s+de\s+[a-zñáéíóú]+)/i.test(t);
       const isDirectOptionChoice = !isProductQuantityDictation && (
-        /^(?:[1-3]|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|uno|dos|tres)$/i.test(t.trim()) ||
-        /^(?:opci[oÃ³]n|la|el|elijo\s+la|voy\s+con\s+la|me\s+quedo\s+con\s+la|la\s+opci[oÃ³]n)\s*([1-3]|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|uno|dos|tres)\b/i.test(t.trim()) ||
-        /^(?:quiero\s+la|dame\s+la)\s+(?:opci[oÃ³]n\s*)?([1-3]|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|uno|dos|tres)\b/i.test(t.trim()) ||
-        /(?:opci[oÃ³]n\s+(?:cl[aÃ¡]sica|combo|asadazo|gourmet)|la\s+cl[aÃ¡]sica|el\s+combo|la\s+gourmet)/i.test(t)
+        /^(?:[1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)$/i.test(t.trim()) ||
+        /^(?:opci[oó]n|la|el|elijo\s+la|voy\s+con\s+la|me\s+quedo\s+con\s+la|la\s+opci[oó]n)\s*([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b/i.test(t.trim()) ||
+        /^(?:quiero\s+la|dame\s+la)\s+(?:opci[oó]n\s*)?([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b/i.test(t.trim()) ||
+        /(?:opci[oó]n\s+(?:cl[aá]sica|combo|asadazo|gourmet)|la\s+cl[aá]sica|el\s+combo|la\s+gourmet)/i.test(t)
       );
 
-      const optLeadMatch = isDirectOptionChoice ? t.match(/^(?:era\s+(?:la\s+)?)?(?:opci[oÃ³]n\s*|la\s+|el\s+|elegimos\s+|voy\s+con\s+|me\s+quedo\s+con\s+|dame\s+(?:la\s+)?|quiero\s+la\s*)?([1-3]|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|uno|dos|tres)\b(.*)$/i) : null;
-      const namedOptMatch = isDirectOptionChoice ? t.match(/(?:clasica|clÃ¡sica|combo|asadazo|gourmet)/i) : null;
+      const optLeadMatch = isDirectOptionChoice ? t.match(/^(?:era\s+(?:la\s+)?)?(?:opci[oó]n\s*|la\s+|el\s+|elegimos\s+|voy\s+con\s+|me\s+quedo\s+con\s+|dame\s+(?:la\s+)?|quiero\s+la\s*)?([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b(.*)$/i) : null;
+      const namedOptMatch = isDirectOptionChoice ? t.match(/(?:clasica|clásica|combo|asadazo|gourmet)/i) : null;
 
       if (optLeadMatch) {
         const rawNum = optLeadMatch[1].toLowerCase();
-        if (rawNum === '1' || rawNum === 'uno' || rawNum === '1ï¸âƒ£') selectedOptNum = 1;
-        else if (rawNum === '2' || rawNum === 'dos' || rawNum === '2ï¸âƒ£') selectedOptNum = 2;
-        else if (rawNum === '3' || rawNum === 'tres' || rawNum === '3ï¸âƒ£') selectedOptNum = 3;
+        if (rawNum === '1' || rawNum === 'uno' || rawNum === '1️⃣') selectedOptNum = 1;
+        else if (rawNum === '2' || rawNum === 'dos' || rawNum === '2️⃣') selectedOptNum = 2;
+        else if (rawNum === '3' || rawNum === 'tres' || rawNum === '3️⃣') selectedOptNum = 3;
 
         const restText = (optLeadMatch[2] || '').trim();
-        if (restText && /(?:pero|con|mas|mÃ¡s|y\s+|sumale|agregale|cambiame|sacale|sin|en\s+vez\s+de|suma|agrega|ponele|\+)/i.test(restText)) {
+        if (restText && /(?:pero|con|mas|más|y\s+|sumale|agregale|cambiame|sacale|sin|en\s+vez\s+de|suma|agrega|ponele|\+)/i.test(restText)) {
           modificationText = restText.replace(/^(?:pero|y|\+)\s+/i, '').trim();
         }
       } else if (namedOptMatch) {
-        if (/clasica|clÃ¡sica/i.test(namedOptMatch[0])) selectedOptNum = 1;
+        if (/clasica|clásica/i.test(namedOptMatch[0])) selectedOptNum = 1;
         else if (/combo|asadazo/i.test(namedOptMatch[0])) selectedOptNum = 2;
         else if (/gourmet/i.test(namedOptMatch[0])) selectedOptNum = 3;
       }
@@ -3495,7 +3494,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         const optNum = selectedOptNum;
         const parsedOpt = parseAsadoOptionFromMessage(lastAgentMessage, optNum, products);
         
-        let optionTitle = optNum === 1 ? 'OpciÃ³n 1 (ClÃ¡sica Equilibrada)' : optNum === 2 ? 'OpciÃ³n 2 (Combo Asadazo + Agregados)' : 'OpciÃ³n 3 (Parrillera Gourmet)';
+        let optionTitle = optNum === 1 ? 'Opción 1 (Clásica Equilibrada)' : optNum === 2 ? 'Opción 2 (Combo Asadazo + Agregados)' : 'Opción 3 (Parrillera Gourmet)';
         let optionItems = [];
         let optionTotal = 0;
 
@@ -3504,15 +3503,22 @@ Whenever the user asks about the current time, date, products count, orders, or 
           optionItems = parsedOpt.items;
           optionTotal = parsedOpt.total;
         } else {
-          // Fallback con cÃ¡lculos coherentes
+          // Fallback con cálculos coherentes
           if (optNum === 1) {
-            optionItems = ["• Cortes seleccionados de carnicería"];
+            optionItems = [
+              '• 2 kg Vacío Especial Seleccionado — $23.000',
+              '• 1 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $5.000'
+            ];
             optionTotal = 28000;
           } else if (optNum === 2) {
-            optionItems = ["• Cortes seleccionados de carnicería"];
+            optionItems = ['• Cortes seleccionados de carnicería'];
             optionTotal = 39999;
           } else {
-            optionItems = ["• Cortes seleccionados de carnicería"];
+            optionItems = [
+              '• 1 kg Tapa de Cuadril Seleccionada — $26.407',
+              '• 1 kg Matambre Vacuno — $9.500',
+              '• 1 kg Chorizo Criollo Puro Cerdo — $5.000'
+            ];
             optionTotal = 40907;
           }
         }
@@ -3521,7 +3527,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         let finalItems = [...optionItems];
         let finalTotal = optionTotal;
 
-        // Si el cliente solicitÃ³ modificaciones adicionales sobre la opciÃ³n elegida (ej: "pero con 2 kilos de chorizo de cerdo")
+        // Si el cliente solicitó modificaciones adicionales sobre la opción elegida (ej: "pero con 2 kilos de chorizo de cerdo")
         if (modificationText) {
           const modRes = applyItemModificationToOrder({ items: finalItems, products: finalProducts }, modificationText, products, lead);
           if (modRes && modRes.items && modRes.items.length > 0) {
@@ -3537,7 +3543,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
             items: finalItems,
             products: finalProducts,
             totalAmount: finalTotal,
-            notes: (currentActiveOrder.notes ? currentActiveOrder.notes + '\n' : '') + `[Elegida ${optionTitle}${modificationText ? ` con modificaciÃ³n: "${modificationText}"` : ''}]`
+            notes: (currentActiveOrder.notes ? currentActiveOrder.notes + '\n' : '') + `[Elegida ${optionTitle}${modificationText ? ` con modificación: "${modificationText}"` : ''}]`
           });
         } else {
           currentActiveOrder = db.createOrder({
@@ -3550,32 +3556,32 @@ Whenever the user asks about the current time, date, products count, orders, or 
             channel: 'WHATSAPP',
             source: 'WHATSAPP',
             origin: 'WHATSAPP',
-            notes: `[Elegida ${optionTitle}${modificationText ? ` con modificaciÃ³n: "${modificationText}"` : ''}]`
+            notes: `[Elegida ${optionTitle}${modificationText ? ` con modificación: "${modificationText}"` : ''}]`
           });
         }
 
         const itemsDisplay = finalItems.join('\n');
-        const modNotice = modificationText ? ' con tu modificaciÃ³n' : '';
-        return `Â¡De diez ${clientName}! ðŸ¥© Ya tengo anotada la **${optionTitle}**${modNotice}:\n\n` +
-          `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte):*\n` +
+        const modNotice = modificationText ? ' con tu modificación' : '';
+        return `¡De diez ${clientName}! 🥩 Ya tengo anotada la **${optionTitle}**${modNotice}:\n\n` +
+          `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
           `${itemsDisplay}\n\n` +
-          `ðŸ’° *Total estimado:* **$${Number(finalTotal).toLocaleString('es-AR')}**\n` +
-          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-          `ðŸ‘‰ *Â¿CÃ³mo seguimos con tu pedido?*\n` +
-          `1ï¸âƒ£ Coordinar *EnvÃ­o a Domicilio* en el dÃ­a ðŸ›µ\n` +
-          `2ï¸âƒ£ Elegir *Retiro por Sucursal* (6 sedes en CÃ³rdoba) ðŸª\n` +
-          `3ï¸âƒ£ Sumar mÃ¡s cortes o complementos (carbÃ³n, vino) ðŸ¥©\n\n` +
-          `ðŸ‘‰ *RespondÃ© 1, 2 o 3 (o escribÃ­ "delivery", "sucursal" o los cortes).* ðŸ™Œ [[STAGE:proposal]]`;
+          `💰 *Total estimado:* **$${Number(finalTotal).toLocaleString('es-AR')}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+          `👉 *¿Cómo seguimos con tu pedido?*\n` +
+          `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+          `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+          `3️⃣ Sumar más cortes o complementos (carbón, vino) 🥩\n\n` +
+          `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌 [[STAGE:proposal]]`;
       }
     }
 
-    // 0.00022 RESPUESTAS A SELECCIÃ“N DE OPCIONES DE DESAMBIGUACIÃ“N Y CATÃLOGO
-    const wasAmbiguousOffered = /En mostrador tenemos varias opciones de|Â¿CuÃ¡l de estas opciones preferÃ­s que te preparemos y cuÃ¡ntos kilos o unidades/i.test(lastAgentMessage);
-    const isRemovalOrReplacement = /(?:sac[aÃ¡]|quit[aÃ¡]|sin\s+|elimin[aÃ¡]|borr[aÃ¡]|cambi[aÃ¡]|reemplaz[aÃ¡]|en\s+vez\s+de)/i.test(t);
+    // 0.00022 RESPUESTAS A SELECCIÓN DE OPCIONES DE DESAMBIGUACIÓN Y CATÁLOGO
+    const wasAmbiguousOffered = /En mostrador tenemos varias opciones de|¿Cuál de estas opciones preferís que te preparemos y cuántos kilos o unidades/i.test(lastAgentMessage);
+    const isRemovalOrReplacement = /(?:sac[aá]|quit[aá]|sin\s+|elimin[aá]|borr[aá]|cambi[aá]|reemplaz[aá]|en\s+vez\s+de)/i.test(t);
     const wasMenuOrAmbiguousOffered = (wasAmbiguousOffered || (wasMenuOffered && !wasWelcomeMenuOffered)) && !isRemovalOrReplacement;
     if (wasMenuOrAmbiguousOffered) {
-      const isOptionNum = /^(?:[1-9]|1[0-9]|20|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|7ï¸âƒ£|8ï¸âƒ£|9ï¸âƒ£|ðŸ”Ÿ|la\s+[1-9]|el\s+[1-9]|opci[oÃ³]n\s+[1-9])$/i.test(cleanConfirmText);
-      const isNamedOption = /(?:chorizo|chori|cuadril|matambre|milanesa|costilla|colorado|cheddar|criollo|dubai|tapa|colita|vacio|vacÃ­o|asado|bife|entraÃ±a|molida|pollo|carbon|carbÃ³n|vino)/i.test(t);
+      const isOptionNum = /^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|la\s+[1-9]|el\s+[1-9]|opci[oó]n\s+[1-9])$/i.test(cleanConfirmText);
+      const isNamedOption = /(?:chorizo|chori|cuadril|matambre|milanesa|costilla|colorado|cheddar|criollo|dubai|tapa|colita|vacio|vacío|asado|bife|entraña|molida|pollo|carbon|carbón|vino)/i.test(t);
 
       if (isOptionNum || isNamedOption) {
         const hasExplicitQty = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|tiras?|piezas?|combos?|bolsas?|botellas?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b\d+\s+(?:de\s+)?(?:kilos?|kg|unidades?))/i.test(t) && !isOptionNum;
@@ -3584,7 +3590,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         let displayedList = [];
         const lines = lastAgentMessage.split('\n');
         for (const line of lines) {
-          if (/[1-9]ï¸âƒ£|\[\d+\]/.test(line)) {
+          if (/[1-9]️⃣|\[\d+\]/.test(line)) {
             const matchedProd = matchBestProduct(line, products);
             if (matchedProd && !displayedList.some(p => p.id === matchedProd.id || p.name === matchedProd.name)) {
               displayedList.push(matchedProd);
@@ -3607,7 +3613,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
           chosenProduct = matchBestProduct(rawText, displayedList.length > 0 ? displayedList : products);
         }
 
-        // Si el cliente seleccionÃ³ la opciÃ³n pero NO especificÃ³ cantidad (ej: dijo solo "7", "1", "el 3" o "matambre")
+        // Si el cliente seleccionó la opción pero NO especificó cantidad (ej: dijo solo "7", "1", "el 3" o "matambre")
         if (chosenProduct && !hasExplicitQty && !/combo asadazo/i.test(chosenProduct.name || '') && !isRemovalOrReplacement) {
           return formatProductQuantityPrompt(chosenProduct, clientName);
         }
@@ -3650,21 +3656,21 @@ Whenever the user asks about the current time, date, products count, orders, or 
           const formattedTotal = `$${updatedTotal.toLocaleString('es-AR')}`;
           const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
 
-          return `Â¡Espectacular ${clientName}! ðŸ¥© Dejamos anotada tu elecciÃ³n:\n\n` +
-            `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte)${orderNotice}:*\n` +
+          return `¡Espectacular ${clientName}! 🥩 Dejamos anotada tu elección:\n\n` +
+            `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
             `${updatedItems.join('\n')}\n\n` +
-            `ðŸ’° *Subtotal acumulado:* *${formattedTotal}*\n` +
-            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-            `ðŸ‘‰ *Â¿CÃ³mo seguimos con tu pedido?*\n` +
-            `1ï¸âƒ£ Coordinar *EnvÃ­o a Domicilio* en el dÃ­a ðŸ›µ\n` +
-            `2ï¸âƒ£ Elegir *Retiro por Sucursal* (6 sedes en CÃ³rdoba) ðŸª\n` +
-            `3ï¸âƒ£ Sumar mÃ¡s cortes o complementos (carbÃ³n, vino) ðŸ¥©\n\n` +
-            `ðŸ‘‰ *RespondÃ© 1, 2 o 3 (o escribÃ­ "delivery", "sucursal" o los cortes).* ðŸ™Œ [[STAGE:proposal]]`;
+            `💰 *Subtotal acumulado:* *${formattedTotal}*\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `👉 *¿Cómo seguimos con tu pedido?*\n` +
+            `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+            `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+            `3️⃣ Sumar más cortes o complementos (carbón, vino) 🥩\n\n` +
+            `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌 [[STAGE:proposal]]`;
         }
       }
     }
 
-    // 0.00025 RESPUESTAS AL MENÃš DE MÃ‰TODOS DE PAGO (1 Efectivo, 2 Transferencia, 3 Mercado Pago)
+    // 0.00025 RESPUESTAS AL MENÚ DE MÉTODOS DE PAGO (1 Efectivo, 2 Transferencia, 3 Mercado Pago)
     if (wasPaymentMethodOffered) {
       const targetOrder = currentActiveOrder || db.getLatestOrderByJid(lead.jid || lead.id);
       const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
@@ -3672,11 +3678,11 @@ Whenever the user asks about the current time, date, products count, orders, or 
       const orderId = targetOrder ? targetOrder.id : `ORD-${Date.now().toString().slice(-4)}`;
       const isDelivery = targetOrder?.deliveryType === 'delivery' || lead?.deliveryType === 'delivery' || Boolean(targetOrder?.address && !targetOrder?.branch);
       const isPickup = !isDelivery && (targetOrder?.deliveryType === 'pickup' || lead?.deliveryType === 'pickup' || Boolean(targetOrder?.branch));
-      const branchName = targetOrder?.branch || lead?.preferredBranch || 'Urca Central (Av. JosÃ© Roque Funes 1115)';
+      const branchName = targetOrder?.branch || lead?.preferredBranch || 'Urca Central (Av. José Roque Funes 1115)';
       const destAddr = targetOrder?.address || lead?.address || 'tu domicilio';
       const destLocation = isPickup 
         ? `al retirar por la sucursal **${branchName}**`
-        : `a tu domicilio en **${destAddr}** en el dÃ­a (dentro de las 24 hs)`;
+        : `a tu domicilio en **${destAddr}** en el día (dentro de las 24 hs)`;
 
       const deliveryCalc = db.calculateDeliverySlotAndCost({
         orderDate: new Date(),
@@ -3686,7 +3692,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
       const isMissingAddress = isDelivery && (!destAddr || destAddr === 'tu domicilio' || destAddr.length < 4 || isGarbageAddress(destAddr));
 
-      if (/^(?:1|1ï¸âƒ£|uno|el 1|la 1|opci[oÃ³]n 1|efectivo|cash|al repartidor|contraentrega)$/i.test(t.trim())) {
+      if (/^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|efectivo|cash|al repartidor|contraentrega)$/i.test(t.trim())) {
         if (targetOrder) {
           db.updateOrder(targetOrder.id, { 
             paymentMethod: isPickup ? 'Efectivo en sucursal' : 'Efectivo al repartidor', 
@@ -3702,21 +3708,21 @@ Whenever the user asks about the current time, date, products count, orders, or 
         }
 
         if (isMissingAddress) {
-          return `Â¡Excelente elecciÃ³n ${clientName}! ðŸ¥©ðŸ’µ Marcamos tu pedido **#${orderId}** como **Efectivo al repartidor** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
-            `ðŸ“ *Paso obligatorio:* Para asignarte el repartidor y coordinar la entrega (${deliveryCalc.estimatedDeliveryLabel}), por favor pasame tu **Calle, Altura/NÃºmero y Barrio**. ðŸ™Œ [[STAGE:confirming_data]]`;
+          return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo al repartidor** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
+            `📍 *Paso obligatorio:* Para asignarte el repartidor y coordinar la entrega (${deliveryCalc.estimatedDeliveryLabel}), por favor pasame tu **Calle, Altura/Número y Barrio**. 🙌 [[STAGE:confirming_data]]`;
         }
 
         if (isPickup) {
-          return `Â¡Excelente elecciÃ³n ${clientName}! ðŸ¥©ðŸ’µ Marcamos tu pedido **#${orderId}** como **Efectivo en sucursal** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
-            `ðŸ“ Te esperamos al retirar por la sucursal **${branchName}** (${deliveryCalc.businessHours?.open || '08:00'} a ${deliveryCalc.businessHours?.close || '20:00'} hs). Â¡Ya estÃ¡ en marcha la preparaciÃ³n de tus cortes en carnicerÃ­a! ðŸ™Œ [[STAGE:closed_won]]`;
+          return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo en sucursal** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
+            `📍 Te esperamos al retirar por la sucursal **${branchName}** (${deliveryCalc.businessHours?.open || '08:00'} a ${deliveryCalc.businessHours?.close || '20:00'} hs). ¡Ya está en marcha la preparación de tus cortes en carnicería! 🙌 [[STAGE:closed_won]]`;
         } else {
-          return `Â¡Excelente elecciÃ³n ${clientName}! ðŸ¥©ðŸ’µ Marcamos tu pedido **#${orderId}** como **Efectivo al repartidor** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
-            `ðŸ›µ *Entrega programada:* **${deliveryCalc.estimatedDeliveryLabel}** hacia **${destAddr}**.\n` +
-            `Â¡PodÃ©s abonar en efectivo directo al repartidor al recibir tu pedido! ðŸ™Œ [[STAGE:closed_won]]`;
+          return `¡Excelente elección ${clientName}! 🥩💵 Marcamos tu pedido **#${orderId}** como **Efectivo al repartidor** (Total: **$${Number(amount).toLocaleString('es-AR')}**).\n\n` +
+            `🛵 *Entrega programada:* **${deliveryCalc.estimatedDeliveryLabel}** hacia **${destAddr}**.\n` +
+            `¡Podés abonar en efectivo directo al repartidor al recibir tu pedido! 🙌 [[STAGE:closed_won]]`;
         }
       }
 
-      if (/^(?:2|2ï¸âƒ£|dos|el 2|la 2|opci[oÃ³]n 2|transferencia|transferir|alias|banco|cbu)$/i.test(t.trim())) {
+      if (/^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|transferencia|transferir|alias|banco|cbu)$/i.test(t.trim())) {
         if (targetOrder) {
           db.updateOrder(targetOrder.id, { 
             paymentMethod: 'Transferencia Bancaria', 
@@ -3730,20 +3736,20 @@ Whenever the user asks about the current time, date, products count, orders, or 
         }
 
         if (isMissingAddress) {
-          return `Â¡Excelente elecciÃ³n ${clientName}! ðŸ¥©ðŸ¦ Para abonar tu pedido **#${orderId}** por **Transferencia Bancaria**:\n\n` +
-            `ðŸ“± *Alias Mercado Pago / Bancario:* \`republica.carne.mp\`\n` +
-            `ðŸ’° *Monto exacto:* **$${Number(amount).toLocaleString('es-AR')}**\n\n` +
-            `ðŸ“ *Paso obligatorio:* Para coordinar el envÃ­o (${deliveryCalc.estimatedDeliveryLabel}), por favor pasame tambiÃ©n tu **Calle, Altura/NÃºmero y Barrio**. ðŸ™Œ [[STAGE:confirming_data]]`;
+          return `¡Excelente elección ${clientName}! 🥩🏦 Para abonar tu pedido **#${orderId}** por **Transferencia Bancaria**:\n\n` +
+            `📱 *Alias Mercado Pago / Bancario:* \`republica.carne.mp\`\n` +
+            `💰 *Monto exacto:* **$${Number(amount).toLocaleString('es-AR')}**\n\n` +
+            `📍 *Paso obligatorio:* Para coordinar el envío (${deliveryCalc.estimatedDeliveryLabel}), por favor pasame también tu **Calle, Altura/Número y Barrio**. 🙌 [[STAGE:confirming_data]]`;
         }
 
-        return `Â¡Excelente elecciÃ³n ${clientName}! ðŸ¥©ðŸ¦ Para abonar tu pedido **#${orderId}** por **Transferencia Bancaria**:\n\n` +
-          `ðŸ“± *Alias Mercado Pago / Bancario:* \`republica.carne.mp\`\n` +
-          `ðŸ’° *Monto exacto:* **$${Number(amount).toLocaleString('es-AR')}**\n` +
-          `â° *Entrega:* ${deliveryCalc.estimatedDeliveryLabel}\n\n` +
-          `ðŸ‘‰ En cuanto hagas la transferencia, pasame el comprobante o avisame por acÃ¡ y lo despachamos al instante ${destLocation}. ðŸ™Œ [[STAGE:closed_won]]`;
+        return `¡Excelente elección ${clientName}! 🥩🏦 Para abonar tu pedido **#${orderId}** por **Transferencia Bancaria**:\n\n` +
+          `📱 *Alias Mercado Pago / Bancario:* \`republica.carne.mp\`\n` +
+          `💰 *Monto exacto:* **$${Number(amount).toLocaleString('es-AR')}**\n` +
+          `⏰ *Entrega:* ${deliveryCalc.estimatedDeliveryLabel}\n\n` +
+          `👉 En cuanto hagas la transferencia, pasame el comprobante o avisame por acá y lo despachamos al instante ${destLocation}. 🙌 [[STAGE:closed_won]]`;
       }
 
-      if (/^(?:3|3ï¸âƒ£|tres|el 3|la 3|opci[oÃ³]n 3|mp|mercado|mercado pago|mercadopago|link|tarjeta|tarjetas)$/i.test(t.trim())) {
+      if (/^(?:3|3️⃣|tres|el 3|la 3|opci[oó]n 3|mp|mercado|mercado pago|mercadopago|link|tarjeta|tarjetas)$/i.test(t.trim())) {
         let dynamicLink = targetOrder?.paymentLink || '';
         const creds = mercadoPagoService.getCredentials();
         try {
@@ -3777,18 +3783,18 @@ Whenever the user asks about the current time, date, products count, orders, or 
           });
         }
 
-        const modeTag = creds.isSandbox ? '\nðŸ§ª *[MODO PRUEBAS - SANDBOX]*' : '';
-        const addressReminder = isMissingAddress ? `\n\nðŸ“ *RecordÃ¡ indicarnos tu Calle, Altura y Barrio para la entrega.*` : '';
-        return `ðŸ’³ *[MERCADO PAGO CHECKOUT OFICIAL]*\nÂ¡De diez ${clientName}! ðŸ¥©ðŸ’³ AcÃ¡ tenÃ©s el link de pago oficial y seguro para tu pedido **#${orderId}** por **$${Number(amount).toLocaleString('es-AR')}**:${modeTag}\n\n` +
-          `1ï¸âƒ£ **Link de Pago Directo:**\nðŸ”— ${dynamicLink}\n\n` +
-          `2ï¸âƒ£ **Transferencia / Dinero en cuenta:**\nðŸ“± *Alias Mercado Pago:* \`republica.carne.mp\`\n\n` +
-          `â° *Entrega:* ${deliveryCalc.estimatedDeliveryLabel}\n` +
-          `PodÃ©s abonar con Dinero en cuenta, DÃ©bito, CrÃ©dito o Transferencia. En cuanto se acredite, Â¡comenzamos el despacho hacia **${destAddr}**! ðŸ™Œ${addressReminder} [[STAGE:closed_won]]`;
+        const modeTag = creds.isSandbox ? '\n🧪 *[MODO PRUEBAS - SANDBOX]*' : '';
+        const addressReminder = isMissingAddress ? `\n\n📍 *Recordá indicarnos tu Calle, Altura y Barrio para la entrega.*` : '';
+        return `💳 *[MERCADO PAGO CHECKOUT OFICIAL]*\n¡De diez ${clientName}! 🥩💳 Acá tenés el link de pago oficial y seguro para tu pedido **#${orderId}** por **$${Number(amount).toLocaleString('es-AR')}**:${modeTag}\n\n` +
+          `1️⃣ **Link de Pago Directo:**\n🔗 ${dynamicLink}\n\n` +
+          `2️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* \`republica.carne.mp\`\n\n` +
+          `⏰ *Entrega:* ${deliveryCalc.estimatedDeliveryLabel}\n` +
+          `Podés abonar con Dinero en cuenta, Débito, Crédito o Transferencia. En cuanto se acredite, ¡comenzamos el despacho hacia **${destAddr}**! 🙌${addressReminder} [[STAGE:closed_won]]`;
       }
     }
 
-    // 0.00028 RESPUESTAS DE CONFORMIDAD / "LISTO PARA DESPACHAR" / "ESTÃ BIEN ASÃ"
-    const isReadyAffirmation = /^(?:listo|dejalo listo|listo para despachar|as[iÃ­] est[aÃ¡] bien|est[aÃ¡] bien as[iÃ­]|no,? est[aÃ¡] bien|no,? est[aÃ¡] bien as[iÃ­]|todo listo|dejalo as[iÃ­]|nada m[aÃ¡]s|no nada m[aÃ¡]s|todo perfecto|as[iÃ­] nom[aÃ¡]s|de diez as[iÃ­]|est[aÃ¡] perfecto|no gracias|no por ahora|dale listo|si listo|s[iÃ­] listo|as[iÃ­] esta de diez|para despachar|bien as[iÃ­]|no as[iÃ­] est[aÃ¡] bien)$/i.test(cleanConfirmText);
+    // 0.00028 RESPUESTAS DE CONFORMIDAD / "LISTO PARA DESPACHAR" / "ESTÁ BIEN ASÍ"
+    const isReadyAffirmation = /^(?:listo|dejalo listo|listo para despachar|as[ií] est[aá] bien|est[aá] bien as[ií]|no,? est[aá] bien|no,? est[aá] bien as[ií]|todo listo|dejalo as[ií]|nada m[aá]s|no nada m[aá]s|todo perfecto|as[ií] nom[aá]s|de diez as[ií]|est[aá] perfecto|no gracias|no por ahora|dale listo|si listo|s[ií] listo|as[ií] esta de diez|para despachar|bien as[ií]|no as[ií] est[aá] bien)$/i.test(cleanConfirmText);
 
     if (isReadyAffirmation) {
       const targetOrder = currentActiveOrder || db.getLatestOrderByJid(lead.jid || lead.id);
@@ -3797,58 +3803,58 @@ Whenever the user asks about the current time, date, products count, orders, or 
         const destAddr = targetOrder.address || lead.address || targetOrder.branch || 'tu domicilio';
 
         if (hasPaymentChosen || targetOrder.status === 'in_transit' || targetOrder.status === 'preparing') {
-          return `Â¡De diez ${clientName}! ðŸ™Œ Queda todo confirmado con tu pedido **#${targetOrder.id}** tal como estÃ¡. Te avisamos en cuanto el repartidor estÃ© en viaje hacia **${destAddr}**. Â¡Muchas gracias por elegirnos! ðŸ¥©ðŸšš [[STAGE:closed_won]]`;
+          return `¡De diez ${clientName}! 🙌 Queda todo confirmado con tu pedido **#${targetOrder.id}** tal como está. Te avisamos en cuanto el repartidor esté en viaje hacia **${destAddr}**. ¡Muchas gracias por elegirnos! 🥩🚚 [[STAGE:closed_won]]`;
         }
 
         const totalFormatted = `$${Number(targetOrder.totalAmount).toLocaleString('es-AR')}`;
-        return `Â¡De diez ${clientName}! ðŸ¥©ðŸšš Tu pedido **#${targetOrder.id}** por **${totalFormatted}** queda listo para despacho en el dÃ­a a **${destAddr}**.\n\n` +
-          `ðŸ‘‰ *Para finalizar, Â¿cÃ³mo preferÃ­s abonar?*\n` +
-          `1ï¸âƒ£ *Efectivo* (al repartidor o en sucursal)\n` +
-          `2ï¸âƒ£ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
-          `3ï¸âƒ£ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
-          `ðŸ‘‰ RespondÃ© *1*, *2* o *3*. ðŸ™Œ [[STAGE:confirming_data]]`;
+        return `¡De diez ${clientName}! 🥩🚚 Tu pedido **#${targetOrder.id}** por **${totalFormatted}** queda listo para despacho en el día a **${destAddr}**.\n\n` +
+          `👉 *Para finalizar, ¿cómo preferís abonar?*\n` +
+          `1️⃣ *Efectivo* (al repartidor o en sucursal)\n` +
+          `2️⃣ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
+          `3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
+          `👉 Respondé *1*, *2* o *3*. 🙌 [[STAGE:confirming_data]]`;
       }
     }
 
-    // 0.0003 CORRECCIÃ“N / RECLAMO DE PEDIDO INCORRECTO POR PARTE DEL CLIENTE ("estÃ¡ mal", "te equivocaste", etc.)
-    const isOrderCorrectionComplaint = /est[aÃ¡]\s+mal(?:\s+el\s+ped)?|no\s+es\s+lo\s+que\s+ped[iÃ­]|te\s+equivocaste|eso\s+no\s+es|est[aÃ¡]\s+equivocado|se\s+equivoco|no\s+ped[iÃ­]\s+eso|no\s+quiero\s+eso|corregilo|corrijanlo|nada\s+que\s+ver|no\s+es\s+ese\s+el\s+ped/i.test(t);
+    // 0.0003 CORRECCIÓN / RECLAMO DE PEDIDO INCORRECTO POR PARTE DEL CLIENTE ("está mal", "te equivocaste", etc.)
+    const isOrderCorrectionComplaint = /est[aá]\s+mal(?:\s+el\s+ped)?|no\s+es\s+lo\s+que\s+ped[ií]|te\s+equivocaste|eso\s+no\s+es|est[aá]\s+equivocado|se\s+equivoco|no\s+ped[ií]\s+eso|no\s+quiero\s+eso|corregilo|corrijanlo|nada\s+que\s+ver|no\s+es\s+ese\s+el\s+ped/i.test(t);
 
     if (isOrderCorrectionComplaint) {
       // Registrar aprendizaje en la Red Neuronal y base de datos
       NeuralMemoryService.recordLearningInsight({
         jid: lead.jid || lead.id,
         clientName,
-        mistakeType: 'CorrecciÃ³n de Pedido por Cliente',
+        mistakeType: 'Corrección de Pedido por Cliente',
         clientFeedback: rawText,
         context: lastAgentMessage,
-        learningRule: `Al recibir queja o correcciÃ³n de ${clientName}, limpiar carrito y confirmar cortes exactos solicitados.`
+        learningRule: `Al recibir queja o corrección de ${clientName}, limpiar carrito y confirmar cortes exactos solicitados.`
       });
 
-      return `Â¡Mil disculpas ${clientName}! ðŸ¥© TenÃ©s toda la razÃ³n, disculpame la confusiÃ³n.\n\n` +
-        `Contame por favor con exactitud: **Â¿quÃ© cortes o combo te gustarÃ­a que te preparemos y cuÃ¡ntos kilos o unidades?** Te lo armo al instante, limpio y exactamente como querÃ©s. ðŸ™Œ [[STAGE:discovery]]`;
+      return `¡Mil disculpas ${clientName}! 🥩 Tenés toda la razón, disculpame la confusión.\n\n` +
+        `Contame por favor con exactitud: **¿qué cortes o combo te gustaría que te preparemos y cuántos kilos o unidades?** Te lo armo al instante, limpio y exactamente como querés. 🙌 [[STAGE:discovery]]`;
     }
 
     // Consulta general de sucursales, horarios o ubicaciones
-    const isGeneralBranchQuery = /(?:nuestras\s+)?(?:6\s+)?sucursales|d[oÃ³]nde\s+est[aÃ¡]n|d[oÃ³]nde\s+quedan|d[oÃ³]nde\s+hay|sedes|direcciones|ubicaci[oÃ³]n|locales|horarios?|a\s+qu[eÃ©]\s+hora|cierran|abren|abierto|atenci[oÃ³]n/i.test(t) && !/cambiar|elegir|retirar/i.test(t);
+    const isGeneralBranchQuery = /(?:nuestras\s+)?(?:6\s+)?sucursales|d[oó]nde\s+est[aá]n|d[oó]nde\s+quedan|d[oó]nde\s+hay|sedes|direcciones|ubicaci[oó]n|locales|horarios?|a\s+qu[eé]\s+hora|cierran|abren|abierto|atenci[oó]n/i.test(t) && !/cambiar|elegir|retirar/i.test(t);
     if (isGeneralBranchQuery) {
-      return `ðŸª *NUESTRAS 6 SUCURSALES EN CÃ“RDOBA:* ðŸ¥©\n\n` +
-        `1ï¸âƒ£ **URCA CENTRAL:** Av. JosÃ© Roque Funes 1115 (ðŸ“ž +54 9 3513 906947)\n` +
-        `   *Lunes a SÃ¡bado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-        `2ï¸âƒ£ **URCA 2 â€“ ALTO TEJEDA:** Av. MenÃ©ndez Pidal 3575 (ðŸ“ž +54 9 3518 623195)\n` +
-        `   *Lunes a SÃ¡bado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-        `3ï¸âƒ£ **INTERCOUNTRY â€“ CORTEZA MALL:** Av. Los Ãlamos 1015 (ðŸ“ž +54 9 3518 623194)\n` +
+      return `🏪 *NUESTRAS 6 SUCURSALES EN CÓRDOBA:* 🥩\n\n` +
+        `1️⃣ **URCA CENTRAL:** Av. José Roque Funes 1115 (📞 +54 9 3513 906947)\n` +
+        `   *Lunes a Sábado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+        `2️⃣ **URCA 2 – ALTO TEJEDA:** Av. Menéndez Pidal 3575 (📞 +54 9 3518 623195)\n` +
+        `   *Lunes a Sábado:* 9:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+        `3️⃣ **INTERCOUNTRY – CORTEZA MALL:** Av. Los Álamos 1015 (📞 +54 9 3518 623194)\n` +
         `   *Lunes a Domingo:* 9:00 a 21:00 hs\n\n` +
-        `4ï¸âƒ£ **DUARTE QUIRÃ“S:** Av. Duarte QuirÃ³s 5130 (ðŸ“ž +54 9 3518 156595)\n` +
-        `   *Lunes a SÃ¡bado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-        `5ï¸âƒ£ **VILLA ALLENDE â€“ MERCADITO DE LA VILLA:** Av. Figueroa Alcorta 480 (ðŸ“ž +54 9 3513 540031)\n` +
-        `   *Lunes a SÃ¡bado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
-        `6ï¸âƒ£ **COUNTRY SAN ISIDRO:** Av. Padre Luchesse km 2 (ðŸ“ž +54 9 3518 769099)\n` +
-        `   *Lunes a MiÃ©rcoles:* 07:00 a 00:00 hs | *Jueves a SÃ¡bado:* 07:00 a 01:00 hs\n\n` +
-        `ðŸ›µ *TambiÃ©n hacemos envÃ­os directos en el dÃ­a a domicilio a todo CÃ³rdoba.* Â¿QuerÃ©s que te preparemos un pedido? ðŸ™Œ [[STAGE:proposal]]`;
+        `4️⃣ **DUARTE QUIRÓS:** Av. Duarte Quirós 5130 (📞 +54 9 3518 156595)\n` +
+        `   *Lunes a Sábado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+        `5️⃣ **VILLA ALLENDE – MERCADITO DE LA VILLA:** Av. Figueroa Alcorta 480 (📞 +54 9 3513 540031)\n` +
+        `   *Lunes a Sábado:* 9:00 a 13:30 y 17:00 a 21:00 hs | *Domingo:* 9:00 a 13:30 hs\n\n` +
+        `6️⃣ **COUNTRY SAN ISIDRO:** Av. Padre Luchesse km 2 (📞 +54 9 3518 769099)\n` +
+        `   *Lunes a Miércoles:* 07:00 a 00:00 hs | *Jueves a Sábado:* 07:00 a 01:00 hs\n\n` +
+        `🛵 *También hacemos envíos directos en el día a domicilio a todo Córdoba.* ¿Querés que te preparemos un pedido? 🙌 [[STAGE:proposal]]`;
     }
 
-    // 0.001 CONFIRMACIÃ“N DE RECEPCIÃ“N / ENTREGA POR PARTE DEL CLIENTE
-    const isDeliveryReceivedConfirm = /recibi el ped|recibÃ­ el ped|me llego el ped|me llegÃ³ el ped|ya llego el repartidor|ya llegÃ³ el repartidor|ya me lo entregaron|pedido recibido|todo recibido|ya lo tengo|acaba de llegar|llego todo bien|llegÃ³ todo bien|ya llego|ya llegÃ³|recibido todo de diez/i.test(t);
+    // 0.001 CONFIRMACIÓN DE RECEPCIÓN / ENTREGA POR PARTE DEL CLIENTE
+    const isDeliveryReceivedConfirm = /recibi el ped|recibí el ped|me llego el ped|me llegó el ped|ya llego el repartidor|ya llegó el repartidor|ya me lo entregaron|pedido recibido|todo recibido|ya lo tengo|acaba de llegar|llego todo bien|llegó todo bien|ya llego|ya llegó|recibido todo de diez/i.test(t);
 
     if (isDeliveryReceivedConfirm && currentActiveOrder) {
       const isCash = currentActiveOrder.paymentMethod && currentActiveOrder.paymentMethod.toLowerCase().includes('efectivo');
@@ -3860,11 +3866,11 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (lead.jid || lead.id) {
         db.updateLead(lead.jid || lead.id, { stage: 'closed_won' });
       }
-      return `Â¡QuÃ© gran noticia ${clientName}! ðŸŽ‰ðŸ¥© Marcamos tu pedido **#${currentActiveOrder.id}** como **âœ… Entregado con Ã©xito**.\n\nÂ¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposiciÃ³n. Â¡Muchas gracias por elegir RepÃºblica de la Carne! ðŸ™Œ [[STAGE:closed_won]]`;
+      return `¡Qué gran noticia ${clientName}! 🎉🥩 Marcamos tu pedido **#${currentActiveOrder.id}** como **✅ Entregado con éxito**.\n\n¡Que disfruten mucho ese asado y esos cortes! Cualquier cosa que precises, estamos a tu entera disposición. ¡Muchas gracias por elegir República de la Carne! 🙌 [[STAGE:closed_won]]`;
     }
 
-    // 0.002 CONFIRMACIÃ“N / COMPROBANTE DE PAGO ENVIADO POR EL CLIENTE
-    const isPaymentProofSent = /ya pague|ya paguÃ©|ya transferi|ya transferÃ­|te pase el comprobante|te pasÃ© el comprobante|aca esta el comprobante|acÃ¡ estÃ¡ el comprobante|adjunto comprobante|pago realizado|ya mande la plata|ya mandÃ© la plata|comprobante de pago/i.test(t);
+    // 0.002 CONFIRMACIÓN / COMPROBANTE DE PAGO ENVIADO POR EL CLIENTE
+    const isPaymentProofSent = /ya pague|ya pagué|ya transferi|ya transferí|te pase el comprobante|te pasé el comprobante|aca esta el comprobante|acá está el comprobante|adjunto comprobante|pago realizado|ya mande la plata|ya mandé la plata|comprobante de pago/i.test(t);
 
     if (isPaymentProofSent) {
       const targetOrder = currentActiveOrder || db.getLatestOrderByJid(lead.jid || lead.id);
@@ -3879,22 +3885,22 @@ Whenever the user asks about the current time, date, products count, orders, or 
           db.updateLead(lead.jid || lead.id, { stage: 'closed_won' });
         }
         const statusLabel = getOrderStatusLabel(newStatus);
-        return `Â¡Excelente ${clientName}! ðŸ’³ Registramos tu aviso y confirmaciÃ³n de pago para tu pedido **#${targetOrder.id}** por **$${Number(targetOrder.totalAmount).toLocaleString('es-AR')}**.\n\nTus cortes se encuentran **${statusLabel}** listos para su entrega. Â¡Muchas gracias por tu compra! ðŸ™Œ [[STAGE:closed_won]]`;
+        return `¡Excelente ${clientName}! 💳 Registramos tu aviso y confirmación de pago para tu pedido **#${targetOrder.id}** por **$${Number(targetOrder.totalAmount).toLocaleString('es-AR')}**.\n\nTus cortes se encuentran **${statusLabel}** listos para su entrega. ¡Muchas gracias por tu compra! 🙌 [[STAGE:closed_won]]`;
       }
     }
 
     // 0.005 CONSULTA DE ESTADO DE PEDIDO ACTIVO O DETALLE DE ORDEN COMPLETA
-    const isStatusCheck = /estado|como viene|cÃ³mo viene|donde est[aÃ¡]|dÃ³nde est[aÃ¡]|cu[aÃ¡]ndo llega|seguimiento|status|consultar el estado|consultar estado|detalle.*ped|ver.*ped|ver.*orden|orden completa|ver la orden|ver mi orden|ver orden completa|resumen completo|qu[eÃ©]\s+ped[iÃ­]|que ped[iÃ­]|que pedi|mis cortes|resumen.*ped|detalle|ya est[aÃ¡] listo|est[aÃ¡] listo|ya lo prepararon|est[aÃ¡] preparado|est[aÃ¡] lista/i.test(t) ||
-      /(?:ver|mostrar|mostrame|consultar|pasame|cual es|cuÃ¡l es|cÃ³mo es|como es|dame|decime)\s+(?:la\s+|el\s+|mi\s+)?(?:orden|pedido|resumen|detalle)(?:\s+completo|\s+completa)?/i.test(t) ||
-      /^(?:ver\s+pedido|ver\s+orden|ver\s+detalle|detalle\s+del\s+pedido|qu[eÃ©]\s+ped[iÃ­]|orden\s+completa|resumen)$/i.test(cleanConfirmText) ||
-      (wasActiveOrderHelpOffered && /^(?:2|2ï¸âƒ£|opci[oÃ³]n 2|la 2|el 2|dos|estado|detalle|ver orden|orden completa)$/i.test(t.trim()));
+    const isStatusCheck = /estado|como viene|cómo viene|donde est[aá]|dónde est[aá]|cu[aá]ndo llega|seguimiento|status|consultar el estado|consultar estado|detalle.*ped|ver.*ped|ver.*orden|orden completa|ver la orden|ver mi orden|ver orden completa|resumen completo|qu[eé]\s+ped[ií]|que ped[ií]|que pedi|mis cortes|resumen.*ped|detalle|ya est[aá] listo|est[aá] listo|ya lo prepararon|est[aá] preparado|est[aá] lista/i.test(t) ||
+      /(?:ver|mostrar|mostrame|consultar|pasame|cual es|cuál es|cómo es|como es|dame|decime)\s+(?:la\s+|el\s+|mi\s+)?(?:orden|pedido|resumen|detalle)(?:\s+completo|\s+completa)?/i.test(t) ||
+      /^(?:ver\s+pedido|ver\s+orden|ver\s+detalle|detalle\s+del\s+pedido|qu[eé]\s+ped[ií]|orden\s+completa|resumen)$/i.test(cleanConfirmText) ||
+      (wasActiveOrderHelpOffered && /^(?:2|2️⃣|opci[oó]n 2|la 2|el 2|dos|estado|detalle|ver orden|orden completa)$/i.test(t.trim()));
 
     if (isStatusCheck && currentActiveOrder) {
       const statusLabel = getOrderStatusLabel(currentActiveOrder.status);
       const isPrep = Boolean(currentActiveOrder.isPrepared) || currentActiveOrder.status === 'ready' || currentActiveOrder.status === 'ready_for_pickup';
       const prepText = isPrep 
-        ? `ðŸ”ª *PreparaciÃ³n:* âœ… *Cortes cortados y preparados* en carnicerÃ­a`
-        : `ðŸ”ª *PreparaciÃ³n:* â³ *En cola de corte y pesado*`;
+        ? `🔪 *Preparación:* ✅ *Cortes cortados y preparados* en carnicería`
+        : `🔪 *Preparación:* ⏳ *En cola de corte y pesado*`;
       const itemsText = Array.isArray(currentActiveOrder.items) ? currentActiveOrder.items.join('\n') : currentActiveOrder.items;
       const destination = currentActiveOrder.deliveryType === 'delivery'
         ? `Domicilio (${currentActiveOrder.address || lead.address || 'A coordinar'})`
@@ -3903,33 +3909,33 @@ Whenever the user asks about the current time, date, products count, orders, or 
       let readyNote = '';
       if (currentActiveOrder.status === 'ready' || currentActiveOrder.status === 'ready_for_pickup' || isPrep) {
         if (currentActiveOrder.deliveryType === 'pickup' || currentActiveOrder.branchName || currentActiveOrder.branch) {
-          readyNote = `\nðŸŽ‰ *Â¡Tu pedido ya estÃ¡ LISTO!* PodÃ©s pasar a retirarlo por **${currentActiveOrder.branchName || currentActiveOrder.branch || 'la sucursal'}** cuando gustes. ðŸ™Œ\n`;
+          readyNote = `\n🎉 *¡Tu pedido ya está LISTO!* Podés pasar a retirarlo por **${currentActiveOrder.branchName || currentActiveOrder.branch || 'la sucursal'}** cuando gustes. 🙌\n`;
         } else {
-          readyNote = `\nðŸŽ‰ *Â¡Tu pedido ya estÃ¡ LISTO y preparado!* Aguardando el despacho del repartidor. ðŸ›µ\n`;
+          readyNote = `\n🎉 *¡Tu pedido ya está LISTO y preparado!* Aguardando el despacho del repartidor. 🛵\n`;
         }
       }
 
-      return `ðŸ“¦ *ESTADO Y DETALLE DE TU PEDIDO #${currentActiveOrder.id}:*\n\n` +
-        `ðŸ‘‰ **${statusLabel}**\n` +
+      return `📦 *ESTADO Y DETALLE DE TU PEDIDO #${currentActiveOrder.id}:*\n\n` +
+        `👉 **${statusLabel}**\n` +
         `${prepText}\n\n` +
-        `ðŸ“‹ *Cortes y Productos:* \n${itemsText}\n\n` +
-        `ðŸ’° *Total:* **$${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}**\n` +
-        `ðŸ“ *Destino:* ${destination}\n` +
-        `ðŸ’³ *Medio de pago:* ${currentActiveOrder.paymentMethod || 'Efectivo / Transferencia'}\n` +
-        `ðŸšš *Entrega:* ${currentActiveOrder.status === 'ready' ? 'Listo en mostrador / En despacho' : 'Programado en el dÃ­a (dentro de las 24 hs)'}\n` +
+        `📋 *Cortes y Productos:* \n${itemsText}\n\n` +
+        `💰 *Total:* **$${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}**\n` +
+        `📍 *Destino:* ${destination}\n` +
+        `💳 *Medio de pago:* ${currentActiveOrder.paymentMethod || 'Efectivo / Transferencia'}\n` +
+        `🚚 *Entrega:* ${currentActiveOrder.status === 'ready' ? 'Listo en mostrador / En despacho' : 'Programado en el día (dentro de las 24 hs)'}\n` +
         readyNote +
-        `\nðŸ‘‰ *Opciones:*\n` +
-        `1ï¸âƒ£ Modificar algÃºn dato o cortes (o escribÃ­ "modificar")\n` +
-        `2ï¸âƒ£ Cancelar pedido (o escribÃ­ "cancelar")\n\n` +
-        `Â¿PrecisÃ¡s algo mÃ¡s? ðŸ™Œ`;
+        `\n👉 *Opciones:*\n` +
+        `1️⃣ Modificar algún dato o cortes (o escribí "modificar")\n` +
+        `2️⃣ Cancelar pedido (o escribí "cancelar")\n\n` +
+        `¿Precisás algo más? 🙌`;
     }
 
-    // 0.01 CANCELACIÃ“N DE PEDIDO (VÃ¡lida en TODO momento, incluso in_transit)
+    // 0.01 CANCELACIÓN DE PEDIDO (Válida en TODO momento, incluso in_transit)
     const isCancelRequest = /cancelar.*ped|cancela.*ped|anular.*ped|anula.*ped|no quiero el ped|cancelar mi orden|cancela mi orden|quiero cancelar|cancelame el ped|ya no quiero el ped/i.test(t) ||
-      (wasInTransitChoiceOffered && /^(?:1|1ï¸âƒ£|cancelar|cancela)$/i.test(t.trim())) ||
-      (wasModMenuOffered && /^(?:6|6ï¸âƒ£|cancelar)$/i.test(t.trim())) ||
-      (wasActiveOrderHelpOffered && /^(?:3|3ï¸âƒ£|cancelar)$/i.test(t.trim())) ||
-      (wasDataConfirmOffered && /^(?:3|3ï¸âƒ£|cancelar)$/i.test(t.trim()));
+      (wasInTransitChoiceOffered && /^(?:1|1️⃣|cancelar|cancela)$/i.test(t.trim())) ||
+      (wasModMenuOffered && /^(?:6|6️⃣|cancelar)$/i.test(t.trim())) ||
+      (wasActiveOrderHelpOffered && /^(?:3|3️⃣|cancelar)$/i.test(t.trim())) ||
+      (wasDataConfirmOffered && /^(?:3|3️⃣|cancelar)$/i.test(t.trim()));
 
     if (isCancelRequest) {
       if (currentActiveOrder) {
@@ -3938,28 +3944,28 @@ Whenever the user asks about the current time, date, products count, orders, or 
           db.updateLead(lead.jid || lead.id, { stage: 'qualified' });
         }
         if (currentActiveOrder.status === 'in_transit') {
-          return `Â¡Entendido ${clientName}! ðŸ›‘ Hemos **cancelado** tu pedido **#${currentActiveOrder.id}** de inmediato y notificado al repartidor para suspender la entrega.\n\nÂ¿Te gustarÃ­a armar otro pedido o necesitÃ¡s que te asesore con algÃºn corte? ðŸ¥©ðŸ”¥ [[STAGE:qualified]]`;
+          return `¡Entendido ${clientName}! 🛑 Hemos **cancelado** tu pedido **#${currentActiveOrder.id}** de inmediato y notificado al repartidor para suspender la entrega.\n\n¿Te gustaría armar otro pedido o necesitás que te asesore con algún corte? 🥩🔥 [[STAGE:qualified]]`;
         }
-        return `Â¡Listo ${clientName}! ðŸ‘ Hemos **cancelado** tu pedido **#${currentActiveOrder.id}** de forma exitosa. No te preocupes.\n\nÂ¿Te gustarÃ­a armar otro pedido o necesitÃ¡s que te asesore con algÃºn corte? ðŸ¥©ðŸ”¥ [[STAGE:qualified]]`;
+        return `¡Listo ${clientName}! 👍 Hemos **cancelado** tu pedido **#${currentActiveOrder.id}** de forma exitosa. No te preocupes.\n\n¿Te gustaría armar otro pedido o necesitás que te asesore con algún corte? 🥩🔥 [[STAGE:qualified]]`;
       } else {
-        return `Â¡Hola ${clientName}! No registrÃ¡s ningÃºn pedido activo en este momento. Si querÃ©s armar un pedido nuevo o consultar precios, avisame y te ayudo con gusto. ðŸ¥©`;
+        return `¡Hola ${clientName}! No registrás ningún pedido activo en este momento. Si querés armar un pedido nuevo o consultar precios, avisame y te ayudo con gusto. 🥩`;
       }
     }
 
-    // 0.02 SELECCIÃ“N / CAMBIO DE SUCURSAL (1 al 6 o nombre de sucursal)
+    // 0.02 SELECCIÓN / CAMBIO DE SUCURSAL (1 al 6 o nombre de sucursal)
     const isBranchChangeIntent = /cambiar.*sucursal|retirar.*otra.*sucursal|elegir.*sucursal|cambiar.*sede|otra.*sede|cambio.*sucursal|seleccionar.*sucursal/i.test(t) ||
-      (wasModMenuOffered && /^(?:3|3ï¸âƒ£)$/i.test(t.trim()));
+      (wasModMenuOffered && /^(?:3|3️⃣)$/i.test(t.trim()));
 
     if (isBranchChangeIntent) {
       const orderRef = currentActiveOrder ? ` para tu pedido **#${currentActiveOrder.id}**` : '';
-      return `Â¡De diez ${clientName}! ðŸª ElegÃ­ la sucursal de retiro${orderRef}:\n\n` +
+      return `¡De diez ${clientName}! 🏪 Elegí la sucursal de retiro${orderRef}:\n\n` +
         `${formatBranchMenu()}\n\n` +
-        `ðŸ‘‰ RespondÃ© con el nÃºmero de sucursal (1 al 6) o el nombre de la sede. ðŸ™Œ`;
+        `👉 Respondé con el número de sucursal (1 al 6) o el nombre de la sede. 🙌`;
     }
 
     const isBranchSelectionAnswer = wasBranchMenuOffered && (
-      /^(?:1|2|3|4|5|6|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|urca|funes|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro|luchesse)$/i.test(t.trim()) ||
-      /(?:sucursal\s+[1-6]|sede\s+[1-6]|opci[oÃ³]n\s+[1-6])/i.test(t)
+      /^(?:1|2|3|4|5|6|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|urca|funes|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro|luchesse)$/i.test(t.trim()) ||
+      /(?:sucursal\s+[1-6]|sede\s+[1-6]|opci[oó]n\s+[1-6])/i.test(t)
     );
 
     if (isBranchSelectionAnswer) {
@@ -3987,7 +3993,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         });
       } else {
         const { items: historyItems, total: historyTotal, products: parsedProducts } = extractItemsFromHistoryAndText(history, '', products, lead);
-        const finalItems = historyItems.length > 0 ? historyItems : ["• Cortes seleccionados"];
+        const finalItems = historyItems.length > 0 ? historyItems : ['• Cortes seleccionados'];
         const finalTotal = historyTotal > 0 ? historyTotal : 39999;
         targetOrder = db.createOrder({
           jid: lead.jid || lead.id,
@@ -4017,96 +4023,96 @@ Whenever the user asks about the current time, date, products count, orders, or 
       const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
       const itemsList = (targetOrder?.items && targetOrder.items.length > 0)
         ? (Array.isArray(targetOrder.items) ? targetOrder.items.join('\n') : targetOrder.items)
-        : (historyItems.length > 0 ? historyItems.join('\n') : 'â€¢ Cortes seleccionados');
+        : (historyItems.length > 0 ? historyItems.join('\n') : '• Cortes seleccionados');
       const orderTotal = targetOrder?.totalAmount || historyTotal || 0;
       const totalFormatted = `$${Number(orderTotal).toLocaleString('es-AR')}`;
       const orderRef = targetOrder ? ` **#${targetOrder.id}**` : '';
 
-      return `Â¡Excelente ${clientName}! ðŸª Registramos tu sucursal de retiro para tu pedido${orderRef} en:\n` +
-        `ðŸ‘‰ **${selectedBranch.name}** (ðŸ“ ${selectedBranch.address}).\n\n` +
-        `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte):*\n${itemsList}\n\n` +
-        `ðŸ’° *Total estimado a abonar:* **${totalFormatted}**\n` +
-        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-        `ðŸ’³ *Paso final â€” Â¿CÃ³mo preferÃ­s abonar?*\n` +
-        `1ï¸âƒ£ *Efectivo* (al retirar en sucursal)\n` +
-        `2ï¸âƒ£ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
-        `3ï¸âƒ£ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
-        `ðŸ‘‰ RespondÃ© *1*, *2* o *3*. ðŸ™Œ [[STAGE:confirming_data]]`;
+      return `¡Excelente ${clientName}! 🏪 Registramos tu sucursal de retiro para tu pedido${orderRef} en:\n` +
+        `👉 **${selectedBranch.name}** (📍 ${selectedBranch.address}).\n\n` +
+        `📋 *Detalle de tu pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total estimado a abonar:* **${totalFormatted}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+        `💳 *Paso final — ¿Cómo preferís abonar?*\n` +
+        `1️⃣ *Efectivo* (al retirar en sucursal)\n` +
+        `2️⃣ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
+        `3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
+        `👉 Respondé *1*, *2* o *3*. 🙌 [[STAGE:confirming_data]]`;
     }
 
     // =========================================================================
     // 0.028 DISPARADOR DIRECTO DE PAGO ("pago", "coordinar pago", "pagar", etc.)
     // =========================================================================
-    const isPaymentTrigger = /^(?:pago|pagar|pasar al pago|coordinar pago|coordinamos el pago|coordinemos el pago|hacer el pago|como pago|cÃ³mo pago|como se paga|cÃ³mo se paga|abonar|medio de pago|metodo de pago|mÃ©todo de pago|opciones de pago)$/i.test(t.trim()) ||
-      (/(?:coordinamos el pago|coordinar el pago|pasar al pago|modificaciÃ³n o coordinamos)/i.test(lastAgentMessage) && /^(?:si|sÃ­|dale|ok|listo|pago|pagar|pasemos al pago|avancemos|vamos)$/i.test(t.trim()));
+    const isPaymentTrigger = /^(?:pago|pagar|pasar al pago|coordinar pago|coordinamos el pago|coordinemos el pago|hacer el pago|como pago|cómo pago|como se paga|cómo se paga|abonar|medio de pago|metodo de pago|método de pago|opciones de pago)$/i.test(t.trim()) ||
+      (/(?:coordinamos el pago|coordinar el pago|pasar al pago|modificación o coordinamos)/i.test(lastAgentMessage) && /^(?:si|sí|dale|ok|listo|pago|pagar|pasemos al pago|avancemos|vamos)$/i.test(t.trim()));
 
     if (isPaymentTrigger) {
       const targetOrder = currentActiveOrder || db.getLatestOrderByJid(lead.jid || lead.id);
       const { items: historyItems, total: historyTotal } = extractItemsFromHistoryAndText(history, '', products, lead);
       const itemsList = (targetOrder?.items && targetOrder.items.length > 0)
         ? (Array.isArray(targetOrder.items) ? targetOrder.items.join('\n') : targetOrder.items)
-        : (historyItems.length > 0 ? historyItems.join('\n') : 'â€¢ Cortes seleccionados');
+        : (historyItems.length > 0 ? historyItems.join('\n') : '• Cortes seleccionados');
       const orderTotal = targetOrder?.totalAmount || historyTotal || 0;
       const totalFormatted = `$${Number(orderTotal).toLocaleString('es-AR')}`;
       const dest = targetOrder?.address || targetOrder?.branch || lead.address || 'Sucursal / Domicilio a coordinar';
       const orderIdTag = targetOrder ? ` **#${targetOrder.id}**` : '';
 
-      return `Â¡De diez ${clientName}! ðŸ¥©ðŸ’³ Dejamos listo tu pedido${orderIdTag} por **${totalFormatted}** con entrega/retiro en **${dest}**:\n\n` +
-        `ðŸ“‹ *Detalle del pedido (precios por kilo segÃºn corte):*\n${itemsList}\n\n` +
-        `ðŸ’° *Total estimado a abonar:* **${totalFormatted}**\n` +
-        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-        `ðŸ’³ *Â¿CÃ³mo preferÃ­s abonar?*\n` +
-        `1ï¸âƒ£ *Efectivo* (en sucursal o al repartidor)\n` +
-        `2ï¸âƒ£ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
-        `3ï¸âƒ£ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
-        `ðŸ‘‰ RespondÃ© *1*, *2* o *3*. ðŸ™Œ [[STAGE:confirming_data]]`;
+      return `¡De diez ${clientName}! 🥩💳 Dejamos listo tu pedido${orderIdTag} por **${totalFormatted}** con entrega/retiro en **${dest}**:\n\n` +
+        `📋 *Detalle del pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total estimado a abonar:* **${totalFormatted}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+        `💳 *¿Cómo preferís abonar?*\n` +
+        `1️⃣ *Efectivo* (en sucursal o al repartidor)\n` +
+        `2️⃣ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
+        `3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
+        `👉 Respondé *1*, *2* o *3*. 🙌 [[STAGE:confirming_data]]`;
     }
 
-    // 0.03 CAMBIO O SELECCIÃ“N DE FORMA DE ENTREGA (DOMICILIO vs SUCURSAL)
-    const isDeliveryModeChange = /cambiar.*(?:forma|modo).*entrega|cambiar.*env[iÃ­]o|cambiar.*retiro|cambiar a domicilio|cambiar a sucursal|prefiero envio|prefiero envÃ­o|prefiero retiro|pasar a buscar/i.test(t) ||
-      (wasModMenuOffered && /^(?:2|2ï¸âƒ£)$/i.test(t.trim()));
+    // 0.03 CAMBIO O SELECCIÓN DE FORMA DE ENTREGA (DOMICILIO vs SUCURSAL)
+    const isDeliveryModeChange = /cambiar.*(?:forma|modo).*entrega|cambiar.*env[ií]o|cambiar.*retiro|cambiar a domicilio|cambiar a sucursal|prefiero envio|prefiero envío|prefiero retiro|pasar a buscar/i.test(t) ||
+      (wasModMenuOffered && /^(?:2|2️⃣)$/i.test(t.trim()));
 
     if (isDeliveryModeChange) {
-      return `Â¡De diez ${clientName}! ðŸ›µðŸ“¦ Â¿CÃ³mo preferÃ­s recibir tu pedido${currentActiveOrder ? ` **#${currentActiveOrder.id}**` : ''}?\n\n` +
-        `1ï¸âƒ£ *EnvÃ­o a Domicilio* (te lo llevamos en el dÃ­a)\n` +
-        `2ï¸âƒ£ *Retiro por Sucursal* (en cualquiera de nuestras 6 sedes en CÃ³rdoba)\n\n` +
-        `ðŸ‘‰ RespondÃ© *1* o *2*.`;
+      return `¡De diez ${clientName}! 🛵📦 ¿Cómo preferís recibir tu pedido${currentActiveOrder ? ` **#${currentActiveOrder.id}**` : ''}?\n\n` +
+        `1️⃣ *Envío a Domicilio* (te lo llevamos en el día)\n` +
+        `2️⃣ *Retiro por Sucursal* (en cualquiera de nuestras 6 sedes en Córdoba)\n\n` +
+        `👉 Respondé *1* o *2*.`;
     }
 
-    const isDeliveryIntentExplicit = /^(?:delivery|envio|envÃ­o|a domicilio|a mi casa|a mi domicilio|lo quiero a mi domicilio|quiero que lo envien a mi domicilio|lo envian a mi domicilio|mandamelo|mandÃ¡melo|enviÃ¡melo|enviamelo|traemelo|traÃ©melo)$/i.test(t.trim()) ||
-      /(?:lo\s+quiero\s+a\s+mi\s+domicilio|quiero\s+que\s+lo\s+envien\s+a\s+mi\s+domicilio|a\s+mi\s+domicilio|por\s+delivery|con\s+env[iÃ­]o|para\s+env[iÃ­]o)/i.test(t.trim()) ||
-      (wasDeliveryTypeOffered && /^(?:1|1ï¸âƒ£|uno|el 1|la 1|opci[oÃ³]n 1|envio|envÃ­o|domicilio|delivery)$/i.test(t.trim()));
+    const isDeliveryIntentExplicit = /^(?:delivery|envio|envío|a domicilio|a mi casa|a mi domicilio|lo quiero a mi domicilio|quiero que lo envien a mi domicilio|lo envian a mi domicilio|mandamelo|mandámelo|enviámelo|enviamelo|traemelo|traémelo)$/i.test(t.trim()) ||
+      /(?:lo\s+quiero\s+a\s+mi\s+domicilio|quiero\s+que\s+lo\s+envien\s+a\s+mi\s+domicilio|a\s+mi\s+domicilio|por\s+delivery|con\s+env[ií]o|para\s+env[ií]o)/i.test(t.trim()) ||
+      (wasDeliveryTypeOffered && /^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|envio|envío|domicilio|delivery)$/i.test(t.trim()));
 
     if (isDeliveryIntentExplicit) {
       if (currentActiveOrder) db.updateOrder(currentActiveOrder.id, { deliveryType: 'delivery', branch: '' });
       if (lead.jid || lead.id) db.updateLead(lead.jid || lead.id, { deliveryType: 'delivery' });
 
       if (lead.address && lead.address.length >= 4 && !isGarbageAddress(lead.address)) {
-        return `Â¡Excelente ${clientName}! ðŸ›µ Coordinamos con envÃ­o a domicilio a tu direcciÃ³n registrada:\nðŸ“ **${lead.address}**\n\nðŸ’³ *Â¿CÃ³mo preferÃ­s abonar?*\n1ï¸âƒ£ *Efectivo* al repartidor\n2ï¸âƒ£ *Transferencia* (Alias: \`republica.carne.mp\`)\n3ï¸âƒ£ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\nðŸ‘‰ RespondÃ© *1*, *2* o *3*. ðŸ¥©`;
+        return `¡Excelente ${clientName}! 🛵 Coordinamos con envío a domicilio a tu dirección registrada:\n📍 **${lead.address}**\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n👉 Respondé *1*, *2* o *3*. 🥩`;
       }
-      return `Â¡Excelente ${clientName}! ðŸ›µ Coordinamos con envÃ­o a domicilio en el dÃ­a.\n\nðŸ“ Por favor pasame tu **Calle, NÃºmero/Altura y Barrio** para el repartidor. ðŸ™Œ`;
+      return `¡Excelente ${clientName}! 🛵 Coordinamos con envío a domicilio en el día.\n\n📍 Por favor pasame tu **Calle, Número/Altura y Barrio** para el repartidor. 🙌`;
     }
 
     const isPickupIntentExplicit = /^(?:retiro|sucursal|en persona|paso a buscar|lo paso a buscar|voy al local|voy a la sucursal)$/i.test(t.trim()) ||
-      (wasDeliveryTypeOffered && /^(?:2|2ï¸âƒ£|dos|el 2|la 2|opci[oÃ³]n 2|retiro|sucursal)$/i.test(t.trim()));
+      (wasDeliveryTypeOffered && /^(?:2|2️⃣|dos|el 2|la 2|opci[oó]n 2|retiro|sucursal)$/i.test(t.trim()));
 
     if (isPickupIntentExplicit) {
-      return `Â¡De diez ${clientName}! ðŸª ElegÃ­ la sucursal de retiro:\n\n${formatBranchMenu()}\n\nðŸ‘‰ RespondÃ© con el nÃºmero (1 al 6) o nombre de la sede. ðŸ™Œ`;
+      return `¡De diez ${clientName}! 🏪 Elegí la sucursal de retiro:\n\n${formatBranchMenu()}\n\n👉 Respondé con el número (1 al 6) o nombre de la sede. 🙌`;
     }
 
-    const isAddMoreCutsChoice = (wasDeliveryTypeOffered && /^(?:3|3ï¸âƒ£|tres|el 3|la 3|opci[oÃ³]n 3|sumar|agregar|mas cortes|mÃ¡s cortes|complementos|otro corte)$/i.test(t.trim()));
+    const isAddMoreCutsChoice = (wasDeliveryTypeOffered && /^(?:3|3️⃣|tres|el 3|la 3|opci[oó]n 3|sumar|agregar|mas cortes|más cortes|complementos|otro corte)$/i.test(t.trim()));
 
     if (isAddMoreCutsChoice) {
-      return `Â¡BuenÃ­simo ${clientName}! ðŸ¥© Contame quÃ© otros cortes o complementos te gustarÃ­a sumar:\n\n` +
-        `â€¢ ðŸŒ­ *Chorizo Criollo puro cerdo* (2kg x $10.000 promo o $5.000/kg)\n` +
-        `â€¢ ðŸŒ­ *Morcillas Especiales BombÃ³n* ($5.200/kg)\n` +
-        `â€¢ ðŸ”¥ *CarbÃ³n Quebracho Blanco* ($2.200 la bolsa grande)\n` +
-        `â€¢ ðŸ· *Vino SelecciÃ³n Howlmande* ($5.500)\n\n` +
-        `ðŸ‘‰ Decime quÃ© te agregamos y te actualizo el total al instante. ðŸ™Œ [[STAGE:proposal]]`;
+      return `¡Buenísimo ${clientName}! 🥩 Contame qué otros cortes o complementos te gustaría sumar:\n\n` +
+        `• 🌭 *Chorizo Criollo puro cerdo* (2kg x $10.000 promo o $5.000/kg)\n` +
+        `• 🌭 *Morcillas Especiales Bombón* ($5.200/kg)\n` +
+        `• 🔥 *Carbón Quebracho Blanco* ($2.200 la bolsa grande)\n` +
+        `• 🍷 *Vino Selección Howlmande* ($5.500)\n\n` +
+        `👉 Decime qué te agregamos y te actualizo el total al instante. 🙌 [[STAGE:proposal]]`;
     }
 
     const isQuantityOrCutModification = wasDeliveryTypeOffered && (
-      /(?:kilos?|kg|unidades?|un\b|chorizo|chori|morcilla|vacio|vacÃ­o|asado|tapa|matambre|bife|entraÃ±a|combo|\d+\s*(?:kg|kilos?))/i.test(t) ||
+      /(?:kilos?|kg|unidades?|un\b|chorizo|chori|morcilla|vacio|vacío|asado|tapa|matambre|bife|entraña|combo|\d+\s*(?:kg|kilos?))/i.test(t) ||
       /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sin\s+|cambia|reemplaza|sacale|saca|quita|elimina|agrega|suma|sumale|ponele|quiero|dame|mejor|dejame|pasalo)/i.test(t)
     );
 
@@ -4137,80 +4143,80 @@ Whenever the user asks about the current time, date, products count, orders, or 
       }
 
       if (updatedItems.length > 0) {
-        return `Â¡Anotado ${clientName}! ðŸ¥© Actualizamos tu pedido:\n\n` +
-          `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte):*\n` +
+        return `¡Anotado ${clientName}! 🥩 Actualizamos tu pedido:\n\n` +
+          `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
           `${updatedItems.join('\n')}\n\n` +
-          `ðŸ’° *Subtotal acumulado:* **$${Number(newTotal > 0 ? newTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}**\n` +
-          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-          `ðŸ‘‰ *Â¿CÃ³mo seguimos con tu pedido?*\n` +
-          `1ï¸âƒ£ Coordinar *EnvÃ­o a Domicilio* en el dÃ­a ðŸ›µ\n` +
-          `2ï¸âƒ£ Elegir *Retiro por Sucursal* (6 sedes en CÃ³rdoba) ðŸª\n` +
-          `3ï¸âƒ£ Sumar mÃ¡s cortes o complementos (chorizos, carbÃ³n, vino) ðŸ¥©\n\n` +
-          `ðŸ‘‰ *RespondÃ© 1, 2 o 3 (o escribÃ­ "delivery", "sucursal" o los cortes).* ðŸ™Œ`;
+          `💰 *Subtotal acumulado:* **$${Number(newTotal > 0 ? newTotal : (currentActiveOrder?.totalAmount || 0)).toLocaleString('es-AR')}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+          `👉 *¿Cómo seguimos con tu pedido?*\n` +
+          `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+          `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+          `3️⃣ Sumar más cortes o complementos (chorizos, carbón, vino) 🥩\n\n` +
+          `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌`;
       }
     }
 
-    // 0.04 CAMBIO DE MÃ‰TODO DE PAGO
+    // 0.04 CAMBIO DE MÉTODO DE PAGO
     const isPaymentMethodChange = /cambia.*(?:metodo|medio|forma|modo).*pago|cambiar.*(?:metodo|medio|forma|modo)|pagar con|pago con|abonar con|quiero pagar en efectivo|prefiero efectivo|prefiero transferencia|prefiero mp|quiero transferir/i.test(t) ||
-      (wasModMenuOffered && /^(?:4|4ï¸âƒ£)$/i.test(t.trim()));
+      (wasModMenuOffered && /^(?:4|4️⃣)$/i.test(t.trim()));
 
     if (isPaymentMethodChange) {
       const orderRef = currentActiveOrder ? ` para tu pedido **#${currentActiveOrder.id}**` : '';
-      return `Â¡De diez ${clientName}! ðŸ’³ Decime cÃ³mo preferÃ­s abonar${orderRef}:\n\n` +
-        `1ï¸âƒ£ *Efectivo* (al repartidor o en sucursal)\n` +
-        `2ï¸âƒ£ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
-        `3ï¸âƒ£ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
-        `ðŸ‘‰ RespondÃ© *1*, *2* o *3*. ðŸ¥©`;
+      return `¡De diez ${clientName}! 💳 Decime cómo preferís abonar${orderRef}:\n\n` +
+        `1️⃣ *Efectivo* (al repartidor o en sucursal)\n` +
+        `2️⃣ *Transferencia Bancaria* (Alias: \`republica.carne.mp\`)\n` +
+        `3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
+        `👉 Respondé *1*, *2* o *3*. 🥩`;
     }
 
-    // 0.05 MENÃš GENERAL DE MODIFICACIONES DE PEDIDO ACTIVO
+    // 0.05 MENÚ GENERAL DE MODIFICACIONES DE PEDIDO ACTIVO
     const isModifyRequest = /modificar.*ped|modificame.*ped|cambiar.*ped|cambiame.*ped|opciones.*ped|quiero cambiar|cambiar algo|cambiar pedido/i.test(t) ||
-      (wasActiveOrderHelpOffered && /^(?:1|1ï¸âƒ£|opci[oÃ³]n 1|la 1|el 1|modificar)$/i.test(t.trim())) ||
-      (wasDataConfirmOffered && /^(?:2|2ï¸âƒ£|modificar)$/i.test(t.trim()));
+      (wasActiveOrderHelpOffered && /^(?:1|1️⃣|opci[oó]n 1|la 1|el 1|modificar)$/i.test(t.trim())) ||
+      (wasDataConfirmOffered && /^(?:2|2️⃣|modificar)$/i.test(t.trim()));
 
     if (isModifyRequest) {
       if (currentActiveOrder) {
         if (currentActiveOrder.status === 'in_transit') {
-          return `Â¡Hola ${clientName}! ðŸ›µ Tu pedido **#${currentActiveOrder.id}** ya se encuentra **en camino a tu domicilio** con el repartidor, por lo que no es posible modificar los cortes ni la sucursal.\n\n` +
-            `ðŸ‘‰ *Opciones disponibles:*\n` +
-            `1ï¸âƒ£ Cancelar el pedido\n` +
-            `2ï¸âƒ£ Continuar con la entrega a domicilio\n\n` +
-            `ðŸ‘‰ RespondÃ© *1* o *2*. ðŸ‘`;
+          return `¡Hola ${clientName}! 🛵 Tu pedido **#${currentActiveOrder.id}** ya se encuentra **en camino a tu domicilio** con el repartidor, por lo que no es posible modificar los cortes ni la sucursal.\n\n` +
+            `👉 *Opciones disponibles:*\n` +
+            `1️⃣ Cancelar el pedido\n` +
+            `2️⃣ Continuar con la entrega a domicilio\n\n` +
+            `👉 Respondé *1* o *2*. 👍`;
         }
 
-        return `Â¡De diez ${clientName}! ðŸ› ï¸ Â¿QuÃ© te gustarÃ­a modificar de tu pedido **#${currentActiveOrder.id}**?\n\n` +
-          `1ï¸âƒ£ Cambiar o sumar cortes del catÃ¡logo (o escribÃ­ "cortes")\n` +
-          `2ï¸âƒ£ Cambiar forma de entrega (EnvÃ­o a Domicilio â‡„ Retiro en Sucursal) (o escribÃ­ "entrega")\n` +
-          `3ï¸âƒ£ Cambiar Sucursal de retiro (o escribÃ­ "sucursal")\n` +
-          `4ï¸âƒ£ Cambiar MÃ©todo de Pago (o escribÃ­ "pago")\n` +
-          `5ï¸âƒ£ Cambiar DirecciÃ³n de entrega (o escribÃ­ "direcciÃ³n")\n` +
-          `6ï¸âƒ£ Cancelar el pedido (o escribÃ­ "cancelar")\n\n` +
-          `ðŸ‘‰ RespondÃ© con el nÃºmero de opciÃ³n (1 al 6) o la palabra. ðŸ‘`;
+        return `¡De diez ${clientName}! 🛠️ ¿Qué te gustaría modificar de tu pedido **#${currentActiveOrder.id}**?\n\n` +
+          `1️⃣ Cambiar o sumar cortes del catálogo (o escribí "cortes")\n` +
+          `2️⃣ Cambiar forma de entrega (Envío a Domicilio ⇄ Retiro en Sucursal) (o escribí "entrega")\n` +
+          `3️⃣ Cambiar Sucursal de retiro (o escribí "sucursal")\n` +
+          `4️⃣ Cambiar Método de Pago (o escribí "pago")\n` +
+          `5️⃣ Cambiar Dirección de entrega (o escribí "dirección")\n` +
+          `6️⃣ Cancelar el pedido (o escribí "cancelar")\n\n` +
+          `👉 Respondé con el número de opción (1 al 6) o la palabra. 👍`;
       } else {
-        return `Â¡Hola ${clientName}! No tenÃ©s ningÃºn pedido activo pendiente de modificaciÃ³n. Si querÃ©s armar un pedido nuevo o consultar precios, avisame y te ayudo con gusto. ðŸ¥©`;
+        return `¡Hola ${clientName}! No tenés ningún pedido activo pendiente de modificación. Si querés armar un pedido nuevo o consultar precios, avisame y te ayudo con gusto. 🥩`;
       }
     }
 
-    // Respuesta a opciÃ³n 1 del menÃº de modificaciÃ³n (sumar/cambiar cortes)
-    if ((wasModMenuOffered && /^(?:1|1ï¸âƒ£|cortes|catalogo|catÃ¡logo|cambiar cortes|sumar cortes|productos|carne)$/i.test(t.trim())) || /quiero (?:sumar|cambiar|agregar) cortes/i.test(t)) {
+    // Respuesta a opción 1 del menú de modificación (sumar/cambiar cortes)
+    if ((wasModMenuOffered && /^(?:1|1️⃣|cortes|catalogo|catálogo|cambiar cortes|sumar cortes|productos|carne)$/i.test(t.trim())) || /quiero (?:sumar|cambiar|agregar) cortes/i.test(t)) {
       const catalogToOffer = (products && products.length > 0) ? products.slice(0, 8) : getDynamicCatalog().slice(0, 8);
-      return `Â¡De diez ${clientName}! ðŸ¥© AcÃ¡ tenÃ©s nuestras opciones y cortes del dÃ­a:\n\n` +
+      return `¡De diez ${clientName}! 🥩 Acá tenés nuestras opciones y cortes del día:\n\n` +
         `${formatNumberedCatalog(catalogToOffer)}\n\n` +
-        `ðŸ‘‰ Decime quÃ© nÃºmero de opciÃ³n o cortes querÃ©s sumar o cambiar a tu pedido. ðŸ™Œ`;
+        `👉 Decime qué número de opción o cortes querés sumar o cambiar a tu pedido. 🙌`;
     }
 
-    // Respuesta a opciÃ³n 5 del menÃº de modificaciÃ³n (cambiar direcciÃ³n)
-    if (wasModMenuOffered && /^(?:5|5ï¸âƒ£|direccion|direcciÃ³n|cambiar direccion|mi direccion|calle)$/i.test(t.trim())) {
-      return `ðŸ“ Por favor pasame tu nueva calle, altura y barrio para actualizar la direcciÃ³n de entrega de tu pedido. ðŸ›µ`;
+    // Respuesta a opción 5 del menú de modificación (cambiar dirección)
+    if (wasModMenuOffered && /^(?:5|5️⃣|direccion|dirección|cambiar direccion|mi direccion|calle)$/i.test(t.trim())) {
+      return `📍 Por favor pasame tu nueva calle, altura y barrio para actualizar la dirección de entrega de tu pedido. 🛵`;
     }
 
-    // 0.051 MODIFICACIÃ“N DIRECTA DE CORTES EN PEDIDO ACTIVO (Sumar, reemplazar o quitar)
-    const isOptionsOfferedInPrevGlobal = /1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|MirÃ¡ las opciones|Te armÃ© 3 opciones|Â¿Con cuÃ¡l opciÃ³n/i.test(lastAgentMessage?.content || '');
-    const isOptionSelectionDirect = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oÃ³]n\s*([1-9]|1[0-9]|20)\b|^(?:[1-9]|1[0-9]|20|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|7ï¸âƒ£|8ï¸âƒ£|9ï¸âƒ£|ðŸ”Ÿ)$/i.test(t);
+    // 0.051 MODIFICACIÓN DIRECTA DE CORTES EN PEDIDO ACTIVO (Sumar, reemplazar o quitar)
+    const isOptionsOfferedInPrevGlobal = /1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|Mirá las opciones|Te armé 3 opciones|¿Con cuál opción/i.test(lastAgentMessage?.content || '');
+    const isOptionSelectionDirect = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-9]|1[0-9]|20)\b|^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟)$/i.test(t);
 
     if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status) && !(isOptionSelectionDirect && isOptionsOfferedInPrevGlobal)) {
-      const isItemModification = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sin\s+|cambiame|cambia|cambiÃ¡|reemplaza|reemplazÃ¡|sacale|sacÃ¡|saca|quita|quitar|quitalo|quitame|elimina|eliminame|borra|borrame|agrega|agregÃ¡|suma|sumÃ¡|sumar|ponele|ponÃ©|agregale)\s+(?:el\s+|la\s+|un\s+|una\s+|los\s+|las\s+)?([a-zÃ¡Ã©Ã­Ã³ÃºÃ±0-9\s]+)/i.test(t) ||
-        /(?:quiero|mandame|traeme|sumar|agregar)\s+(?:sumar|agregar|mas|mÃ¡s|\d+)\s+([a-zÃ¡Ã©Ã­Ã³ÃºÃ±0-9\s]+)/i.test(t);
+      const isItemModification = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sin\s+|cambiame|cambia|cambiá|reemplaza|reemplazá|sacale|sacá|saca|quita|quitar|quitalo|quitame|elimina|eliminame|borra|borrame|agrega|agregá|suma|sumá|sumar|ponele|poné|agregale)\s+(?:el\s+|la\s+|un\s+|una\s+|los\s+|las\s+)?([a-záéíóúñ0-9\s]+)/i.test(t) ||
+        /(?:quiero|mandame|traeme|sumar|agregar)\s+(?:sumar|agregar|mas|más|\d+)\s+([a-záéíóúñ0-9\s]+)/i.test(t);
       if (isItemModification) {
         const { items: updatedItems, products: updatedProducts, total: newTotal } = applyItemModificationToOrder(currentActiveOrder, rawText, products, lead);
         if (updatedItems.length > 0) {
@@ -4220,36 +4226,36 @@ Whenever the user asks about the current time, date, products count, orders, or 
             totalAmount: newTotal > 0 ? newTotal : currentActiveOrder.totalAmount
           });
 
-          return `Â¡De diez ${clientName}! ðŸ¥© ModificaciÃ³n registrada con Ã©xito en tu pedido **#${currentActiveOrder.id}**:\n\n` +
-            `ðŸ“‹ *Detalle actualizado de tu pedido (precios por kilo segÃºn corte):*\n` +
+          return `¡De diez ${clientName}! 🥩 Modificación registrada con éxito en tu pedido **#${currentActiveOrder.id}**:\n\n` +
+            `📋 *Detalle actualizado de tu pedido (precios por kilo según corte):*\n` +
             `${updatedItems.join('\n')}\n\n` +
-            `ðŸ’° *Nuevo Total estimado a abonar:* **$${Number(newTotal > 0 ? newTotal : currentActiveOrder.totalAmount).toLocaleString('es-AR')}**\n` +
-            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-            `ðŸ“ *Destino:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n` +
-            `ðŸ’³ *Medio de pago:* ${currentActiveOrder.paymentMethod || 'Efectivo / Transferencia'}\n\n` +
-            `ðŸ‘‰ *Opciones:*\n` +
-            `1ï¸âƒ£ Confirmar pedido y continuar (o respondÃ© "1" / "confirmar")\n` +
-            `2ï¸âƒ£ Sumar mÃ¡s cortes (o indicÃ¡ quÃ© corte querÃ©s)\n` +
-            `3ï¸âƒ£ Cancelar pedido (o respondÃ© "3" / "cancelar") ðŸ™Œ`;
+            `💰 *Nuevo Total estimado a abonar:* **$${Number(newTotal > 0 ? newTotal : currentActiveOrder.totalAmount).toLocaleString('es-AR')}**\n` +
+            `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+            `📍 *Destino:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n` +
+            `💳 *Medio de pago:* ${currentActiveOrder.paymentMethod || 'Efectivo / Transferencia'}\n\n` +
+            `👉 *Opciones:*\n` +
+            `1️⃣ Confirmar pedido y continuar (o respondé "1" / "confirmar")\n` +
+            `2️⃣ Sumar más cortes (o indicá qué corte querés)\n` +
+            `3️⃣ Cancelar pedido (o respondé "3" / "cancelar") 🙌`;
         }
       }
     }
 
 
 
-    // 0.06 GESTIÃ“N DE CLIENTES CON PEDIDO EN PREPARACIÃ“N / CAMINO (CONSULTAS GENERALES)
+    // 0.06 GESTIÓN DE CLIENTES CON PEDIDO EN PREPARACIÓN / CAMINO (CONSULTAS GENERALES)
     if (currentActiveOrder && ['preparing', 'in_transit', 'ready_for_pickup'].includes(currentActiveOrder.status)) {
       const isExplicitNewOrder = /hacer otro ped|armar otro ped|nuevo ped|otro ped|quiero pedir otra cosa|armame otro ped/i.test(t);
 
-      // Agradecimientos o saludos cortos / respuestas cortas de cortesÃ­a
-      const isShortAck = /^(?:gracias|muchas gracias|joya|de diez|dale|perfecto|genial|ok|buen[iÃ­]simo|listo|impecable|gracais|chas gracias|chau|adios|hasta luego|que andes bien|un abrazo|no gracias|no muchas gracias|no por ahora|nada mas|nada mÃ¡s|todo bien|no por el momento|todo en orden)$/i.test(cleanConfirmText);
+      // Agradecimientos o saludos cortos / respuestas cortas de cortesía
+      const isShortAck = /^(?:gracias|muchas gracias|joya|de diez|dale|perfecto|genial|ok|buen[ií]simo|listo|impecable|gracais|chas gracias|chau|adios|hasta luego|que andes bien|un abrazo|no gracias|no muchas gracias|no por ahora|nada mas|nada más|todo bien|no por el momento|todo en orden)$/i.test(cleanConfirmText);
       if (isShortAck) {
-        return `Â¡De diez ${clientName}! ðŸ™Œ Quedamos a tu entera disposiciÃ³n. Te avisamos en cuanto el repartidor estÃ© en viaje hacia tu domicilio. ðŸ¥©ðŸšš`;
+        return `¡De diez ${clientName}! 🙌 Quedamos a tu entera disposición. Te avisamos en cuanto el repartidor esté en viaje hacia tu domicilio. 🥩🚚`;
       }
 
-      // EnvÃ­o de direcciÃ³n complementaria, calle, barrio o timbre
+      // Envío de dirección complementaria, calle, barrio o timbre
       const hasStreetKeyword = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|entre|esquina|algarrobos|locelso|funes|quiros|pidal|cuesta colorada|colorada|altura|manzana|lote|san martin|colon|velez sarsfield)/i.test(t);
-      const isExplicitAddressPhrase = /^(?:te paso mi direccion|mi direccion es|direccion:?|la direccion es|la direccion de entrega es|para el envio|para el envÃ­o|vivo en|enviar a|mandalo a|mandar a)\s+/i.test(t);
+      const isExplicitAddressPhrase = /^(?:te paso mi direccion|mi direccion es|direccion:?|la direccion es|la direccion de entrega es|para el envio|para el envío|vivo en|enviar a|mandalo a|mandar a)\s+/i.test(t);
       const isAddressFollowUp = !/metodo|medio|forma|pago|pagar|abonar|precio|cuanto|hora|consulta|gracias|detalle|estado/i.test(t) &&
         (hasStreetKeyword || isExplicitAddressPhrase) &&
         !isStatusCheck && !isExplicitNewOrder && !isShortAck;
@@ -4257,23 +4263,23 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (isAddressFollowUp && currentActiveOrder.status !== 'in_transit') {
         const cleanAddr = extractCleanAddress(rawText);
         if (isGarbageAddress(cleanAddr) || cleanAddr.length < 4) {
-          return `Â¡Hola ${clientName}! ðŸ“ Para registrar correctamente tu entrega a domicilio, por favor escribÃ­ Ãºnicamente tu **Calle, Altura/NÃºmero y Barrio o timbre** (ej: *Av. Roque Funes 1115, Urca*). ðŸ™Œ`;
+          return `¡Hola ${clientName}! 📍 Para registrar correctamente tu entrega a domicilio, por favor escribí únicamente tu **Calle, Altura/Número y Barrio o timbre** (ej: *Av. Roque Funes 1115, Urca*). 🙌`;
         }
 
         db.updateOrder(currentActiveOrder.id, { address: cleanAddr });
         if (lead.jid || lead.id) db.updateLead(lead.jid || lead.id, { address: cleanAddr });
 
         const statusLabel = getOrderStatusLabel(currentActiveOrder.status);
-        return `Â¡Anotado ${clientName}! ðŸ“ Registramos y actualizamos tu direcciÃ³n de entrega a:\nðŸ‘‰ **${cleanAddr}** para tu pedido **#${currentActiveOrder.id}**.\n\nTus cortes ya se encuentran **${statusLabel}** en carnicerÃ­a. ðŸ™Œ`;
+        return `¡Anotado ${clientName}! 📍 Registramos y actualizamos tu dirección de entrega a:\n👉 **${cleanAddr}** para tu pedido **#${currentActiveOrder.id}**.\n\nTus cortes ya se encuentran **${statusLabel}** en carnicería. 🙌`;
       }
 
-      const isBranchOrInfoQuery = /sucursal|sucursales|horario|donde|dÃ³nde|direccion|direcciÃ³n|urca|quiros|villa allende|san isidro|receta|guiso|milanesa|asado|cuanto|precio|promo/i.test(t);
-      const isProductAddition = /agrega|agregÃ¡|suma|sumÃ¡|sumar|quiero|traeme|mandame|combo|vacio|vacÃ­o|costillar|matambre|chori/i.test(t);
+      const isBranchOrInfoQuery = /sucursal|sucursales|horario|donde|dónde|direccion|dirección|urca|quiros|villa allende|san isidro|receta|guiso|milanesa|asado|cuanto|precio|promo/i.test(t);
+      const isProductAddition = /agrega|agregá|suma|sumá|sumar|quiero|traeme|mandame|combo|vacio|vacío|costillar|matambre|chori/i.test(t);
 
       if (!isExplicitNewOrder && !isStatusCheck && !isLinkRequest && !isBranchOrInfoQuery && !isProductAddition && !wasAsadoProposalOffered && !wasMenuOffered && !wasDeliveryTypeOffered && !wasDataConfirmOffered) {
         const statusLabel = getOrderStatusLabel(currentActiveOrder.status);
         const itemsText = Array.isArray(currentActiveOrder.items) ? currentActiveOrder.items.join('\n') : currentActiveOrder.items;
-        return `Â¡Hola ${clientName}! ðŸ‘‹ Tu pedido **#${currentActiveOrder.id}** ya estÃ¡ confirmado y se encuentra:\nðŸ‘‰ **${statusLabel}** (Total: $${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}).\n\nðŸ“‹ *Detalle de cortes:*\n${itemsText}\n\nðŸ“ *Destino:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n\nðŸ‘‰ *Opciones:*\n1ï¸âƒ£ Modificar algÃºn dato o cortes (o escribÃ­ "modificar")\n2ï¸âƒ£ Consultar estado y detalle (o escribÃ­ "estado" / "detalle")\n3ï¸âƒ£ Cancelar pedido (o escribÃ­ "cancelar")\n\nÂ¿En quÃ© te puedo ayudar? ðŸ™Œ`;
+        return `¡Hola ${clientName}! 👋 Tu pedido **#${currentActiveOrder.id}** ya está confirmado y se encuentra:\n👉 **${statusLabel}** (Total: $${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}).\n\n📋 *Detalle de cortes:*\n${itemsText}\n\n📍 *Destino:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n\n👉 *Opciones:*\n1️⃣ Modificar algún dato o cortes (o escribí "modificar")\n2️⃣ Consultar estado y detalle (o escribí "estado" / "detalle")\n3️⃣ Cancelar pedido (o escribí "cancelar")\n\n¿En qué te puedo ayudar? 🙌`;
       }
     }
 
@@ -4308,86 +4314,86 @@ Whenever the user asks about the current time, date, products count, orders, or 
         dynamicLink = dynamicLink || 'https://www.mercadopago.com.ar';
       }
 
-      const modeTag = creds.isSandbox ? '\nðŸ§ª *[MODO PRUEBAS - SANDBOX]*' : '';
+      const modeTag = creds.isSandbox ? '\n🧪 *[MODO PRUEBAS - SANDBOX]*' : '';
 
-      return `ðŸ’³ *[MERCADO PAGO CHECKOUT OFICIAL]*\nÂ¡De diez ${clientName}! ðŸ¥©ðŸ’³ AcÃ¡ tenÃ©s el link de pago oficial y seguro para tu pedido **#${orderId}** (Cliente N.Â° ${customerNum}) por **$${Number(amount).toLocaleString('es-AR')}**:${modeTag}\n\n1ï¸âƒ£ **Link de Pago Directo:**\nðŸ”— ${dynamicLink}\n\n2ï¸âƒ£ **Transferencia / Dinero en cuenta:**\nðŸ“± *Alias Mercado Pago:* \`republica.carne.mp\`\n\nPodÃ©s abonar con Dinero en cuenta, DÃ©bito, CrÃ©dito o Transferencia. En cuanto se acredite, Â¡comenzamos la preparaciÃ³n de tus cortes en carnicerÃ­a! ðŸ™Œ [[STAGE:closed_won]]`;
+      return `💳 *[MERCADO PAGO CHECKOUT OFICIAL]*\n¡De diez ${clientName}! 🥩💳 Acá tenés el link de pago oficial y seguro para tu pedido **#${orderId}** (Cliente N.° ${customerNum}) por **$${Number(amount).toLocaleString('es-AR')}**:${modeTag}\n\n1️⃣ **Link de Pago Directo:**\n🔗 ${dynamicLink}\n\n2️⃣ **Transferencia / Dinero en cuenta:**\n📱 *Alias Mercado Pago:* \`republica.carne.mp\`\n\nPodés abonar con Dinero en cuenta, Débito, Crédito o Transferencia. En cuanto se acredite, ¡comenzamos la preparación de tus cortes en carnicería! 🙌 [[STAGE:closed_won]]`;
     }
 
     // =========================================================================
     // 0.035 HISTORIAL Y ESTADO DE PEDIDOS ANTERIORES
     // =========================================================================
-    const isOrderHistoryQuery = /historial.*ped|mis pedidos|mis compras|que pedi antes|que pedÃ­ antes|pedidos anteriores|compras anteriores|ver mis pedidos/i.test(t);
+    const isOrderHistoryQuery = /historial.*ped|mis pedidos|mis compras|que pedi antes|que pedí antes|pedidos anteriores|compras anteriores|ver mis pedidos/i.test(t);
     if (isOrderHistoryQuery) {
       return ChatStrategyGraphService.handleOrderHistory(lead, clientName);
     }
 
     // =========================================================================
-    // 0.04 SALUDO PROACTIVO CON OFERTAS Y MENÃš NUMERADO DE CORTES ESTRELLA
+    // 0.04 SALUDO PROACTIVO CON OFERTAS Y MENÚ NUMERADO DE CORTES ESTRELLA
     // =========================================================================
-    const cleanGreetingCheck = cleanConfirmText.replace(/[Â¡!Â¿\?,\.]+/g, '').trim();
-    const isGreeting = /^(?:hola|holis|buenas|buen dia|buen dÃ­a|buenos dias|buenos dÃ­as|buenas tardes|buenas noches|que tal|quÃ© tal|hola carlos|hola carnicero|hola amigo|hola don juan|hola!|buenas!|hola buenos dias|hola buenos dÃ­as|hola buenas tardes|como estas|cÃ³mo estÃ¡s|como va|cÃ³mo va|que onda|quÃ© onda)$/i.test(cleanGreetingCheck) ||
-      (t.length <= 25 && /^(?:hola|holis|buenas|buen d[iÃ­]a|buenos d[iÃ­]as|buenas tardes|buenas noches|que tal|quÃ© tal)/i.test(t));
+    const cleanGreetingCheck = cleanConfirmText.replace(/[¡!¿\?,\.]+/g, '').trim();
+    const isGreeting = /^(?:hola|holis|buenas|buen dia|buen día|buenos dias|buenos días|buenas tardes|buenas noches|que tal|qué tal|hola carlos|hola carnicero|hola amigo|hola don juan|hola!|buenas!|hola buenos dias|hola buenos días|hola buenas tardes|como estas|cómo estás|como va|cómo va|que onda|qué onda)$/i.test(cleanGreetingCheck) ||
+      (t.length <= 25 && /^(?:hola|holis|buenas|buen d[ií]a|buenos d[ií]as|buenas tardes|buenas noches|que tal|qué tal)/i.test(t));
 
     if (isGreeting) {
       if (currentActiveOrder) {
         const statusLabel = getOrderStatusLabel(currentActiveOrder.status);
         const greetingHeader = getContextualGreeting(rawText, clientName);
         return `${greetingHeader}\n\n` +
-          `ðŸ“Œ *TenÃ©s un pedido activo en curso:* **#${currentActiveOrder.id}** (${statusLabel}) por **$${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}**.\n\n` +
-          `ðŸ‘‰ Â¿QuerÃ©s consultar el estado / modificarlo, o te gustarÃ­a armar un **pedido nuevo**? ðŸ¥©ðŸ”¥`;
+          `📌 *Tenés un pedido activo en curso:* **#${currentActiveOrder.id}** (${statusLabel}) por **$${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}**.\n\n` +
+          `👉 ¿Querés consultar el estado / modificarlo, o te gustaría armar un **pedido nuevo**? 🥩🔥`;
       }
 
       const greetingHeader = getContextualGreeting(rawText, clientName);
       const welcomeIntros = [
-        `Contame, Â¿tenÃ­as ganas de preparar un asadito o buscÃ¡s cortes frescos para la semana? Hacemos envÃ­os directos en el dÃ­a a todo CÃ³rdoba. ðŸ›µðŸ¥©`,
-        `Â¿EstÃ¡s planeando un asadito o buscÃ¡s cortes para la semana? Hacemos envÃ­os directos en el dÃ­a a todo CÃ³rdoba. ðŸ›µðŸ¥©`,
-        `Â¿TenÃ­as ganas de prender el fuego para un asado o precisÃ¡s cortes para el dÃ­a a dÃ­a? Hacemos envÃ­os directos en el dÃ­a a tu domicilio. ðŸ›µðŸ¥©`
+        `Contame, ¿tenías ganas de preparar un asadito o buscás cortes frescos para la semana? Hacemos envíos directos en el día a todo Córdoba. 🛵🥩`,
+        `¿Estás planeando un asadito o buscás cortes para la semana? Hacemos envíos directos en el día a todo Córdoba. 🛵🥩`,
+        `¿Tenías ganas de prender el fuego para un asado o precisás cortes para el día a día? Hacemos envíos directos en el día a tu domicilio. 🛵🥩`
       ];
       const selectedIntro = pickRandom(welcomeIntros);
 
       return `${greetingHeader}\n\n` +
         `${selectedIntro}\n\n` +
-        `ðŸ‘‰ *Opciones rÃ¡pidas:*\n` +
-        `1ï¸âƒ£ Ver ofertas del dÃ­a y combos\n` +
-        `2ï¸âƒ£ Asesoramiento de asado por cantidad de personas\n` +
-        `3ï¸âƒ£ Consultar nuestras 6 sucursales\n\n` +
-        `Â¿Por dÃ³nde arrancamos? ðŸ™Œ [[STAGE:proposal]]`;
+        `👉 *Opciones rápidas:*\n` +
+        `1️⃣ Ver ofertas del día y combos\n` +
+        `2️⃣ Asesoramiento de asado por cantidad de personas\n` +
+        `3️⃣ Consultar nuestras 6 sucursales\n\n` +
+        `¿Por dónde arrancamos? 🙌 [[STAGE:proposal]]`;
     }
 
     // =========================================================================
-    const isSingleMenuNumber = /^(?:1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|1ï¸âƒ£|2ï¸âƒ£|3ï¸âƒ£|4ï¸âƒ£|5ï¸âƒ£|6ï¸âƒ£|7ï¸âƒ£|8ï¸âƒ£|9ï¸âƒ£|ðŸ”Ÿ|la 1|la 2|la 3|la 4|la 5|la 6|la 7|la 8|el 1|el 2|el 3|el 4|el 5|el 6|el 7|el 8|opci[oÃ³]n 1|opci[oÃ³]n 2|opci[oÃ³]n 3|opci[oÃ³]n 4|opci[oÃ³]n 5|opci[oÃ³]n 6|opci[oÃ³]n 7|opci[oÃ³]n 8)$/i.test(t.trim());
+    const isSingleMenuNumber = /^(?:1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|la 1|la 2|la 3|la 4|la 5|la 6|la 7|la 8|el 1|el 2|el 3|el 4|el 5|el 6|el 7|el 8|opci[oó]n 1|opci[oó]n 2|opci[oó]n 3|opci[oó]n 4|opci[oó]n 5|opci[oó]n 6|opci[oó]n 7|opci[oó]n 8)$/i.test(t.trim());
 
-    if (wasMenuOffered && isSingleMenuNumber && !/Â¿CÃ³mo preferÃ­s abonar\?/i.test(lastAgentMessage)) {
+    if (wasMenuOffered && isSingleMenuNumber && !/¿Cómo preferís abonar\?/i.test(lastAgentMessage)) {
       const numMatch = t.match(/([1-9]|1[0-9]|20)/);
       const optNum = numMatch ? parseInt(numMatch[0], 10) : 1;
       const catalogToOffer = getFeaturedWhatsAppOffers(products);
       const chosen = catalogToOffer[optNum - 1] || catalogToOffer[0];
 
-      const itemText = `â€¢ 1 ${chosen.unit === 'kg' ? 'kg' : chosen.unit} ${chosen.name} â€” $${Number(chosen.price).toLocaleString('es-AR')}`;
+      const itemText = `• 1 ${chosen.unit === 'kg' ? 'kg' : chosen.unit} ${chosen.name} — $${Number(chosen.price).toLocaleString('es-AR')}`;
       const subtotalAmount = chosen.price;
       const orderIntro = getVariedOrderIntro(clientName);
       const delivQ = getVariedDeliveryQuestion();
 
       return `${orderIntro}\n\n` +
-        `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte):*\n` +
+        `📋 *Detalle de tu pedido (precios por kilo según corte):*\n` +
         `${itemText}\n\n` +
-        `ðŸ’° *Subtotal acumulado:* **$${subtotalAmount.toLocaleString('es-AR')}**\n` +
-        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
+        `💰 *Subtotal acumulado:* **$${subtotalAmount.toLocaleString('es-AR')}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
         `${delivQ} [[STAGE:proposal]]`;
     }
 
     // =========================================================================
-    // 0.1 CONFIRMACIÃ“N DE MÃ‰TODO DE PAGO (INCLUYE RESPUESTAS NUMÃ‰RICAS 1, 2, 3, OPCIÃ“N 1, ETC.)
+    // 0.1 CONFIRMACIÓN DE MÉTODO DE PAGO (INCLUYE RESPUESTAS NUMÉRICAS 1, 2, 3, OPCIÓN 1, ETC.)
     // =========================================================================
-    const isLastMsgPaymentPrompt = /Â¿CÃ³mo preferÃ­s abonar\?|1ï¸ âƒ£.*Efectivo|2ï¸ âƒ£.*Transferencia|3ï¸ âƒ£.*Mercado Pago|Paso 4 de 4/i.test(lastAgentMessage);
+    const isLastMsgPaymentPrompt = /¿Cómo preferís abonar\?|1️⃣.*Efectivo|2️⃣.*Transferencia|3️⃣.*Mercado Pago|Paso 4 de 4/i.test(lastAgentMessage);
 
-    const isNumericPayment1 = /^(?:1|1ï¸ âƒ£|uno|opci[oÃ³]n 1|la 1|el 1|1\.)$/i.test(t.trim());
-    const isNumericPayment2 = /^(?:2|2ï¸ âƒ£|dos|opci[oÃ³]n 2|la 2|el 2|2\.)$/i.test(t.trim());
-    const isNumericPayment3 = /^(?:3|3ï¸ âƒ£|tres|opci[oÃ³]n 3|la 3|el 3|3\.)$/i.test(t.trim());
+    const isNumericPayment1 = /^(?:1|1️⃣|uno|opci[oó]n 1|la 1|el 1|1\.)$/i.test(t.trim());
+    const isNumericPayment2 = /^(?:2|2️⃣|dos|opci[oó]n 2|la 2|el 2|2\.)$/i.test(t.trim());
+    const isNumericPayment3 = /^(?:3|3️⃣|tres|opci[oó]n 3|la 3|el 3|3\.)$/i.test(t.trim());
 
     const isPaymentChoice = (isLastMsgPaymentPrompt && (isNumericPayment1 || isNumericPayment2 || isNumericPayment3)) ||
       (!wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered &&
-        /^(?:efectivo|transferencia|transferir|al repartidor|contra entrega|contraentrega|por mp|mercado pago|pago al recibir|abono al repartidor|abono en efectivo|al retirar|abono al retirar|pago al retirar|en sucursal|en la sucursal|abono en sucursal|pago en sucursal|con debito|con dÃ©bito|tarjeta al retirar|debito|dÃ©bito|al buscarlo|efectivo al repartidor|por transferencia)$/i.test(t.trim())) ||
+        /^(?:efectivo|transferencia|transferir|al repartidor|contra entrega|contraentrega|por mp|mercado pago|pago al recibir|abono al repartidor|abono en efectivo|al retirar|abono al retirar|pago al retirar|en sucursal|en la sucursal|abono en sucursal|pago en sucursal|con debito|con débito|tarjeta al retirar|debito|débito|al buscarlo|efectivo al repartidor|por transferencia)$/i.test(t.trim())) ||
       /(?:efectivo al repartidor|por transferencia|abono en efectivo|al recibir|abono al retirar|pago al retirar|en sucursal|pago en sucursal)/i.test(t.trim());
 
     if (isPaymentChoice) {
@@ -4398,17 +4404,17 @@ Whenever the user asks about the current time, date, products count, orders, or 
         payMethod = 'Transferencia Bancaria (Alias: republica.carne.mp)';
       } else if (isNumericPayment3 || /mp|mercado|link|tarjeta/i.test(t)) {
         payMethod = 'Mercado Pago (Checkout Pro)';
-      } else if (/debito|dÃ©bito/i.test(t)) {
-        payMethod = 'DÃ©bito / Tarjeta al retirar';
+      } else if (/debito|débito/i.test(t)) {
+        payMethod = 'Débito / Tarjeta al retirar';
       } else if (/retirar|sucursal/i.test(t)) {
-        payMethod = 'Efectivo / DÃ©bito al retirar';
+        payMethod = 'Efectivo / Débito al retirar';
       } else {
         payMethod = 'Efectivo contraentrega';
       }
 
       const isDelivery = lastOrder?.deliveryType === 'delivery' || lead?.deliveryType === 'delivery' || Boolean(lastOrder?.address && !lastOrder?.branch);
       const isPickup = !isDelivery && (lastOrder?.deliveryType === 'pickup' || lead?.deliveryType === 'pickup' || Boolean(lastOrder?.branch) || /retirar|sucursal/i.test(t));
-      const branchName = lastOrder?.branch || lead.preferredBranch || 'Urca Central';
+      const branchName = lastOrder?.branch || lead.preferredBranch || 'Urca Central (Av. José Roque Funes 1115)';
       const destAddr = lastOrder?.address || lead.address || 'tu domicilio';
 
       if (lastOrder) {
@@ -4420,9 +4426,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         });
       } else {
         const { items: historyItems, total: historyTotal, products: parsedProducts } = extractItemsFromHistoryAndText(history, '', products, lead);
-        const finalItems = historyItems.length > 0 ? historyItems : [
-          'â€¢ Cortes seleccionados'
-        ];
+        const finalItems = historyItems.length > 0 ? historyItems : ['• Cortes seleccionados'];
         const finalTotal = historyTotal > 0 ? historyTotal : 39999;
         lastOrder = db.createOrder({
           jid: lead.jid || lead.id,
@@ -4456,7 +4460,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
       let paymentExtraInfo = '';
       if (payMethod.includes('Transferencia')) {
-        paymentExtraInfo = '\nðŸ“± *Alias para transferir:* `republica.carne.mp` (Titular: RepÃºblica de la Carne). Enviame el comprobante por acÃ¡ cuando lo realices. ðŸ‘';
+        paymentExtraInfo = '\n📱 *Alias para transferir:* `republica.carne.mp` (Titular: República de la Carne). Enviame el comprobante por acá cuando lo realices. 👍';
       } else if (payMethod.includes('Mercado Pago')) {
         let dynamicLink = lastOrder?.paymentLink || '';
         try {
@@ -4469,19 +4473,19 @@ Whenever the user asks about the current time, date, products count, orders, or 
         }
         const creds = mercadoPagoService.getCredentials();
         const modeTag = creds.isSandbox ? ' (Modo Sandbox)' : '';
-        paymentExtraInfo = `\nðŸ”— *Link de pago seguro de Mercado Pago${modeTag}:*\n${dynamicLink || 'https://www.mercadopago.com.ar'}\n\nPodÃ©s abonar con cualquier tarjeta de dÃ©bito/crÃ©dito, dinero en cuenta de MP o transferencia.`;
+        paymentExtraInfo = `\n🔗 *Link de pago seguro de Mercado Pago${modeTag}:*\n${dynamicLink || 'https://www.mercadopago.com.ar'}\n\nPodés abonar con cualquier tarjeta de débito/crédito, dinero en cuenta de MP o transferencia.`;
       }
 
-      return `Â¡De diez ${clientName}! ðŸ¥©ðŸ”¥ Ya quedÃ³ 100% asentado tu pedido${lastOrder ? ` **#${lastOrder.id}**` : ''} con medio de pago **${payMethod}**.\n\nYa lo pasamos al sector de corte ${destinationText}.${paymentExtraInfo}\n\nÂ¡Muchas gracias por tu compra en RepÃºblica de la Carne! ðŸ™Œ [[STAGE:closed_won]]`;
+      return `¡De diez ${clientName}! 🥩🔥 Ya quedó 100% asentado tu pedido${lastOrder ? ` **#${lastOrder.id}**` : ''} con medio de pago **${payMethod}**.\n\nYa lo pasamos al sector de corte ${destinationText}.${paymentExtraInfo}\n\n¡Muchas gracias por tu compra en República de la Carne! 🙌 [[STAGE:closed_won]]`;
     }
 
     // =========================================================================
-    // 0.2 CORRECCIÃ“N DE TOTAL / RECLAMO DE PEDIDO INCORRECTO ("esta mal el pedido", "esta mal el peddo", "esta mal el total")
+    // 0.2 CORRECCIÓN DE TOTAL / RECLAMO DE PEDIDO INCORRECTO ("esta mal el pedido", "esta mal el peddo", "esta mal el total")
     // =========================================================================
-    const isOrderComplaint = /esta mal el ped|estÃ¡ mal el ped|el pedido esta mal|el pedido estÃ¡ mal|esta mal el total|estÃ¡ mal el total|el total esta mal|el total estÃ¡ mal|el precio esta mal|el precio estÃ¡ mal|cobraste mal|calculaste mal|corregi el total|corregÃ­ el total|no son tantos|por que tanto|falta el combo|eso no pedi|eso no pedÃ­|no es lo que pedi|no es lo que pedÃ­/i.test(t);
+    const isOrderComplaint = /esta mal el ped|está mal el ped|el pedido esta mal|el pedido está mal|esta mal el total|está mal el total|el total esta mal|el total está mal|el precio esta mal|el precio está mal|cobraste mal|calculaste mal|corregi el total|corregí el total|no son tantos|por que tanto|falta el combo|eso no pedi|eso no pedí|no es lo que pedi|no es lo que pedí/i.test(t);
     if (isOrderComplaint) {
       const { items: fullItems, total: fullTotal } = extractItemsFromHistoryAndText(history, '', products);
-      const itemsList = fullItems.length > 0 ? fullItems.join("\n") : (activeOrder?.items?.length > 0 ? (Array.isArray(activeOrder.items) ? activeOrder.items.join("\n") : activeOrder.items) : "• Cortes seleccionados");
+      const itemsList = fullItems.length > 0 ? fullItems.join('\n') : (activeOrder?.items?.length > 0 ? (Array.isArray(activeOrder.items) ? activeOrder.items.join('\n') : activeOrder.items) : '• Cortes seleccionados');
       const realTotal = fullTotal > 0 ? fullTotal : 49999;
       const formattedTotal = `$${realTotal.toLocaleString('es-AR')}`;
 
@@ -4495,23 +4499,23 @@ Whenever the user asks about the current time, date, products count, orders, or 
         }
       }
 
-      return `Â¡Mil disculpas ${clientName}! ðŸ¥© TenÃ©s toda la razÃ³n, se me habÃ­a desfasado el resumen. Te dejo asentado el pedido completo con todos tus cortes:\n\n` +
-        `ðŸ“‹ *Detalle corregido de tu pedido (precios por kilo segÃºn corte):*\n${itemsList}\n\n` +
-        `ðŸ’° *Total correcto estimado a abonar:* **${formattedTotal}**\n` +
-        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-        `ðŸ“ *DirecciÃ³n de entrega:* ${lead.address || 'a convenir'}\n\n` +
-        `ðŸ‘‰ Â¿Confirmamos con este total correcto para despacharte en el dÃ­a? (RespondÃ© *SÃ* para finalizar) ðŸ™Œ [[STAGE:confirming_data]]`;
+      return `¡Mil disculpas ${clientName}! 🥩 Tenés toda la razón, se me había desfasado el resumen. Te dejo asentado el pedido completo con todos tus cortes:\n\n` +
+        `📋 *Detalle corregido de tu pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total correcto estimado a abonar:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+        `📍 *Dirección de entrega:* ${lead.address || 'a convenir'}\n\n` +
+        `👉 ¿Confirmamos con este total correcto para despacharte en el día? (Respondé *SÍ* para finalizar) 🙌 [[STAGE:confirming_data]]`;
     }
 
     // =========================================================================
-    // 0.3 CONFIRMACIÃ“N EXPLÃCITA DE DATOS DE ENVÃO Y AGENDADO ("sÃ­", "correcto", "1", "opciÃ³n 1", etc.)
+    // 0.3 CONFIRMACIÓN EXPLÍCITA DE DATOS DE ENVÍO Y AGENDADO ("sí", "correcto", "1", "opción 1", etc.)
     // =========================================================================
-    const isConfirmationReply = /^(?:s[iÃ­]|correcto|confirmar|confirmo|dale|est[aÃ¡] bien|perfecto|de diez|avanza|avanzar|ok dale|s[iÃ­] dale|s[iÃ­] correcto|exacto|as[iÃ­] es|s[iÃ­] est[aÃ¡] bien|s[iÃ­] perfecto|si confirmo|s[iÃ­] confirmo)$/i.test(cleanConfirmText) ||
-      (wasDataConfirmOffered && /^(?:1|1ï¸âƒ£|opci[oÃ³]n 1|la 1|el 1|si|s[iÃ­])$/i.test(t.trim()));
+    const isConfirmationReply = /^(?:s[ií]|correcto|confirmar|confirmo|dale|est[aá] bien|perfecto|de diez|avanza|avanzar|ok dale|s[ií] dale|s[ií] correcto|exacto|as[ií] es|s[ií] est[aá] bien|s[ií] perfecto|si confirmo|s[ií] confirmo)$/i.test(cleanConfirmText) ||
+      (wasDataConfirmOffered && /^(?:1|1️⃣|opci[oó]n 1|la 1|el 1|si|s[ií])$/i.test(t.trim()));
 
     if (isConfirmationReply) {
       const { items: parsedItems, total: parsedTotal, products: parsedProducts } = extractItemsFromHistoryAndText(history, '', products);
-      const finalItems = parsedItems.length > 0 ? parsedItems : (activeOrder?.items?.length > 0 ? (Array.isArray(activeOrder.items) ? activeOrder.items : [activeOrder.items]) : ["• Cortes seleccionados"]);
+      const finalItems = parsedItems.length > 0 ? parsedItems : (activeOrder?.items?.length > 0 ? (Array.isArray(activeOrder.items) ? activeOrder.items : [activeOrder.items]) : ['• Cortes seleccionados']);
       const finalTotal = parsedTotal > 0 ? parsedTotal : 49999;
       const formattedTotal = `$${finalTotal.toLocaleString('es-AR')}`;
       const freshLead = db.getLead(lead.jid || lead.id) || lead;
@@ -4531,7 +4535,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
           isRegistered: true,
           isVerified: true,
           registeredAt: new Date().toISOString(),
-          notes: `Cliente agendado y registrado. DirecciÃ³n: ${addressDest} | Tel: ${clientPhone}`
+          notes: `Cliente agendado y registrado. Dirección: ${addressDest} | Tel: ${clientPhone}`
         });
       }
 
@@ -4565,20 +4569,20 @@ Whenever the user asks about the current time, date, products count, orders, or 
       }
 
       const customerNum = lead.customerNumber || `CLI-${(lead.id || '0000').slice(-4).toUpperCase()}`;
-      return `Â¡Excelente ${clientName}! ðŸŽ‰ Datos confirmados y agendados con Ã©xito. Ya generamos tu orden de compra:\n\n` +
-        `ðŸ†” *NÂ° de Pedido:* #${orderObj.id}\n` +
-        `ðŸ‘¤ *Cliente:* ${clientName} (N.Â° ${customerNum})\n` +
-        `ðŸ“± *TelÃ©fono:* ${clientPhone}\n` +
-        `ðŸ“‹ *RESUMEN DE TU PEDIDO (precios por kilo segÃºn corte):*\n${finalItems.join('\n')}\n\n` +
-        `ðŸ’° *Total estimado a abonar:* **${formattedTotal}**\n` +
-        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-        `ðŸ“ *Destino de Entrega:* ${addressDest}\n` +
-        `ðŸšš *EnvÃ­o:* Programado en el dÃ­a (dentro de las 24 hs).\n\n` +
-        `ðŸ’³ *Paso 4 de 4 â€” Â¿CÃ³mo preferÃ­s abonar?*\n` +
-        `1ï¸âƒ£ *Efectivo* al repartidor\n` +
-        `2ï¸âƒ£ *Transferencia* (Alias: \`republica.carne.mp\`)\n` +
-        `3ï¸âƒ£ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
-        `ðŸ‘‰ RespondÃ© *1*, *2* o *3*. ðŸ¥© [[STAGE:closed_won]]`;
+      return `¡Excelente ${clientName}! 🎉 Datos confirmados y agendados con éxito. Ya generamos tu orden de compra:\n\n` +
+        `🆔 *N° de Pedido:* #${orderObj.id}\n` +
+        `👤 *Cliente:* ${clientName} (N.° ${customerNum})\n` +
+        `📱 *Teléfono:* ${clientPhone}\n` +
+        `📋 *RESUMEN DE TU PEDIDO (precios por kilo según corte):*\n${finalItems.join('\n')}\n\n` +
+        `💰 *Total estimado a abonar:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+        `📍 *Destino de Entrega:* ${addressDest}\n` +
+        `🚚 *Envío:* Programado en el día (dentro de las 24 hs).\n\n` +
+        `💳 *Paso 4 de 4 — ¿Cómo preferís abonar?*\n` +
+        `1️⃣ *Efectivo* al repartidor\n` +
+        `2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n` +
+        `3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n` +
+        `👉 Respondé *1*, *2* o *3*. 🥩 [[STAGE:closed_won]]`;
     }
 
     // =========================================================================
@@ -4590,23 +4594,23 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (currentActiveOrder) {
         const statusLabel = getOrderStatusLabel(currentActiveOrder.status);
         const amountFormatted = `$${Number(currentActiveOrder.totalAmount).toLocaleString('es-AR')}`;
-        return `Â¡Hola ${clientName}! ðŸ‘‹ Carlos por acÃ¡, de RepÃºblica de la Carne. Veo que tenÃ©s un pedido activo **#${currentActiveOrder.id}** en estado **${statusLabel}** (Total: ${amountFormatted}).\n\nðŸ‘‰ Â¿QuerÃ©s consultar el estado / modificarlo, o te gustarÃ­a armar un **pedido nuevo**? ðŸ¥©ðŸ”¥ [[STAGE:qualified]]`;
+        return `¡Hola ${clientName}! 👋 Carlos por acá, de República de la Carne. Veo que tenés un pedido activo **#${currentActiveOrder.id}** en estado **${statusLabel}** (Total: ${amountFormatted}).\n\n👉 ¿Querés consultar el estado / modificarlo, o te gustaría armar un **pedido nuevo**? 🥩🔥 [[STAGE:qualified]]`;
       }
 
       const isUnregistered = !lead.isRegistered && (isGarbageName(lead.name) || (!nameGreeting && (!lead.name || lead.name.startsWith('+'))));
       if (isUnregistered) {
-        return `Â¡Hola! ðŸ‘‹ Carlos por acÃ¡, maestro carnicero de **RepÃºblica de la Carne**.\n\n` +
-          `Para agendarte en nuestro sistema y coordinar tus envÃ­os directos en el dÃ­a, Â¿me indicarÃ­as por favor:\n` +
-          `ðŸ‘¤ **Tu Nombre y Apellido**\n` +
-          `ðŸ“ **Tu DirecciÃ³n de Entrega y Barrio** (o si preferÃ­s retirar por sucursal)\n\n` +
-          `Â¡Y contame quÃ© cortes o promo tenÃ­as ganas de preparar hoy para armarte la propuesta perfecta! ðŸ¥©ðŸ”¥ [[STAGE:qualified]]`;
+        return `¡Hola! 👋 Carlos por acá, maestro carnicero de **República de la Carne**.\n\n` +
+          `Para agendarte en nuestro sistema y coordinar tus envíos directos en el día, ¿me indicarías por favor:\n` +
+          `👤 **Tu Nombre y Apellido**\n` +
+          `📍 **Tu Dirección de Entrega y Barrio** (o si preferís retirar por sucursal)\n\n` +
+          `¡Y contame qué cortes o promo tenías ganas de preparar hoy para armarte la propuesta perfecta! 🥩🔥 [[STAGE:qualified]]`;
       }
 
-      return `Â¡Hola ${clientName}! ðŸ‘‹ Carlos por acÃ¡, maestro carnicero de RepÃºblica de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\nÂ¿EstÃ¡s planeando un asado, comida familiar o querÃ©s aprovechar nuestras ofertas del dÃ­a? Contame quÃ© cortes estÃ¡s buscando o para cuÃ¡ntas personas calculamos y te armo la propuesta perfecta. ðŸ¥©ðŸ”¥ [[STAGE:qualified]]`;
+      return `¡Hola ${clientName}! 👋 Carlos por acá, maestro carnicero de República de la Carne. Te ayudo a armar tu pedido para que no te falte nada.\n\n¿Estás planeando un asado, comida familiar o querés aprovechar nuestras ofertas del día? Contame qué cortes estás buscando o para cuántas personas calculamos y te armo la propuesta perfecta. 🥩🔥 [[STAGE:qualified]]`;
     }
 
     // =========================================================================
-    // 0.5 CONSULTA Y MODIFICACIÃ“N DE DATOS PERSONALES
+    // 0.5 CONSULTA Y MODIFICACIÓN DE DATOS PERSONALES
     // =========================================================================
     const emailMatch = t.match(/^(?:mi email es|mi correo es|cambiar mi email a|email)\s*[:=]?\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i) ||
                        t.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -4615,38 +4619,38 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (lead.jid || lead.id) {
         db.updateLead(lead.jid || lead.id, { email });
       }
-      return `Â¡Perfecto ${clientName}! ðŸ“§ QuedÃ³ guardado tu correo electrÃ³nico: **${email}** en tu ficha de cliente.\n\nÂ¿En quÃ© mÃ¡s te puedo ayudar hoy? ðŸ™Œ [[STAGE:proposal]]`;
+      return `¡Perfecto ${clientName}! 📧 Quedó guardado tu correo electrónico: **${email}** en tu ficha de cliente.\n\n¿En qué más te puedo ayudar hoy? 🙌 [[STAGE:proposal]]`;
     }
 
-    const nameUpdateMatch = t.match(/^(?:cambiar mi nombre a|mi nombre es|me llamo|decime|anotame como)\s+([a-zÃ¡Ã©Ã­Ã³ÃºÃ±A-ZÃÃ‰ÃÃ“ÃšÃ‘\s]{2,30})$/i);
+    const nameUpdateMatch = t.match(/^(?:cambiar mi nombre a|mi nombre es|me llamo|decime|anotame como)\s+([a-záéíóúñA-ZÁÉÍÓÚÑ\s]{2,30})$/i);
     if (nameUpdateMatch) {
       const newName = nameUpdateMatch[1].trim();
       if (lead.jid || lead.id) {
         db.updateLead(lead.jid || lead.id, { name: newName, pushName: newName, realName: newName });
       }
-      return `Â¡De diez! ðŸ¥© Ya actualicÃ© tu nombre en el sistema como **${newName}**. Â¡Un gusto atenderte! ðŸ™Œ [[STAGE:proposal]]`;
+      return `¡De diez! 🥩 Ya actualicé tu nombre en el sistema como **${newName}**. ¡Un gusto atenderte! 🙌 [[STAGE:proposal]]`;
     }
 
     // =========================================================================
-    // 1. RECHAZO DE COMPLEMENTOS / CIERRE DE ÃTEMS DEL PEDIDO ("solo eso, evio a domicilio", "nada mÃ¡s", "solo eos")
+    // 1. RECHAZO DE COMPLEMENTOS / CIERRE DE ÍTEMS DEL PEDIDO ("solo eso, evio a domicilio", "nada más", "solo eos")
     // =========================================================================
-    const isDeclineComplements = /^(?:no,? )?(?:solo eso|soo eso|solo eos|solo es|nada m[aÃ¡]s|eso solo|eso nada m[aÃ¡]s|ninguno|as[iÃ­] est[aÃ¡] bien|dejalo as[iÃ­]|dame mi pedido|pasemos directo|directo al env[iÃ­]o|sin complementos|solo lo que ped[iÃ­])/i.test(cleanConfirmText) ||
-                                 /(?:solo eso|solo eos|nada m[aÃ¡]s|eso solo|solo para env[iÃ­]o|solo para evio)/i.test(t);
+    const isDeclineComplements = /^(?:no,? )?(?:solo eso|soo eso|solo eos|solo es|nada m[aá]s|eso solo|eso nada m[aá]s|ninguno|as[ií] est[aá] bien|dejalo as[ií]|dame mi pedido|pasemos directo|directo al env[ií]o|sin complementos|solo lo que ped[ií])/i.test(cleanConfirmText) ||
+                                 /(?:solo eso|solo eos|nada m[aá]s|eso solo|solo para env[ií]o|solo para evio)/i.test(t);
 
     // =========================================================================
-    // 2. DETECTOR DE DIRECCIÃ“N Y NOMBRE REAL (PRESENTACIÃ“N Y SOLICITUD DE CONFIRMACIÃ“N)
+    // 2. DETECTOR DE DIRECCIÓN Y NOMBRE REAL (PRESENTACIÓN Y SOLICITUD DE CONFIRMACIÓN)
     // =========================================================================
-    const isInformationalQuery = /(?:hora|horario|cierran|abren|cuanto|precio|costo|consulta|duda|donde|dÃ³nde|a que hora|tenes|tenÃ©s|vendes|vendÃ©s|abierto|atienden|cocinar|comer|comida|receta|familia|somos|personas|comensales|amigos|invitados|asado|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|opcion|opciÃ³n|combo|promo)\b/i.test(t);
-    const hasAddressPatterns = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|nÂ°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro|entre|altura|manzana|lote|san martin)\b/i.test(t) ||
+    const isInformationalQuery = /(?:hora|horario|cierran|abren|cuanto|precio|costo|consulta|duda|donde|dónde|a que hora|tenes|tenés|vendes|vendés|abierto|atienden|cocinar|comer|comida|receta|familia|somos|personas|comensales|amigos|invitados|asado|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|opcion|opción|combo|promo)\b/i.test(t);
+    const hasAddressPatterns = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro|entre|altura|manzana|lote|san martin)\b/i.test(t) ||
       /^(?:te paso mi direccion|mi direccion es|direccion:?|la direccion es|la direccion de entrega es|vivo en|estoy en|mandalo a|mandar a|enviar a|entregar en)\s+/i.test(t) ||
-      (/^[a-zÃ¡Ã©Ã­Ã³ÃºÃ±ÃÃ‰ÃÃ“ÃšÃ‘\s\.\-]+\s+[0-9]{2,5}$/i.test(cleanConfirmText) && !/(?:somos|para|kilo|kilos|kg|cocinar|comer|familia|personas|bifes|platos|opcion|opciÃ³n|combos?|hacer)/i.test(cleanConfirmText));
+      (/^[a-záéíóúñÁÉÍÓÚÑ\s\.\-]+\s+[0-9]{2,5}$/i.test(cleanConfirmText) && !/(?:somos|para|kilo|kilos|kg|cocinar|comer|familia|personas|bifes|platos|opcion|opción|combos?|hacer)/i.test(cleanConfirmText));
     const hasRealAddress = !isInformationalQuery && hasAddressPatterns && (/[0-9]{1,5}/.test(t) || /vivo en|enviar a|mandar a|entregar en/i.test(t) || ((/funes|locelso|pidal|quiros|alamos|alcorta|luchesse/i.test(t)) && /[0-9]{2,5}/.test(t)));
 
     if (hasRealAddress && t.length > 5 && !isGarbageAddress(rawText)) {
       let extractedName = '';
       let cleanAddress = extractCleanAddress(rawText);
 
-      const comboMatch = rawText.match(/(?:mi nombre(?: es)?|me llamo|soy|nombre:?)\s+([A-Za-zÃÃ‰ÃÃ“ÃšÃ¡Ã©Ã­Ã³ÃºÃ±Ã‘]+(?:\s+[A-Za-zÃÃ‰ÃÃ“ÃšÃ¡Ã©Ã­Ã³ÃºÃ±Ã‘]+){0,3})(?:\s+y\b|\s+vivo|\s+en|,|\.|$|\bdireccion)/i);
+      const comboMatch = rawText.match(/(?:mi nombre(?: es)?|me llamo|soy|nombre:?)\s+([A-Za-zÁÉÍÓÚáéíóúñÑ]+(?:\s+[A-Za-zÁÉÍÓÚáéíóúñÑ]+){0,3})(?:\s+y\b|\s+vivo|\s+en|,|\.|$|\bdireccion)/i);
       if (comboMatch && comboMatch[1].trim().length >= 3) {
         const cand = comboMatch[1].trim();
         if (!isGarbageName(cand)) extractedName = cand;
@@ -4655,7 +4659,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (cleanAddress && cleanAddress.length >= 4 && !isGarbageAddress(cleanAddress)) {
         let finalClientName = extractedName || clientName;
 
-      const phoneMatch = rawText.match(/(?:tel|cel|telefono|telÃ©fono|wsp|whatsapp)?\s*[:\-\s]?\s*(\+?54\s*9?\s*\d{8,12}|\b351\d{7}\b|\b15\d{7,8}\b|\b\d{10,13}\b)/i);
+      const phoneMatch = rawText.match(/(?:tel|cel|telefono|teléfono|wsp|whatsapp)?\s*[:\-\s]?\s*(\+?54\s*9?\s*\d{8,12}|\b351\d{7}\b|\b15\d{7,8}\b|\b\d{10,13}\b)/i);
       let clientPhone = (lead.phone && !lead.phone.includes('@lid')) ? lead.phone : (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351 626-2475');
       if (phoneMatch && phoneMatch[1]) {
         clientPhone = phoneMatch[1].trim();
@@ -4674,10 +4678,10 @@ Whenever the user asks about the current time, date, products count, orders, or 
         phone: clientPhone,
         deliveryType: 'delivery',
         ...(finalClientName ? { name: finalClientName, pushName: finalClientName } : {}),
-        notes: `DirecciÃ³n registrada: ${cleanAddress}${finalClientName ? ` | Nombre: ${finalClientName}` : ''} | Tel: ${clientPhone}`
+        notes: `Dirección registrada: ${cleanAddress}${finalClientName ? ` | Nombre: ${finalClientName}` : ''} | Tel: ${clientPhone}`
       });
 
-      // Evaluar si la direcciÃ³n cumple con las condiciones y filtros de entrega
+      // Evaluar si la dirección cumple con las condiciones y filtros de entrega
       const addressFilter = OrderFilterEngine.evaluateOrder({
         phone: clientPhone,
         address: cleanAddress,
@@ -4685,123 +4689,123 @@ Whenever the user asks about the current time, date, products count, orders, or 
       });
 
       if (!addressFilter.allowed && addressFilter.action === 'pickup_only') {
-        return `Â¡Hola ${finalClientName}! ðŸ“ Tomamos nota de tu ubicaciÃ³n en **${cleanAddress}**.\n\n` +
-          `âš ï¸ *Aviso de Cobertura de EnvÃ­os:*\n${addressFilter.message}\n\n` +
-          `ðŸª *PodÃ©s retirar tus cortes frescos en cualquiera de nuestras 6 sucursales:*\n` +
-          `1ï¸âƒ£ *Urca Central* (ðŸ“ Av. JosÃ© Roque Funes 1115)\n` +
-          `2ï¸âƒ£ *Urca 2 â€“ Alto Tejeda* (ðŸ“ Av. MenÃ©ndez Pidal 3575)\n` +
-          `3ï¸âƒ£ *Intercountry â€“ Corteza Mall* (ðŸ“ Av. Los Ãlamos 1015)\n` +
-          `4ï¸âƒ£ *Duarte QuirÃ³s* (ðŸ“ Av. Duarte QuirÃ³s 5130)\n` +
-          `5ï¸âƒ£ *Villa Allende â€“ Mercadito de la Villa* (ðŸ“ Av. Figueroa Alcorta 480)\n` +
-          `6ï¸âƒ£ *Country San Isidro â€“ Alto Tejeda* (ðŸ“ Av. Padre Luchesse km 2)\n\n` +
-          `ðŸ‘‰ *RespondÃ© con el nÃºmero (1 al 6) de tu sede preferida para dejÃ¡rtelo listo.* ðŸ¥©ðŸ™Œ [[STAGE:proposal]]`;
+        return `¡Hola ${finalClientName}! 📍 Tomamos nota de tu ubicación en **${cleanAddress}**.\n\n` +
+          `⚠️ *Aviso de Cobertura de Envíos:*\n${addressFilter.message}\n\n` +
+          `🏪 *Podés retirar tus cortes frescos en cualquiera de nuestras 6 sucursales:*\n` +
+          `1️⃣ *Urca Central* (📍 Av. José Roque Funes 1115)\n` +
+          `2️⃣ *Urca 2 – Alto Tejeda* (📍 Av. Menéndez Pidal 3575)\n` +
+          `3️⃣ *Intercountry – Corteza Mall* (📍 Av. Los Álamos 1015)\n` +
+          `4️⃣ *Duarte Quirós* (📍 Av. Duarte Quirós 5130)\n` +
+          `5️⃣ *Villa Allende – Mercadito de la Villa* (📍 Av. Figueroa Alcorta 480)\n` +
+          `6️⃣ *Country San Isidro – Alto Tejeda* (📍 Av. Padre Luchesse km 2)\n\n` +
+          `👉 *Respondé con el número (1 al 6) de tu sede preferida para dejártelo listo.* 🥩🙌 [[STAGE:proposal]]`;
       }
 
       const canonical = getCanonicalCart(lead, history, rawText, products);
-      const itemsList = canonical.items.length > 0 ? canonical.items : ['â€¢ 1 kg VacÃ­o Especial Seleccionado â€” $11.500'];
+      const itemsList = canonical.items.length > 0 ? canonical.items : ['• 1 kg Vacío Especial Seleccionado — $11.500'];
       const finalTotal = canonical.total > 0 ? canonical.total : 11500;
       const formattedTotal = `$${finalTotal.toLocaleString('es-AR')}`;
 
-        return `ðŸ“‹ *FICHA DE REGISTRO Y DATOS DE ENVÃO:*\n\n` +
-        `ðŸ‘¤ *Destinatario / Cliente:* **${finalClientName}**\n` +
-        `ðŸ“± *TelÃ©fono de Contacto:* **${clientPhone}**\n` +
-        `ðŸ“ *DirecciÃ³n de Entrega:* **${cleanAddress}**\n` +
-        `ðŸ¥© *Detalle del Pedido (precios por kilo segÃºn corte):*\n${itemsList.join('\n')}\n\n` +
-        `ðŸ’° *Total estimado a abonar:* **${formattedTotal}**\n` +
-        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-        `ðŸ‘‰ **Â¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n` +
-        `1ï¸âƒ£ Confirmar datos y pasar al pago\n` +
-        `2ï¸âƒ£ Modificar algÃºn dato (nombre, telÃ©fono o direcciÃ³n)\n` +
-        `3ï¸âƒ£ Cancelar pedido\n\n` +
-        `ðŸ‘‰ RespondÃ© *1*, *2* o *3* (o escribÃ­ *SÃ* para confirmar). ðŸ¥©ðŸšš [[STAGE:confirming_data]]`;
+        return `📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n` +
+        `👤 *Destinatario / Cliente:* **${finalClientName}**\n` +
+        `📱 *Teléfono de Contacto:* **${clientPhone}**\n` +
+        `📍 *Dirección de Entrega:* **${cleanAddress}**\n` +
+        `🥩 *Detalle del Pedido (precios por kilo según corte):*\n${itemsList.join('\n')}\n\n` +
+        `💰 *Total estimado a abonar:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+        `👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n` +
+        `1️⃣ Confirmar datos y pasar al pago\n` +
+        `2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n` +
+        `3️⃣ Cancelar pedido\n\n` +
+        `👉 Respondé *1*, *2* o *3* (o escribí *SÍ* para confirmar). 🥩🚚 [[STAGE:confirming_data]]`;
       }
     }
 
     // =========================================================================
-    // 3. INTENCIÃ“N DE ENVÃO SIN DIRECCIÃ“N ESPECÃFICA (ej: "solo eso, evio a domicilio", "dale envÃ­amelo", "te paso mi direcciÃ³n")
+    // 3. INTENCIÓN DE ENVÍO SIN DIRECCIÓN ESPECÍFICA (ej: "solo eso, evio a domicilio", "dale envíamelo", "te paso mi dirección")
     // =========================================================================
-    const isDeliveryIntentWithoutAddress = /(?:a|para)\s+(?:mi\s+)?(?:domicilio|casa|depto|departamento)|(?:hacelo|mandamelo|mandÃ¡melo|enviame|envÃ­ame|envialo|envÃ­alo|quiero\s+envio|quiero\s+envÃ­o|con\s+envio|con\s+envÃ­o|por\s+delivery|hacer\s+delivery|evio a domicilio|envio a domicilio|envÃ­o a domicilio|a domicilio|para envio|para envÃ­o|para evio|dale enviamelo|dale envÃ­amelo|te paso mi direcci|te paso la direcci|te paso mi dir|paso mi direcci|paso direccion)/i.test(t) && 
+    const isDeliveryIntentWithoutAddress = /(?:a|para)\s+(?:mi\s+)?(?:domicilio|casa|depto|departamento)|(?:hacelo|mandamelo|mandámelo|enviame|envíame|envialo|envíalo|quiero\s+envio|quiero\s+envío|con\s+envio|con\s+envío|por\s+delivery|hacer\s+delivery|evio a domicilio|envio a domicilio|envío a domicilio|a domicilio|para envio|para envío|para evio|dale enviamelo|dale envíamelo|te paso mi direcci|te paso la direcci|te paso mi dir|paso mi direcci|paso direccion)/i.test(t) && 
       !/[0-9]{2,5}/.test(t) && 
       !/(?:funes|locelso|pidal|quiros|alamos|alcorta|luchesse|colon|urca|calle|av\.|avenida|barrio|altura)/i.test(t);
 
-    if (isDeliveryIntentWithoutAddress || (isDeclineComplements && /domicilio|envio|envÃ­o|evio/i.test(t))) {
+    if (isDeliveryIntentWithoutAddress || (isDeclineComplements && /domicilio|envio|envío|evio/i.test(t))) {
       if (lead.address && lead.address.length >= 5 && !isGarbageAddress(lead.address)) {
         const canonical = getCanonicalCart(lead, history, '', products);
-        const finalItems = canonical.items.length > 0 ? canonical.items : ['â€¢ 1 kg VacÃ­o Especial Seleccionado â€” $11.500'];
+        const finalItems = canonical.items.length > 0 ? canonical.items : ['• 1 kg Vacío Especial Seleccionado — $11.500'];
         const formattedTotal = `$${(canonical.total || 11500).toLocaleString('es-AR')}`;
         const clientPhone = lead.phone || (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351');
 
-        return `ðŸ“‹ *FICHA DE REGISTRO Y DATOS DE ENVÃO:*\n\n` +
-          `ðŸ‘¤ *Destinatario / Cliente:* **${clientName}**\n` +
-          `ðŸ“± *TelÃ©fono de Contacto:* **${clientPhone}**\n` +
-          `ðŸ“ *DirecciÃ³n de Entrega:* **${lead.address}**\n` +
-          `ðŸ¥© *Detalle del Pedido (precios por kilo segÃºn corte):*\n${finalItems.join('\n')}\n\n` +
-          `ðŸ’° *Total estimado a abonar:* **${formattedTotal}**\n` +
-          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-          `ðŸ‘‰ **Â¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n` +
-          `1ï¸âƒ£ Confirmar datos y pasar al pago\n` +
-          `2ï¸âƒ£ Modificar algÃºn dato (nombre, telÃ©fono o direcciÃ³n)\n` +
-          `3ï¸âƒ£ Cancelar pedido\n\n` +
-          `ðŸ‘‰ RespondÃ© *1*, *2* o *3* (o escribÃ­ *SÃ* para confirmar). ðŸ¥©ðŸšš [[STAGE:confirming_data]]`;
+        return `📋 *FICHA DE REGISTRO Y DATOS DE ENVÍO:*\n\n` +
+          `👤 *Destinatario / Cliente:* **${clientName}**\n` +
+          `📱 *Teléfono de Contacto:* **${clientPhone}**\n` +
+          `📍 *Dirección de Entrega:* **${lead.address}**\n` +
+          `🥩 *Detalle del Pedido (precios por kilo según corte):*\n${finalItems.join('\n')}\n\n` +
+          `💰 *Total estimado a abonar:* **${formattedTotal}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+          `👉 **¿Confirmamos estos datos para agendarte y guardarte en el sistema?**\n` +
+          `1️⃣ Confirmar datos y pasar al pago\n` +
+          `2️⃣ Modificar algún dato (nombre, teléfono o dirección)\n` +
+          `3️⃣ Cancelar pedido\n\n` +
+          `👉 Respondé *1*, *2* o *3* (o escribí *SÍ* para confirmar). 🥩🚚 [[STAGE:confirming_data]]`;
       }
-      return `Â¡De diez ${clientName}! ðŸ›µ Programamos el envÃ­o directo a tu puerta en el dÃ­a.\n\nPor favor, indÃ­canos con precisiÃ³n:\nðŸ“ *DirecciÃ³n de Entrega:* (Calle, NÃºmero/Altura y Barrio)\nðŸ‘¤ *Nombre y Apellido:* (Para la etiqueta del paquete)\n\nÂ¡AsÃ­ verificamos los datos y dejamos listo tu pedido! ðŸ¥© [[STAGE:proposal]]`;
+      return `¡De diez ${clientName}! 🛵 Programamos el envío directo a tu puerta en el día.\n\nPor favor, indícanos con precisión:\n📍 *Dirección de Entrega:* (Calle, Número/Altura y Barrio)\n👤 *Nombre y Apellido:* (Para la etiqueta del paquete)\n\n¡Así verificamos los datos y dejamos listo tu pedido! 🥩 [[STAGE:proposal]]`;
     }
 
     if (isDeclineComplements) {
       const canonical = getCanonicalCart(lead, history, '', products);
-      const itemsList = canonical.items.length > 0 ? canonical.items.join('\n') : 'â€¢ 1 kg VacÃ­o Especial Seleccionado â€” $11.500';
+      const itemsList = canonical.items.length > 0 ? canonical.items.join('\n') : '• 1 kg Vacío Especial Seleccionado — $11.500';
       const formattedTotal = `$${(canonical.total || 11500).toLocaleString('es-AR')}`;
 
-      return `Â¡De diez ${clientName}! ðŸ¥©ðŸšš Cerramos con tu pedido confirmado:\n\n` +
-        `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte):*\n${itemsList}\n\n` +
-        `ðŸ’° *Total estimado:* **${formattedTotal}**\n` +
-        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-        `ðŸ‘‰ *Paso 3 de 4 â€” Â¿CÃ³mo preferÃ­s recibir tu pedido?*\n` +
-        `1ï¸âƒ£ *EnvÃ­o a Domicilio* (te lo llevamos en el dÃ­a)\n` +
-        `2ï¸âƒ£ *Retiro en Sucursal* (en cualquiera de nuestras 6 sedes en CÃ³rdoba)\n\n` +
-        `ðŸ‘‰ RespondÃ© *1* o *2* (o pasame directamente tu direcciÃ³n o sucursal). ðŸ™Œ [[STAGE:proposal]]`;
+      return `¡De diez ${clientName}! 🥩🚚 Cerramos con tu pedido confirmado:\n\n` +
+        `📋 *Detalle de tu pedido (precios por kilo según corte):*\n${itemsList}\n\n` +
+        `💰 *Total estimado:* **${formattedTotal}**\n` +
+        `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
+        `👉 *Paso 3 de 4 — ¿Cómo preferís recibir tu pedido?*\n` +
+        `1️⃣ *Envío a Domicilio* (te lo llevamos en el día)\n` +
+        `2️⃣ *Retiro en Sucursal* (en cualquiera de nuestras 6 sedes en Córdoba)\n\n` +
+        `👉 Respondé *1* o *2* (o pasame directamente tu dirección o sucursal). 🙌 [[STAGE:proposal]]`;
     }
 
     // =========================================================================
     // 3.5 ASESORAMIENTO CULINARIO Y RECETAS (ASADOS, MILANESAS, GUISOS, HORNO)
     // =========================================================================
-    const isCulinaryConsultation = /(?:para hacer|para preparar|recomendas para|recomendÃ¡s para|que me recomendas|quÃ© me recomendÃ¡s|que corte|quÃ© corte|para guiso|para estofado|para milanesas|para horno|para asado|para un asado|para el asado|para asadito|para un asadito|hacer milanesas|hacer un asado|hacer un asadito|hacer asado|hacer asadito|preparar un asado|preparar asadito|somos \d+|para (?:los\s+)?\d+|asado para|asadito para|asado con|cocinar|cocinar en casa|comida en casa|plato familiar|almorzar|cenar)/i.test(t) && !hasSpecificCutsWithQtyEarly;
+    const isCulinaryConsultation = /(?:para hacer|para preparar|recomendas para|recomendás para|que me recomendas|qué me recomendás|que corte|qué corte|para guiso|para estofado|para milanesas|para horno|para asado|para un asado|para el asado|para asadito|para un asadito|hacer milanesas|hacer un asado|hacer un asadito|hacer asado|hacer asadito|preparar un asado|preparar asadito|somos \d+|para (?:los\s+)?\d+|asado para|asadito para|asado con|cocinar|cocinar en casa|comida en casa|plato familiar|almorzar|cenar)/i.test(t) && !hasSpecificCutsWithQtyEarly;
     if (isCulinaryConsultation) {
       const advice = ChatStrategyGraphService.handleCulinaryAndAsado(rawText, clientName, products);
       if (advice) return advice;
     }
 
     // =========================================================================
-    // 4. DETECCIÃ“N EXACTA DE ÃTEMS, CANTIDADES Y ADICIONES / CORRECCIONES
+    // 4. DETECCIÓN EXACTA DE ÍTEMS, CANTIDADES Y ADICIONES / CORRECCIONES
     // =========================================================================
-    const isAdditionOrder = /agrega|agregÃ¡|agregar|agregame|agregale|suma|sumÃ¡|sumar|sumale|sumame|sumar|ademas|ademÃ¡s|tambien|tambiÃ©n|sumale tambiÃ©n|mas los|mÃ¡s los|mas 1|mas 2|y los|y las|y 1|y 2/i.test(t);
-    const isCorrectionOrder = /corregi|corregÃ­|corrije|corrijÃ­|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de|sacale|sacÃ¡|saca|quita|quitar|quitalo|quitame|cambiame|cambia|cambiÃ¡|reemplaza|reemplazÃ¡/i.test(t);
-    const hasOrderVerb = /(?:quiero|mandame|mandÃ¡melo|mandamelo|enviame|envÃ­ame|traeme|traÃ©me|armame|armÃ¡me|anotame|anÃ³tame|dame|separame|sepÃ¡rame|preparame|prepÃ¡rame|haceme|llevame|llevale|tenes|tenÃ©s|vendes|vendÃ©s)/i.test(t);
+    const isAdditionOrder = /agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|sumar|ademas|además|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2/i.test(t);
+    const isCorrectionOrder = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas|en vez de|sacale|sacá|saca|quita|quitar|quitalo|quitame|cambiame|cambia|cambiá|reemplaza|reemplazá/i.test(t);
+    const hasOrderVerb = /(?:quiero|mandame|mandámelo|mandamelo|enviame|envíame|traeme|traéme|armame|armáme|anotame|anótame|dame|separame|sepárame|preparame|prepárame|haceme|llevame|llevale|tenes|tenés|vendes|vendés)/i.test(t);
     const hasQuantityExplicit = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|combo|bolsa|botella|bifes?|tiras?|piezas?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b\d+\s+(?:de\s+)?(?:kilos?|kg|unidades?))/i.test(t);
-    const isQuestionOrInquiry = /^(?:qu[eÃ©]|cu[aÃ¡]l|cu[aÃ¡]les|mostrame|pasame|decime)\s+(?:opciones|cortes|tipos|variedades|precios|promo|ofertas?|de\s+)/i.test(t) || 
-      /(?:qu[eÃ©]\s+opciones|qu[eÃ©]\s+hay|qu[eÃ©]\s+cortes|qu[eÃ©]\s+variedad|qu[eÃ©]\s+tipos)/i.test(t);
+    const isQuestionOrInquiry = /^(?:qu[eé]|cu[aá]l|cu[aá]les|mostrame|pasame|decime)\s+(?:opciones|cortes|tipos|variedades|precios|promo|ofertas?|de\s+)/i.test(t) || 
+      /(?:qu[eé]\s+opciones|qu[eé]\s+hay|qu[eé]\s+cortes|qu[eé]\s+variedad|qu[eé]\s+tipos)/i.test(t);
 
     const mentionedProducts = findAllMentionedProducts(rawText, products);
     const matchedSingleProduct = matchBestProduct(rawText, products);
-    const hasProductMention = (mentionedProducts && mentionedProducts.length > 0) || matchedSingleProduct !== null || /combo|asadazo|vacio|vacÃ­o|costillar|tapa|cuadril|entraÃ±a|matambre|milanesa|chori|morcilla|molida|costeleta|pata muslo|carbon|carbÃ³n|vino|pollo|peceto|lomo|nalga|bola|falda|asado|carne/i.test(t);
+    const hasProductMention = (mentionedProducts && mentionedProducts.length > 0) || matchedSingleProduct !== null || /combo|asadazo|vacio|vacío|costillar|tapa|cuadril|entraña|matambre|milanesa|chori|morcilla|molida|costeleta|pata muslo|carbon|carbón|vino|pollo|peceto|lomo|nalga|bola|falda|asado|carne/i.test(t);
     const isQuantityOnlyMsg = /(?:^|\s)(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|piezas?|combos?|bolsas?|botellas?)|medio\s+kilo|1\/2\s*kg|dos|tres|cuatro|cinco|seis|ocho|diez|\d+)(?:\s|$)/i.test(t);
 
     if (((hasProductMention || isAdditionOrder || isCorrectionOrder || isQuantityOnlyMsg) && !isQuestionOrInquiry) || (hasProductMention && (hasOrderVerb || hasQuantityExplicit))) {
-      // 1. Si el cliente pide o menciona mÃºltiples productos (ej: "quiero vacÃ­o y chorizos", "asado, matambre y carbÃ³n")
+      // 1. Si el cliente pide o menciona múltiples productos (ej: "quiero vacío y chorizos", "asado, matambre y carbón")
       if (mentionedProducts.length >= 2 && !hasQuantityExplicit && !isCorrectionOrder && !isQuantityOnlyMsg) {
         return formatProductQuantityPrompt(mentionedProducts, clientName);
       }
 
-      // 2. Si el cliente pide un corte genÃ©rico con mÃºltiples variedades (ej: "cuadril", "matambre", "chorizo", "milanesas")
+      // 2. Si el cliente pide un corte genérico con múltiples variedades (ej: "cuadril", "matambre", "chorizo", "milanesas")
       const ambiguous = findAmbiguousProducts(rawText, products);
       if (ambiguous && ambiguous.matches && ambiguous.matches.length >= 2 && !isCorrectionOrder && !isQuantityOnlyMsg && !hasQuantityExplicit) {
         const formattedAmbiguous = formatNumberedCatalog(ambiguous.matches);
-        return `Â¡De diez ${clientName}! ðŸ¥© En mostrador tenemos varias opciones de **${ambiguous.term}**: ðŸ‘‡\n\n` +
+        return `¡De diez ${clientName}! 🥩 En mostrador tenemos varias opciones de **${ambiguous.term}**: 👇\n\n` +
           `${formattedAmbiguous}\n\n` +
-          `ðŸ‘‰ *Â¿CuÃ¡l de estas opciones preferÃ­s que te preparemos y cuÃ¡ntos kilos o unidades te separamos?* ðŸ¥©ðŸšš [[STAGE:proposal]]`;
+          `👉 *¿Cuál de estas opciones preferís que te preparemos y cuántos kilos o unidades te separamos?* 🥩🚚 [[STAGE:proposal]]`;
       }
 
-      // 3. Si el cliente pide o menciona un producto especÃ­fico pero NO indicÃ³ cantidad explÃ­cita (peso o unidad)
+      // 3. Si el cliente pide o menciona un producto específico pero NO indicó cantidad explícita (peso o unidad)
       if (!hasQuantityExplicit && !isCorrectionOrder && !isQuantityOnlyMsg) {
         const targetPromptProd = (mentionedProducts.length > 0 ? mentionedProducts[0] : null) || matchedSingleProduct;
         if (targetPromptProd && !/combo asadazo/i.test(targetPromptProd.name || '')) {
@@ -4831,9 +4835,9 @@ Whenever the user asks about the current time, date, products count, orders, or 
           });
         }
         const formattedTotal = `$${detectedTotal.toLocaleString('es-AR')}`;
-        let prefixGreeting = `Â¡De diez ${clientName}! ðŸ¥© Te separo los cortes solicitados:`;
+        let prefixGreeting = `¡De diez ${clientName}! 🥩 Te separo los cortes solicitados:`;
         
-        // CÃ¡lculo y asesoramiento de comensales / personas si el cliente lo mencionÃ³
+        // Cálculo y asesoramiento de comensales / personas si el cliente lo mencionó
         const peopleOrderMatch = rawText.match(/(?:para|somos|comemos|seremos|seriamos|calculale|asado\s+para|un\s+asado\s+para)\s+(?:unos\s+|unas\s+)?(\d{1,3})\s*(?:personas?|comensales|amigos|invitados|familiares|bocas|peronas)?/i) ||
           rawText.match(/(\d{1,3})\s*(?:personas|comensales|invitados|amigos|peronas)/i);
 
@@ -4854,24 +4858,24 @@ Whenever the user asks about the current time, date, products count, orders, or 
             }
 
             if (totalMeatKg >= recommendedKg) {
-              prefixGreeting = `Â¡Excelente ${clientName}! ðŸ¥© Para *${peopleCount} personas* calculamos un promedio de *${recommendedKg} kg en total* (~500g por comensal) y con tu selecciÃ³n tenÃ©s un asado de diez:`;
+              prefixGreeting = `¡Excelente ${clientName}! 🥩 Para *${peopleCount} personas* calculamos un promedio de *${recommendedKg} kg en total* (~500g por comensal) y con tu selección tenés un asado de diez:`;
             } else {
               const diffKg = (recommendedKg - totalMeatKg).toFixed(1);
-              peopleAdviceNote = `\nðŸ’¡ *Sugerencia opcional:* Para *${peopleCount} personas* solemos calcular ~${recommendedKg} kg en total (~500g por comensal). Tu pedido suma ~${totalMeatKg.toFixed(1)} kg. Â¿Te gustarÃ­a sumar ${diffKg} kg mÃ¡s de algÃºn corte (como vacÃ­o o mÃ¡s costilla), o preferÃ­s avanzar directamente con este pedido? ðŸ™Œ\n`;
+              peopleAdviceNote = `\n💡 *Sugerencia opcional:* Para *${peopleCount} personas* solemos calcular ~${recommendedKg} kg en total (~500g por comensal). Tu pedido suma ~${totalMeatKg.toFixed(1)} kg. ¿Te gustaría sumar ${diffKg} kg más de algún corte (como vacío o más costilla), o preferís avanzar directamente con este pedido? 🙌\n`;
             }
           }
         }
 
         if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)) {
-          prefixGreeting = `Â¡Actualizado ${clientName}! ðŸ¥© Modificamos y dejamos asentado tu pedido **#${currentActiveOrder.id}**:`;
+          prefixGreeting = `¡Actualizado ${clientName}! 🥩 Modificamos y dejamos asentado tu pedido **#${currentActiveOrder.id}**:`;
         } else if (isAdditionOrder && addedItems && addedItems.length > 0) {
           const addedDesc = addedItems.map(a => `${a.quantity} ${a.prod.unit} ${a.prod.name}`).join(' y ');
-          prefixGreeting = `Â¡De diez ${clientName}! ðŸ¥© Sumamos *${addedDesc}* a tu pedido:`;
+          prefixGreeting = `¡De diez ${clientName}! 🥩 Sumamos *${addedDesc}* a tu pedido:`;
         } else if (isCorrectionOrder) {
-          prefixGreeting = `Â¡Corregido ${clientName}! ðŸ‘ Dejamos asentado tu pedido actualizado:`;
+          prefixGreeting = `¡Corregido ${clientName}! 👍 Dejamos asentado tu pedido actualizado:`;
         } else if (addedItems && addedItems.length > 0) {
           const addedDesc = addedItems.map(a => `${a.quantity} ${a.prod.unit} ${a.prod.name}`).join(' y ');
-          prefixGreeting = `Â¡De diez ${clientName}! ðŸ¥© Sumamos *${addedDesc}* a tu pedido:`;
+          prefixGreeting = `¡De diez ${clientName}! 🥩 Sumamos *${addedDesc}* a tu pedido:`;
         }
 
         const orderNotice = currentActiveOrder ? ` (Pedido #${currentActiveOrder.id})` : '';
@@ -4880,84 +4884,84 @@ Whenever the user asks about the current time, date, products count, orders, or 
         const crossSellingSection = crossSelling ? `${crossSelling}\n\n` : '';
 
         return `${prefixGreeting}\n\n` +
-          `ðŸ“‹ *Detalle de tu pedido (precios por kilo segÃºn corte)${orderNotice}:*\n` +
+          `📋 *Detalle de tu pedido (precios por kilo según corte)${orderNotice}:*\n` +
           `${detectedItems.join('\n')}\n\n` +
-          `ðŸ’° *Total acumulado estimado:* **${formattedTotal}**\n` +
-          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
+          `💰 *Total acumulado estimado:* **${formattedTotal}**\n` +
+          `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*\n\n` +
           peopleAdviceNote +
           crossSellingSection +
           (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status)
-            ? `ðŸ“ *Entrega:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n\nÂ¿PrecisÃ¡s realizar algÃºn otro cambio o lo dejamos listo para despachar? ðŸ™Œ [[STAGE:proposal]]`
-            : `ðŸ‘‰ *Â¿CÃ³mo seguimos con tu pedido?*\n` +
-              `1ï¸âƒ£ Coordinar *EnvÃ­o a Domicilio* en el dÃ­a ðŸ›µ\n` +
-              `2ï¸âƒ£ Elegir *Retiro por Sucursal* (6 sedes en CÃ³rdoba) ðŸª\n` +
-              `3ï¸âƒ£ Sumar mÃ¡s cortes o complementos (chorizos, carbÃ³n, vino) ðŸ¥©\n\n` +
-              `ðŸ‘‰ *RespondÃ© 1, 2 o 3 (o escribÃ­ "delivery", "sucursal" o los cortes).* ðŸ™Œ [[STAGE:proposal]]`);
+            ? `📍 *Entrega:* ${currentActiveOrder.address || lead.address || currentActiveOrder.branch || 'A coordinar'}\n\n¿Precisás realizar algún otro cambio o lo dejamos listo para despachar? 🙌 [[STAGE:proposal]]`
+            : `👉 *¿Cómo seguimos con tu pedido?*\n` +
+              `1️⃣ Coordinar *Envío a Domicilio* en el día 🛵\n` +
+              `2️⃣ Elegir *Retiro por Sucursal* (6 sedes en Córdoba) 🏪\n` +
+              `3️⃣ Sumar más cortes o complementos (chorizos, carbón, vino) 🥩\n\n` +
+              `👉 *Respondé 1, 2 o 3 (o escribí "delivery", "sucursal" o los cortes).* 🙌 [[STAGE:proposal]]`);
       }
     }
 
     // =========================================================================
-    // 5. CONSULTA DE OFERTAS, PRECIOS, CORTES ESPECÃFICOS Y CATÃLOGO DINÃMICO
+    // 5. CONSULTA DE OFERTAS, PRECIOS, CORTES ESPECÍFICOS Y CATÁLOGO DINÁMICO
     // =========================================================================
-    const isCategoryQuery = /cerdo|porcino|achura|achuras|molleja|chinchulin|chinchulines|combo|combos|promo|promos|embutido|embutidos|chorizo|morcilla|pollo|aviar|bebida|bebidas|vino|vinos|almacen|almacÃ©n|carbon|carbÃ³n/i.test(t);
+    const isCategoryQuery = /cerdo|porcino|achura|achuras|molleja|chinchulin|chinchulines|combo|combos|promo|promos|embutido|embutidos|chorizo|morcilla|pollo|aviar|bebida|bebidas|vino|vinos|almacen|almacén|carbon|carbón/i.test(t);
 
-    // 5.1 Consulta por producto especÃ­fico o PLU
-    const isExplicitPriceOrAvailabilityAsk = /(?:cu[aÃ¡]nto|precio|costo|a cu[aÃ¡]nto|sale|cuesta|ten[eÃ©]s|vendes|vend[eÃ©]s)/i.test(t) || /^(?:plu|c[oÃ³]digo|cod\.?)/i.test(t);
+    // 5.1 Consulta por producto específico o PLU
+    const isExplicitPriceOrAvailabilityAsk = /(?:cu[aá]nto|precio|costo|a cu[aá]nto|sale|cuesta|ten[eé]s|vendes|vend[eé]s)/i.test(t) || /^(?:plu|c[oó]digo|cod\.?)/i.test(t);
 
     if (matchedSingleProduct && isExplicitPriceOrAvailabilityAsk && !/combo asadazo/i.test(matchedSingleProduct.name) && !/(?:opciones|variedad|tipos)/i.test(t)) {
       return formatProductQuantityPrompt(matchedSingleProduct, clientName);
     }
 
-    // 5.2 Consulta por categorÃ­a (ej: "cerdo", "achuras", "combos", "embutidos", "chorizo")
+    // 5.2 Consulta por categoría (ej: "cerdo", "achuras", "combos", "embutidos", "chorizo")
     if (isCategoryQuery || isQuestionOrInquiry) {
       let targetCategory = 'Parrilla y Vacuno';
-      let catIcon = 'ðŸ¥©';
+      let catIcon = '🥩';
       let searchKey = '';
-      if (/chorizo|chori/i.test(t)) { targetCategory = 'Achuras y Embutidos'; catIcon = 'ðŸŒ­'; searchKey = 'chori'; }
-      else if (/cerdo|porcino/i.test(t)) { targetCategory = 'Cerdo'; catIcon = 'ðŸ·'; searchKey = 'cerdo'; }
-      else if (/achura|molleja|chinchulin/i.test(t)) { targetCategory = 'Achuras'; catIcon = 'ðŸ”¥'; searchKey = 'achura'; }
-      else if (/combo|promo/i.test(t)) { targetCategory = 'Combos en Oferta'; catIcon = 'â­'; searchKey = 'combo'; }
-      else if (/embutido|morcilla/i.test(t)) { targetCategory = 'Embutidos Artesanales'; catIcon = 'ðŸŒ­'; searchKey = 'morcilla'; }
-      else if (/matambre/i.test(t)) { targetCategory = 'Parrilla y Vacuno'; catIcon = 'ðŸ¥©'; searchKey = 'matambre'; }
-      else if (/pollo|aviar/i.test(t)) { targetCategory = 'Pollo'; catIcon = 'ðŸ—'; searchKey = 'pollo'; }
-      else if (/bebida|vino/i.test(t)) { targetCategory = 'Bebidas'; catIcon = 'ðŸ·'; searchKey = 'vino'; }
-      else if (/almacen|carbon/i.test(t)) { targetCategory = 'AlmacÃ©n Parrillero'; catIcon = 'ðŸªµ'; searchKey = 'carbon'; }
+      if (/chorizo|chori/i.test(t)) { targetCategory = 'Achuras y Embutidos'; catIcon = '🌭'; searchKey = 'chori'; }
+      else if (/cerdo|porcino/i.test(t)) { targetCategory = 'Cerdo'; catIcon = '🐷'; searchKey = 'cerdo'; }
+      else if (/achura|molleja|chinchulin/i.test(t)) { targetCategory = 'Achuras'; catIcon = '🔥'; searchKey = 'achura'; }
+      else if (/combo|promo/i.test(t)) { targetCategory = 'Combos en Oferta'; catIcon = '⭐'; searchKey = 'combo'; }
+      else if (/embutido|morcilla/i.test(t)) { targetCategory = 'Embutidos Artesanales'; catIcon = '🌭'; searchKey = 'morcilla'; }
+      else if (/matambre/i.test(t)) { targetCategory = 'Parrilla y Vacuno'; catIcon = '🥩'; searchKey = 'matambre'; }
+      else if (/pollo|aviar/i.test(t)) { targetCategory = 'Pollo'; catIcon = '🍗'; searchKey = 'pollo'; }
+      else if (/bebida|vino/i.test(t)) { targetCategory = 'Bebidas'; catIcon = '🍷'; searchKey = 'vino'; }
+      else if (/almacen|carbon/i.test(t)) { targetCategory = 'Almacén Parrillero'; catIcon = '🪵'; searchKey = 'carbon'; }
 
       let catProducts = searchKey ? getCatalogByCategory(searchKey, products, 8) : getCatalogByCategory(targetCategory, products, 8);
       if (catProducts.length > 0) {
         const productLines = catProducts.map((cp, idx) => {
           const pluInfo = cp.plu ? ` [PLU ${cp.plu}]` : '';
-          return `${idx + 1}ï¸âƒ£ *${cp.name}*${pluInfo} âž” *$${Number(cp.price).toLocaleString('es-AR')}* / ${cp.unit || 'kg'}`;
+          return `${idx + 1}️⃣ *${cp.name}*${pluInfo} ➔ *$${Number(cp.price).toLocaleString('es-AR')}* / ${cp.unit || 'kg'}`;
         }).join('\n');
 
         const titleHeader = searchKey ? searchKey.toUpperCase() : targetCategory.toUpperCase();
-        return `Â¡AcÃ¡ tenÃ©s nuestras mejores opciones en **${titleHeader}** ${catIcon}! ðŸ¥©\n\n` +
+        return `¡Acá tenés nuestras mejores opciones en **${titleHeader}** ${catIcon}! 🥩\n\n` +
           `${productLines}\n\n` +
-          `ðŸ‘‰ Decime cuÃ¡l te gustarÃ­a que te preparemos o cuÃ¡ntos kilos te separamos y te lo dejamos listo. ðŸšš [[STAGE:proposal]]`;
+          `👉 Decime cuál te gustaría que te preparemos o cuántos kilos te separamos y te lo dejamos listo. 🚚 [[STAGE:proposal]]`;
       }
     }
 
-    // 5.3 Consulta general de precios y catÃ¡logo
-    const isOffersQuery = /oferta|ofertas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenÃ©s|que hay|que cortes|carta|catalogo|catÃ¡logo/i.test(t);
+    // 5.3 Consulta general de precios y catálogo
+    const isOffersQuery = /oferta|ofertas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|carta|catalogo|catálogo/i.test(t);
     if (isOffersQuery) {
-      // Generar ofertas DINÃMICAMENTE desde db.getProducts() â€” fuente Ãºnica de verdad
+      // Generar ofertas DINÁMICAMENTE desde db.getProducts() — fuente única de verdad
       const featuredProducts = getFeaturedWhatsAppOffers(products);
       const productLines = featuredProducts.map((cp, idx) => {
         const pluInfo = cp.plu ? ` [PLU ${cp.plu}]` : '';
-        const promoTag = /promo|x \$/i.test(cp.name) ? ' ðŸ”¥' : '';
-        return `â€¢ **${cp.name}${pluInfo}:** $${Number(cp.price).toLocaleString('es-AR')} / ${cp.unit || 'kg'}${promoTag}`;
+        const promoTag = /promo|x \$/i.test(cp.name) ? ' 🔥' : '';
+        return `• **${cp.name}${pluInfo}:** $${Number(cp.price).toLocaleString('es-AR')} / ${cp.unit || 'kg'}${promoTag}`;
       }).join('\n');
 
       const totalAvailable = (products && products.length > 0) ? products.length : featuredProducts.length;
 
-      return `Â¡MirÃ¡ ${clientName}! ðŸ”¥ Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del dÃ­a en RepÃºblica de la Carne:\n\n` +
-        `ðŸ¥© **CORTES Y PROMOS SELECCIONADOS:**\n` +
+      return `¡Mirá ${clientName}! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n` +
+        `🥩 **CORTES Y PROMOS SELECCIONADOS:**\n` +
         `${productLines}\n\n` +
-        `ðŸ‘‰ Contamos con ${totalAvailable} cortes y productos frescos registrados con entrega en el dÃ­a en CÃ³rdoba. Â¿QuÃ© corte te gustarÃ­a que te preparemos o para cuÃ¡ntas personas calculamos? ðŸ¥©ðŸšš [[STAGE:proposal]]`;
+        `👉 Contamos con ${totalAvailable} cortes y productos frescos registrados con entrega en el día en Córdoba. ¿Qué corte te gustaría que te preparemos o para cuántas personas calculamos? 🥩🚚 [[STAGE:proposal]]`;
     }
 
     // =========================================================================
-    // 6. ASESORAMIENTO CULINARIO, RECETAS Y CÃLCULO DE ASADOS POR COMENSALES
+    // 6. ASESORAMIENTO CULINARIO, RECETAS Y CÁLCULO DE ASADOS POR COMENSALES
     // =========================================================================
     const culinaryAdvice = ChatStrategyGraphService.handleCulinaryAndAsado(rawText, clientName, products);
     if (culinaryAdvice) {
@@ -4968,20 +4972,19 @@ Whenever the user asks about the current time, date, products count, orders, or 
     // 7. SUCURSALES Y HORARIOS
     // =========================================================================
     if (t.includes('sucursal') || t.includes('sucursales') || t.includes('donde') || t.includes('direccion') || t.includes('horario') || t.includes('urca') || t.includes('quiros') || t.includes('villa allende') || t.includes('san isidro')) {
-      return `ðŸª **Nuestras 6 Sucursales en CÃ³rdoba y Gran CÃ³rdoba:**\n\n` +
-        `1. **Urca Central:** Av. JosÃ© Roque Funes 1115 (ðŸ“ž +54 9 3513 906947) â€” Lun a SÃ¡b 9 a 21 hs | Dom 9 a 13:30 hs.\n` +
-        `2. **Urca 2 (Alto Tejeda):** Av. MenÃ©ndez Pidal 3575 (ðŸ“ž +54 9 3518 623195).\n` +
-        `3. **Intercountry (Corteza Mall):** Av. Los Ãlamos 1015 (ðŸ“ž +54 9 3518 623194) â€” Todos los dÃ­as 9 a 21 hs.\n` +
-        `4. **Duarte QuirÃ³s:** Av. Duarte QuirÃ³s 5130 (ðŸ“ž +54 9 3518 156595) â€” 9 a 13:30 y 17 a 21 hs.\n` +
-        `5. **Villa Allende (Mercadito de la Villa):** Av. Figueroa Alcorta 480 (ðŸ“ž +54 9 3513 540031).\n` +
-        `6. **Country San Isidro (Alto Tejeda):** Av. Padre Luchesse km 2 (ðŸ“ž +54 9 3518 769099).\n\n` +
-        `ðŸ›µ **Â¡TambiÃ©n tenemos Delivery en el dÃ­a a todo CÃ³rdoba!** Â¿Por cuÃ¡l sucursal preferÃ­s retirar o a quÃ© direcciÃ³n te lo enviamos? ðŸ¥©`;
+      return `🏪 **Nuestras 6 Sucursales en Córdoba y Gran Córdoba:**\n\n` +
+        `1. **Urca Central:** Av. José Roque Funes 1115 (📞 +54 9 3513 906947) — Lun a Sáb 9 a 21 hs | Dom 9 a 13:30 hs.\n` +
+        `2. **Urca 2 (Alto Tejeda):** Av. Menéndez Pidal 3575 (📞 +54 9 3518 623195).\n` +
+        `3. **Intercountry (Corteza Mall):** Av. Los Álamos 1015 (📞 +54 9 3518 623194) — Todos los días 9 a 21 hs.\n` +
+        `4. **Duarte Quirós:** Av. Duarte Quirós 5130 (📞 +54 9 3518 156595) — 9 a 13:30 y 17 a 21 hs.\n` +
+        `5. **Villa Allende (Mercadito de la Villa):** Av. Figueroa Alcorta 480 (📞 +54 9 3513 540031).\n` +
+        `6. **Country San Isidro (Alto Tejeda):** Av. Padre Luchesse km 2 (📞 +54 9 3518 769099).\n\n` +
+        `🛵 **¡También tenemos Delivery en el día a todo Córdoba!** ¿Por cuál sucursal preferís retirar o a qué dirección te lo enviamos? 🥩`;
     }
 
     // =========================================================================
-    // 8. REENGANCHE CORDIAL FUERA DE FLUJO (SMALLTALK) & FALLBACK DINÃMICO
+    // 8. REENGANCHE CORDIAL FUERA DE FLUJO (SMALLTALK) & FALLBACK DINÁMICO
     // =========================================================================
     return ChatStrategyGraphService.handleOutOfFlow(rawText, clientName, lead);
   }
 }
-
