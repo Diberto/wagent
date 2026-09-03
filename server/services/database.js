@@ -1011,38 +1011,77 @@ class DatabaseService {
   }
 
   // --- Products Catalog & PLU Barcode System ---
-  static MASTER_PRODUCTS_SEED = [
-    { id: 'prod_asadazo', plu: '2001', barcode: '7792001000001', name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, ivaRate: 21, unit: 'combo', saleMode: 'combo', unitsPerKg: 1, unitWeightGrams: 4000, unitPrice: 39999, category: 'Combos en Oferta', description: '4 kg cortes parrilleros (Bocado, Aguja, Falda, Chori criollo, Morcilla) + 1 Vino Howlmande Malbec Reserva de regalo', stock: 100, isAvailable: true, sku: 'PLU-2001' },
-    { id: 'prod_tapa_cuadril', plu: '2002', barcode: '7792002000002', name: 'Tapa de Cuadril Seleccionada', price: 12800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1200, unitPrice: 15360, category: 'Parrilla y Horno', description: 'Corte de novillito seleccionado con cobertura de grasa perfecta', stock: 85, isAvailable: true, sku: 'PLU-2002' },
-    { id: 'prod_vacio', plu: '2003', barcode: '7792003000003', name: 'Vacío Especial Seleccionado', price: 11500, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1400, unitPrice: 16100, category: 'Parrilla', description: 'Vacío tierno y jugoso de novillito', stock: 90, isAvailable: true, sku: 'PLU-2003' },
-    { id: 'prod_costillar', plu: '2004', barcode: '7792004000004', name: 'Costillar / Asado de Tira Novillito', price: 9800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 2, unitWeightGrams: 500, unitPrice: 4900, category: 'Parrilla', description: 'Tira de asado con excelente marmoleado', stock: 120, isAvailable: true, sku: 'PLU-2004' },
-    { id: 'prod_bife_chorizo', plu: '2005', barcode: '7792005000005', name: 'Bife de Chorizo Premium', price: 14500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 4833, category: 'Cortes Premium', description: 'Corte deshuesado de lomo de novillito (~330g por bife)', stock: 60, isAvailable: true, sku: 'PLU-2005' },
-    { id: 'prod_entrana', plu: '2006', barcode: '7792006000006', name: 'Entraña Fina Seleccionada', price: 16900, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 2, unitWeightGrams: 500, unitPrice: 8450, category: 'Cortes Premium', description: 'Entraña tierna y crocante a la brasa (~500g la tira)', stock: 45, isAvailable: true, sku: 'PLU-2006' },
-    { id: 'prod_matambre_cerdo', plu: '2007', barcode: '7792007000007', name: 'Matambrito de Cerdo Tiernizado', price: 8500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 1, unitWeightGrams: 900, unitPrice: 7650, category: 'Cerdo y Parrilla', description: 'Matambre de cerdo fresco listo para parrilla o limón (~900g por pieza)', stock: 70, isAvailable: true, sku: 'PLU-2007' },
-    { id: 'prod_matambre_vaca', plu: '2008', barcode: '7792008000008', name: 'Matambre Vacuno', price: 9500, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1500, unitPrice: 14250, category: 'Parrilla y Horno', description: 'Matambre vacuno magro y tierno', stock: 65, isAvailable: true, sku: 'PLU-2008' },
-    { id: 'prod_bondiola', plu: '2009', barcode: '7792009000009', name: 'Bondiola de Cerdo sin Hueso', price: 8900, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1800, unitPrice: 16020, category: 'Cerdo', description: 'Pieza entera o fraccionada de bondiola de cerdo', stock: 80, isAvailable: true, sku: 'PLU-2009' },
-    { id: 'prod_costeletas_cerdo', plu: '2010', barcode: '7792010000010', name: 'Costeletas de Cerdo (2kg x $15.000 promo)', price: 7500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 4, unitWeightGrams: 250, unitPrice: 1875, category: 'Cerdo', description: 'Chuletas frescas de cerdo (~4 unidades por kilo)', stock: 110, isAvailable: true, sku: 'PLU-2010' },
-    { id: 'prod_costeletas_ternera', plu: '2011', barcode: '7792011000011', name: 'Costeletas de Ternera (2kg x $35.000 promo)', price: 17500, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 4, unitWeightGrams: 250, unitPrice: 4375, category: 'Cortes Tradicionales', description: 'Costeletas de ternera de primera calidad (~4 unidades por kilo)', stock: 75, isAvailable: true, sku: 'PLU-2011' },
-    { id: 'prod_chorizo', plu: '2012', barcode: '7792012000012', name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', price: 5000, ivaRate: 21, unit: 'kg', saleMode: 'both', unitsPerKg: 8, unitWeightGrams: 125, unitPrice: 625, category: 'Embutidos', description: 'Embutido parrillero 100% puro cerdo (promedio entre 7 y 9 unidades por kilo, ~125g c/u)', stock: 200, isAvailable: true, sku: 'PLU-2012' },
-    { id: 'prod_morcilla', plu: '2013', barcode: '7792013000013', name: 'Morcilla Bombón Parrillera', price: 5200, ivaRate: 21, unit: 'kg', saleMode: 'both', unitsPerKg: 7, unitWeightGrams: 140, unitPrice: 742, category: 'Embutidos', description: 'Morcillas bombón suaves y cremosas (~7 unidades por kilo, ~140g c/u)', stock: 140, isAvailable: true, sku: 'PLU-2013' },
-    { id: 'prod_mollejas', plu: '2014', barcode: '7792014000014', name: 'Mollejas de Corazón', price: 14800, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 4933, category: 'Achuras', description: 'Achura crocante por fuera y suave por dentro (~3 unidades por kilo)', stock: 35, isAvailable: true, sku: 'PLU-2014' },
-    { id: 'prod_chinchulines', plu: '2015', barcode: '7792015000015', name: 'Chinchulines Crocantes', price: 4800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 4800, category: 'Achuras', description: 'Chinchulines seleccionados y limpios', stock: 90, isAvailable: true, sku: 'PLU-2015' },
-    { id: 'prod_molida_especial', plu: '2016', barcode: '7792016000016', name: 'Carne Molida Especial Seleccionada (Magra)', price: 11800, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 11800, category: 'Diario y Preparados', description: 'Carne picada de primera sin grasa', stock: 150, isAvailable: true, sku: 'PLU-2016' },
-    { id: 'prod_molida_intermedia', plu: '2017', barcode: '7792017000017', name: 'Carne Molida Intermedia (3kg x $27.000 promo)', price: 9000, ivaRate: 10.5, unit: 'kg', saleMode: 'kg', unitsPerKg: 1, unitWeightGrams: 1000, unitPrice: 9000, category: 'Diario y Preparados', description: 'Molida para empanadas o salsas', stock: 130, isAvailable: true, sku: 'PLU-2017' },
-    { id: 'prod_milanesas', plu: '2018', barcode: '7792018000018', name: 'Milanesas de Ternera preparadas (2kg x $24.990)', price: 12495, ivaRate: 21, unit: 'kg', saleMode: 'both', unitsPerKg: 6, unitWeightGrams: 165, unitPrice: 2082, category: 'Diario y Preparados', description: 'Milanesas rebozadas listas para freír (~6 milanesas por kilo)', stock: 100, isAvailable: true, sku: 'PLU-2018' },
-    { id: 'prod_pollo', plu: '2019', barcode: '7792019000019', name: 'Pata Muslo Fresca (3kg x $13.990 promo)', price: 4660, ivaRate: 10.5, unit: 'kg', saleMode: 'both', unitsPerKg: 3, unitWeightGrams: 330, unitPrice: 1553, category: 'Pollo', description: 'Pollo fresco seleccionado (~3 patas muslo por kilo)', stock: 160, isAvailable: true, sku: 'PLU-2019' },
-    { id: 'prod_carbon', plu: '2020', barcode: '7792020000020', name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, ivaRate: 21, unit: 'bolsa', saleMode: 'unit', unitsPerKg: 1, unitWeightGrams: 4000, unitPrice: 2200, category: 'Almacén Parrillero', description: 'Carbón de leña dura de larga duración', stock: 250, isAvailable: true, sku: 'PLU-2020' },
-    { id: 'prod_vino', plu: '2021', barcode: '7792021000021', name: 'Vino Howlmande Malbec Reserva', price: 5500, ivaRate: 21, unit: 'botella', saleMode: 'unit', unitsPerKg: 1, unitWeightGrams: 750, unitPrice: 5500, category: 'Bebidas', description: 'Vino tinto Malbec premium para maridar carnes', stock: 80, isAvailable: true, sku: 'PLU-2021' }
-  ];
+  static getOfficialCatalogSeed() {
+    try {
+      const csvPath = path.join(process.cwd(), 'server/data/official_catalog.csv');
+      if (fs.existsSync(csvPath)) {
+        const content = fs.readFileSync(csvPath, 'utf8');
+        const lines = content.trim().split(/\r?\n/);
+        const products = [];
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          const parts = line.split(';');
+          if (parts.length < 9) continue;
+          const plu = (parts[0] || '').trim();
+          const barcode = (parts[1] || '').trim();
+          const sku = (parts[2] || '').trim();
+          const name = (parts[3] || '').trim();
+          const category = (parts[4] || 'Carnicería').trim();
+          const rawPrice = (parts[5] || '0').trim().replace(',', '.');
+          const unit = (parts[6] || 'kg').trim();
+          const stock = parseFloat((parts[7] || '100').replace(',', '.')) || 0;
+          const disponible = (parts[8] || 'Sí').trim().toUpperCase();
+          const description = (parts[9] || '').trim();
+          const price = parseFloat(rawPrice) || 0;
+
+          // Regla: Productos con valor 0 (o <= 1) o Disponible NO quedan completamente desactivados
+          const isZeroOrPlaceholder = price <= 1 || isNaN(price);
+          const isExplicitlyDisabled = disponible === 'NO';
+          const isAvailable = !isZeroOrPlaceholder && !isExplicitlyDisabled;
+          const id = `prod_${sku ? sku.replace(/[^a-zA-Z0-9_-]/g, '') : ''}_${i}`;
+
+          products.push({
+            id,
+            plu,
+            barcode,
+            sku: sku || (plu ? `PLU-${plu}` : `SKU-${i}`),
+            name,
+            category,
+            price: isZeroOrPlaceholder ? 0 : price,
+            unitPrice: isZeroOrPlaceholder ? 0 : price,
+            unit: unit || 'kg',
+            stock,
+            isAvailable,
+            available: isAvailable,
+            is_available: isAvailable ? 1 : 0,
+            status: isAvailable ? 'active' : 'inactive',
+            isAvailableDelivery: isAvailable,
+            isAvailableCounter: isAvailable,
+            minOrder: unit === 'kg' ? 0.5 : 1,
+            description: description || `${name} - Categoría: ${category}`
+          });
+        }
+        if (products.length > 0) return products;
+      }
+    } catch (e) {
+      console.warn('⚠️ [Database] Error cargando official_catalog.csv:', e.message);
+    }
+    return [];
+  }
 
   seedMasterProducts(force = false) {
     const db = this.readDb();
     if (!db.products) db.products = [];
 
     if (force || db.products.length === 0) {
-      db.products = [...DatabaseService.MASTER_PRODUCTS_SEED];
+      const catalogSeed = DatabaseService.getOfficialCatalogSeed();
+      db.products = catalogSeed.length > 0 ? catalogSeed : (sqliteStorage.getProducts() || []);
       this.writeDb(db);
-      console.log(`🥩 [Database] Catálogo Maestro inicializado con ${db.products.length} productos y códigos PLU.`);
+      if (sqliteStorage.isNative && catalogSeed.length > 0) {
+        sqliteStorage.saveProducts(catalogSeed);
+      }
+      console.log(`🥩 [Database] Catálogo Oficial inicializado con ${db.products.length} productos desde CSV.`);
     }
     return db.products;
   }
@@ -1234,9 +1273,9 @@ class DatabaseService {
         },
         {
           id: 'qr-promos',
-          title: '🥩 Promociones y Combos Estrella',
+          title: '🥩 Promociones y Cortes Estrella',
           category: 'productos',
-          content: '🔥 *OFERTAS DESTACADAS DEL DÍA:*\n\n1️⃣ Combo “Asadazo” (4 kg cortes + Vino de regalo) ➔ $39.999\n2️⃣ Vacío Especial Seleccionado ➔ $11.500 / kg\n3️⃣ Costillar Novillito ➔ $9.800 / kg\n4️⃣ Bife de Chorizo Premium ➔ $14.500 / kg\n5️⃣ Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) ➔ $5.000 / kg\n6️⃣ Matambrito de Cerdo Tiernizado ➔ $8.500 / kg'
+          content: '🔥 *OFERTAS Y CORTES DESTACADOS DEL DÍA:*\n\n1️⃣ Vacío Seleccionado ➔ $26.999 / kg\n2️⃣ Costilla Parrillera ➔ $26.999 / kg\n3️⃣ Chorizo Criollos ➔ $9.990 / kg\n4️⃣ Morcilla Bombón ➔ $10.500 / kg\n5️⃣ Matambre Vacuno ➔ $25.999 / kg\n6️⃣ Tapa de Cuadril Envasada ➔ $25.997 / kg'
         },
         {
           id: 'qr-order-status',

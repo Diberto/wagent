@@ -225,7 +225,7 @@ export function getFeaturedWhatsAppOffers(catalog = null) {
 
   // 2. Cortes parrilleros y combos preferidos
   const candidateFinders = [
-    p => /asadazo|combo/i.test(p.name),
+    p => /\bcombo\b/i.test(p.name),
     p => /tapa de cuadril|tapa cuadril/i.test(p.name),
     p => /vacio|vacío/i.test(p.name),
     p => /costillar|asado de tira/i.test(p.name),

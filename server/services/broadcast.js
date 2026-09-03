@@ -86,14 +86,14 @@ export class BroadcastService {
     const leadOrders = (db.getOrders() || []).filter(o => o.customerJid === lead.jid || o.customerPhone === lead.phone);
     const lastOrder = leadOrders[0] || null;
 
-    let favoriteCuts = 'Combo Asadazo y cortes parrillero';
+    let favoriteCuts = 'Costilla, Vacío y Chorizos Criollos';
     let lastOrderSummary = 'Cortes seleccionados';
     let closestBranch = 'Sucursal Urca Central (Av. Funes 1115)';
 
     if (lastOrder) {
       if (Array.isArray(lastOrder.items) && lastOrder.items.length > 0) {
         lastOrderSummary = lastOrder.items.map(i => typeof i === 'string' ? i : i.name).join(', ');
-        favoriteCuts = lastOrder.items[0]?.name || 'Tapa de Cuadril Seleccionada';
+        favoriteCuts = lastOrder.items[0]?.name || 'Vacío Seleccionado';
       }
       if (lastOrder.branchName) closestBranch = lastOrder.branchName;
     }

@@ -34,9 +34,7 @@ export const DEFAULT_AUTOMATIONS = [
     config: {
       gramsPerPersonStandard: 500,
       gramsPerPersonEconomic: 450,
-      defaultStarCombo: 'Combo Asadazo (4 kg)',
-      starComboPrice: 39999,
-      includeWineGift: true,
+      defaultStarCut: 'Costilla y Vacío Seleccionado',
       suggestComplements: true
     }
   },

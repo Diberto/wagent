@@ -39,7 +39,7 @@ import {
  * Las keywords NO contienen precios ni nombres — solo alias de búsqueda.
  */
 const PRODUCT_KEYWORDS_MAP = {
-  'combo asadazo': ['combo asadazo', 'combo "asadazo"', 'combo asado', 'asadazo', 'azadazo', 'asasazo', 'asadaso', 'azadaso', 'combo parrillero', 'combo 4kg', 'combo 4 kg', 'combo'],
+  'combo': ['combo locro', 'combo n 1', 'combo 1 locro', 'combo'],
   'tapa de cuadril': ['tapa de cuadril', 'tapa cuadril', 'colita de cuadril', 'cuadril', 'picanha'],
   'vacío': ['vacio especial', 'vacío especial', 'vacio tierno', 'vacío tierno', 'vacio', 'vacío'],
   'costillar': ['costillar de novillito', 'asado de tira novillito', 'costillar', 'asado de tira', 'tira de asado', 'costilla novillito', 'costillar novillito', 'tira novillito', 'costilla'],
@@ -308,13 +308,12 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     const pCat = (prod.category || '').toLowerCase();
     let score = 0;
 
-    const isComboAsadazoQuery = /(?:combo\s+asadazo|asadazo)/i.test(c);
     const isCarbonQuery = /(?:carb[oó]n|bolsa\s+de\s+carb[oó]n|le[ñn]a)/i.test(c);
     const isChorizoQuery = /(?:chorizo|chorizos|chori|choris)/i.test(c);
     const isCerdoQuery = /(?:cerdo|cero|puro cerdo)/i.test(c);
     const isMatambreQuery = /(?:matambre|matambrito)/i.test(c);
     const isVacioQuery = /(?:vacio|vacío)/i.test(c);
-    const isCostillaQuery = /(?:asado de tira|costillar|tira novillito|costilla|costillas|\btira\b|\basado\b)/i.test(c) && !isComboAsadazoQuery;
+    const isCostillaQuery = /(?:asado de tira|costillar|tira novillito|costilla|costillas|\btira\b|\basado\b)/i.test(c);
     const isBifeChorizoQuery = /(?:bife de chorizo|bife chorizo|bifes)/i.test(c);
     const isTapaCuadrilQuery = /(?:tapa de cuadril|tapa cuadril|picanha)/i.test(c);
     const isEntranaQuery = /(?:entraña|entrana)/i.test(c);
@@ -323,13 +322,6 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     if (isCarbonQuery) {
       if (pName.includes('carbón') || pName.includes('carbon') || prod.id === 'prod_carbon') {
         score += 850;
-      }
-    }
-
-    // Combo Asadazo
-    if (isComboAsadazoQuery) {
-      if (pName.includes('asadazo') || prod.id === 'prod_asadazo') {
-        score += 1000;
       }
     }
 
@@ -846,8 +838,8 @@ export function extractCleanAddress(rawText) {
 
   a = a.replace(/^(?:ser[ií]a\s+en|ser[ií]a\s+a|seria\s+en|es\s+en|es\s+a|a\s+la\s+calle|calle)\s*[:=;\-–—]?\s*/gi, '');
 
-  // 3. Quitar menciones de combos o pedidos al inicio
-  a = a.replace(/^(?:quiero|mandame|enviame|traeme|armame)?\s*(?:un\s*)?(?:combo\s*)?(?:asadazo\s*)?(?:para|\ba\b)?\s*/gi, '');
+  // 3. Quitar menciones de pedidos al inicio
+  a = a.replace(/^(?:quiero|mandame|enviame|traeme|armame)?\s*(?:un\s*)?(?:combo\s*)?(?:para|\ba\b)?\s*/gi, '');
   a = a.replace(/^(?:a\s+mi\s+domicilio|al\s+domicilio|para\s+env[ií]o|para\s+envio),?\s*/gi, '');
 
   // 4. Quitar datos del cliente o notas de pago que vengan al final
@@ -2101,10 +2093,11 @@ Recetas Tradicionales Argentinas y Cortes Vinculados:
 ${recipesList}
 
 Reglas de Oro y Asesoramiento de Élite:
-- Asesoramiento Consultivo y Combos Estructurados: Cuando el cliente consulte por "ofertas", "juntada con amigos", "comida", "asado" o qué llevar, compórtate como un verdadero maestro carnicero de mostrador. Proponle opciones ricas y estructuradas con formato prolijo (negrita, viñetas y emojis):
-  * Opción 1: Combo Asadazo Parrillero (Costillar / Tira + Vacío + Chorizos + Morcillas).
-  * Opción 2: Combo Cerdo & Achuras (Pechito con manta + Matambre de cerdo + Chorizos).
-  * Opción 3: Promo Menú Semanal / Cocina Diaria (Nalga para milanesas + Carne picada especial + Costeletas).
+- Asesoramiento Consultivo y Armado de Propuestas: Cuando el cliente consulte por "ofertas", "juntada con amigos", "comida", "asado" o qué llevar, compórtate como un verdadero maestro carnicero de mostrador. Proponle combinaciones armadas utilizando ÚNICAMENTE los productos activos del Catálogo Oficial Vigente anterior con sus nombres y precios reales:
+  * Opción 1: Parrilla Clásica (Costilla o Vacío + Chorizo Criollo).
+  * Opción 2: Parrilla Completa (Costilla + Vacío + Chorizo Criollo + Morcilla).
+  * Opción 3: Especialidades o Cocina Diaria (Nalga / Bola de Lomo para milanesas + Molida Especial + Costeletas).
+  REGLA INQUEBRANTABLE DE CATÁLOGO: NUNCA ofrezcas, inventes ni menciones cortes, combos, vinos o productos que no estén explícitamente listados en el Catálogo Oficial Vigente o en la Base de Conocimiento. Todos los precios que cotices deben coincidir exactamente con los del catálogo.
 - Cálculo Preciso de Raciones: Para asados calcula entre 500g y 600g por persona (sumando cortes y achuras). Para comidas de olla, horno o milanesas calcula 250g a 300g por persona. Explica la distribución en: (1) La Previa / Achuras, (2) El Plato Fuerte y (3) Acompañamientos / Bebidas / Carbón.
 - Atención Consultiva Integral y Reenganche de Ventas: Si el cliente hace cualquier pregunta (la hora, pedidos pendientes, medios de pago, sucursales, envíos a domicilio, o charla casual), responde PRIMERO a su consulta con total amabilidad, precisión y empatía, y LUEGO reengancha con entusiasmo hacia la propuesta de compra para armar su pedido.
 - Consulta de la Hora: Si el cliente pregunta qué hora es o si están abiertos, indícale la hora actual exacta (${currentTimeStr}) y comenta alegremente que estás firme en mostrador para prepararle los mejores cortes.
@@ -2940,9 +2933,9 @@ Whenever the user asks about the current time, date, products count, orders, or 
       const activeOrd = db.getActiveOrdersByJid(jid || lead?.id || lead)[0] || null;
       let orderStatusContext = 'Estado de Pedidos del Cliente: No tiene pedidos activos ni pendientes registrados en carnicería.';
       if (activeOrd) {
-        orderStatusContext = `Estado de Pedidos del Cliente: Tiene el Pedido Activo #${activeOrd.id} (${activeOrd.status}) con los cortes: ${Array.isArray(activeOrd.items) ? activeOrd.items.join(', ') : activeOrd.items}, Total: $${activeOrd.totalAmount}.`;
+        orderStatusContext = `Estado de Pedidos del Cliente: Tiene el Pedido Activo #${activeOrd.id} (${activeOrd.status}) con los cortes: ${Array.isArray(activeOrd.items) ? activeOrd.items.join(', ') : activeOrd.items}, Total: $${activeOrd.totalAmount}. IMPORTANTE: Si el cliente en esta conversación solicita una nueva opción de asado o nuevos cortes, este nuevo pedido actualiza o reemplaza lo anterior; NO menciones ni sumes productos antiguos que el cliente no haya vuelto a solicitar expresamente.`;
       } else if (lead?.draftCart && Array.isArray(lead.draftCart.items) && lead.draftCart.items.length > 0) {
-        orderStatusContext = `Estado de Pedidos del Cliente: Tiene un borrador de pedido pendiente de confirmar con: ${lead.draftCart.items.join(', ')}, Total: $${lead.draftCart.total}.`;
+        orderStatusContext = `Estado de Pedidos del Cliente: Tiene un borrador de pedido en curso con: ${lead.draftCart.items.join(', ')}, Total: $${lead.draftCart.total}.`;
       } else if (activeLeadOrders.length > 0) {
         orderStatusContext = `Estado de Pedidos del Cliente: No tiene pedidos pendientes actuales. Su última compra registrada fue el Pedido #${activeLeadOrders[0].id} (entregado).`;
       }
@@ -3118,7 +3111,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
     const wasActiveOrderHelpOffered = !wasDataConfirmOffered && (
       /Tu pedido \*\*#ORD-.* ya está confirmado|Opciones:\s*\n?1️⃣\s*Modificar algún dato o cortes|¿Precisás algo de tu pedido\?|Tenés un pedido activo en curso|¿Querés consultar el estado \/ modificarlo/i.test(lastAgentMessage)
     );
-    const wasAsadoProposalOffered = /1️⃣\s*[*_]*(?:Opción|Milanesas|Bifes|Pastel|Plato|Guiso|Asado)|[*_]*Te\s+arm[eé]\s+3\s+opciones|[*_]*Te\s+propongo\s+3\s+platazos|¿Cu[aá]l de estas opciones te gustar[ií]a|¿Con cu[aá]l opci[oó]n|Opción Clásica|Opción Combo|Opción Parrillera/i.test(lastAgentMessage);
+    const wasAsadoProposalOffered = /(?:1️⃣|1\.\s+[*_]*Parrilla|[*_]*1\.\s+|[*_]*Opci[oó]n\s+1|Parrilla Cl[aá]sica|Parrilla Completa|Cortes Especiales|[*_]*Te\s+arm[eé]\s+3\s+opciones|[*_]*Te\s+propongo\s+3\s+platazos|¿Cu[aá]l de estas opciones|¿Con cu[aá]l opci[oó]n|Opción Clásica|Opción Combo|Opción Parrillera)/i.test(lastAgentMessage);
     const wasSubstitutionOffered = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(lastAgentMessage);
     const wasQuantityPrompt = /¿Qué cantidad|¿Cuántos kilos|¿Cuántas unidades|¿Qué cantidad te preparamos|¿Cuántas bolsas|¿Cuántas botellas|¿Qué cantidad de combos|Por Unidades:.*Por Kilos/i.test(lastAgentMessage);
     const wasPaymentMethodOffered = /(?:c[oó]mo prefer[ií]s abonar|1️⃣\s*\*?Efectivo|2️⃣\s*\*?Transferencia|3️⃣\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oó]mo prefer[ií]s abonar)/i.test(lastAgentMessage);
@@ -3193,9 +3186,9 @@ Whenever the user asks about the current time, date, products count, orders, or 
     // 0.00008 JUNTADAS, COMIDA CON AMIGOS Y PLANES DE ASADO
     if (/(?:comida\s+con\s+(?:unos\s+)?amigos|juntada\s+con\s+amigos|juntada|asado\s+con\s+amigos|reuni[oó]n|hacer\s+un\s+asado|armar\s+un\s+asado|asado\s+para\s+amigos)/i.test(t)) {
       return `¡Qué lindo plan ${clientName}! 🥩🔥 La juntada con amigos es sagrada y acá en República de la Carne te armamos la combinación perfecta para quedar de diez:\n\n` +
-        `🔥 *1. Combo Asadazo Parrillero:* Costillar / Tira de asado + Vacío seleccionado + Chorizos criollos + Morcillas bombón.\n` +
-        `🍖 *2. Combo Cerdo & Achuras:* Pechito con manta + Matambre tierno de cerdo + Chorizos caseros.\n` +
-        `🥩 *3. Cortes Premium a la Carta:* Ojo de bife, entraña fresca o matambrito crocante.\n\n` +
+        `🔥 *1. Parrilla Clásica:* Costilla tierna + Vacío seleccionado + Chorizos Criollos.\n` +
+        `🍖 *2. Parrilla Completa:* Costilla + Vacío + Chorizos Criollos + Morcillas.\n` +
+        `🥩 *3. Cortes Especiales:* Tapa de Cuadril, Matambre vacuno o Colita de Cuadril.\n\n` +
         `💡 *Cálculo parrillero:* Calculamos **500g a 600g por persona** para que coman abundante y no falte nada.\n\n` +
         `👉 Contame: **¿Cuántos son en total para la comida?** (ej: 'somos 4', 'somos 6', 'somos 10') y te calculo los kilos exactos y el total para dejártelo listo. 🔪🛵 [[STAGE:proposal]]`;
     }
@@ -3464,7 +3457,8 @@ Whenever the user asks about the current time, date, products count, orders, or 
     }
 
     // 0.0002 RESPUESTAS A PROPUESTAS DE ASADO / MENÚS RECOMENDADOS (Opción 1, 2 o 3)
-    if (wasAsadoProposalOffered) {
+    const isExplicitOptionChoiceEarly = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-3]|uno|dos|tres)\b|^(?:opci[oó]n\s*)?([1-3]|1️⃣|2️⃣|3️⃣)\b/i.test(t);
+    if (wasAsadoProposalOffered || isExplicitOptionChoiceEarly) {
       let selectedOptNum = null;
       let modificationText = '';
 
@@ -3474,11 +3468,11 @@ Whenever the user asks about the current time, date, products count, orders, or 
         /^(?:[1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)$/i.test(t.trim()) ||
         /^(?:opci[oó]n|la|el|elijo\s+la|voy\s+con\s+la|me\s+quedo\s+con\s+la|la\s+opci[oó]n)\s*([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b/i.test(t.trim()) ||
         /^(?:quiero\s+la|dame\s+la)\s+(?:opci[oó]n\s*)?([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b/i.test(t.trim()) ||
-        /(?:opci[oó]n\s+(?:cl[aá]sica|combo|asadazo|gourmet)|la\s+cl[aá]sica|el\s+combo|la\s+gourmet)/i.test(t)
+        /(?:opci[oó]n\s+(?:cl[aá]sica|combo|parrilla|gourmet)|la\s+cl[aá]sica|el\s+combo|la\s+gourmet)/i.test(t)
       );
 
-      const optLeadMatch = isDirectOptionChoice ? t.match(/^(?:era\s+(?:la\s+)?)?(?:opci[oó]n\s*|la\s+|el\s+|elegimos\s+|voy\s+con\s+|me\s+quedo\s+con\s+|dame\s+(?:la\s+)?|quiero\s+la\s*)?([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b(.*)$/i) : null;
-      const namedOptMatch = isDirectOptionChoice ? t.match(/(?:clasica|clásica|combo|asadazo|gourmet)/i) : null;
+      const optLeadMatch = isDirectOptionChoice ? t.match(/^(?:era\s+(?:la\s+)?)?(?:quiero\s+|dame\s+|vamos\s+con\s+|elijo\s+|pasame\s+|anotame\s+|elegimos\s+|voy\s+con\s+|me\s+quedo\s+con\s+)?(?:la\s+|el\s+)?(?:opci[oó]n\s*)?([1-3]|1️⃣|2️⃣|3️⃣|uno|dos|tres)\b(.*)$/i) : null;
+      const namedOptMatch = isDirectOptionChoice ? t.match(/(?:clasica|clásica|combo|gourmet)/i) : null;
 
       if (optLeadMatch) {
         const rawNum = optLeadMatch[1].toLowerCase();
@@ -3500,7 +3494,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         const optNum = selectedOptNum;
         const parsedOpt = parseAsadoOptionFromMessage(lastAgentMessage, optNum, products);
         
-        let optionTitle = optNum === 1 ? 'Opción 1 (Clásica Equilibrada)' : optNum === 2 ? 'Opción 2 (Combo Asadazo + Agregados)' : 'Opción 3 (Parrillera Gourmet)';
+        let optionTitle = optNum === 1 ? 'Opción 1 (Parrilla Clásica)' : optNum === 2 ? 'Opción 2 (Parrilla Completa)' : 'Opción 3 (Parrillera Gourmet)';
         let optionItems = [];
         let optionTotal = 0;
 
@@ -3509,23 +3503,35 @@ Whenever the user asks about the current time, date, products count, orders, or 
           optionItems = parsedOpt.items;
           optionTotal = parsedOpt.total;
         } else {
-          // Fallback con cálculos coherentes
+          // Fallback con cortes dinámicos reales del catálogo activo
+          const pVacio = (products || []).find(p => /^vacio$/i.test(p.name) && p.isAvailable && p.price > 1) || { name: 'VACIO', price: 26999 };
+          const pCostilla = (products || []).find(p => /^costilla$/i.test(p.name) && p.isAvailable && p.price > 1) || { name: 'COSTILLA', price: 26999 };
+          const pChori = (products || []).find(p => /chorizo criollo/i.test(p.name) && p.isAvailable && p.price > 1) || { name: 'CHORIZO CRIOLLOS', price: 9990 };
+          const pMorci = (products || []).find(p => /^morcilla$/i.test(p.name) && p.isAvailable && p.price > 1) || { name: 'MORCILLA', price: 10500 };
+          const pTapa = (products || []).find(p => /cuadril/i.test(p.name) && p.isAvailable && p.price > 1) || { name: 'TAPA DE CUADRIL ENVASADA', price: 25997 };
+          const pMatambre = (products || []).find(p => /matambre cv/i.test(p.name) && p.isAvailable && p.price > 1) || { name: 'MATAMBRE CV', price: 25999 };
+
           if (optNum === 1) {
             optionItems = [
-              '• 2 kg Vacío Especial Seleccionado — $23.000',
-              '• 1 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) — $5.000'
+              `• 1 kg ${pVacio.name} — $${pVacio.price.toLocaleString('es-AR')}`,
+              `• 1 kg ${pChori.name} — $${pChori.price.toLocaleString('es-AR')}`
             ];
-            optionTotal = 28000;
+            optionTotal = pVacio.price + pChori.price;
           } else if (optNum === 2) {
-            optionItems = ['• Cortes seleccionados de carnicería'];
-            optionTotal = 39999;
+            optionItems = [
+              `• 1 kg ${pCostilla.name} — $${pCostilla.price.toLocaleString('es-AR')}`,
+              `• 1 kg ${pVacio.name} — $${pVacio.price.toLocaleString('es-AR')}`,
+              `• 1 kg ${pChori.name} — $${pChori.price.toLocaleString('es-AR')}`,
+              `• 1 kg ${pMorci.name} — $${pMorci.price.toLocaleString('es-AR')}`
+            ];
+            optionTotal = pCostilla.price + pVacio.price + pChori.price + pMorci.price;
           } else {
             optionItems = [
-              '• 1 kg Tapa de Cuadril Seleccionada — $26.407',
-              '• 1 kg Matambre Vacuno — $9.500',
-              '• 1 kg Chorizo Criollo Puro Cerdo — $5.000'
+              `• 1 kg ${pTapa.name} — $${pTapa.price.toLocaleString('es-AR')}`,
+              `• 1 kg ${pMatambre.name} — $${pMatambre.price.toLocaleString('es-AR')}`,
+              `• 1 kg ${pChori.name} — $${pChori.price.toLocaleString('es-AR')}`
             ];
-            optionTotal = 40907;
+            optionTotal = pTapa.price + pMatambre.price + pChori.price;
           }
         }
 
@@ -3620,7 +3626,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         }
 
         // Si el cliente seleccionó la opción pero NO especificó cantidad (ej: dijo solo "7", "1", "el 3" o "matambre")
-        if (chosenProduct && !hasExplicitQty && !/combo asadazo/i.test(chosenProduct.name || '') && !isRemovalOrReplacement) {
+        if (chosenProduct && !hasExplicitQty && !isRemovalOrReplacement) {
           return formatProductQuantityPrompt(chosenProduct, clientName);
         }
 
@@ -4814,7 +4820,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
       // 3. Si el cliente pide o menciona un producto específico pero NO indicó cantidad explícita (peso o unidad)
       if (!hasQuantityExplicit && !isCorrectionOrder && !isQuantityOnlyMsg) {
         const targetPromptProd = (mentionedProducts.length > 0 ? mentionedProducts[0] : null) || matchedSingleProduct;
-        if (targetPromptProd && !/combo asadazo/i.test(targetPromptProd.name || '')) {
+        if (targetPromptProd) {
           return formatProductQuantityPrompt(targetPromptProd, clientName);
         }
       }
@@ -4914,7 +4920,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
     // 5.1 Consulta por producto específico o PLU
     const isExplicitPriceOrAvailabilityAsk = /(?:cu[aá]nto|precio|costo|a cu[aá]nto|sale|cuesta|ten[eé]s|vendes|vend[eé]s)/i.test(t) || /^(?:plu|c[oó]digo|cod\.?)/i.test(t);
 
-    if (matchedSingleProduct && isExplicitPriceOrAvailabilityAsk && !/combo asadazo/i.test(matchedSingleProduct.name) && !/(?:opciones|variedad|tipos)/i.test(t)) {
+    if (matchedSingleProduct && isExplicitPriceOrAvailabilityAsk && !/(?:opciones|variedad|tipos)/i.test(t)) {
       return formatProductQuantityPrompt(matchedSingleProduct, clientName);
     }
 

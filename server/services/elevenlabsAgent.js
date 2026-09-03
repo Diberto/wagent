@@ -135,7 +135,7 @@ export class ElevenLabsAgentService {
         preferred_branch: lead?.preferredBranch || 'Urca Central',
         user_role: neural.linkedSystemUser ? neural.linkedSystemUser.role : 'cliente',
         system_branches_count: '6 sucursales (Urca Central, Alto Tejeda, Intercountry Mall, Duarte Quirós, Villa Allende, San Isidro)',
-        catalog_star_promo: 'Combo Asadazo 4kg + Vino regalo = $39.999',
+        catalog_star_promo: 'Vacío $26.999/kg | Costilla $26.999/kg | Chorizo Criollos $9.990/kg',
         business_name: settings.businessName || 'República de la Carne',
         currency: 'ARS',
         city: 'Córdoba',
@@ -203,19 +203,7 @@ export class ElevenLabsAgentService {
    */
   static getCatalogProducts({ category = null, search = null } = {}) {
     const dbProducts = db.getProducts();
-    let list = dbProducts && dbProducts.length > 0 ? dbProducts : [
-      { id: 'combo-1', name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, category: 'Combos', unit: 'combo', inStock: true },
-      { id: 'vacio-1', name: 'Vacío Especial Seleccionado', price: 11500, category: 'Parrilla', unit: 'kg', inStock: true },
-      { id: 'costillar-1', name: 'Costillar / Asado de Tira Novillito', price: 9800, category: 'Parrilla', unit: 'kg', inStock: true },
-      { id: 'tapa-1', name: 'Tapa de Cuadril Seleccionada', price: 12800, category: 'Parrilla y Horno', unit: 'kg', inStock: true },
-      { id: 'molida-esp', name: 'Carne Molida Especial Seleccionada (Magra)', price: 11800, category: 'Diario', unit: 'kg', inStock: true },
-      { id: 'molida-int', name: 'Carne Molida Intermedia (3kg x $27.000 promo)', price: 9000, category: 'Diario', unit: 'kg', inStock: true },
-      { id: 'cerdo-cost', name: 'Costeletas de Cerdo (2kg x $15.000 promo)', price: 7500, category: 'Cerdo', unit: 'kg', inStock: true },
-      { id: 'chori-1', name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', price: 5000, category: 'Embutidos', unit: 'kg', inStock: true },
-      { id: 'morcilla-1', name: 'Morcilla Bombón Parrillera', price: 5200, category: 'Embutidos', unit: 'kg', inStock: true },
-      { id: 'carbon-1', name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, category: 'Almacén', unit: 'bolsa', inStock: true },
-      { id: 'vino-1', name: 'Vino Howlmande Malbec Reserva', price: 5500, category: 'Bebidas', unit: 'botella', inStock: true }
-    ];
+    let list = dbProducts && dbProducts.length > 0 ? dbProducts : [];
 
     const normalize = (str) => (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 

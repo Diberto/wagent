@@ -300,8 +300,11 @@ export async function runConversationTestSuite() {
 • 6 Chorizos Criollos Puro Cerdo
 • 1 Bolsa de Carbón Quebracho
 
-2️⃣ **Opción Combo “Asadazo” + Agregados:**
-• 1 Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999
+2️⃣ **Opción Parrilla Completa:**
+• 1.5 kg COSTILLA
+• 1.5 kg VACIO
+• 4 Chorizos Criollos
+• 4 Morcillas
 
 3️⃣ **Opción Parrillera Gourmet:**
 • 2 kg Tapa de Cuadril

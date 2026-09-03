@@ -88,32 +88,31 @@ export class ChatStrategyGraphService {
     const catalog = (Array.isArray(products) && products.length > 0) ? products : (db.getProducts() || []);
 
     const findProd = (pattern, fallbackName, fallbackPrice) => {
-      const match = catalog.find(p => pattern.test(p.name));
+      const match = catalog.find(p => pattern.test(p.name) && p.isAvailable !== false && p.price > 1);
       if (match) {
         return {
+          id: match.id,
           name: match.name,
           price: Number(match.price) || fallbackPrice,
           unit: match.unit || 'kg'
         };
       }
-      return { name: fallbackName, price: fallbackPrice, unit: 'kg' };
+      return { id: '', name: fallbackName, price: fallbackPrice, unit: 'kg' };
     };
 
-    const vacio = findProd(/vacio|vacío/i, 'Vacío Especial Seleccionado', 11500);
-    const chori = findProd(/chorizo/i, 'Chorizo Criollo Puro Cerdo', 5000);
-    const comboAsadazo = findProd(/asadazo/i, 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', 39999);
-    const tapaCuadril = findProd(/tapa.*cuadril/i, 'Tapa de Cuadril Seleccionada', 12800);
-    const matambre = findProd(/matambre/i, 'Matambre Vacuno Tierno', 9500);
-    const nalga = findProd(/nalga|bola de lomo/i, 'Nalga de Novillito para Milanesas', 10500);
-    const peceto = findProd(/peceto/i, 'Peceto Especial Seleccionado', 13200);
-    const suprema = findProd(/suprema|pechuga/i, 'Supremas de Pollo Frescas', 6900);
-    const osobuco = findProd(/osobuco/i, 'Osobuco Seleccionado', 6800);
-    const roastBeef = findProd(/roast|palomita/i, 'Roast Beef / Palomita Tierna', 9400);
-    const molida = findProd(/^(?!.*grasa).*molida|carne picada|picada especial/i, 'Carne Molida Especial Vacuna', 7200);
-    const colita = findProd(/colita/i, 'Colita de Cuadril Seleccionada', 12800);
-    const costeleta = findProd(/costeleta|bife angosto|bife de chorizo/i, 'Costeletas de Ternera / Bife Angosto', 17500);
-    const pataMuslo = findProd(/pata muslo/i, 'Pata Muslo Fresca de Pollo', 4660);
-    const carbon = findProd(/carbón|carbon/i, 'Bolsa de Carbón Quebracho', 3500);
+    const vacio = findProd(/^vacio$/i, 'VACIO', 26999);
+    const costilla = findProd(/^costilla$/i, 'COSTILLA', 26999);
+    const chori = findProd(/chorizo criollo/i, 'CHORIZO CRIOLLOS', 9990);
+    const morci = findProd(/^morcilla$/i, 'MORCILLA', 10500);
+    const tapaCuadril = findProd(/tapa.*cuadril|colita.*cuadril/i, 'TAPA DE CUADRIL ENVASADA', 25997);
+    const matambre = findProd(/matambre cv|matambre/i, 'MATAMBRE CV', 25999);
+    const nalga = findProd(/^nalga$|bola de lomo/i, 'NALGA', 25987);
+    const peceto = findProd(/peceto/i, 'PECETO', 27987);
+    const molida = findProd(/molida especial/i, 'MOLIDA ESPECIAL', 17987);
+    const colita = findProd(/colita de cuadril/i, 'COLITA DE CUADRIL', 28457);
+    const costeleta = findProd(/costeleta ancha|costeleta/i, 'COSTELETA ANCHA', 22777);
+    const pataMuslo = findProd(/pata muslo/i, 'PATA MUSLO DE POLLO', 6590);
+    const carbon = findProd(/carbon.*4|carbon mezcla/i, 'CARBON X 4 KG', 3600);
 
     // 0. Si el cliente ya detalló cortes o productos específicos con cantidades o listas de pedido, NO interceptar con propuestas genéricas
     const hasSpecificCutsWithQty = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg|\b(?:una|un|dos|tres|cuatro|cinco|seis)\s+bolsas?)\s+(?:de\s+)?(?:costillar|costilla|vacio|vacío|matambre|chorizo|chori|morcilla|milanesa|cuadril|tapa|lomo|bife|molida|pollo|carbon|carbón|cerdo|novillito)/i.test(t) ||
@@ -135,32 +134,32 @@ export class ChatStrategyGraphService {
     const isDailyCookingOrFamilyMeal = /(?:cocinar\s+(?:algo|rico|hoy|en\s+casa|para\s+la\s+familia|con\s+mi\s+familia)|algo\s+sencillo|plato\s+familiar|para\s+cocinar|comida\s+de\s+casa|almuerzo|cena|cocinar\s+hoy|algo\s+para\s+comer|comida\s+r[aá]pida|men[uú]|algo\s+f[aá]cil|hacer\s+(?:la\s+)?comida|hacer\s+algo|comer\s+algo|comer\s+en\s+casa|con\s+mi\s+familia|en\s+familia|somos\s+\d+)/i.test(t);
 
     // 1. SI ES COMIDA DIARIA FAMILIAR O SE NEGÓ EL ASADO EXPLÍCITAMENTE (O NO MENCIONA ASADO/PARRILLA)
-    if (isExplicitNoAsado || (isDailyCookingOrFamilyMeal && !/(?:asado|asadito|parrilla|parrillada|fuego|brasas|asadazo)/i.test(t))) {
+    if (isExplicitNoAsado || (isDailyCookingOrFamilyMeal && !/(?:asado|asadito|parrilla|parrillada|fuego|brasas)/i.test(t))) {
       const rawFamilyKg = Math.round(peopleCount * 0.28 * 10) / 10;
       const familyMeatKg = Math.max(0.75, rawFamilyKg);
       const bifeKg = Math.max(0.8, Math.round(peopleCount * 0.3 * 10) / 10);
       const bifesCount = peopleCount;
 
       const nalgaPrice = Math.round(nalga.price * familyMeatKg);
-      const bifePrice = Math.round((costeleta.price || 17500) * bifeKg);
+      const bifePrice = Math.round(costeleta.price * bifeKg);
       const picadaPrice = Math.round(molida.price * familyMeatKg);
 
       return `¡Entendido perfectamente ${clientName}! 👨‍🍳🍲 Para **cocinar rico, fácil y rápido en casa para ${peopleCount} personas** (~250g a 300g por porción), te propongo 3 platazos clásicos infalibles:\n\n` +
         `1️⃣ **Milanesas Caseras a la Napolitana o Fritas (Rinde ${peopleCount} platos abundantes):**\n` +
-        `• ${familyMeatKg} kg de ${nalga.name} feteada fina ($${nalgaPrice.toLocaleString('es-AR')})\n` +
+        `• ${familyMeatKg} kg de ${nalga.name} ($${nalgaPrice.toLocaleString('es-AR')})\n` +
         `💰 *Total:* **$${nalgaPrice.toLocaleString('es-AR')}**\n\n` +
         `2️⃣ **Bifes a la Plancha o a la Criolla con Papas (Listo en 15 minutos):**\n` +
         `• ${bifeKg} kg de ${costeleta.name} (~${bifesCount} bifes) ($${bifePrice.toLocaleString('es-AR')})\n` +
         `💰 *Total:* **$${bifePrice.toLocaleString('es-AR')}**\n\n` +
         `3️⃣ **Pastel de Papa Tradicional o Guisito Carrero:**\n` +
-        `• ${familyMeatKg} kg de ${molida.name} magra ($${picadaPrice.toLocaleString('es-AR')})\n` +
+        `• ${familyMeatKg} kg de ${molida.name} ($${picadaPrice.toLocaleString('es-AR')})\n` +
         `💰 *Total:* **$${picadaPrice.toLocaleString('es-AR')}**\n\n` +
         `👉 ¿Cuál de estas opciones te gustaría que te preparemos (*1*, *2* o *3*), o preferís otro corte para tu receta? 🙌 [[STAGE:proposal]]`;
     }
 
     // 2. Detección de Asados por número de personas / comensales
     const isAsadoConsultation = /(?:asesorame|asesoramiento|qu[eé]\s+me\s+recomendas|recomendas\s+para\s+asado|recomendás\s+para\s+asado|opciones\s+para\s+asado|cuanto\s+calculo|cuánto\s+calculo|calcular\s+asado|asado\s+para|asadito\s+para|un\s+asado|un\s+asadito|hacer\s+(?:un\s+)?asado|hacer\s+(?:un\s+)?asadito)/i.test(t) ||
-      (/(?:asado|asadito|asadaso|asadazo|parrilla|parrillada|fuego|brasas)/i.test(t) && Boolean(peopleMatch));
+      (/(?:asado|asadito|parrilla|parrillada|fuego|brasas)/i.test(t) && Boolean(peopleMatch));
 
     if (isAsadoConsultation) {
       // Cálculo: ~500g por persona para asado completo (carne + achura/embutido)
@@ -174,34 +173,30 @@ export class ChatStrategyGraphService {
       const meatGourmet2 = Number((meatKg * 0.4).toFixed(1));
       const total3 = Math.round((meatGourmet1 * tapaCuadril.price) + (meatGourmet2 * matambre.price) + (choriKg * chori.price));
 
-      let option2Section = '';
-      if (peopleCount <= 3) {
-        const costillaKg = 1.0;
-        const total2 = Math.round((costillaKg * 9800) + (choriKg * chori.price));
-        option2Section = `2️⃣ **Opción Costillar & Chorizos:**\n` +
-          `• 1.0 kg de Costillar / Asado de Tira ($9.800)\n` +
-          `• ${choriUnits} Chorizos Criollos Puro Cerdo (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
-          `💰 *Total:* **$${total2.toLocaleString('es-AR')}**\n\n`;
-      } else {
-        const total2 = comboAsadazo.price + (peopleCount > 4 ? (peopleCount - 4) * vacio.price : 0);
-        option2Section = `2️⃣ **Opción Combo “Asadazo” + Agregados:**\n` +
-          `• 1 ${comboAsadazo.name} — $${comboAsadazo.price.toLocaleString('es-AR')}\n` +
-          (peopleCount > 4 ? `• ${Math.max(1, peopleCount - 4)} kg adicional de Vacío / Costillar ($${((peopleCount - 4) * vacio.price).toLocaleString('es-AR')})\n` : '') +
-          `💰 *Total:* **$${total2.toLocaleString('es-AR')}**\n\n`;
-      }
+      // Opción 2: Parrilla Clásica Completa (Costilla + Vacío + Chorizos + Morcilla)
+      const halfMeatKg = Number((meatKg / 2).toFixed(1));
+      const morciKg = Number((choriKg * 0.5).toFixed(1));
+      const morciUnits = Math.max(2, Math.round(morciKg * 7));
+      const total2 = Math.round((halfMeatKg * costilla.price) + (halfMeatKg * vacio.price) + (choriKg * chori.price) + (morciKg * morci.price));
+      const option2Section = `2️⃣ **Opción Parrilla Completa (Costilla & Vacío + Chorizos + Morcillas):**\n` +
+        `• ${halfMeatKg} kg de ${costilla.name} ($${Math.round(halfMeatKg * costilla.price).toLocaleString('es-AR')})\n` +
+        `• ${halfMeatKg} kg de ${vacio.name} ($${Math.round(halfMeatKg * vacio.price).toLocaleString('es-AR')})\n` +
+        `• ${choriUnits} Chorizos Criollos (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
+        `• ${morciUnits} Morcillas (~${morciKg} kg - $${Math.round(morciKg * morci.price).toLocaleString('es-AR')})\n` +
+        `💰 *Total:* **$${total2.toLocaleString('es-AR')}**\n\n`;
 
       return `¡Qué lindo asado ${clientName}! 🔥🥩 Para **${peopleCount} personas** calculamos un promedio de **${totalKg} kg en total** (~500g por comensal bien servido):\n\n` +
         `1️⃣ **Opción Clásica (${totalKg} kg):**\n` +
         `• ${meatKg} kg de ${vacio.name} ($${Math.round(meatKg * vacio.price).toLocaleString('es-AR')})\n` +
-        `• ${choriUnits} Chorizos Criollos Puro Cerdo (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
+        `• ${choriUnits} Chorizos Criollos (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
         `💰 *Total:* **$${total1.toLocaleString('es-AR')}**\n\n` +
         option2Section +
         `3️⃣ **Opción Parrillera Gourmet:**\n` +
         `• ${meatGourmet1} kg de ${tapaCuadril.name} ($${Math.round(meatGourmet1 * tapaCuadril.price).toLocaleString('es-AR')})\n` +
         `• ${meatGourmet2} kg de ${matambre.name} ($${Math.round(meatGourmet2 * matambre.price).toLocaleString('es-AR')})\n` +
-        `• ${choriUnits} Chorizos Criollos Puro Cerdo (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
+        `• ${choriUnits} Chorizos Criollos (~${choriKg} kg - $${Math.round(choriKg * chori.price).toLocaleString('es-AR')})\n` +
         `💰 *Total:* **$${total3.toLocaleString('es-AR')}**\n\n` +
-        `💡 *Carbón opcional:* Si te hace falta para el fuego, tenemos bolsa de Carbón Quebracho a $${carbon.price.toLocaleString('es-AR')}. 🪵\n\n` +
+        `💡 *Carbón opcional:* Si te hace falta para el fuego, tenemos ${carbon.name} a $${carbon.price.toLocaleString('es-AR')}. 🪵\n\n` +
         `👉 ¿Cuál de estas opciones te gusta más (*1*, *2* o *3*), o preferís armarlo con otros cortes a tu gusto? 🙌 [[STAGE:proposal]]`;
     }
 

@@ -999,7 +999,7 @@ export class WhatsAppService {
     const encodedAddress = encodeURIComponent(`${order.address || ''}, Cordoba, Argentina`);
     const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
 
-    const itemsSummary = Array.isArray(order.items) ? order.items.join('\n') : (order.items || '1x Combo Asadazo');
+    const itemsSummary = Array.isArray(order.items) ? order.items.join('\n') : (order.items || 'Cortes seleccionados');
     const amountToCollect = Number(order.totalAmount || 0).toLocaleString('es-AR');
 
     const message = `🥩🛵 *¡NUEVO PEDIDO ASIGNADO PARA REPARTO!* #*${order.id}*\n\n` +

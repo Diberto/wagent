@@ -1,4 +1,5 @@
 import { db } from './database.js';
+import { extractCleanAddress } from './ai.js';
 
 /**
  * Motor Inteligente de Sincronización y Registro de Pedidos en Vivo
@@ -100,24 +101,12 @@ export class OrderSyncEngine {
         }
       }
 
-      // 5. Detección de Dirección física para delivery
-      // Patrón mejorado: captura "Roque Funes 1704", "Av. Colón 234", etc.
-      const addressPatterns = [
-        /(?:direcci[oó]n[:\s]+|enviar\s+a[:\s]+|mandamelo\s+a[:\s]+|a\s+mi\s+domicilio[:\s]+|entrega\s+en[:\s]+)([^.\n]{5,60})/i,
-        /(?:calle|av\.|avenida|bv\.|bulevar|pasaje|ruta)\s+([a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.]+\s+\d{1,5}[a-z]?(?:\s*[-,]\s*[a-zA-Z\s]+)?)/i,
-        /\b([A-ZÁÉÍÓÚ][a-záéíóúñ]+(?:\s+[a-záéíóúñA-ZÁÉÍÓÚ]+){0,4}\s+\d{3,5})\b/
-      ];
-      for (const pat of addressPatterns) {
-        const m = replyMsg.match(pat) || userMsg.match(pat);
-        if (m && activeOrder) {
-          const extractedAddress = (m[1] || m[0]).replace(/^(calle|av\.|avenida|bv\.)\s*/i, '').trim();
-          if (extractedAddress.length > 5) {
-            db.updateOrder(activeOrder.id, { address: extractedAddress, deliveryType: 'delivery' });
-            if (clientLead.jid || clientLead.id) {
-              db.updateLead(clientLead.jid || clientLead.id, { address: extractedAddress, deliveryType: 'delivery' });
-            }
-          }
-          break;
+      // 5. Detección de Dirección física para delivery con extractCleanAddress
+      const cleanAddr = extractCleanAddress(userMsg) || extractCleanAddress(replyMsg);
+      if (cleanAddr && activeOrder) {
+        db.updateOrder(activeOrder.id, { address: cleanAddr, deliveryType: 'delivery' });
+        if (clientLead.jid || clientLead.id) {
+          db.updateLead(clientLead.jid || clientLead.id, { address: cleanAddr, deliveryType: 'delivery' });
         }
       }
 
@@ -175,40 +164,44 @@ export class OrderSyncEngine {
       const line = rawLine.trim();
       if (!line.startsWith('*') && !line.startsWith('•') && !line.startsWith('-')) continue;
 
-      // Quitar la viñeta inicial
-      const clean = line.replace(/^[•*\-\s]+/, '').trim();
-      if (!clean || /detalle|total|opciones|respondé|cómo seguimos|paso 4/i.test(clean)) continue;
+      // Quitar la viñeta inicial y espacios/asteriscos residuales
+      const clean = line.replace(/^[\s•*\-]+/, '').trim();
+      if (!clean || /detalle|total|opciones|respondé|cómo seguimos|paso 4|recordamos que|ya ten[ií]a/i.test(clean)) continue;
 
-      // Buscar precio al final de la línea: después de '—', '-', ':', o '('
-      // Ej: "— $3.750", ": $24.990 (total)", "— $11.250", "$28.900"
-      const lastPriceMatch = clean.match(/(?:—|-|:)\s*\*?\$?\s*([\d\.,]+)\*?(?:\s*(?:total|en total|\([^)]*\)|por los 2kg|\*))?\s*$/i);
+      // Buscar precio al final de la línea: después de '—', '-', ':', '*', o '$'
+      // Ej: "— $3.750", ":* $39.999", ": $24.990 (total)", "— $11.250", "$28.900"
+      const lastPriceMatch = clean.match(/(?:—|-|:|\*|\$)\s*\*?\s*\$?\s*([\d\.,]+)\s*\*?(?:\s*(?:total|en total|\([^)]*\)|por los 2kg|\*))?\s*$/i);
       if (!lastPriceMatch) continue;
 
       const rawPrice = parseInt(lastPriceMatch[1].replace(/\D/g, ''), 10);
       if (isNaN(rawPrice) || rawPrice <= 0) continue;
 
       // Cortar la línea antes del separador del precio final
-      const separatorIdx = clean.lastIndexOf(lastPriceMatch[0]);
+      const separatorIdx = lastPriceMatch.index !== undefined ? lastPriceMatch.index : clean.lastIndexOf(lastPriceMatch[0]);
       const textBeforePrice = (separatorIdx >= 0 ? clean.substring(0, separatorIdx) : clean).trim().replace(/[:—\-\(\*]+$/, '').trim();
 
-      // Detectar cantidad y unidad al inicio
-      const qtyMatch = textBeforePrice.match(/^(\d+(?:[.,]\d+)?)\s*(kg|kilos?|unidades?|un|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?/i);
+      // Detectar cantidad y unidad al inicio con soporte para multiplicadores 1x, 2x, 1X
+      const qtyMatch = textBeforePrice.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b|kg|kilos?|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?/i);
       const qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
       let unit = 'kg';
-      if (qtyMatch && qtyMatch[2]) {
-        const u = qtyMatch[2].toLowerCase();
-        if (u.startsWith('k')) unit = 'kg';
-        else if (u.startsWith('u')) unit = 'un';
-        else if (u.startsWith('bols')) unit = 'bolsa';
-        else if (u.startsWith('bot')) unit = 'botella';
-        else if (u.startsWith('comb')) unit = 'combo';
-        else if (u.startsWith('tira')) unit = 'tira';
-        else if (u.startsWith('bife')) unit = 'bife';
-        else unit = u;
+      if (qtyMatch) {
+        const fullQtyStr = qtyMatch[0].toLowerCase();
+        if (/x\b/.test(fullQtyStr)) unit = 'un';
+        else if (/k/.test(fullQtyStr)) unit = 'kg';
+        else if (/bols/.test(fullQtyStr)) unit = 'bolsa';
+        else if (/bot/.test(fullQtyStr)) unit = 'botella';
+        else if (/comb/.test(fullQtyStr)) unit = 'combo';
+        else if (/tira/.test(fullQtyStr)) unit = 'tira';
+        else if (/bife/.test(fullQtyStr)) unit = 'bife';
+        else if (/u/.test(fullQtyStr)) unit = 'un';
       }
-      const rawName = qtyMatch ? textBeforePrice.slice(qtyMatch[0].length).trim() : textBeforePrice;
-      const cleanName = rawName.replace(/^[*_]+|[*_:]+$/g, '').trim();
 
+      const rawName = qtyMatch ? textBeforePrice.slice(qtyMatch[0].length).trim() : textBeforePrice;
+      let cleanName = rawName
+        .replace(/^[xX]\s+/i, '')
+        .replace(/^de\s+/i, '')
+        .replace(/^[*_"]+|[*_":]+$/g, '')
+        .trim();
 
       if (!cleanName) continue;
 
@@ -289,17 +282,36 @@ export class OrderSyncEngine {
     const items = [];
     let total = 0;
 
-    if (!Array.isArray(catalog) || catalog.length === 0) return { products, items, total };
+    if (!Array.isArray(catalog) || catalog.length === 0 || !text || typeof text !== 'string') {
+      return { products, items, total };
+    }
 
-    const lowerText = text.toLowerCase();
+    const lowerText = text.toLowerCase().trim();
+
+    // Si el texto es claramente una dirección, selección de entrega o medio de pago sin mención de carne, no extraer
+    const isPureAddressOrPayment = /(?:calle|av\.|avenida|bv\.|roque funes|locelso|pidal|quiros|alamos|alcorta|casa|domicilio|efectivo|transferencia|mercado pago|alias)\b/i.test(lowerText) &&
+      !/(?:kilo|kilos|kg|costilla|vacio|vacío|chori|morcilla|matambre|milanesa|carne|pollo|bife|tapa|cuadril|entraña|molida|achura)\b/i.test(lowerText);
+
+    if (isPureAddressOrPayment) {
+      return { products, items, total };
+    }
+
     for (const prod of catalog) {
-      const prodName = (prod.name || '').toLowerCase();
-      const isMentioned = lowerText.includes(prodName) ||
-        (prod.plu && lowerText.includes(String(prod.plu))) ||
-        (Array.isArray(prod.keywords) && prod.keywords.some(kw => lowerText.includes(kw.toLowerCase())));
+      if (!prod || prod.isAvailable === false || Number(prod.price) <= 1) continue;
+      const prodName = (prod.name || '').toLowerCase().trim();
+      if (prodName.length < 3) continue;
+
+      // Un PLU solo se considera si el usuario puso expresamente "plu 123" o "código 123"
+      const hasExplicitPlu = prod.plu && new RegExp(`\\b(?:plu|c[oó]digo|cod\\.?)\\s*[:=]?\\s*${prod.plu}\\b`, 'i').test(lowerText);
+
+      // El nombre del corte debe coincidir con límites de palabras completas
+      const escapedName = prodName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const hasNameMatch = new RegExp(`\\b${escapedName}\\b`, 'i').test(lowerText);
+
+      const isMentioned = hasExplicitPlu || hasNameMatch;
 
       if (isMentioned) {
-        const qtyRegex = new RegExp(`(\\d+(?:[\\.,]\\d+)?)\\s*(?:kg|kilos?|unidades?|un|bolsas?|botellas?|combos?|piezas?)?\\s+(?:de\\s+)?(?:${prodName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'i');
+        const qtyRegex = new RegExp(`(\\d+(?:[\\.,]\\d+)?)\\s*(?:kg|kilos?|unidades?|un|bolsas?|botellas?|combos?|piezas?)?\\s+(?:de\\s+)?(?:${escapedName})`, 'i');
         const match = text.match(qtyRegex);
         const quantity = match ? parseFloat(match[1].replace(',', '.')) : 1;
         const unitPrice = Number(prod.price) || 0;
