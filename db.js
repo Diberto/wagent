@@ -58,11 +58,13 @@ export async function connectDB() {
 
     await client.connect();
     dbInstance = client.db(dbName);
-    console.log(`✅ [MongoDB Atlas] Conexión establecida exitosamente a la base de datos "${dbName}".`);
+    console.log("Connected:", client.db().databaseName);
+    console.log(`✅ [MongoDB Atlas] Conexión establecida exitosamente a la base de datos "${client.db().databaseName}".`);
     isConnecting = false;
     return dbInstance;
   } catch (error) {
-    console.warn(`⚠️ [MongoDB Atlas] No se pudo conectar a MongoDB Atlas: ${error.message}. Funcionando con respaldo SQLite/JSON local.`);
+    console.error("Connection error:", error.message || error);
+    console.warn(`⚠️ [MongoDB Atlas] Funcionando con respaldo local SQLite/JSON.`);
     isConnecting = false;
     return null;
   }
@@ -90,10 +92,11 @@ export function getCollection(collectionName) {
   return dbInstance.collection(collectionName);
 }
 
-// Auto-initialize if running on Hostinger with MONGODB_URI provided
+// Auto-initialize connection if MONGODB_URI is provided
 if (process.env.MONGODB_URI || process.env.MONGO_URL) {
-  connectDB().catch(() => {});
+  connectDB().catch(err => console.error("Connection error:", err));
 }
 
 export { MongoClient, client };
-export default { connectDB, getDb, isMongoConnected, getCollection };
+export default client || { connectDB, getDb, isMongoConnected, getCollection };
+
