@@ -1875,6 +1875,60 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // Helper infalible para resolver el JID de WhatsApp del cliente
+  const resolveOrderTargetJid = async (order) => {
+    if (!order) return null;
+    const rawJid = String(order.jid || '').trim();
+
+    // 1. JID estándar @s.whatsapp.net
+    if (rawJid.includes('@s.whatsapp.net')) {
+      const userPart = rawJid.split('@')[0];
+      const cleanDigits = userPart.replace(/\D/g, '');
+      if (cleanDigits.length >= 8) return `${cleanDigits}@s.whatsapp.net`;
+    }
+
+    // 2. Si es LID, resolver a teléfono
+    if (rawJid.includes('@lid') && typeof whatsappService.resolvePhoneJid === 'function') {
+      try {
+        const resolved = await whatsappService.resolvePhoneJid(rawJid);
+        if (resolved && resolved.includes('@s.whatsapp.net')) {
+          const digits = resolved.split('@')[0].replace(/\D/g, '');
+          if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+        }
+      } catch (e) {}
+    }
+
+    // 3. Buscar en leads
+    const lead = db.getLead(order.jid || order.phone);
+    if (lead) {
+      if (lead.jid && lead.jid.includes('@s.whatsapp.net')) {
+        const digits = lead.jid.split('@')[0].replace(/\D/g, '');
+        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+      }
+      if (Array.isArray(lead.altJids)) {
+        for (const alt of lead.altJids) {
+          if (alt && alt.includes('@s.whatsapp.net')) {
+            const digits = alt.split('@')[0].replace(/\D/g, '');
+            if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+          }
+        }
+      }
+      if (lead.phone) {
+        const digits = String(lead.phone).replace(/\D/g, '');
+        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+      }
+    }
+
+    // 4. Fallback directo con dígitos numéricos
+    const rawPhone = order.phone || order.jid || '';
+    const digits = String(rawPhone).replace(/\D/g, '');
+    if (digits.length >= 8) {
+      return `${digits}@s.whatsapp.net`;
+    }
+
+    return null;
+  };
+
   router.patch('/orders/:id/status', async (req, res) => {
     const { status, paymentStatus, notifyCustomer, notify, notifyClient, notificationMessage, customMessage } = req.body;
     const order = db.getOrder(req.params.id);
@@ -1888,12 +1942,14 @@ export function createApiRouter(whatsappService, io) {
     const updated = db.updateOrder(req.params.id, updateData);
     io.emit('order:update', updated);
 
+    let notified = false;
+    let notificationError = null;
+
     // Enviar notificación automática por WhatsApp al cliente a menos que se desactive explícitamente
     if (shouldNotify && status) {
       try {
+        const targetJid = await resolveOrderTargetJid(order);
         const lead = db.getLead(order.jid || order.phone);
-        const cleanDigits = (order.phone || '').replace(/\D/g, '');
-        const targetJid = lead?.jid || (lead?.altJids && lead.altJids[0]) || order.jid || (cleanDigits ? `${cleanDigits}@s.whatsapp.net` : null);
 
         if (targetJid) {
           let messageToSend = notificationMessage || customMessage;
@@ -1907,6 +1963,7 @@ export function createApiRouter(whatsappService, io) {
                 messageToSend = `¡Buenas noticias ${clientName}! 🛵🥩 Tu pedido #${order.id} ya está en camino a tu domicilio (${order.address || 'Córdoba'}). El repartidor llegará en los próximos minutos.`;
                 break;
               case 'ready_for_pickup':
+              case 'ready':
                 messageToSend = `¡Tu pedido #${order.id} ya está listo para retirar! 🎉🥩 Podés pasar por nuestra sucursal **${order.branch || 'Urca Central'}** (${order.address || 'Av. José Roque Funes 1115'}). ¡Te esperamos!`;
                 break;
               case 'delivered':
@@ -1922,8 +1979,10 @@ export function createApiRouter(whatsappService, io) {
 
           try {
             await whatsappService.sendMessage(targetJid, messageToSend);
+            notified = true;
           } catch (sendErr) {
             console.error('Error enviando WhatsApp mediante WhatsAppService:', sendErr.message);
+            notificationError = sendErr.message;
           }
           
           const savedMsg = db.saveMessage({
@@ -1942,14 +2001,18 @@ export function createApiRouter(whatsappService, io) {
           }
 
           io.emit('chat:message', { message: savedMsg, lead: lead || { jid: targetJid, name: order.customerName } });
+        } else {
+          notificationError = 'No se encontró un número de teléfono o JID de WhatsApp válido para este pedido';
         }
       } catch (notifyErr) {
         console.error('Error enviando notificación automática de estado de pedido:', notifyErr);
+        notificationError = notifyErr.message;
       }
     }
 
-    res.json(updated);
+    res.json({ success: true, order: updated, notified, notificationError });
   });
+
 
   // Edit full order
   router.put('/orders/:id', (req, res) => {
@@ -2226,22 +2289,50 @@ export function createApiRouter(whatsappService, io) {
 
   // Derivar pedido a sucursal y notificar por WhatsApp
   router.post('/orders/:id/derive', async (req, res) => {
-    const { branchId, notes, notifyClient = true } = req.body;
-    const result = db.deriveOrderToBranch(req.params.id, branchId, notes);
+    const { branchId, notes, notifyClient = true, notifyBranch = true, targetStatus, customBranchMessage, customClientMessage } = req.body;
+    let result = db.deriveOrderToBranch(req.params.id, branchId, notes);
     if (!result) return res.status(404).json({ error: 'Pedido o sucursal no encontrados' });
 
-    const { order, branch } = result;
+    let { order, branch } = result;
+
+    // Si se especificó cambio de estado al derivar (ej: 'preparing')
+    if (targetStatus && order.status !== targetStatus) {
+      order = db.updateOrder(order.id, { status: targetStatus });
+    }
+
+    let branchNotified = false;
+    let clientNotified = false;
+    let notifyError = null;
 
     try {
-      // Enviar notificación a la sucursal y al cliente
-      await whatsappService.sendBranchDerivationNotification(order, branch, notifyClient);
+      if (notifyBranch !== false && branch?.phone) {
+        await whatsappService.sendBranchDerivationNotification(order, branch, false);
+        branchNotified = true;
+      }
+      if (notifyClient !== false) {
+        const targetJid = await resolveOrderTargetJid(order);
+        if (targetJid) {
+          const clientMsg = customClientMessage || `¡Hola ${order.customerName || 'Cliente'}! 🥩 Tu pedido #${order.id} fue asignado a nuestra sucursal *${branch.name}* (${branch.address || ''}) y ya está en preparación artesanal. Te avisaremos cuando esté listo. 🙌`;
+          await whatsappService.sendMessage(targetJid, clientMsg);
+          clientNotified = true;
+          db.saveMessage({
+            chatId: targetJid,
+            sender: 'bot',
+            type: 'text',
+            content: clientMsg,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
     } catch (err) {
       console.error('Error enviando notificación WhatsApp de derivación:', err);
+      notifyError = err.message;
     }
 
     io.emit('order:update', order);
-    res.json({ success: true, order, branch });
+    res.json({ success: true, order, branch, branchNotified, clientNotified, notifyError });
   });
+
 
   // --- 5.3 Mercado Pago Integration ---
   router.get('/mercadopago/status', async (req, res) => {
@@ -2605,6 +2696,30 @@ export function createApiRouter(whatsappService, io) {
       res.status(500).json({ error: err.message });
     }
   });
+
+  // Modo Autopilot para Pedidos y Notificaciones automáticas
+  router.get('/settings/autopilot', (req, res) => {
+    try {
+      const settings = db.getSettings();
+      res.json({ success: true, enabled: Boolean(settings.autopilot_orders) });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/settings/autopilot', (req, res) => {
+    try {
+      const { enabled } = req.body;
+      const isEnabled = Boolean(enabled);
+      const updated = db.updateSettings({ autopilot_orders: isEnabled });
+      io.emit('settings:autopilot', { enabled: isEnabled });
+      io.emit('settings:update', updated);
+      res.json({ success: true, enabled: isEnabled, message: isEnabled ? 'Modo Autopilot activado: los pedidos y despachos se notificarán automáticamente.' : 'Modo Manual activado: se requerirá confirmación de operador para notificaciones.' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
 
   // --- Catálogo y Diagnóstico de Modelos de Inteligencia Artificial ---
   router.get('/ai/models', (req, res) => {
@@ -3348,21 +3463,56 @@ export function createApiRouter(whatsappService, io) {
 
   router.post('/orders/:id/assign-driver', async (req, res) => {
     try {
-      const { driverId, notes, notifyClient = true } = req.body;
-      const result = db.assignOrderToDriver(req.params.id, driverId, notes);
+      const { driverId, notes, notifyClient = true, notifyDriver = true, targetStatus, customDriverMessage, customClientMessage } = req.body;
+      let result = db.assignOrderToDriver(req.params.id, driverId, notes);
       if (!result) return res.status(404).json({ error: 'Pedido o Repartidor no encontrado' });
 
-      // Enviar ficha de despacho por WhatsApp al repartidor
-      await whatsappService.sendDriverDispatchNotification(result.order, result.driver, notifyClient);
+      let { order, driver } = result;
 
-      io.emit('order:update', result.order);
-      io.emit('driver:update', result.driver);
-      res.json(result);
+      // Si se especificó cambio de estado al asignar chofer (ej: 'in_transit')
+      if (targetStatus && order.status !== targetStatus) {
+        order = db.updateOrder(order.id, { status: targetStatus });
+      }
+
+      let driverNotified = false;
+      let clientNotified = false;
+      let notifyError = null;
+
+      try {
+        if (notifyDriver !== false && driver?.phone) {
+          await whatsappService.sendDriverDispatchNotification(order, driver, false);
+          driverNotified = true;
+        }
+
+        if (notifyClient !== false) {
+          const targetJid = await resolveOrderTargetJid(order);
+          if (targetJid) {
+            const clientMsg = customClientMessage || `¡Buenas noticias ${order.customerName || 'Cliente'}! 🛵🥩 Tu pedido #${order.id} ya fue asignado a nuestro repartidor *${driver.name}* (${driver.vehicle || 'Moto'}). ¡Va en camino a tu domicilio!`;
+            await whatsappService.sendMessage(targetJid, clientMsg);
+            clientNotified = true;
+            db.saveMessage({
+              chatId: targetJid,
+              sender: 'bot',
+              type: 'text',
+              content: clientMsg,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      } catch (sendErr) {
+        console.error('Error enviando notificaciones WhatsApp de reparto:', sendErr);
+        notifyError = sendErr.message;
+      }
+
+      io.emit('order:update', order);
+      io.emit('driver:update', driver);
+      res.json({ success: true, order, driver, driverNotified, clientNotified, notifyError });
     } catch (err) {
       console.error('Error asignando pedido a repartidor:', err);
       res.status(500).json({ error: err.message });
     }
   });
+
 
   // --- 5.5 Barcode Scanner Lookup Endpoint ---
   router.get('/products/barcode/:code', (req, res) => {

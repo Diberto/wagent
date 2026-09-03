@@ -47,7 +47,9 @@ import {
   Banknote,
   Coins,
   ChevronDown,
-  Wallet
+  Wallet,
+  Bot,
+  Sparkles
 } from 'lucide-react';
 import ClientLocationMap from './ClientLocationMap.jsx';
 import TicketPrintModal from './TicketPrintModal.jsx';
@@ -347,6 +349,44 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
 
   // Thermal & Multi-format Ticket Print Modal
   const [ticketPrintModal, setTicketPrintModal] = useState(null); // null | order object
+
+  // Modo Autopilot de notificaciones y despachos automáticos
+  const [autopilotEnabled, setAutopilotEnabled] = useState(false);
+  const [notificationToast, setNotificationToast] = useState(null); // null | { type: 'success' | 'warning' | 'error', text }
+
+  useEffect(() => {
+    // Cargar estado inicial de Autopilot
+    fetch('/api/settings/autopilot')
+      .then(res => res.json())
+      .then(d => {
+        if (d && typeof d.enabled === 'boolean') setAutopilotEnabled(d.enabled);
+      })
+      .catch(() => {});
+  }, []);
+
+  const showNotificationToast = (type, text, duration = 3500) => {
+    setNotificationToast({ type, text });
+    setTimeout(() => setNotificationToast(null), duration);
+  };
+
+  const handleToggleAutopilot = async () => {
+    const next = !autopilotEnabled;
+    setAutopilotEnabled(next);
+    try {
+      const res = await fetch('/api/settings/autopilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showNotificationToast('success', next ? '🤖 Modo Autopilot Activado: notificaciones y cambios automáticos' : '👤 Modo Manual Activado: se requerirá confirmación de operador');
+      }
+    } catch (err) {
+      console.error('Error toggling autopilot:', err);
+    }
+  };
+
 
   const fetchDrivers = async () => {
     try {
@@ -695,8 +735,39 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     }
   };
 
-  const handleRequestStatusChange = (order, targetStatus) => {
+  const handleRequestStatusChange = async (order, targetStatus) => {
     if (order.status === targetStatus) return;
+
+    // En Modo Autopilot: cambiar y notificar automáticamente
+    if (autopilotEnabled) {
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: targetStatus } : o));
+      if (detailModal && detailModal.id === order.id) {
+        setDetailModal(prev => prev ? { ...prev, status: targetStatus } : null);
+      }
+      try {
+        const autoMsg = generateStatusNotification(order, targetStatus);
+        const res = await fetch(`/api/orders/${order.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            status: targetStatus,
+            notify: true,
+            customMessage: autoMsg
+          })
+        });
+        const data = await res.json();
+        if (data.notified) {
+          showNotificationToast('success', `✅ Pedido #${order.id}: estado actualizado a ${targetStatus} y notificado por WhatsApp.`);
+        } else if (data.notificationError) {
+          showNotificationToast('warning', `⚠️ Pedido #${order.id} actualizado a ${targetStatus}. WhatsApp: ${data.notificationError}`);
+        }
+      } catch (err) {
+        console.error('Error en Autopilot actualizando estado:', err);
+      }
+      return;
+    }
+
+    // Modo Manual: abrir modal interactivo para previsualizar/editar
     setConfirmModal({
       order,
       targetStatus,
@@ -728,6 +799,13 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
           setDetailModal(prev => prev ? { ...prev, status: targetStatus } : null);
         }
         setConfirmModal(null);
+        if (notifyCustomer) {
+          if (data.notified) {
+            showNotificationToast('success', `✅ Notificación de WhatsApp enviada con éxito al cliente.`);
+          } else if (data.notificationError) {
+            showNotificationToast('warning', `⚠️ Estado cambiado en sistema. WhatsApp: ${data.notificationError}`);
+          }
+        }
       } else {
         alert(data.error || 'Error al cambiar estado');
         setConfirmModal(prev => ({ ...prev, isSubmitting: false }));
@@ -779,15 +857,45 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   const handleQuickAssignBranch = async (orderId, branchId) => {
     const branch = branches.find(b => b.id === branchId || b.alias?.includes(branchId) || b.name.toLowerCase() === branchId.toLowerCase());
     const branchName = branch ? branch.name : (branchId ? branchId : '');
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, branchId, branchName } : o));
-    try {
-      await fetch(`/api/orders/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branchId, branchName })
+    const order = orders.find(o => o.id === orderId);
+
+    // En Modo Autopilot: derivar, poner en preparación y notificar por WhatsApp
+    if (autopilotEnabled) {
+      const targetSt = (order && order.status === 'pending') ? 'preparing' : (order?.status || 'preparing');
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, branchId, branchName, status: targetSt } : o));
+      try {
+        const res = await fetch(`/api/orders/${orderId}/derive`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branchId,
+            notifyBranch: true,
+            notifyClient: true,
+            targetStatus: targetSt
+          })
+        });
+        const data = await res.json();
+        if (data.branchNotified || data.clientNotified) {
+          showNotificationToast('success', `🏪 Pedido #${orderId} derivado a ${branchName} y notificado por WhatsApp.`);
+        }
+      } catch (err) {
+        console.error('Error en Autopilot derivando sucursal:', err);
+      }
+      return;
+    }
+
+    // Modo Manual: abrir modal enriquecido de derivación
+    if (order) {
+      setDeriveModal({
+        order,
+        branchId,
+        notes: '',
+        targetStatus: order.status === 'pending' ? 'preparing' : order.status,
+        notifyBranch: true,
+        notifyClient: true,
+        isDeriving: false,
+        deriveSuccess: false
       });
-    } catch (err) {
-      console.error('Error actualizando sucursal asignada:', err);
     }
   };
 
@@ -800,6 +908,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ driverId: '', driverName: '', deliveryType: 'pickup' })
         });
+        showNotificationToast('success', `🏪 Pedido #${orderId} configurado para retiro por sucursal.`);
       } catch (err) {
         console.error('Error actualizando entrega en local:', err);
       }
@@ -808,17 +917,47 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
 
     const driver = drivers.find(d => d.id === driverVal || d.name.toLowerCase() === driverVal.toLowerCase());
     const driverName = driver ? driver.name : (driverVal ? driverVal : '');
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, driverId: driverVal, driverName, deliveryType: 'delivery' } : o));
-    try {
-      await fetch(`/api/orders/${orderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driverId: driverVal, driverName, deliveryType: 'delivery' })
+    const order = orders.find(o => o.id === orderId);
+
+    // En Modo Autopilot: asignar chofer, pasar a in_transit y notificar por WhatsApp
+    if (autopilotEnabled) {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, driverId: driverVal, driverName, deliveryType: 'delivery', status: 'in_transit' } : o));
+      try {
+        const res = await fetch(`/api/orders/${orderId}/assign-driver`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            driverId: driverVal,
+            notifyDriver: true,
+            notifyClient: true,
+            targetStatus: 'in_transit'
+          })
+        });
+        const data = await res.json();
+        if (data.driverNotified || data.clientNotified) {
+          showNotificationToast('success', `🛵 Pedido #${orderId} asignado a ${driverName} y despachado con Google Maps por WhatsApp.`);
+        }
+      } catch (err) {
+        console.error('Error en Autopilot asignando repartidor:', err);
+      }
+      return;
+    }
+
+    // Modo Manual: abrir modal enriquecido de despacho
+    if (order) {
+      setAssignDriverModal({
+        order,
+        driverId: driverVal,
+        notes: '',
+        targetStatus: 'in_transit',
+        notifyDriver: true,
+        notifyClient: true,
+        isAssigning: false,
+        assignSuccess: false
       });
-    } catch (err) {
-      console.error('Error actualizando repartidor asignado:', err);
     }
   };
+
 
   const handleOpenCreateOrder = () => {
     const initialCart = [{ id: 'prod-combo-asadazo', name: 'Combo Asadazo (4 kg) + Vino', price: 39999, quantity: 1, unit: 'combo', icon: '⭐' }];
@@ -1142,14 +1281,16 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       order,
       branchId: order.branchId || (branches.length > 0 ? branches[0].id : ''),
       notes: '',
+      targetStatus: order.status === 'pending' ? 'preparing' : order.status,
+      notifyBranch: true,
       notifyClient: true,
       isDeriving: false,
       deriveSuccess: false
     });
   };
 
-  const handleExecuteDerive = async (e) => {
-    e.preventDefault();
+  const handleExecuteDerive = async (e, withNotify = true) => {
+    if (e) e.preventDefault();
     if (!deriveModal || !deriveModal.branchId) return;
 
     setDeriveModal(prev => ({ ...prev, isDeriving: true }));
@@ -1160,14 +1301,20 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         body: JSON.stringify({
           branchId: deriveModal.branchId,
           notes: deriveModal.notes,
-          notifyClient: deriveModal.notifyClient
+          targetStatus: deriveModal.targetStatus,
+          notifyBranch: withNotify ? deriveModal.notifyBranch !== false : false,
+          notifyClient: withNotify ? deriveModal.notifyClient !== false : false
         })
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.order) {
         setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        if (detailModal && detailModal.id === data.order.id) {
+          setDetailModal(data.order);
+        }
         setDeriveModal(prev => ({ ...prev, isDeriving: false, deriveSuccess: true }));
-        setTimeout(() => setDeriveModal(null), 2500);
+        showNotificationToast('success', `🏪 Pedido #${data.order.id} asignado a sucursal${withNotify ? ' y notificado por WhatsApp' : ''}.`);
+        setTimeout(() => setDeriveModal(null), 1500);
       } else {
         alert(data.error || 'Error derivando pedido a la sucursal');
         setDeriveModal(prev => ({ ...prev, isDeriving: false }));
@@ -1183,14 +1330,16 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       order,
       driverId: order.driverId || (drivers.length > 0 ? drivers[0].id : ''),
       notes: '',
+      targetStatus: 'in_transit',
+      notifyDriver: true,
       notifyClient: true,
       isAssigning: false,
       assignSuccess: false
     });
   };
 
-  const handleExecuteAssignDriver = async (e) => {
-    e.preventDefault();
+  const handleExecuteAssignDriver = async (e, withNotify = true) => {
+    if (e) e.preventDefault();
     if (!assignDriverModal || !assignDriverModal.driverId) return;
 
     setAssignDriverModal(prev => ({ ...prev, isAssigning: true }));
@@ -1201,14 +1350,20 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         body: JSON.stringify({
           driverId: assignDriverModal.driverId,
           notes: assignDriverModal.notes,
-          notifyClient: assignDriverModal.notifyClient
+          targetStatus: assignDriverModal.targetStatus,
+          notifyDriver: withNotify ? assignDriverModal.notifyDriver !== false : false,
+          notifyClient: withNotify ? assignDriverModal.notifyClient !== false : false
         })
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.order) {
         setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        if (detailModal && detailModal.id === data.order.id) {
+          setDetailModal(data.order);
+        }
         setAssignDriverModal(prev => ({ ...prev, isAssigning: false, assignSuccess: true }));
-        setTimeout(() => setAssignDriverModal(null), 2500);
+        showNotificationToast('success', `🛵 Pedido #${data.order.id} asignado a repartidor${withNotify ? ' y despachado por WhatsApp' : ''}.`);
+        setTimeout(() => setAssignDriverModal(null), 1500);
       } else {
         alert(data.error || 'Error asignando repartidor');
         setAssignDriverModal(prev => ({ ...prev, isAssigning: false }));
@@ -1218,6 +1373,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       setAssignDriverModal(prev => ({ ...prev, isAssigning: false }));
     }
   };
+
 
   // Metrics
   const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
@@ -1331,7 +1487,20 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-y-auto p-4 sm:p-6 space-y-6">
+    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-y-auto p-4 sm:p-6 space-y-6 relative">
+      {/* Toast flotante de notificaciones de WhatsApp */}
+      {notificationToast && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold shadow-2xl animate-fade-in backdrop-blur-md border ${
+          notificationToast.type === 'success' ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50' :
+          notificationToast.type === 'warning' ? 'bg-amber-950/90 text-amber-300 border-amber-500/50' :
+          'bg-rose-950/90 text-rose-300 border-rose-500/50'
+        }`}>
+          <span>{notificationToast.text}</span>
+          <button onClick={() => setNotificationToast(null)} className="opacity-70 hover:opacity-100 ml-1">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       
       {/* Header & Stats Banner */}
       <div className="space-y-4">
@@ -1346,7 +1515,25 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
+            {/* Toggle Modo Autopilot */}
+            <button
+              type="button"
+              onClick={handleToggleAutopilot}
+              title={autopilotEnabled 
+                ? "Modo Autopilot ACTIVO: las notificaciones y cambios de estado a clientes, sucursales y repartidores se envían automáticamente sin requerir confirmación manual." 
+                : "Modo Manual: se abrirá un modal de confirmación antes de enviar notificaciones por WhatsApp."}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-sm border cursor-pointer ${
+                autopilotEnabled
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30 ring-1 ring-emerald-500/40'
+                  : 'bg-[#182229] hover:bg-[#202c33] border-slate-700 text-slate-300 hover:text-white'
+              }`}
+            >
+              <div className={`w-2 h-2 rounded-full ${autopilotEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+              <Bot size={15} className={autopilotEnabled ? 'text-emerald-400' : 'text-slate-400'} />
+              <span>{autopilotEnabled ? 'Autopilot: ON' : 'Autopilot: Manual'}</span>
+            </button>
+
             <button
               onClick={handleOpenCreateOrder}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-md transition"
@@ -3647,35 +3834,73 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                   />
                 </div>
 
-                <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-white">Avisar al Cliente por WhatsApp</div>
-                    <div className="text-[11px] text-slate-400">Notificarle que su pedido está en esta sucursal</div>
+                {/* Opciones de Estado y Notificación */}
+                <div className="space-y-2 pt-1">
+                  <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white">Cambiar Estado a "En Preparación"</div>
+                      <div className="text-[11px] text-slate-400">Pasa el pedido a corte y preparación en la sucursal</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={deriveModal.targetStatus === 'preparing'}
+                      onChange={(e) => setDeriveModal({ ...deriveModal, targetStatus: e.target.checked ? 'preparing' : deriveModal.order.status })}
+                      className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={deriveModal.notifyClient}
-                    onChange={(e) => setDeriveModal({ ...deriveModal, notifyClient: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
-                  />
+
+                  <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white">Enviar Comanda a Encargado por WhatsApp</div>
+                      <div className="text-[11px] text-slate-400">Envía la lista de cortes para que la sucursal confirme o rechace</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={deriveModal.notifyBranch !== false}
+                      onChange={(e) => setDeriveModal({ ...deriveModal, notifyBranch: e.target.checked })}
+                      className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white">Avisar al Cliente por WhatsApp</div>
+                      <div className="text-[11px] text-slate-400">Notificarle que su pedido está siendo preparado en esta sucursal</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={deriveModal.notifyClient !== false}
+                      onChange={(e) => setDeriveModal({ ...deriveModal, notifyClient: e.target.checked })}
+                      className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
+                    />
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setDeriveModal(null)}
-                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                    className="px-3.5 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
                   >
                     Cancelar
                   </button>
 
                   <button
+                    type="button"
+                    onClick={(e) => handleExecuteDerive(e, false)}
+                    disabled={deriveModal.isDeriving || !deriveModal.branchId}
+                    className="px-3.5 py-2 rounded-xl text-slate-300 hover:text-white bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 font-semibold"
+                  >
+                    Solo Asignar (Sin WhatsApp)
+                  </button>
+
+                  <button
                     type="submit"
                     disabled={deriveModal.isDeriving || !deriveModal.branchId}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50"
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50 shadow-md"
                   >
                     <Send size={13} className={deriveModal.isDeriving ? 'animate-spin' : ''} />
-                    {deriveModal.isDeriving ? 'Derivando...' : '🏪 Derivar y Notificar por WhatsApp'}
+                    {deriveModal.isDeriving ? 'Derivando...' : '🏪 Asignar y Notificar WhatsApp'}
                   </button>
                 </div>
               </form>
@@ -3746,39 +3971,78 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                   />
                 </div>
 
-                <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-bold text-white">Avisar al Cliente por WhatsApp</div>
-                    <div className="text-[11px] text-slate-400">Notificarle el nombre del repartidor asignado</div>
+                {/* Opciones de Estado y Notificación */}
+                <div className="space-y-2 pt-1">
+                  <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white">Cambiar Estado a "En Reparto / En Camino"</div>
+                      <div className="text-[11px] text-slate-400">Marca el pedido como despachado hacia el domicilio</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={assignDriverModal.targetStatus === 'in_transit'}
+                      onChange={(e) => setAssignDriverModal({ ...assignDriverModal, targetStatus: e.target.checked ? 'in_transit' : assignDriverModal.order.status })}
+                      className="w-4 h-4 rounded text-sky-500 focus:ring-0 cursor-pointer"
+                    />
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={assignDriverModal.notifyClient}
-                    onChange={(e) => setAssignDriverModal({ ...assignDriverModal, notifyClient: e.target.checked })}
-                    className="w-4 h-4 rounded text-emerald-500 focus:ring-0 cursor-pointer"
-                  />
+
+                  <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white">Enviar Hoja de Ruta al Repartidor por WhatsApp</div>
+                      <div className="text-[11px] text-slate-400">Incluye enlace directo a Google Maps, cortes y cobro</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={assignDriverModal.notifyDriver !== false}
+                      onChange={(e) => setAssignDriverModal({ ...assignDriverModal, notifyDriver: e.target.checked })}
+                      className="w-4 h-4 rounded text-sky-500 focus:ring-0 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-[#111b21] border border-slate-800 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-white">Avisar al Cliente por WhatsApp</div>
+                      <div className="text-[11px] text-slate-400">Notificarle el nombre y vehículo del repartidor</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={assignDriverModal.notifyClient !== false}
+                      onChange={(e) => setAssignDriverModal({ ...assignDriverModal, notifyClient: e.target.checked })}
+                      className="w-4 h-4 rounded text-sky-500 focus:ring-0 cursor-pointer"
+                    />
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setAssignDriverModal(null)}
-                    className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
+                    className="px-3.5 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800"
                   >
                     Cancelar
                   </button>
 
                   <button
+                    type="button"
+                    onClick={(e) => handleExecuteAssignDriver(e, false)}
+                    disabled={assignDriverModal.isAssigning || !assignDriverModal.driverId}
+                    className="px-3.5 py-2 rounded-xl text-slate-300 hover:text-white bg-[#202c33] hover:bg-[#2a3942] border border-slate-700 font-semibold"
+                  >
+                    Solo Asignar (Sin WhatsApp)
+                  </button>
+
+                  <button
                     type="submit"
                     disabled={assignDriverModal.isAssigning || !assignDriverModal.driverId}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition disabled:opacity-50"
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold transition disabled:opacity-50 shadow-md"
                   >
                     <Send size={13} className={assignDriverModal.isAssigning ? 'animate-spin' : ''} />
-                    {assignDriverModal.isAssigning ? 'Despachando...' : '🛵 Asignar y Enviar Hoja de Ruta'}
+                    {assignDriverModal.isAssigning ? 'Despachando...' : '🛵 Asignar y Despachar WhatsApp'}
                   </button>
                 </div>
               </form>
             )}
+
 
           </div>
         </div>

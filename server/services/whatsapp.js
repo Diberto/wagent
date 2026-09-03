@@ -831,6 +831,26 @@ export class WhatsAppService {
   }
 
   /**
+   * Resuelve el JID limpio para notificaciones al cliente de un pedido
+   */
+  async getCleanOrderClientJid(order) {
+    if (!order) return null;
+    let jid = order.jid;
+    if (jid && jid.includes('@lid')) {
+      const resolved = await this.resolvePhoneJid(jid);
+      if (resolved) jid = resolved;
+    }
+    if (jid && jid.includes('@s.whatsapp.net')) {
+      const digits = jid.split('@')[0].replace(/\D/g, '');
+      if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+    }
+    const rawPhone = order.phone || order.jid || '';
+    const digits = String(rawPhone).replace(/\D/g, '');
+    if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+    return null;
+  }
+
+  /**
    * Notifica a la sucursal por WhatsApp sobre un nuevo pedido derivado
    */
   async sendBranchDerivationNotification(order, branch, notifyClient = true) {
@@ -844,7 +864,7 @@ export class WhatsAppService {
 
     // Notificar al cliente
     if (notifyClient) {
-      const clientJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      const clientJid = await this.getCleanOrderClientJid(order);
       if (clientJid) {
         const clientMsg = `¡Hola ${order.customerName}! 🥩 Tu pedido *#${order.id}* ha sido asignado a nuestra *${branch.name}* (${branch.address}). El equipo de corte ya fue notificado y está preparando todo para vos. 🙌`;
         await this.sendMessage(clientJid, clientMsg);
@@ -853,6 +873,7 @@ export class WhatsAppService {
 
     return true;
   }
+
 
   /**
    * Procesa mensajes interactivos enviados por los encargados u operadores de las sucursales
@@ -895,7 +916,7 @@ export class WhatsAppService {
       await this.sendMessage(branchJid, opReply);
 
       // Notificar al cliente
-      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      const clientJid = await this.getCleanOrderClientJid(targetOrder);
       if (clientJid) {
         const clientNotice = `¡Excelentes noticias ${targetOrder.customerName}! 🎉 Nuestra *${branch.name}* acaba de confirmar tu pedido *#${targetOrder.id}* y ya comenzó su preparación en carnicería 🥩🔥\n\nTe avisaremos apenas salga hacia tu domicilio.`;
         await this.sendMessage(clientJid, clientNotice);
@@ -912,7 +933,7 @@ export class WhatsAppService {
       await this.sendMessage(branchJid, opReply);
 
       // Notificar al cliente
-      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      const clientJid = await this.getCleanOrderClientJid(targetOrder);
       if (clientJid) {
         const clientNotice = `¡Tu pedido *#${targetOrder.id}* ya está listo y en camino hacia tu domicilio desde nuestra *${branch.name}*! 🚚🥩 Pronto llegará a destino.`;
         await this.sendMessage(clientJid, clientNotice);
@@ -929,13 +950,14 @@ export class WhatsAppService {
       await this.sendMessage(branchJid, opReply);
 
       // Notificar al cliente
-      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      const clientJid = await this.getCleanOrderClientJid(targetOrder);
       if (clientJid) {
         const clientNotice = `¡Muchas gracias por tu compra en República de la Carne ${targetOrder.customerName}! 🙌 Esperamos que disfrutes tu asado. ¡Hasta la próxima! 🥩🔥`;
         await this.sendMessage(clientJid, clientNotice);
       }
       return;
     }
+
 
     if (isReject && targetOrder) {
       const updated = db.updateOrderStatus(targetOrder.id, 'cancelled');
@@ -997,12 +1019,13 @@ export class WhatsAppService {
     await this.sendMessage(driverJid, message);
 
     if (notifyClient) {
-      const clientJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      const clientJid = await this.getCleanOrderClientJid(order);
       if (clientJid) {
         const clientMsg = `¡Hola ${order.customerName}! 🥩🛵 Tu pedido *#${order.id}* ha sido asignado a nuestro repartidor *${driver.name}* (${driver.vehicle || 'Moto'}). En breve inicia su viaje a tu domicilio.`;
         await this.sendMessage(clientJid, clientMsg);
       }
     }
+
 
     return true;
   }
@@ -1120,7 +1143,7 @@ export class WhatsAppService {
       await this.sendMessage(driverJid, repReply);
 
       // Notificar al cliente
-      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      const clientJid = await this.getCleanOrderClientJid(targetOrder);
       if (clientJid) {
         const clientNotice = `¡Tu pedido *#${targetOrder.id}* está en camino hacia tu domicilio con *${driver.name}* (${driver.vehicle || 'Moto'})! 🚚🥩 Pronto tocará timbre.`;
         await this.sendMessage(clientJid, clientNotice);
@@ -1153,13 +1176,14 @@ export class WhatsAppService {
       await this.sendMessage(driverJid, repReply);
 
       // Notificar al cliente
-      const clientJid = targetOrder.jid || (targetOrder.phone ? `${targetOrder.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      const clientJid = await this.getCleanOrderClientJid(targetOrder);
       if (clientJid) {
         const clientNotice = `¡Pedido *#${targetOrder.id}* entregado con éxito por ${driver.name}! 🙌 Muchas gracias por elegir República de la Carne. ¡Que disfrutes el asado! 🥩🔥`;
         await this.sendMessage(clientJid, clientNotice);
       }
       return;
     }
+
 
     if (isIncident && targetOrder) {
       db.updateOrder(targetOrder.id, { driverStatus: 'incident', notes: `${targetOrder.notes || ''}\n[Alerta Repartidor] Reportó incidencia: "${raw}"` });
