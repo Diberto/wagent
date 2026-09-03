@@ -34,178 +34,58 @@ import {
 } from '../config/aiModels.js';
 
 /**
- * Catálogo Maestro de Cortes y Precios de República de la Carne
+ * Mapa de keywords de búsqueda para productos conocidos.
+ * Se aplica como capa de mejora sobre los productos dinámicos de la DB.
+ * Las keywords NO contienen precios ni nombres — solo alias de búsqueda.
  */
-const MASTER_CATALOG = [
-  { 
-    plu: '2001',
-    keywords: ['combo asadazo', 'combo “asadazo”', 'combo asado', 'asadazo', 'azadazo', 'asasazo', 'asadaso', 'azadaso', 'combo parrillero', 'combo 4kg', 'combo 4 kg', 'combo'], 
-    name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', 
-    price: 39999, 
-    unit: 'combo', 
-    category: 'Combos en Oferta' 
-  },
-  { 
-    plu: '2002',
-    keywords: ['tapa de cuadril', 'tapa cuadril', 'colita de cuadril', 'cuadril', 'picanha'], 
-    name: 'Tapa de Cuadril Seleccionada', 
-    price: 12800, 
-    unit: 'kg', 
-    category: 'Parrilla y Horno' 
-  },
-  { 
-    plu: '2003',
-    keywords: ['vacio especial', 'vacío especial', 'vacio tierno', 'vacío tierno', 'vacio', 'vacío'], 
-    name: 'Vacío Especial Seleccionado', 
-    price: 11500, 
-    unit: 'kg', 
-    category: 'Parrilla' 
-  },
-  { 
-    plu: '2004',
-    keywords: ['costillar de novillito', 'asado de tira novillito', 'costillar', 'asado de tira', 'tira de asado', 'costilla novillito', 'costillar novillito', 'tira novillito', 'costilla'], 
-    name: 'Costillar / Asado de Tira Novillito', 
-    price: 9800, 
-    unit: 'kg', 
-    category: 'Parrilla' 
-  },
-  { 
-    plu: '2005',
-    keywords: ['bife de chorizo', 'bife chorizo', 'bifes de chorizo', 'ojo de bife', 'bife de lomo'], 
-    name: 'Bife de Chorizo Premium', 
-    price: 14500, 
-    unit: 'kg', 
-    category: 'Cortes Premium' 
-  },
-  { 
-    plu: '2006',
-    keywords: ['entraña fina', 'entrana fina', 'entraña', 'entrana', 'entrecot', 'enrecor'], 
-    name: 'Entraña Fina Seleccionada', 
-    price: 16900, 
-    unit: 'kg', 
-    category: 'Cortes Premium' 
-  },
-  { 
-    plu: '2007',
-    keywords: ['matambre de cerdo', 'matambrito de cerdo', 'matambre cerdo', 'matambrito cerdo', 'matambrito'], 
-    name: 'Matambrito de Cerdo Tiernizado', 
-    price: 8500, 
-    unit: 'kg', 
-    category: 'Cerdo y Parrilla' 
-  },
-  { 
-    plu: '2008',
-    keywords: ['matambre de vaca', 'matambre vacuno', 'matambre'], 
-    name: 'Matambre Vacuno', 
-    price: 9500, 
-    unit: 'kg', 
-    category: 'Parrilla y Horno' 
-  },
-  { 
-    plu: '2009',
-    keywords: ['bondiola de cerdo', 'bondiola cerdo', 'bondiola'], 
-    name: 'Bondiola de Cerdo sin Hueso', 
-    price: 8900, 
-    unit: 'kg', 
-    category: 'Cerdo' 
-  },
-  { 
-    plu: '2010',
-    keywords: ['costeleta de cerdo', 'costeletas de cerdo', 'costeleta cerdo', 'costeletas cerdo', 'chuleta de cerdo', 'chuletas de cerdo'], 
-    name: 'Costeletas de Cerdo (2kg x $15.000 promo)', 
-    price: 7500, 
-    unit: 'kg', 
-    category: 'Cerdo' 
-  },
-  { 
-    plu: '2011',
-    keywords: ['costeleta de ternera', 'costeletas de ternera', 'costeleta ternera', 'costeletas ternera', 'costeleta', 'costeletas'], 
-    name: 'Costeletas de Ternera (2kg x $35.000 promo)', 
-    price: 17500, 
-    unit: 'kg', 
-    category: 'Cortes Tradicionales' 
-  },
-  { 
-    plu: '2012',
-    keywords: ['chorizo criollo puro cerdo', 'chorizo de cerdo', 'chorizos de cerdo', 'chorizo cerdo', 'chorizos cerdo', 'chori de cerdo', 'choris de cerdo', 'chorizo criollo', 'chori criollo', 'chorizo puro cerdo', 'chorizo', 'chorizos', 'chori', 'choris'], 
-    name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', 
-    price: 5000, 
-    unit: 'kg', 
-    category: 'Embutidos' 
-  },
-  { 
-    plu: '2013',
-    keywords: ['morcilla bombon', 'morcilla bombón', 'morcillas bombon', 'morcillas bombón', 'morcilla', 'morcillas'], 
-    name: 'Morcilla Bombón Parrillera', 
-    price: 5200, 
-    unit: 'kg', 
-    category: 'Embutidos' 
-  },
-  { 
-    plu: '2014',
-    keywords: ['molleja de corazon', 'mollejas de corazon', 'molleja', 'mollejas'], 
-    name: 'Mollejas de Corazón', 
-    price: 14800, 
-    unit: 'kg', 
-    category: 'Achuras' 
-  },
-  { 
-    plu: '2015',
-    keywords: ['chinchulin', 'chinchulines', 'chinchu'], 
-    name: 'Chinchulines Crocantes', 
-    price: 4800, 
-    unit: 'kg', 
-    category: 'Achuras' 
-  },
-  { 
-    plu: '2016',
-    keywords: ['carne molida especial', 'molida especial', 'picada especial', 'carne picada especial', 'molida de primera', 'molida magra', 'picada de primera', 'picada magra'], 
-    name: 'Carne Molida Especial Seleccionada (Magra)', 
-    price: 11800, 
-    unit: 'kg', 
-    category: 'Diario y Preparados' 
-  },
-  { 
-    plu: '2017',
-    keywords: ['carne molida intermedia', 'molida intermedia', 'carne molida comun', 'molida comun', 'carne molida común', 'molida común', 'carne molida', 'carne picada', 'molida', 'picada'], 
-    name: 'Carne Molida Intermedia (3kg x $27.000 promo)', 
-    price: 9000, 
-    unit: 'kg', 
-    category: 'Diario y Preparados' 
-  },
-  { 
-    plu: '2018',
-    keywords: ['milanesas de ternera', 'milanesa de ternera', 'milanesas', 'milanesa'], 
-    name: 'Milanesas de Ternera preparadas (2kg x $24.990)', 
-    price: 12495, 
-    unit: 'kg', 
-    category: 'Diario y Preparados' 
-  },
-  { 
-    plu: '2019',
-    keywords: ['pata muslo', 'pollo fresco', 'pollo', 'suprema de pollo', 'pechuga'], 
-    name: 'Pata Muslo Fresca (3kg x $13.990 promo)', 
-    price: 4660, 
-    unit: 'kg', 
-    category: 'Pollo' 
-  },
-  { 
-    plu: '2020',
-    keywords: ['carbon quebracho', 'carbón quebracho', 'bolsa de carbon', 'bolsa de carbón', 'carbon', 'carbón'], 
-    name: 'Carbón Quebracho Blanco (Bolsa Grande)', 
-    price: 2200, 
-    unit: 'bolsa', 
-    category: 'Almacén Parrillero' 
-  },
-  { 
-    plu: '2021',
-    keywords: ['vino howlmande', 'howlmande malbec', 'vino', 'howlmande', 'malbec'], 
-    name: 'Vino Howlmande Malbec Reserva', 
-    price: 5500, 
-    unit: 'botella', 
-    category: 'Bebidas' 
-  }
-];
+const PRODUCT_KEYWORDS_MAP = {
+  'combo asadazo': ['combo asadazo', 'combo "asadazo"', 'combo asado', 'asadazo', 'azadazo', 'asasazo', 'asadaso', 'azadaso', 'combo parrillero', 'combo 4kg', 'combo 4 kg', 'combo'],
+  'tapa de cuadril': ['tapa de cuadril', 'tapa cuadril', 'colita de cuadril', 'cuadril', 'picanha'],
+  'vacío': ['vacio especial', 'vacío especial', 'vacio tierno', 'vacío tierno', 'vacio', 'vacío'],
+  'costillar': ['costillar de novillito', 'asado de tira novillito', 'costillar', 'asado de tira', 'tira de asado', 'costilla novillito', 'costillar novillito', 'tira novillito', 'costilla'],
+  'bife de chorizo': ['bife de chorizo', 'bife chorizo', 'bifes de chorizo', 'ojo de bife', 'bife de lomo'],
+  'entraña': ['entraña fina', 'entrana fina', 'entraña', 'entrana', 'entrecot', 'enrecor'],
+  'matambrito de cerdo': ['matambre de cerdo', 'matambrito de cerdo', 'matambre cerdo', 'matambrito cerdo', 'matambrito'],
+  'matambre vacuno': ['matambre de vaca', 'matambre vacuno', 'matambre'],
+  'bondiola': ['bondiola de cerdo', 'bondiola cerdo', 'bondiola'],
+  'costeletas de cerdo': ['costeleta de cerdo', 'costeletas de cerdo', 'costeleta cerdo', 'costeletas cerdo', 'chuleta de cerdo', 'chuletas de cerdo'],
+  'costeletas de ternera': ['costeleta de ternera', 'costeletas de ternera', 'costeleta ternera', 'costeletas ternera', 'costeleta', 'costeletas'],
+  'chorizo': ['chorizo criollo puro cerdo', 'chorizo de cerdo', 'chorizos de cerdo', 'chorizo cerdo', 'chorizos cerdo', 'chori de cerdo', 'choris de cerdo', 'chorizo criollo', 'chori criollo', 'chorizo puro cerdo', 'chorizo', 'chorizos', 'chori', 'choris'],
+  'morcilla': ['morcilla bombon', 'morcilla bombón', 'morcillas bombon', 'morcillas bombón', 'morcilla', 'morcillas'],
+  'mollejas': ['molleja de corazon', 'mollejas de corazon', 'molleja', 'mollejas'],
+  'chinchulines': ['chinchulin', 'chinchulines', 'chinchu'],
+  'molida especial': ['carne molida especial', 'molida especial', 'picada especial', 'carne picada especial', 'molida de primera', 'molida magra', 'picada de primera', 'picada magra'],
+  'molida intermedia': ['carne molida intermedia', 'molida intermedia', 'carne molida comun', 'molida comun', 'carne molida común', 'molida común', 'carne molida', 'carne picada', 'molida', 'picada'],
+  'milanesas': ['milanesas de ternera', 'milanesa de ternera', 'milanesas', 'milanesa'],
+  'pata muslo': ['pata muslo', 'pollo fresco', 'pollo', 'suprema de pollo', 'pechuga'],
+  'carbón': ['carbon quebracho', 'carbón quebracho', 'bolsa de carbon', 'bolsa de carbón', 'carbon', 'carbón'],
+  'vino': ['vino howlmande', 'howlmande malbec', 'vino', 'howlmande', 'malbec']
+};
+
+/**
+ * Obtiene el catálogo dinámico de productos SIEMPRE desde la base de datos.
+ * Enriquece cada producto con keywords de búsqueda si tiene coincidencia en el mapa.
+ * Esta es la ÚNICA fuente de verdad para productos en todo el sistema.
+ */
+function getDynamicCatalog() {
+  const products = db.getProducts() || [];
+  return products.map(p => {
+    // Si el producto ya tiene keywords, usarlas
+    if (p.keywords && p.keywords.length > 0) return p;
+    // Buscar keywords por nombre del producto
+    const pName = (p.name || '').toLowerCase();
+    for (const [key, kws] of Object.entries(PRODUCT_KEYWORDS_MAP)) {
+      if (pName.includes(key)) {
+        return { ...p, keywords: kws };
+      }
+    }
+    return p;
+  });
+}
+
+// Alias para compatibilidad — siempre lee de la DB dinámica
+const MASTER_CATALOG = null; // DEPRECATED: usar getDynamicCatalog()
+
 
 export const OFFICIAL_BRANCHES_MENU = [
   { id: 'branch_urca_1', name: 'Urca Central', address: 'Av. José Roque Funes 1115', keywords: ['urca central', 'funes', 'urca 1', 'roque funes'] },
@@ -230,7 +110,7 @@ export function parseAsadoOptionFromMessage(msg, optNum, catalog = null) {
   const parts = msg.split(/(?:1️⃣|2️⃣|3️⃣)/);
   if (parts.length <= optNum) return null;
 
-  const catList = (catalog && catalog.length > 0) ? catalog : (db?.getProducts?.() || MASTER_CATALOG);
+  const catList = (catalog && catalog.length > 0) ? catalog : getDynamicCatalog();
   const rawBlock = parts[optNum];
   const lines = rawBlock.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -295,7 +175,7 @@ export function findAmbiguousProducts(chunk, dynamicCatalog = null) {
   const hasMultipleProductsOrQuantities = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?|chorizos?|morcillas?))/i.test(c) && /(?:y\b|con\b|adem[aá]s|m[aá]s|,)/i.test(c);
   if (hasMultipleProductsOrQuantities) return null;
 
-  const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : (db.getProducts() || MASTER_CATALOG);
+  const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : getDynamicCatalog();
 
   const eligibleCatalog = rawList.filter(p => {
     const price = Number(p.price) || 0;
@@ -378,7 +258,7 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
   const c = (chunk || '').toLowerCase().trim();
   if (!c) return null;
 
-  const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : (db.getProducts() || MASTER_CATALOG);
+  const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : getDynamicCatalog();
 
   // 1. Filtrar solo productos válidos para venta por WhatsApp (precio > 0, disponibles y carnicería)
   const isExplicitSnackMention = /papas?\s+pehuamar|pehuamar|lays|doritos|3d queso|tryms|chizitos|saladix/i.test(c);
@@ -547,9 +427,7 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     }
   }
 
-  if (!bestMatch && dynamicCatalog !== MASTER_CATALOG) {
-    return matchBestProduct(chunk, MASTER_CATALOG);
-  }
+  // Ya no hay fallback a catálogo hardcodeado — db.getProducts() es la fuente única de verdad
 
   return bestMatch;
 }
@@ -4323,7 +4201,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
     // Respuesta a opción 1 del menú de modificación (sumar/cambiar cortes)
     if ((wasModMenuOffered && /^(?:1|1️⃣|cortes|catalogo|catálogo|cambiar cortes|sumar cortes|productos|carne)$/i.test(t.trim())) || /quiero (?:sumar|cambiar|agregar) cortes/i.test(t)) {
-      const catalogToOffer = (products && products.length > 0) ? products.slice(0, 8) : MASTER_CATALOG.slice(0, 8);
+      const catalogToOffer = (products && products.length > 0) ? products.slice(0, 8) : getDynamicCatalog().slice(0, 8);
       return `¡De diez ${clientName}! 🥩 Acá tenés nuestras opciones y cortes del día:\n\n` +
         `${formatNumberedCatalog(catalogToOffer)}\n\n` +
         `👉 Decime qué número de opción o cortes querés sumar o cambiar a tu pedido. 🙌`;
@@ -5073,22 +4951,20 @@ Whenever the user asks about the current time, date, products count, orders, or 
     // 5.3 Consulta general de precios y catálogo
     const isOffersQuery = /oferta|ofertas|promo|promos|promocion|promociones|lista de precios|precios|precio|que tenes|que tenés|que hay|que cortes|carta|catalogo|catálogo/i.test(t);
     if (isOffersQuery) {
+      // Generar ofertas DINÁMICAMENTE desde db.getProducts() — fuente única de verdad
+      const featuredProducts = getFeaturedWhatsAppOffers(products);
+      const productLines = featuredProducts.map((cp, idx) => {
+        const pluInfo = cp.plu ? ` [PLU ${cp.plu}]` : '';
+        const promoTag = /promo|x \$/i.test(cp.name) ? ' 🔥' : '';
+        return `• **${cp.name}${pluInfo}:** $${Number(cp.price).toLocaleString('es-AR')} / ${cp.unit || 'kg'}${promoTag}`;
+      }).join('\n');
+
+      const totalAvailable = (products && products.length > 0) ? products.length : featuredProducts.length;
+
       return `¡Mirá ${clientName}! 🔥 Estas son nuestras **OFERTAS Y CORTES DESTACADOS** del día en República de la Carne:\n\n` +
-        `🔥 **PROMO ESTRELLA - COMBO ASADAZO (4 kg):**\n` +
-        `🥩 Bocado parrillero + Aguja tierna + Falda especial + Chorizos criollos puro cerdo + Morcillas bombón + 🎁 **1 Vino Howlmande de regalo** ➔ **$39.999**\n\n` +
-        `🥩 **CORTES SELECCIONADOS DE NOVILLITO (x Kilo):**\n` +
-        `• **Tapa de Cuadril Seleccionada [PLU 2]:** $12.800 / kg\n` +
-        `• **Vacío Especial / Tierno [PLU 3]:** $11.500 / kg\n` +
-        `• **Costillar / Asado de Tira [PLU 4]:** $9.800 / kg\n` +
-        `• **Bife de Chorizo Premium [PLU 5]:** $14.500 / kg\n` +
-        `• **Entraña Fina Seleccionada [PLU 6]:** $16.900 / kg\n` +
-        `• **Carne Molida Especial Magra [PLU 11]:** $11.800 / kg\n` +
-        `• **Costeletas de Cerdo [PLU 9] (2kg x $15.000 promo):** $7.500 / kg\n` +
-        `• **Chorizo Criollo Puro Cerdo [PLU 7] (2kg x $10.000 promo):** $5.000 / kg\n` +
-        `• **Morcilla Bombón Parrillera [PLU 8]:** $5.200 / kg\n` +
-        `• **Milanesas de Ternera [PLU 12] (2kg x $24.990 promo):** $12.495 / kg\n` +
-        `• **Carbón Quebracho Bolsa Grande [PLU 13]:** $2.200\n\n` +
-        `👉 Contamos con más de 750 cortes frescos registrados con entrega en el día en Córdoba. ¿Qué corte te gustaría que te preparemos o para cuántas personas calculamos? 🥩🚚 [[STAGE:proposal]]`;
+        `🥩 **CORTES Y PROMOS SELECCIONADOS:**\n` +
+        `${productLines}\n\n` +
+        `👉 Contamos con ${totalAvailable} cortes y productos frescos registrados con entrega en el día en Córdoba. ¿Qué corte te gustaría que te preparemos o para cuántas personas calculamos? 🥩🚚 [[STAGE:proposal]]`;
     }
 
     // =========================================================================

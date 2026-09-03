@@ -17,31 +17,13 @@ import { CHAT_STRATEGY_GRAPH } from './chatStrategyGraph.js';
  */
 export class NeuralMemoryService {
   /**
-   * Catálogo Maestro Invariable
+   * Catálogo Maestro Dinámico — lee SIEMPRE de db.getProducts()
+   * Único punto de acceso al catálogo para NeuralMemory.
    */
-  static MASTER_CATALOG = [
-    { id: 'prod_asadazo', plu: '2001', barcode: '7792001000001', name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, unit: 'combo', category: 'Combos en Oferta', description: '4 kg cortes parrilleros (Bocado, Aguja, Falda, Chori criollo, Morcilla) + 1 Vino Howlmande Malbec Reserva de regalo' },
-    { id: 'prod_tapa_cuadril', plu: '2002', barcode: '7792002000002', name: 'Tapa de Cuadril Seleccionada', price: 12800, unit: 'kg', category: 'Parrilla y Horno', description: 'Corte de novillito seleccionado con cobertura de grasa perfecta' },
-    { id: 'prod_vacio', plu: '2003', barcode: '7792003000003', name: 'Vacío Especial Seleccionado', price: 11500, unit: 'kg', category: 'Parrilla', description: 'Vacío tierno y jugoso de novillito' },
-    { id: 'prod_costillar', plu: '2004', barcode: '7792004000004', name: 'Costillar / Asado de Tira Novillito', price: 9800, unit: 'kg', category: 'Parrilla', description: 'Tira de asado con excelente marmoleado' },
-    { id: 'prod_bife_chorizo', plu: '2005', barcode: '7792005000005', name: 'Bife de Chorizo Premium', price: 14500, unit: 'kg', category: 'Cortes Premium', description: 'Corte deshuesado de lomo de novillito' },
-    { id: 'prod_entrana', plu: '2006', barcode: '7792006000006', name: 'Entraña Fina Seleccionada', price: 16900, unit: 'kg', category: 'Cortes Premium', description: 'Entraña tierna y crocante a la brasa' },
-    { id: 'prod_matambre_cerdo', plu: '2007', barcode: '7792007000007', name: 'Matambrito de Cerdo Tiernizado', price: 8500, unit: 'kg', category: 'Cerdo y Parrilla', description: 'Matambre de cerdo fresco listo para parrilla o limón' },
-    { id: 'prod_matambre_vaca', plu: '2008', barcode: '7792008000008', name: 'Matambre Vacuno', price: 9500, unit: 'kg', category: 'Parrilla y Horno', description: 'Matambre vacuno magro y tierno' },
-    { id: 'prod_bondiola', plu: '2009', barcode: '7792009000009', name: 'Bondiola de Cerdo sin Hueso', price: 8900, unit: 'kg', category: 'Cerdo', description: 'Pieza entera o fraccionada de bondiola de cerdo' },
-    { id: 'prod_costeletas_cerdo', plu: '2010', barcode: '7792010000010', name: 'Costeletas de Cerdo (2kg x $15.000 promo)', price: 7500, unit: 'kg', category: 'Cerdo', description: 'Chuletas frescas de cerdo en promo por 2kg' },
-    { id: 'prod_costeletas_ternera', plu: '2011', barcode: '7792011000011', name: 'Costeletas de Ternera (2kg x $35.000 promo)', price: 17500, unit: 'kg', category: 'Cortes Tradicionales', description: 'Costeletas de ternera de primera calidad' },
-    { id: 'prod_chorizo', plu: '2012', barcode: '7792012000012', name: 'Chorizo Criollo Puro Cerdo (2kg x $10.000 promo)', price: 5000, unit: 'kg', category: 'Embutidos', description: 'Embutido parrillero 100% puro cerdo receta artesanal' },
-    { id: 'prod_morcilla', plu: '2013', barcode: '7792013000013', name: 'Morcilla Bombón Parrillera', price: 5200, unit: 'kg', category: 'Embutidos', description: 'Morcillas bombón suaves y cremosas' },
-    { id: 'prod_mollejas', plu: '2014', barcode: '7792014000014', name: 'Mollejas de Corazón', price: 14800, unit: 'kg', category: 'Achuras', description: 'Achura crocante por fuera y suave por dentro' },
-    { id: 'prod_chinchulines', plu: '2015', barcode: '7792015000015', name: 'Chinchulines Crocantes', price: 4800, unit: 'kg', category: 'Achuras', description: 'Chinchulines seleccionados y limpios' },
-    { id: 'prod_molida_especial', plu: '2016', barcode: '7792016000016', name: 'Carne Molida Especial Seleccionada (Magra)', price: 11800, unit: 'kg', category: 'Diario y Preparados', description: 'Carne picada de primera sin grasa' },
-    { id: 'prod_molida_intermedia', plu: '2017', barcode: '7792017000017', name: 'Carne Molida Intermedia (3kg x $27.000 promo)', price: 9000, unit: 'kg', category: 'Diario y Preparados', description: 'Molida para empanadas o salsas' },
-    { id: 'prod_milanesas', plu: '2018', barcode: '7792018000018', name: 'Milanesas de Ternera preparadas (2kg x $24.990)', price: 12495, unit: 'kg', category: 'Diario y Preparados', description: 'Milanesas rebozadas listas para freír o al horno' },
-    { id: 'prod_pollo', plu: '2019', barcode: '7792019000019', name: 'Pata Muslo Fresca (3kg x $13.990 promo)', price: 4660, unit: 'kg', category: 'Pollo', description: 'Pollo fresco seleccionado' },
-    { id: 'prod_carbon', plu: '2020', barcode: '7792020000020', name: 'Carbón Quebracho Blanco (Bolsa Grande)', price: 2200, unit: 'bolsa', category: 'Almacén Parrillero', description: 'Carbón de leña dura de larga duración' },
-    { id: 'prod_vino', plu: '2021', barcode: '7792021000021', name: 'Vino Howlmande Malbec Reserva', price: 5500, unit: 'botella', category: 'Bebidas', description: 'Vino tinto Malbec premium para maridar carnes' }
-  ];
+  static get MASTER_CATALOG() {
+    const products = db.getProducts() || [];
+    return products.length > 0 ? products : [];
+  }
 
   /**
    * 6 Sucursales Oficiales
@@ -426,12 +408,23 @@ export class NeuralMemoryService {
 5. VILLA ALLENDE — Av. Figueroa Alcorta 480 (Lun-Sáb 9-13:30 y 17-21hs, Dom 9-13:30hs | Tel: +54 9 3513 540031)
 6. COUNTRY SAN ISIDRO (ALTO TEJEDA) — Av. Padre Luchesse km 2 (Lun-Mié 7-00hs, Jue-Vie 7-01hs, Sáb 8-01hs, Dom 8:30-00hs | Tel: +54 9 3518 769099)
 
-🥩 REGLAS ESTRICTAS DE CATÁLOGO & PRODUCTOS:
-- PROMO ESTRELLA: Combo “Asadazo” (4 kg cortes + 1 Vino Howlmande de regalo) = $39.999.
-- Cortes Novillito: Tapa de cuadril ($12.800/kg), Vacío tierno ($11.500/kg), Costillar ($9.800/kg), Bife de chorizo ($14.500/kg), Entraña ($16.900/kg).
-- Promos Ahorro: Costeletas de cerdo 2kg x $15.000, Chorizos criollos puro cerdo 2kg x $10.000, Molida intermedia 3kg x $27.000, Milanesas de ternera 2kg x $24.990, Pata muslo 3kg x $13.990.
-- Complementos: Carbón quebracho blanco ($2.200), Vino Howlmande Malbec Reserva ($5.500).
-⚠️ REGLA CRÍTICA: NO ofrecer ni inventar productos fuera de este catálogo (no vendemos pescado, sushi, bebidas alcohólicas sueltas, etc.).
+🥩 CATÁLOGO DE CORTES Y PRODUCTOS VIGENTES (PRECIOS ACTUALIZADOS EN TIEMPO REAL):
+${(() => {
+  const catalog = this.MASTER_CATALOG;
+  if (catalog.length === 0) return '- Catálogo vacío. Consultar con administrador.';
+  // Agrupar por categoría
+  const byCategory = {};
+  catalog.filter(p => p.isAvailable !== false && (Number(p.price) || 0) > 0).forEach(p => {
+    const cat = p.category || 'General';
+    if (!byCategory[cat]) byCategory[cat] = [];
+    byCategory[cat].push(p);
+  });
+  return Object.entries(byCategory).map(([cat, prods]) => {
+    const lines = prods.slice(0, 10).map(p => `  • ${p.name} (PLU ${p.plu || '-'}): $${Number(p.price).toLocaleString('es-AR')}/${p.unit || 'kg'}`);
+    return `- ${cat}:\n${lines.join('\n')}`;
+  }).join('\n');
+})()}
+⚠️ REGLA CRÍTICA: NO ofrecer ni inventar productos fuera de este catálogo. Los precios listados arriba son los VIGENTES actualizados del sistema.
 
 👤 DOSSIER Y MEMORIA APRENDIDA DEL CLIENTE ACTUAL:
 - Nombre: ${activeLead.name || activeLead.pushName || 'No identificado'}

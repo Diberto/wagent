@@ -202,18 +202,8 @@ export function getVariedClosing() {
 export function getFeaturedWhatsAppOffers(catalog = null) {
   const currentCatalog = (Array.isArray(catalog) && catalog.length > 0) ? catalog : (db.getProducts() || []);
 
-  const fallbackOffers = [
-    { plu: '1', name: 'Combo “Asadazo” (4 kg cortes + Vino de regalo)', price: 39999, unit: 'combo', category: 'Combos en Oferta' },
-    { plu: '2', name: 'Tapa de Cuadril Seleccionada', price: 12800, unit: 'kg', category: 'Parrilla y Horno' },
-    { plu: '3', name: 'Vacío Especial Seleccionado', price: 11500, unit: 'kg', category: 'Parrilla' },
-    { plu: '4', name: 'Costillar / Asado de Tira Novillito', price: 9800, unit: 'kg', category: 'Parrilla' },
-    { plu: '5', name: 'Bife de Chorizo Premium', price: 14500, unit: 'kg', category: 'Cortes Premium' },
-    { plu: '6', name: 'Entraña Fina Seleccionada', price: 16900, unit: 'kg', category: 'Cortes Premium' },
-    { plu: '7', name: 'Matambrito de Cerdo Tiernizado', price: 8500, unit: 'kg', category: 'Cerdo y Parrilla' },
-    { plu: '8', name: 'Matambre Vacuno', price: 9500, unit: 'kg', category: 'Parrilla y Horno' }
-  ];
-
-  if (!Array.isArray(currentCatalog) || currentCatalog.length === 0) return fallbackOffers;
+  // Ya no se usan ofertas hardcodeadas — db.getProducts() es la fuente única de verdad
+  const fallbackOffers = [];
 
   // Filtrar solo productos válidos, disponibles y con precio real > 0
   const validMeatList = currentCatalog.filter(p => {
