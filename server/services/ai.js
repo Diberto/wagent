@@ -527,9 +527,10 @@ export function cleanAndSplitMultiProductMessage(text) {
        .replace(/\b(costillas?|tira\s+de\s+asado)\b/gi, 'costillar')
        .replace(/\bcarb[oó]n\b/gi, 'carbón');
 
-  // Insertar separador cuando un nuevo número/cantidad comienza después de palabras de producto
+  // Insertar separador cuando un nuevo número/cantidad comienza después de palabras de producto (evitando preposiciones como 'de', 'del', 'por', 'cada')
   // Ej: "2 kilos de costillas 1 kilo de matambre" -> "2 kilos de costillas , 1 kilo de matambre"
-  s = s.replace(/([a-záéíóúñ]+)\s+(\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?))/gi, '$1 , $2');
+  s = s.replace(/\b(?!de\b|del\b|por\b|x\b|cada\b|unos?\b)([a-záéíóúñ]+)\s+(\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bolsas?|botellas?|paquetes?|combos?|tiras?|bifes?))/gi, '$1 , $2');
+
 
   // Separar cuando aparece un número solo seguido de nombre de corte común
   s = s.replace(/([a-záéíóúñ]+)\s+(\d+)\s+(costillar|costillas?|vacio|vacío|matambre|matambrito|chorizo|chori|morcilla|milanesa|carbón|carbon|vino)/gi, '$1 , $2 $3');
@@ -715,18 +716,23 @@ export function parseQuantityAndMode(str, prod = null) {
     !/(?:\b(?:[2-9]|1[0-9])\s+(?:kg|kilos?|combos?|unidades?|piezas?|bolsas?|botellas?|de\s+los\s+combos?))/i.test(s);
 
   let num = 1;
-  const numMatch = s.match(/([0-9]+(?:[\.,][0-9]+)?)/);
+  // Si dice "1 pieza de 2 kilos", "1 matambre de 2 kg", el peso en balanza a cotizar son 2 kilos
+  const explicitWeightMatch = s.match(/(?:de|por)\s+([0-9]+(?:[\.,][0-9]+)?)\s*(?:kg|kilos?|kgs?)\b/i);
 
   if (/(?:medio\s+kilo|1\/2\s*kg|medio\b)/i.test(s)) {
     return { quantity: 0.5, isUnitMode: false, unitCount: 0, label: '0.5 kg' };
   } else if (isMenuOptionRef) {
     num = 1;
-  } else if (numMatch) {
+  } else if (explicitWeightMatch) {
+    num = parseFloat(explicitWeightMatch[1].replace(',', '.'));
+  } else if (s.match(/([0-9]+(?:[\.,][0-9]+)?)/)) {
+    const numMatch = s.match(/([0-9]+(?:[\.,][0-9]+)?)/);
     const val = parseFloat(numMatch[1].replace(',', '.'));
     if (val <= 30 || /(?:kg|kilo|kilos|unidades|chorizo|morcilla|bife|costeleta)/i.test(s)) {
       num = val;
     }
   } else if (/(?:dos\s+solos|2\s+solos|\bdos\b)/i.test(s)) num = 2;
+
   else if (/(?:tres\b)/i.test(s)) num = 3;
   else if (/(?:cuatro\b)/i.test(s)) num = 4;
   else if (/(?:cinco\b)/i.test(s)) num = 5;

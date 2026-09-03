@@ -170,60 +170,80 @@ export class OrderSyncEngine {
 
     if (!replyMsg) return { items, products, total };
 
-    // Patrones de líneas de detalle del pedido que emite el agente
-    // Ej: "* 2 kg de Milanesas de Ternera: $24.990" 
-    //     "• 1.5 kg Vacío Especial — $17.250"
-    //     "* *2 kg de Milanesas de Ternera (Promo):* $24.990"
-    const lineRegex = /[•*\-]\s+\*?(\d+(?:[.,]\d+)?)\s*(kg|kilos?|unidades?|u\b|gr|gramos?)?\*?\s+(?:de\s+)?\*?([A-Za-záéíóúñÁÉÍÓÚÑ\s\(\)\/]+?)\*?\s*[:\-–—]\*?\s*\$?\s*([\d.,]+)/gi;
+    const lines = replyMsg.split('\n');
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line.startsWith('*') && !line.startsWith('•') && !line.startsWith('-')) continue;
 
-    // También capturar el total general del resumen
-    const totalRegex = /(?:total[^:]*|total estimado)[:\s]*\$?\s*([\d.,]+)/gi;
+      // Quitar la viñeta inicial
+      const clean = line.replace(/^[•*\-\s]+/, '').trim();
+      if (!clean || /detalle|total|opciones|respondé|cómo seguimos|paso 4/i.test(clean)) continue;
 
-    let match;
-    while ((match = lineRegex.exec(replyMsg)) !== null) {
-      const qty = parseFloat((match[1] || '1').replace(',', '.'));
-      const unit = (match[2] || 'kg').toLowerCase().replace(/s$/, '').replace('kilo', 'kg');
-      const rawName = (match[3] || '').trim().replace(/\s+/g, ' ');
-      const rawPrice = parseFloat((match[4] || '0').replace(/\./g, '').replace(',', '.'));
+      // Buscar precio al final de la línea: después de '—', '-', ':', o '('
+      // Ej: "— $3.750", ": $24.990 (total)", "— $11.250", "$28.900"
+      const lastPriceMatch = clean.match(/(?:—|-|:)\s*\*?\$?\s*([\d\.,]+)\*?(?:\s*(?:total|en total|\([^)]*\)|por los 2kg|\*))?\s*$/i);
+      if (!lastPriceMatch) continue;
 
-      if (!rawName || rawPrice <= 0) continue;
+      const rawPrice = parseInt(lastPriceMatch[1].replace(/\D/g, ''), 10);
+      if (isNaN(rawPrice) || rawPrice <= 0) continue;
 
-      // Intentar encontrar el producto en el catálogo real por nombre
-      const catalogProduct = this.matchCatalogProduct(rawName, catalog);
+      // Cortar la línea antes del separador del precio final
+      const separatorIdx = clean.lastIndexOf(lastPriceMatch[0]);
+      const textBeforePrice = (separatorIdx >= 0 ? clean.substring(0, separatorIdx) : clean).trim().replace(/[:—\-\(\*]+$/, '').trim();
 
-      // Precio exacto acordado por el agente en la conversación
-      // Si el agente dijo "$24.990", ese es el subtotal sagrado de la línea
-      const subtotal = rawPrice;
+      // Detectar cantidad y unidad al inicio
+      const qtyMatch = textBeforePrice.match(/^(\d+(?:[.,]\d+)?)\s*(kg|kilos?|unidades?|un|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?/i);
+      const qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
+      let unit = 'kg';
+      if (qtyMatch && qtyMatch[2]) {
+        const u = qtyMatch[2].toLowerCase();
+        if (u.startsWith('k')) unit = 'kg';
+        else if (u.startsWith('u')) unit = 'un';
+        else if (u.startsWith('bols')) unit = 'bolsa';
+        else if (u.startsWith('bot')) unit = 'botella';
+        else if (u.startsWith('comb')) unit = 'combo';
+        else if (u.startsWith('tira')) unit = 'tira';
+        else if (u.startsWith('bife')) unit = 'bife';
+        else unit = u;
+      }
+      const rawName = qtyMatch ? textBeforePrice.slice(qtyMatch[0].length).trim() : textBeforePrice;
+      const cleanName = rawName.replace(/^[*_]+|[*_:]+$/g, '').trim();
+
+
+      if (!cleanName) continue;
+
+      // Intentar vincular con el catálogo real por similitud
+      const catalogProduct = this.matchCatalogProduct(cleanName, catalog);
       const unitPrice = qty > 0 ? Math.round(rawPrice / qty) : rawPrice;
 
       const productEntry = {
-        id: catalogProduct?.id || `prod-${rawName.toLowerCase().replace(/\s+/g, '-')}`,
+        id: catalogProduct?.id || `prod_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
         plu: catalogProduct?.plu || '',
         barcode: catalogProduct?.barcode || '',
         category: catalogProduct?.category || 'Carnicería',
-        name: catalogProduct?.name || rawName,
+        name: catalogProduct?.name || cleanName,
         price: unitPrice,
         unitPrice: unitPrice,
         quantity: qty,
         unit: catalogProduct?.unit || unit,
-        subtotal: subtotal
+        subtotal: rawPrice
       };
 
       products.push(productEntry);
-      items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
-      total += subtotal;
+      items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${rawPrice.toLocaleString('es-AR')}`);
+      total += rawPrice;
     }
 
-
-    // Capturar total general si lo menciona el agente
-    let totalMatch;
-    while ((totalMatch = totalRegex.exec(replyMsg)) !== null) {
-      const t = parseFloat((totalMatch[1] || '0').replace(/\./g, '').replace(',', '.'));
-      if (t > total) total = t;
+    // Verificar si hay total general explícito
+    const totalMatch = replyMsg.match(/(?:total[^:]*|total estimado|total acumulado estimado)[:\s]*\*?\$?\s*([\d.,]+)/i);
+    if (totalMatch) {
+      const explicitTotal = parseInt(totalMatch[1].replace(/\D/g, ''), 10);
+      if (explicitTotal > 0 && explicitTotal >= total) total = explicitTotal;
     }
 
     return { items, products, total };
   }
+
 
   /**
    * Busca el mejor producto del catálogo real por similitud de nombre.
