@@ -29,7 +29,8 @@ import {
   ChevronRight,
   UserCheck,
   ChefHat,
-  Activity
+  Activity,
+  Tag
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -74,6 +75,7 @@ export default function Navbar({
       icon: Store,
       items: [
         { id: 'storefront', label: '🛍️ Tienda Online (/tienda)', icon: Globe, desc: 'Catálogo webapp y pedidos WhatsApp' },
+        { id: 'coupons', label: '🏷️ Cupones de Descuento', icon: Tag, desc: 'Crear y gestionar códigos de descuento con vigencia y límites' },
         { id: 'recipes', label: '👨‍🍳 Recetas Tradicionales', icon: ChefHat, desc: 'Recetario argentino vinculado a cortes' },
         { id: 'branches', label: '6 Sucursales Oficiales', icon: Store, desc: 'Urca, Intercountry, Duarte Quirós, Villa Allende y más' },
         { id: 'media-gallery', label: '🖼️ Galería de Medios', icon: ImageIcon, desc: 'Fotos de cortes y banners optimizados' },

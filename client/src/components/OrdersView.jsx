@@ -100,24 +100,26 @@ export const formatItemQuantity = (quantity, unit) => {
 export const parseOrderItems = (order) => {
   if (!order) return [];
 
-  // 1. Si ya tiene productos estructurados
+  // Helper: asigna icono según nombre
+  const getIcon = (name = '') => {
+    const l = name.toLowerCase();
+    if (l.includes('combo') || l.includes('asadazo')) return '⭐';
+    if (l.includes('chori') || l.includes('morcilla') || l.includes('chinchu') || l.includes('molleja')) return '🌭';
+    if (l.includes('cerdo') || l.includes('pechito') || l.includes('costeleta')) return '🐖';
+    if (l.includes('pollo') || l.includes('milanesa')) return '🍽️';
+    if (l.includes('carbón') || l.includes('carbon')) return '🔥';
+    if (l.includes('vino') || l.includes('malbec')) return '🍷';
+    return '🥩';
+  };
+
+  // 1. Si ya tiene productos estructurados (formato moderno)
   if (Array.isArray(order.products) && order.products.length > 0) {
     return order.products.map((p, idx) => {
-      let qty = Number(p.quantity) || 1;
-      let unit = p.unit || 'kg';
+      const qty = Number(p.quantity) || 1;
+      const unit = p.unit || 'kg';
       const name = p.name || 'Corte Seleccionado';
-      let icon = p.icon || '🥩';
-      const lower = name.toLowerCase();
-      if (lower.includes('combo') || lower.includes('asadazo')) icon = '⭐';
-      else if (lower.includes('chori') || lower.includes('morcilla') || lower.includes('chinchu') || lower.includes('molleja')) icon = '🌭';
-      else if (lower.includes('cerdo') || lower.includes('pechito') || lower.includes('costeleta')) icon = '🐖';
-      else if (lower.includes('pollo') || lower.includes('milanesa')) icon = '🍽️';
-      else if (lower.includes('carbón') || lower.includes('carbon')) icon = '🔥';
-      else if (lower.includes('vino') || lower.includes('malbec')) icon = '🍷';
-
       const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
       const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
-
       return {
         id: p.id || `prod-${idx}`,
         name,
@@ -125,19 +127,73 @@ export const parseOrderItems = (order) => {
         unit,
         price: unitPrice,
         total: lineSubtotal > 0 ? lineSubtotal : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.products.length)),
-        icon
+        icon: p.icon || getIcon(name)
       };
     });
   }
 
-  // 2. Si tiene items en formato array de strings o string multilinea
-  const rawItems = Array.isArray(order.items)
-    ? order.items
-    : typeof order.items === 'string'
-    ? order.items.split('\n').map(s => s.trim()).filter(Boolean)
-    : [];
+  // 2. Intentar parsear items como JSON string si viene así guardado
+  let parsedProducts = null;
+  if (typeof order.items === 'string') {
+    const trimmed = order.items.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        parsedProducts = JSON.parse(trimmed);
+        if (!Array.isArray(parsedProducts)) parsedProducts = [parsedProducts];
+      } catch (e) { parsedProducts = null; }
+    }
+  }
+  if (parsedProducts && parsedProducts.length > 0 && typeof parsedProducts[0] === 'object') {
+    return parsedProducts.map((p, idx) => {
+      const qty = Number(p.quantity || p.qty || 1);
+      const name = p.name || p.product || 'Corte Seleccionado';
+      const sub = Number(p.subtotal || p.total || p.price || 0) * (Number(p.quantity || 1));
+      const total = Number(p.subtotal || sub || p.price || 0);
+      return {
+        id: p.id || `pjson-${idx}`,
+        name,
+        quantity: qty,
+        unit: p.unit || 'kg',
+        price: Number(p.unitPrice || p.price || 0) || (qty > 0 ? Math.round(total / qty) : total),
+        total: total > 0 ? total : Math.round((Number(order.totalAmount) || 0) / Math.max(1, parsedProducts.length)),
+        icon: p.icon || getIcon(name)
+      };
+    });
+  }
 
-  if (rawItems.length === 0) {
+  // 3. Normalizar items: array con posibles objetos o strings
+  let rawItems = [];
+  if (Array.isArray(order.items)) {
+    rawItems = order.items.map((item) => {
+      if (typeof item === 'object' && item !== null) {
+        // Objeto en el array de items → convertir directamente
+        const qty = Number(item.quantity || item.qty || 1);
+        const name = item.name || item.product || 'Corte Seleccionado';
+        const sub = Number(item.subtotal || 0) || (Number(item.unitPrice || item.price || 0) * qty);
+        return {
+          __obj: true,
+          id: item.id || `oi-${Math.random()}`,
+          name,
+          quantity: qty,
+          unit: item.unit || 'kg',
+          price: Number(item.unitPrice || item.price || 0),
+          total: sub > 0 ? sub : Math.round((Number(order.totalAmount) || 0)),
+          icon: item.icon || getIcon(name)
+        };
+      }
+      return String(item).trim();
+    }).filter(Boolean);
+  } else if (typeof order.items === 'string') {
+    rawItems = order.items.split('\n').map(s => s.trim()).filter(Boolean);
+  }
+
+  // 4. Devolver directamente los que ya son objetos
+  const objItems = rawItems.filter(i => i && typeof i === 'object' && i.__obj);
+  const strItems = rawItems.filter(i => typeof i === 'string');
+
+  const result = objItems.map(i => ({ ...i, __obj: undefined }));
+
+  if (strItems.length === 0 && result.length === 0) {
     return [{
       id: 'default-0',
       name: 'Pedido de Carnicería (Cortes Seleccionados)',
@@ -149,7 +205,15 @@ export const parseOrderItems = (order) => {
     }];
   }
 
+  if (result.length > 0 && strItems.length === 0) return result;
+
   return rawItems.map((itemStr, idx) => {
+    // Si el item ya fue procesado como objeto
+    if (itemStr && typeof itemStr === 'object' && itemStr.__obj) {
+      const { __obj, ...rest } = itemStr;
+      return rest;
+    }
+
     let cleanStr = String(itemStr).replace(/^[•\-\*\d\.\)\s]+/, '').trim();
     let qty = 1;
     let unit = 'un';
@@ -187,16 +251,7 @@ export const parseOrderItems = (order) => {
     const unitPrice = (qty > 0 && lineSubtotal > 0) ? Math.round(lineSubtotal / qty) : lineSubtotal;
 
     // Limpiar comillas sobrantes
-    name = name.replace(/^["'“]+|["'”]+$/g, '').trim();
-
-    let icon = '🥩';
-    const lower = name.toLowerCase();
-    if (lower.includes('combo') || lower.includes('asadazo')) icon = '⭐';
-    else if (lower.includes('chori') || lower.includes('morcilla') || lower.includes('chinchu') || lower.includes('molleja')) icon = '🌭';
-    else if (lower.includes('cerdo') || lower.includes('pechito') || lower.includes('costeleta')) icon = '🐖';
-    else if (lower.includes('pollo') || lower.includes('milanesa')) icon = '🍽️';
-    else if (lower.includes('carbón') || lower.includes('carbon')) icon = '🔥';
-    else if (lower.includes('vino') || lower.includes('malbec')) icon = '🍷';
+    name = name.replace(/^["'"]+|["'"]+$/g, '').trim();
 
     return {
       id: `item-${idx}`,
@@ -205,10 +260,11 @@ export const parseOrderItems = (order) => {
       unit,
       price: unitPrice,
       total: lineSubtotal > 0 ? lineSubtotal : (Number(order.totalAmount) || 0),
-      icon
+      icon: getIcon(name)
     };
   });
 };
+
 
 export const getOrderChannelBadge = (order) => {
   let ch = (order?.channel || order?.source || order?.origin || '').toUpperCase();

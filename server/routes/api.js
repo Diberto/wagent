@@ -1284,6 +1284,37 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  // Deshabilitar masivamente productos con precio=0 o stock=0 en Web y/o WhatsApp
+  router.post('/products/disable-zero-values', (req, res) => {
+    try {
+      const { channel = 'both' } = req.body; // 'web' | 'whatsapp' | 'both'
+      const allProducts = db.getProducts();
+      const toDisable = allProducts.filter(p => {
+        const hasZeroPrice = !p.price || Number(p.price) <= 0;
+        const hasZeroStock = p.stockControl && (Number(p.stockQuantity ?? p.stock ?? 0) <= 0);
+        return hasZeroPrice || hasZeroStock;
+      });
+      if (toDisable.length === 0) {
+        return res.json({ success: true, count: 0, message: 'Ningún producto con precio o stock en 0 encontrado' });
+      }
+      const updates = {};
+      if (channel === 'web' || channel === 'both') updates.availableInStore = false;
+      if (channel === 'whatsapp' || channel === 'both') updates.availableInWhatsApp = false;
+      if (channel === 'both') updates.isAvailable = false;
+      const updatedList = db.bulkUpdateProducts(toDisable.map(p => p.id), updates);
+      io.emit('catalog:updated', { products: db.getProducts() });
+      res.json({
+        success: true,
+        count: updatedList.length,
+        products: updatedList,
+        message: `${updatedList.length} productos deshabilitados por precio o stock en 0`
+      });
+    } catch (err) {
+      console.error('Error en disable-zero-values:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   router.post('/products/bulk-delete', (req, res) => {
     try {
       const { productIds } = req.body;
@@ -4287,6 +4318,52 @@ export function createApiRouter(whatsappService, io) {
     const authResult = db.authenticateUser('admin_central', password);
     res.json(authResult);
   });
+
+  // ─── CUPONES DE DESCUENTO ─────────────────────────────────────────────────
+
+  router.get('/coupons', (req, res) => {
+    res.json(db.getCoupons());
+  });
+
+  router.post('/coupons', (req, res) => {
+    try {
+      const coupon = db.saveCoupon(req.body);
+      res.json(coupon);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/coupons/:id', (req, res) => {
+    try {
+      const coupon = db.saveCoupon({ ...req.body, id: req.params.id });
+      res.json(coupon);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/coupons/:id', (req, res) => {
+    const ok = db.deleteCoupon(req.params.id);
+    res.json({ success: ok });
+  });
+
+  router.post('/coupons/validate', (req, res) => {
+    const { code, orderAmount = 0, channel = 'all' } = req.body;
+    const result = db.validateCoupon(code, Number(orderAmount), channel);
+    res.json(result);
+  });
+
+  router.post('/coupons/use', (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Código requerido' });
+    const result = db.validateCoupon(code, 0);
+    if (!result.valid) return res.status(400).json({ error: result.error });
+    db.useCoupon(code);
+    res.json({ success: true });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   router.post('/leads/:id/sync-profile', async (req, res) => {
     const { id } = req.params;

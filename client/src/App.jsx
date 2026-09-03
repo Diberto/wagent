@@ -27,6 +27,7 @@ import MediaGalleryModal from './components/MediaGalleryModal';
 import RecipesView from './components/RecipesView';
 import SystemHealthView from './components/SystemHealthView';
 import MultiAgentChatView from './components/MultiAgentChatView';
+import CouponsView from './components/CouponsView';
 
 const socket = io();
 
@@ -473,6 +474,10 @@ export default function App() {
 
         {currentTab === 'catalog' && (
           <ProductCatalog socket={socket} />
+        )}
+
+        {currentTab === 'coupons' && (
+          <CouponsView />
         )}
 
         {currentTab === 'kanban' && (

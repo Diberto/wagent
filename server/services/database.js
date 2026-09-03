@@ -4045,6 +4045,121 @@ class DatabaseService {
     return true;
   }
 
+  // ─── CUPONES DE DESCUENTO ────────────────────────────────────────────────────
+
+  getCoupons() {
+    const db = this.readDb();
+    return Array.isArray(db.coupons) ? db.coupons : [];
+  }
+
+  getCoupon(idOrCode) {
+    const coupons = this.getCoupons();
+    const upper = String(idOrCode).toUpperCase().trim();
+    return coupons.find(c => c.id === idOrCode || c.code === upper) || null;
+  }
+
+  saveCoupon(couponData) {
+    const db = this.readDb();
+    if (!Array.isArray(db.coupons)) db.coupons = [];
+
+    const upper = String(couponData.code || '').toUpperCase().replace(/\s+/g, '').trim();
+    if (!upper) throw new Error('El código de descuento es obligatorio');
+
+    let saved;
+    const existing = db.coupons.findIndex(c => c.id === couponData.id);
+    if (existing >= 0) {
+      saved = { ...db.coupons[existing], ...couponData, code: upper, updatedAt: new Date().toISOString() };
+      db.coupons[existing] = saved;
+    } else {
+      // Verificar que el código no exista
+      const duplicate = db.coupons.find(c => c.code === upper);
+      if (duplicate) throw new Error(`El código "${upper}" ya existe`);
+      saved = {
+        id: `cpn-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        code: upper,
+        description: couponData.description || '',
+        discountType: couponData.discountType || 'percent', // 'percent' | 'fixed'
+        discountValue: Number(couponData.discountValue) || 0,
+        minOrderAmount: Number(couponData.minOrderAmount) || 0,
+        maxUses: couponData.maxUses != null ? Number(couponData.maxUses) : null, // null = ilimitado
+        usedCount: 0,
+        isActive: couponData.isActive !== false,
+        startDate: couponData.startDate || null,
+        startTime: couponData.startTime || '00:00',
+        endDate: couponData.endDate || null,
+        endTime: couponData.endTime || '23:59',
+        appliesTo: couponData.appliesTo || 'all', // 'all' | 'web' | 'whatsapp'
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      db.coupons.push(saved);
+    }
+    this.writeDb(db);
+    return saved;
+  }
+
+  deleteCoupon(id) {
+    const db = this.readDb();
+    if (!Array.isArray(db.coupons)) return false;
+    db.coupons = db.coupons.filter(c => c.id !== id);
+    this.writeDb(db);
+    return true;
+  }
+
+  validateCoupon(code, orderAmount = 0, channel = 'all') {
+    const upper = String(code || '').toUpperCase().replace(/\s+/g, '').trim();
+    const coupon = this.getCoupon(upper);
+    if (!coupon) return { valid: false, error: 'Código de descuento no válido' };
+    if (!coupon.isActive) return { valid: false, error: 'Este cupón no está activo' };
+
+    const now = new Date();
+    if (coupon.startDate) {
+      const start = new Date(`${coupon.startDate}T${coupon.startTime || '00:00'}:00`);
+      if (now < start) return { valid: false, error: `El cupón válido a partir del ${coupon.startDate}` };
+    }
+    if (coupon.endDate) {
+      const end = new Date(`${coupon.endDate}T${coupon.endTime || '23:59'}:59`);
+      if (now > end) return { valid: false, error: 'El cupón ha expirado' };
+    }
+    if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
+      return { valid: false, error: 'El cupón ha alcanzado su límite de usos' };
+    }
+    if (coupon.minOrderAmount > 0 && orderAmount < coupon.minOrderAmount) {
+      return { valid: false, error: `Monto mínimo de pedido: $${coupon.minOrderAmount.toLocaleString('es-AR')}` };
+    }
+    if (coupon.appliesTo !== 'all' && coupon.appliesTo !== channel) {
+      return { valid: false, error: `Este cupón solo aplica para ${coupon.appliesTo === 'web' ? 'Tienda Web' : 'WhatsApp'}` };
+    }
+
+    let discountAmount = 0;
+    if (coupon.discountType === 'percent') {
+      discountAmount = Math.round((orderAmount * coupon.discountValue) / 100);
+    } else {
+      discountAmount = Math.min(coupon.discountValue, orderAmount);
+    }
+
+    return {
+      valid: true,
+      coupon,
+      discountAmount,
+      finalAmount: Math.max(0, orderAmount - discountAmount),
+      message: `Cupón "${upper}" aplicado: ${coupon.discountType === 'percent' ? `${coupon.discountValue}% off` : `$${coupon.discountValue.toLocaleString('es-AR')} de descuento`}`
+    };
+  }
+
+  useCoupon(code) {
+    const db = this.readDb();
+    if (!Array.isArray(db.coupons)) return false;
+    const idx = db.coupons.findIndex(c => c.code === String(code).toUpperCase().trim());
+    if (idx < 0) return false;
+    db.coupons[idx].usedCount = (db.coupons[idx].usedCount || 0) + 1;
+    db.coupons[idx].updatedAt = new Date().toISOString();
+    this.writeDb(db);
+    return true;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   seedRecipes(force = false) {
     const db = this.readDb();
     if (!force && Array.isArray(db.recipes) && db.recipes.length >= 8) {
@@ -4361,5 +4476,9 @@ export const saveRecipe = (r) => db.saveRecipe(r);
 export const deleteRecipe = (id) => db.deleteRecipe(id);
 export const seedRecipes = (f) => db.seedRecipes(f);
 
-
-
+export const getCoupons = () => db.getCoupons();
+export const getCoupon = (id) => db.getCoupon(id);
+export const saveCoupon = (data) => db.saveCoupon(data);
+export const deleteCoupon = (id) => db.deleteCoupon(id);
+export const validateCoupon = (code, amount, channel) => db.validateCoupon(code, amount, channel);
+export const useCoupon = (code) => db.useCoupon(code);

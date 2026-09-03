@@ -175,6 +175,14 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
 
+  // Cupón de Descuento
+  const [couponCode, setCouponCode] = useState('');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponResult, setCouponResult] = useState(null); // { valid, discountAmount, discountType, discountValue, coupon }
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState(null);
+
+
   // Estado del Tracking
   const [trackingPhone, setTrackingPhone] = useState(() => localStorage.getItem('republica_customer_phone') || '');
   const [trackedOrders, setTrackedOrders] = useState([]);
@@ -355,6 +363,21 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     return cart.reduce((sum, item) => sum + (item.isUnitMode ? item.unitCount : 1), 0);
   }, [cart]);
 
+  // Descuento por cupón — el backend ya calcula discountAmount directamente
+  const discountAmount = useMemo(() => {
+    if (!couponResult?.valid) return 0;
+    // El backend retorna discountAmount calculado
+    if (couponResult.discountAmount != null) return Number(couponResult.discountAmount);
+    // Fallback: calcular localmente desde coupon.discountType
+    const type = couponResult.coupon?.discountType || couponResult.discountType;
+    const value = couponResult.coupon?.discountValue ?? couponResult.discountValue ?? 0;
+    if (type === 'percent') return Math.round((totalCartAmount * value) / 100);
+    return Math.min(value, totalCartAmount);
+  }, [couponResult, totalCartAmount]);
+
+
+  const finalCartTotal = useMemo(() => Math.max(0, totalCartAmount - discountAmount), [totalCartAmount, discountAmount]);
+
   const freeShippingGoal = storeConfig.freeShippingThreshold || 45000;
   const freeShippingProgress = Math.min(100, Math.round((totalCartAmount / freeShippingGoal) * 100));
   const missingForFreeShipping = Math.max(0, freeShippingGoal - totalCartAmount);
@@ -362,9 +385,44 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   const calculatedChange = useMemo(() => {
     if (paymentMethod !== 'Efectivo' || !cashBillAmount) return null;
     const bill = parseFloat(cashBillAmount.replace(/[^0-9.]/g, '')) || 0;
-    if (bill <= totalCartAmount) return 0;
-    return bill - totalCartAmount;
-  }, [cashBillAmount, totalCartAmount, paymentMethod]);
+    if (bill <= finalCartTotal) return 0;
+    return bill - finalCartTotal;
+  }, [cashBillAmount, finalCartTotal, paymentMethod]);
+
+  const handleValidateCoupon = async () => {
+    if (!couponInput.trim()) return;
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+    setCouponResult(null);
+    try {
+      const apiBase = getStoreApiUrl();
+      const res = await fetch(`${apiBase}/api/coupons/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: couponInput.trim().toUpperCase(), orderAmount: totalCartAmount, channel: 'TIENDA' })
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setCouponResult(data);
+        setCouponCode(couponInput.trim().toUpperCase());
+        setCouponError(null);
+      } else {
+        setCouponError(data.reason || 'Cupón inválido o expirado');
+        setCouponResult(null);
+      }
+    } catch (e) {
+      setCouponError('Error al validar el cupón');
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode('');
+    setCouponInput('');
+    setCouponResult(null);
+    setCouponError(null);
+  };
 
   const handleCopyAlias = () => {
     const alias = storeConfig.transferAlias || 'republica.carne.mp';
@@ -372,6 +430,7 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     setCopiedAlias(true);
     setTimeout(() => setCopiedAlias(false), 2500);
   };
+
 
   // Checkout y creación de pedido sincronizado
   const handleCheckout = async () => {
@@ -406,13 +465,18 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         branchId: selectedBranchObj.id,
         branchName: selectedBranchObj.name,
         items: cart,
-        totalAmount: totalCartAmount,
+        subtotalAmount: totalCartAmount,
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
+        couponCode: couponCode || undefined,
+        couponDescription: couponResult?.coupon?.description || undefined,
+        totalAmount: finalCartTotal,
         paymentMethod,
         cashChangeFor: paymentMethod === 'Efectivo' && cashBillAmount ? Number(cashBillAmount) : null,
         channel: 'TIENDA',
         source: 'TIENDA_ONLINE_WEB',
         notes: orderNotes.trim()
       };
+
 
       const apiBase = getStoreApiUrl();
       const res = await fetch(`${apiBase}/api/store/order`, {
@@ -430,12 +494,22 @@ export default function StorefrontView({ onBackToAdmin = null }) {
       const orderObj = data.order || { id: `ORD-${Math.floor(1000 + Math.random() * 9000)}` };
       setCreatedOrder(orderObj);
 
+      // Marcar cupón como usado si se aplicó uno
+      if (couponCode) {
+        fetch(`${apiBase}/api/coupons/use`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: couponCode })
+        }).catch(() => {});
+      }
+
       // Guardar en pedidos recientes de este navegador
       try {
         const existingRecent = JSON.parse(localStorage.getItem('republica_recent_orders') || '[]');
         const updatedRecent = [orderObj.id, ...existingRecent.filter(id => id !== orderObj.id)].slice(0, 10);
         localStorage.setItem('republica_recent_orders', JSON.stringify(updatedRecent));
       } catch (e) {}
+
 
       // Si el usuario eligió Mercado Pago y se generó link de pago, podemos ofrecer abrirlo directamente
       const paymentLink = data.paymentLink || orderObj.paymentLink;
@@ -466,6 +540,10 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         paymentText += `\n💳 *Link de Pago MP:* ${paymentLink}`;
       }
 
+      const discountLine = discountAmount > 0
+        ? `\n🏷️ *Cupón ${couponCode}:* -$${discountAmount.toLocaleString('es-AR')}`
+        : '';
+
       const whatsappText = `¡Hola! 🥩 Acabo de realizar mi pedido en la Tienda Web:
 
 📋 *Pedido #${orderObj.id}*
@@ -477,13 +555,14 @@ ${paymentText}
 
 🥩 *Detalle de Cortes Seleccionados:*
 ${itemsListFormatted}
-
-💰 *Total Estimado:* $${totalCartAmount.toLocaleString('es-AR')}
+${discountLine}
+💰 *Total${discountAmount > 0 ? ' con Descuento' : ' Estimado'}:* $${finalCartTotal.toLocaleString('es-AR')}
 *(Nota: Precios por kg. El total informado es estimado y puede ajustarse al pesaje final de balanza).*
 ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 🔗 *Seguimiento en Vivo:* ${trackingUrl}
 
 ¿Me confirman para comenzar la preparación? ¡Muchas gracias! 🙌`;
+
 
       const targetWhatsApp = (storeConfig.whatsappDirectNumber || '5493516262475').replace(/\D/g, '');
       const waUrl = `https://wa.me/${targetWhatsApp}?text=${encodeURIComponent(whatsappText)}`;
@@ -1325,10 +1404,72 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 
                   {/* Total & Action Button */}
                   <div className="pt-3 space-y-2.5 border-t border-white/10">
-                    <div className="flex items-center justify-between text-base font-extrabold text-white">
-                      <span>Total Estimado:</span>
-                      <span className="text-xl text-emerald-400 font-black">${totalCartAmount.toLocaleString('es-AR')}</span>
+
+                    {/* Cupón de Descuento */}
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">🏷️ Código de Descuento</label>
+                      {couponResult?.valid ? (
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-emerald-400 text-base">✅</span>
+                            <div>
+                              <div className="font-black text-emerald-300">{couponCode}</div>
+                              <div className="text-emerald-400/80 text-[11px]">
+                                Ahorrás ${discountAmount.toLocaleString('es-AR')}
+                                {(couponResult.coupon?.discountType || couponResult.discountType) === 'percent' ? ` (${couponResult.coupon?.discountValue ?? couponResult.discountValue}% OFF)` : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <button onClick={handleRemoveCoupon} className="text-slate-400 hover:text-rose-400 p-1 rounded-lg transition text-xs">✕</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={couponInput}
+                            onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(null); }}
+                            onKeyDown={e => e.key === 'Enter' && handleValidateCoupon()}
+                            placeholder="Ingresá tu código..."
+                            className="flex-1 px-3 py-2 rounded-xl bg-white/[0.06] border border-white/10 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 transition uppercase font-mono"
+                          />
+                          <button
+                            onClick={handleValidateCoupon}
+                            disabled={isValidatingCoupon || !couponInput.trim()}
+                            className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-40 transition whitespace-nowrap"
+                          >
+                            {isValidatingCoupon ? '...' : 'Aplicar'}
+                          </button>
+                        </div>
+                      )}
+                      {couponError && (
+                        <p className="text-xs text-rose-400 flex items-center gap-1">
+                          <span>❌</span> {couponError}
+                        </p>
+                      )}
                     </div>
+
+                    {/* Subtotal + Descuento + Total */}
+                    {discountAmount > 0 ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-sm text-slate-400">
+                          <span>Subtotal:</span>
+                          <span>${totalCartAmount.toLocaleString('es-AR')}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-emerald-400 font-bold">
+                          <span>🏷️ Descuento ({couponCode}):</span>
+                          <span>-${discountAmount.toLocaleString('es-AR')}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-base font-extrabold text-white border-t border-white/10 pt-1">
+                          <span>Total con Descuento:</span>
+                          <span className="text-xl text-emerald-400 font-black">${finalCartTotal.toLocaleString('es-AR')}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between text-base font-extrabold text-white">
+                        <span>Total Estimado:</span>
+                        <span className="text-xl text-emerald-400 font-black">${totalCartAmount.toLocaleString('es-AR')}</span>
+                      </div>
+                    )}
 
                     <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2 leading-tight">
                       <Info size={14} className="shrink-0 mt-0.5 text-amber-400" />
@@ -1347,6 +1488,7 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                       <span>{isSubmittingOrder ? 'Generando Pedido...' : 'Confirmar Pedido'}</span>
                     </button>
                   </div>
+
 
                 </div>
               )}

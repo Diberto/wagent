@@ -59,6 +59,16 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
   const [stockModalAllowBackorder, setStockModalAllowBackorder] = useState(true);
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
 
+  // Modal de importación
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importReplaceAll, setImportReplaceAll] = useState(false);
+
+  // Deshabilitar productos con precio/stock en 0
+  const [isDisableZeroModalOpen, setIsDisableZeroModalOpen] = useState(false);
+  const [disableZeroChannel, setDisableZeroChannel] = useState('both');
+  const [isDisablingZero, setIsDisablingZero] = useState(false);
+
+
   // Extraer categorías dinámicas únicas de los productos
   const categories = [
     'all',
@@ -76,6 +86,11 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
         setProducts(data);
       } else if (data && Array.isArray(data.products)) {
         setProducts(data.products);
+      } else if (data && data.product) {
+        // Actualización puntual: un solo producto cambió → actualizar in-place sin resetear scroll
+        setProducts(prev => prev.map(p => p.id === data.product.id ? { ...p, ...data.product } : p));
+      } else if (data && data.deletedId) {
+        setProducts(prev => prev.filter(p => p.id !== data.deletedId));
       } else {
         fetchProducts();
       }
@@ -89,6 +104,7 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
       socket.off('catalog:updated', handleProductsUpdate);
     };
   }, [socket]);
+
 
   const fetchProducts = async () => {
     try {
@@ -107,8 +123,6 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
   };
 
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [importReplaceAll, setImportReplaceAll] = useState(false);
 
   // Cargar Catálogo Maestro Oficial con Códigos PLU (757 Productos)
   const handleSeedMasterCatalog = async () => {
@@ -454,6 +468,34 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
     }
   };
 
+  const handleDisableZeroValues = async () => {
+    setIsDisablingZero(true);
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/products/disable-zero-values`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: disableZeroChannel })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncMessage({ type: 'success', text: data.message || `${data.count} productos deshabilitados` });
+        setIsDisableZeroModalOpen(false);
+        if (data.products) {
+          setProducts(data.products);
+        } else {
+          fetchProducts();
+        }
+      } else {
+        setSyncMessage({ type: 'error', text: data.error || 'Error al deshabilitar productos' });
+      }
+    } catch (err) {
+      setSyncMessage({ type: 'error', text: 'Error de conexión: ' + err.message });
+    } finally {
+      setIsDisablingZero(false);
+      setTimeout(() => setSyncMessage(null), 5000);
+    }
+  };
+
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     try {
@@ -578,7 +620,7 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept=".csv, .txt, .json"
+        accept=".xlsx, .xls, .csv, .txt, .json, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
         className="hidden"
       />
 
@@ -652,7 +694,6 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
             )}
           </div>
 
-          {/* Importar Archivo Excel / CSV Modal */}
           <button
             onClick={() => setIsImportModalOpen(true)}
             disabled={syncing}
@@ -661,6 +702,17 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
           >
             <Upload className="w-3.5 h-3.5 text-sky-400" />
             <span>Importar Excel/CSV</span>
+          </button>
+
+          {/* Deshabilitar Productos con Precio/Stock en 0 */}
+          <button
+            onClick={() => setIsDisableZeroModalOpen(true)}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-[#202c33] hover:bg-[#2a3942] border border-amber-700/50 text-amber-400 hover:text-amber-300 transition disabled:opacity-50"
+            title="Deshabilitar masivamente productos con precio o stock igual a 0"
+          >
+            <EyeOff className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Deshabilitar Ceros</span>
           </button>
 
           {/* Sincronizar Catálogo WhatsApp */}
@@ -1913,6 +1965,74 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Deshabilitar Productos con Precio/Stock en 0 */}
+      {isDisableZeroModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+          <div className="bg-[#182229] border border-amber-700/40 rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <EyeOff size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Deshabilitar Productos con Valor en 0</h3>
+                  <p className="text-[11px] text-slate-400">Oculta del catálogo todos los productos con precio o stock = 0</p>
+                </div>
+              </div>
+              <button onClick={() => setIsDisableZeroModalOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-300">Seleccioná en qué canales aplicar la deshabilitación:</p>
+              <div className="grid grid-cols-1 gap-2">
+                {[
+                  { value: 'both', label: 'Ambos Canales (Web + WhatsApp)', icon: '🌐', color: 'amber' },
+                  { value: 'web', label: 'Solo Tienda Web', icon: '🏪', color: 'emerald' },
+                  { value: 'whatsapp', label: 'Solo WhatsApp', icon: '📱', color: 'sky' },
+                ].map(opt => (
+                  <label key={opt.value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${disableZeroChannel === opt.value ? `border-${opt.color}-500 bg-${opt.color}-500/10` : 'border-slate-700 hover:border-slate-600 bg-[#111b21]'}`}>
+                    <input
+                      type="radio"
+                      name="disableZeroChannel"
+                      value={opt.value}
+                      checked={disableZeroChannel === opt.value}
+                      onChange={() => setDisableZeroChannel(opt.value)}
+                      className="accent-amber-500"
+                    />
+                    <span className="text-lg">{opt.icon}</span>
+                    <span className="text-xs font-semibold text-slate-200">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                <p className="text-[11px] text-amber-300">
+                  <strong>⚠️ Esta acción es reversible.</strong> Los productos quedarán ocultos pero no se eliminarán. Podés reactivarlos individualmente desde el catálogo.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                onClick={() => setIsDisableZeroModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-[#111b21] text-slate-400 hover:text-white border border-slate-800 text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDisableZeroValues}
+                disabled={isDisablingZero}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition disabled:opacity-50"
+              >
+                <EyeOff size={13} />
+                {isDisablingZero ? 'Procesando...' : 'Deshabilitar Ahora'}
+              </button>
+            </div>
           </div>
         </div>
       )}
