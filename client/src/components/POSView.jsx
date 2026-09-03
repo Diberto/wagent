@@ -116,7 +116,20 @@ export default function POSView({ socket }) {
 
   useEffect(() => {
     fetchInitialData();
-  }, []);
+
+    if (socket) {
+      const handleCatalogUpdate = () => {
+        fetchInitialData();
+      };
+      socket.on('catalog:updated', handleCatalogUpdate);
+      socket.on('products:updated', handleCatalogUpdate);
+      return () => {
+        socket.off('catalog:updated', handleCatalogUpdate);
+        socket.off('products:updated', handleCatalogUpdate);
+      };
+    }
+  }, [socket]);
+
 
   // Argentine scale barcode parser: 20PPPPPWWWWWX or 02PPPPPWWWWWX
   const parseBarcodeData = (scannedCode) => {

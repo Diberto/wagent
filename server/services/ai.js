@@ -1,4 +1,4 @@
-﻿import OpenAI from 'openai';
+import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
@@ -3243,12 +3243,13 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (/^(?:2|2ï¸âƒ£|dos|el 2|la 2|opci[oÃ³]n 2|asado|asesoramiento|personas?|calcular|calculo)$/i.test(t.trim())) {
         return `ðŸ¥© *ASESORAMIENTO EXPERTO PARA TU ASADO:* ðŸ”¥\n\n` +
           `Para que el asado salga perfecto y no sobre ni falte, calculamos **500g a 600g de carne por persona** (combinando cortes principales y achuras).\n\n` +
-          `ðŸ‘‰ *Ejemplo para 6 personas (3.5 kg total):*\n` +
-          `â€¢ 1.5 kg VacÃ­o Especial ($17.250)\n` +
-          `â€¢ 1.5 kg Costillar / Asado de Tira ($14.700)\n` +
-          `â€¢ 6 Chorizos Criollos Puro Cerdo (~0.75 kg - $3.750)\n` +
-          `â€¢ 1 Bolsa de CarbÃ³n Quebracho ($2.200)\n\n` +
-          `ðŸ‘‰ Contame: **Â¿Para cuÃ¡ntas personas es tu comida?** (ej: 'somos 8', 'somos 12') y te armo la propuesta personalizada con el precio exacto. ðŸ™Œ [[STAGE:proposal]]`;
+          `👉 *Ejemplo para 6 personas (3.5 kg total):*\n` +
+          `• 1.5 kg Vacío Seleccionado\n` +
+          `• 1.5 kg Costillar / Asado de Tira\n` +
+          `• 6 Chorizos Criollos Puro Cerdo (~0.75 kg)\n` +
+          `• 1 Bolsa de Carbón Quebracho\n\n` +
+          `👉 Contame: **¿Para cuántas personas es tu comida?** (ej: 'somos 8', 'somos 12') y te armo la propuesta personalizada con el pesaje exacto y precios de lista del día. 🙌 [[STAGE:proposal]]`;
+
       }
 
       if (/^(?:3|3ï¸âƒ£|tres|el 3|la 3|opci[oÃ³]n 3|sucursales|sedes|direcciones|horarios|donde estan)$/i.test(t.trim())) {
@@ -3505,20 +3506,13 @@ Whenever the user asks about the current time, date, products count, orders, or 
         } else {
           // Fallback con cÃ¡lculos coherentes
           if (optNum === 1) {
-            optionItems = [
-              'â€¢ 2 kg VacÃ­o Especial Seleccionado â€” $23.000',
-              'â€¢ 1 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) â€” $5.000'
-            ];
+            optionItems = ["• Cortes seleccionados de carnicería"];
             optionTotal = 28000;
           } else if (optNum === 2) {
-            optionItems = ['â€¢ 1 combo Combo â€œAsadazoâ€ (4 kg cortes + Vino de regalo) â€” $39.999'];
+            optionItems = ["• Cortes seleccionados de carnicería"];
             optionTotal = 39999;
           } else {
-            optionItems = [
-              'â€¢ 1 kg Tapa de Cuadril Seleccionada â€” $26.407',
-              'â€¢ 1 kg Matambre Vacuno â€” $9.500',
-              'â€¢ 1 kg Chorizo Criollo Puro Cerdo â€” $5.000'
-            ];
+            optionItems = ["• Cortes seleccionados de carnicería"];
             optionTotal = 40907;
           }
         }
@@ -3993,9 +3987,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         });
       } else {
         const { items: historyItems, total: historyTotal, products: parsedProducts } = extractItemsFromHistoryAndText(history, '', products, lead);
-        const finalItems = historyItems.length > 0 ? historyItems : [
-          'â€¢ 1 combo Combo â€œAsadazoâ€ (4 kg cortes + Vino de regalo) â€” $39.999'
-        ];
+        const finalItems = historyItems.length > 0 ? historyItems : ["• Cortes seleccionados"];
         const finalTotal = historyTotal > 0 ? historyTotal : 39999;
         targetOrder = db.createOrder({
           jid: lead.jid || lead.id,
@@ -4387,11 +4379,11 @@ Whenever the user asks about the current time, date, products count, orders, or 
     // =========================================================================
     // 0.1 CONFIRMACIÃ“N DE MÃ‰TODO DE PAGO (INCLUYE RESPUESTAS NUMÃ‰RICAS 1, 2, 3, OPCIÃ“N 1, ETC.)
     // =========================================================================
-    const isLastMsgPaymentPrompt = /Â¿CÃ³mo preferÃ­s abonar\?|1ï¸âƒ£.*Efectivo|2ï¸âƒ£.*Transferencia|3ï¸âƒ£.*Mercado Pago|Paso 4 de 4/i.test(lastAgentMessage);
+    const isLastMsgPaymentPrompt = /Â¿CÃ³mo preferÃ­s abonar\?|1ï¸ âƒ£.*Efectivo|2ï¸ âƒ£.*Transferencia|3ï¸ âƒ£.*Mercado Pago|Paso 4 de 4/i.test(lastAgentMessage);
 
-    const isNumericPayment1 = /^(?:1|1ï¸âƒ£|uno|opci[oÃ³]n 1|la 1|el 1|1\.)$/i.test(t.trim());
-    const isNumericPayment2 = /^(?:2|2ï¸âƒ£|dos|opci[oÃ³]n 2|la 2|el 2|2\.)$/i.test(t.trim());
-    const isNumericPayment3 = /^(?:3|3ï¸âƒ£|tres|opci[oÃ³]n 3|la 3|el 3|3\.)$/i.test(t.trim());
+    const isNumericPayment1 = /^(?:1|1ï¸ âƒ£|uno|opci[oÃ³]n 1|la 1|el 1|1\.)$/i.test(t.trim());
+    const isNumericPayment2 = /^(?:2|2ï¸ âƒ£|dos|opci[oÃ³]n 2|la 2|el 2|2\.)$/i.test(t.trim());
+    const isNumericPayment3 = /^(?:3|3ï¸ âƒ£|tres|opci[oÃ³]n 3|la 3|el 3|3\.)$/i.test(t.trim());
 
     const isPaymentChoice = (isLastMsgPaymentPrompt && (isNumericPayment1 || isNumericPayment2 || isNumericPayment3)) ||
       (!wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered &&
@@ -4416,7 +4408,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
       const isDelivery = lastOrder?.deliveryType === 'delivery' || lead?.deliveryType === 'delivery' || Boolean(lastOrder?.address && !lastOrder?.branch);
       const isPickup = !isDelivery && (lastOrder?.deliveryType === 'pickup' || lead?.deliveryType === 'pickup' || Boolean(lastOrder?.branch) || /retirar|sucursal/i.test(t));
-      const branchName = lastOrder?.branch || lead.preferredBranch || 'Urca Central (Av. JosÃ© Roque Funes 1115)';
+      const branchName = lastOrder?.branch || lead.preferredBranch || 'Urca Central';
       const destAddr = lastOrder?.address || lead.address || 'tu domicilio';
 
       if (lastOrder) {
@@ -4429,7 +4421,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
       } else {
         const { items: historyItems, total: historyTotal, products: parsedProducts } = extractItemsFromHistoryAndText(history, '', products, lead);
         const finalItems = historyItems.length > 0 ? historyItems : [
-          'â€¢ 1 combo Combo â€œAsadazoâ€ (4 kg cortes + Vino de regalo) â€” $39.999'
+          'â€¢ Cortes seleccionados'
         ];
         const finalTotal = historyTotal > 0 ? historyTotal : 39999;
         lastOrder = db.createOrder({
@@ -4489,7 +4481,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
     const isOrderComplaint = /esta mal el ped|estÃ¡ mal el ped|el pedido esta mal|el pedido estÃ¡ mal|esta mal el total|estÃ¡ mal el total|el total esta mal|el total estÃ¡ mal|el precio esta mal|el precio estÃ¡ mal|cobraste mal|calculaste mal|corregi el total|corregÃ­ el total|no son tantos|por que tanto|falta el combo|eso no pedi|eso no pedÃ­|no es lo que pedi|no es lo que pedÃ­/i.test(t);
     if (isOrderComplaint) {
       const { items: fullItems, total: fullTotal } = extractItemsFromHistoryAndText(history, '', products);
-      const itemsList = fullItems.length > 0 ? fullItems.join('\n') : 'â€¢ 1 combo Combo â€œAsadazoâ€ (4 kg cortes + Vino de regalo) â€” $39.999\nâ€¢ 2 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) â€” $10.000';
+      const itemsList = fullItems.length > 0 ? fullItems.join("\n") : (activeOrder?.items?.length > 0 ? (Array.isArray(activeOrder.items) ? activeOrder.items.join("\n") : activeOrder.items) : "• Cortes seleccionados");
       const realTotal = fullTotal > 0 ? fullTotal : 49999;
       const formattedTotal = `$${realTotal.toLocaleString('es-AR')}`;
 
@@ -4507,7 +4499,7 @@ Whenever the user asks about the current time, date, products count, orders, or 
         `ðŸ“‹ *Detalle corregido de tu pedido (precios por kilo segÃºn corte):*\n${itemsList}\n\n` +
         `ðŸ’° *Total correcto estimado a abonar:* **${formattedTotal}**\n` +
         `*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variaciÃ³n segÃºn el pesaje exacto final en balanza).*\n\n` +
-        `ðŸ“ *DirecciÃ³n de entrega:* ${lead.address || 'Locelso 7100'}\n\n` +
+        `ðŸ“ *DirecciÃ³n de entrega:* ${lead.address || 'a convenir'}\n\n` +
         `ðŸ‘‰ Â¿Confirmamos con este total correcto para despacharte en el dÃ­a? (RespondÃ© *SÃ* para finalizar) ðŸ™Œ [[STAGE:confirming_data]]`;
     }
 
@@ -4519,14 +4511,11 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
     if (isConfirmationReply) {
       const { items: parsedItems, total: parsedTotal, products: parsedProducts } = extractItemsFromHistoryAndText(history, '', products);
-      const finalItems = parsedItems.length > 0 ? parsedItems : [
-        'â€¢ 1 combo Combo â€œAsadazoâ€ (4 kg cortes + Vino de regalo) â€” $39.999',
-        'â€¢ 2 kg Chorizo Criollo Puro Cerdo (2kg x $10.000 promo) â€” $10.000'
-      ];
+      const finalItems = parsedItems.length > 0 ? parsedItems : (activeOrder?.items?.length > 0 ? (Array.isArray(activeOrder.items) ? activeOrder.items : [activeOrder.items]) : ["• Cortes seleccionados"]);
       const finalTotal = parsedTotal > 0 ? parsedTotal : 49999;
       const formattedTotal = `$${finalTotal.toLocaleString('es-AR')}`;
       const freshLead = db.getLead(lead.jid || lead.id) || lead;
-      const addressDest = currentActiveOrder?.address || freshLead.address || lead.address || 'Locelso 7100';
+      const addressDest = currentActiveOrder?.address || freshLead.address || lead.address || 'a convenir';
       let clientPhone = (lead.phone && !lead.phone.includes('@lid')) ? lead.phone : (freshLead.phone && !freshLead.phone.includes('@lid') ? freshLead.phone : (lead.jid && !lead.jid.includes('@lid') ? `+${lead.jid.split('@')[0]}` : '+54 9 351 626-2475'));
 
       lead.address = addressDest;

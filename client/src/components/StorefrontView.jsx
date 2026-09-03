@@ -254,6 +254,15 @@ export default function StorefrontView({ onBackToAdmin = null }) {
       }
     });
 
+    socket.on('catalog:updated', () => {
+      fetchStoreData();
+    });
+
+    socket.on('products:updated', () => {
+      fetchStoreData();
+    });
+
+
     socket.on('orders:sync', () => {
       if (trackingPhone && trackingPhone.trim().length >= 4) {
         fetchTrackedOrders(trackingPhone);

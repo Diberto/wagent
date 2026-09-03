@@ -191,30 +191,16 @@ export class OrderSyncEngine {
       // Intentar encontrar el producto en el catálogo real por nombre
       const catalogProduct = this.matchCatalogProduct(rawName, catalog);
 
-      // Precio unitario: si el agente puso el total del renglón, calcular unitario
-      // Si la cantidad es > 1, el precio reportado puede ser subtotal o unitario
-      let unitPrice = rawPrice;
-      let subtotal = rawPrice;
-
-      if (catalogProduct) {
-        // Usar precio real del catálogo
-        unitPrice = Number(catalogProduct.price) || unitPrice;
-        subtotal = Math.round(unitPrice * qty);
-      } else if (qty > 1 && rawPrice > 0) {
-        // El agente reportó el subtotal del renglón (ej: "2 kg x $12.495 = $24.990")
-        // Intentar determinar si es unitario o subtotal según magnitud
-        const perUnit = rawPrice / qty;
-        // Si el precio por unidad parece razonable (entre $100 y $100.000/kg), es subtotal
-        if (perUnit >= 100 && perUnit <= 100000) {
-          unitPrice = perUnit;
-        } else {
-          subtotal = Math.round(unitPrice * qty);
-        }
-      }
+      // Precio exacto acordado por el agente en la conversación
+      // Si el agente dijo "$24.990", ese es el subtotal sagrado de la línea
+      const subtotal = rawPrice;
+      const unitPrice = qty > 0 ? Math.round(rawPrice / qty) : rawPrice;
 
       const productEntry = {
         id: catalogProduct?.id || `prod-${rawName.toLowerCase().replace(/\s+/g, '-')}`,
         plu: catalogProduct?.plu || '',
+        barcode: catalogProduct?.barcode || '',
+        category: catalogProduct?.category || 'Carnicería',
         name: catalogProduct?.name || rawName,
         price: unitPrice,
         unitPrice: unitPrice,
@@ -227,6 +213,7 @@ export class OrderSyncEngine {
       items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
       total += subtotal;
     }
+
 
     // Capturar total general si lo menciona el agente
     let totalMatch;
