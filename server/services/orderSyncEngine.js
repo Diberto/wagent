@@ -2,9 +2,9 @@ import { db } from './database.js';
 
 /**
  * Motor Inteligente de Sincronización y Registro de Pedidos en Vivo
- * Garantiza que cualquier intención de compra o confirmación conversacional
- * se traduzca de inmediato en un registro de orden persistido en db.json y SQLite WAL,
- * visible en tiempo real en el panel de pedidos y CRM.
+ * Parsea los items DESDE EL REPLY DEL AGENTE (fuente de verdad conversacional)
+ * y los valida/enriquece contra el catálogo real de la base de datos.
+ * NUNCA usa precios ni ítems hardcodeados.
  */
 export class OrderSyncEngine {
   /**
@@ -19,9 +19,13 @@ export class OrderSyncEngine {
     stage = null
   }) {
     try {
-      const catalog = products || db.getProducts() || [];
+      // Catálogo siempre desde la base de datos real
+      const catalog = (Array.isArray(products) && products.length > 0)
+        ? products
+        : (db.getProducts() || []);
+
       const userMsg = String(customerText || '').toLowerCase().trim();
-      const replyMsg = String(aiReplyText || '').toLowerCase();
+      const replyMsg = String(aiReplyText || '');
       const clientLead = lead || (jid ? db.getLead(jid) : null) || {};
       const clientName = clientLead.pushName || clientLead.name || 'Cliente';
       const clientPhone = clientLead.phone || (jid && !jid.includes('@lid') ? `+${jid.split('@')[0]}` : '');
@@ -34,9 +38,7 @@ export class OrderSyncEngine {
       if (isCancelIntent) {
         const activeOrders = db.getActiveOrdersByJid(clientJid);
         if (activeOrders.length > 0) {
-          activeOrders.forEach(o => {
-            db.updateOrderStatus(o.id, 'cancelled');
-          });
+          activeOrders.forEach(o => db.updateOrderStatus(o.id, 'cancelled'));
         }
         if (clientLead.jid || clientLead.id) {
           db.updateLead(clientLead.jid || clientLead.id, { draftCart: null, currentOrder: null });
@@ -44,49 +46,26 @@ export class OrderSyncEngine {
         return null;
       }
 
-      // 2. Extraer cortes y cantidades solicitadas por el cliente
-      const extracted = this.extractProductsFromText(userMsg, catalog);
-      const isSelectingComboOption = /(?:opci[oó]n|el\s+[1-3]|la\s+[1-3]|combo\s+asadazo|asadazo)/i.test(userMsg);
+      // 2. Parsear items DESDE EL REPLY DEL AGENTE (es la fuente de verdad conversacional)
+      //    El agente ya confirmó los cortes con precios reales del catálogo
+      let { items: itemsToOrder, products: productsToOrder, total: totalAmountToOrder }
+        = this.extractItemsFromAgentReply(replyMsg, catalog);
 
-      let itemsToOrder = extracted.items;
-      let productsToOrder = extracted.products;
-      let totalAmountToOrder = extracted.total;
-
-      // Si el usuario eligió "opción 1", "combo asadazo", etc.
-      if (itemsToOrder.length === 0 && isSelectingComboOption) {
-        const optionMatch = userMsg.match(/(?:opci[oó]n\s*([1-3])|el\s*([1-3])|la\s*([1-3]))/);
-        const optNum = optionMatch ? (optionMatch[1] || optionMatch[2] || optionMatch[3]) : '1';
-        
-        if (optNum === '1') {
-          itemsToOrder = [
-            '• 1.5 kg Vacío Especial Seleccionado — $17.250',
-            '• 1.5 kg Costillar / Asado de Tira Novillito — $14.700',
-            '• 6 Chorizos Criollos Puro Cerdo — $3.750',
-            '• 1 Bolsa de Carbón Quebracho — $2.200'
-          ];
-          totalAmountToOrder = 37900;
-        } else if (optNum === '2') {
-          itemsToOrder = [
-            '• 1 combo Combo “Asadazo” (4 kg cortes + Vino de regalo) — $39.999'
-          ];
-          totalAmountToOrder = 39999;
-        } else {
-          itemsToOrder = [
-            '• 2 kg Tapa de Cuadril Seleccionada — $25.600',
-            '• 1 kg Matambrito de Cerdo Tiernizado — $8.500',
-            '• 1 Bolsa de Carbón Quebracho — $2.200'
-          ];
-          totalAmountToOrder = 36300;
-        }
+      // Si el agente no mencionó items en el detalle, intentar extraer del texto del cliente
+      if (itemsToOrder.length === 0) {
+        const fromUser = this.extractProductsFromText(userMsg, catalog);
+        itemsToOrder = fromUser.items;
+        productsToOrder = fromUser.products;
+        totalAmountToOrder = fromUser.total;
       }
 
       // 3. Buscar si ya existe una orden activa (pending o preparing) para este JID
       let activeOrder = db.getActiveOrdersByJid(clientJid)[0] || null;
 
-      // 4. Si el cliente mencionó nuevos cortes o combos, crear o actualizar la orden
+      // 4. Si se detectaron ítems, crear o actualizar la orden
       if (itemsToOrder.length > 0) {
         if (activeOrder && ['pending', 'preparing', 'draft'].includes(activeOrder.status)) {
-          // Actualizar orden existente
+          // Actualizar orden existente con los items confirmados por el agente
           activeOrder = db.updateOrder(activeOrder.id, {
             items: itemsToOrder,
             products: productsToOrder.length > 0 ? productsToOrder : activeOrder.products,
@@ -108,7 +87,7 @@ export class OrderSyncEngine {
             origin: 'WHATSAPP',
             deliveryType: clientLead.deliveryType || 'delivery',
             address: clientLead.address || '',
-            branch: clientLead.preferredBranch || 'URCA CENTRAL'
+            branch: clientLead.preferredBranch || ''
           });
         }
 
@@ -122,51 +101,52 @@ export class OrderSyncEngine {
       }
 
       // 5. Detección de Dirección física para delivery
-      const hasAddressMatch = userMsg.match(/(?:calle|av\.|avenida|barrio|bv\.|bulevar|pasaje|entrega en|enviar a|mandamelo a|direcci[oó]n:?)\s+([a-zA-Z0-9\s,\.\-]+)/i);
-      if (hasAddressMatch && activeOrder) {
-        const extractedAddress = hasAddressMatch[1].trim();
-        if (extractedAddress.length > 5) {
-          db.updateOrder(activeOrder.id, {
-            address: extractedAddress,
-            deliveryType: 'delivery'
-          });
-          if (clientLead.jid || clientLead.id) {
-            db.updateLead(clientLead.jid || clientLead.id, {
-              address: extractedAddress,
-              deliveryType: 'delivery'
-            });
+      // Patrón mejorado: captura "Roque Funes 1704", "Av. Colón 234", etc.
+      const addressPatterns = [
+        /(?:direcci[oó]n[:\s]+|enviar\s+a[:\s]+|mandamelo\s+a[:\s]+|a\s+mi\s+domicilio[:\s]+|entrega\s+en[:\s]+)([^.\n]{5,60})/i,
+        /(?:calle|av\.|avenida|bv\.|bulevar|pasaje|ruta)\s+([a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.]+\s+\d{1,5}[a-z]?(?:\s*[-,]\s*[a-zA-Z\s]+)?)/i,
+        /\b([A-ZÁÉÍÓÚ][a-záéíóúñ]+(?:\s+[a-záéíóúñA-ZÁÉÍÓÚ]+){0,4}\s+\d{3,5})\b/
+      ];
+      for (const pat of addressPatterns) {
+        const m = replyMsg.match(pat) || userMsg.match(pat);
+        if (m && activeOrder) {
+          const extractedAddress = (m[1] || m[0]).replace(/^(calle|av\.|avenida|bv\.)\s*/i, '').trim();
+          if (extractedAddress.length > 5) {
+            db.updateOrder(activeOrder.id, { address: extractedAddress, deliveryType: 'delivery' });
+            if (clientLead.jid || clientLead.id) {
+              db.updateLead(clientLead.jid || clientLead.id, { address: extractedAddress, deliveryType: 'delivery' });
+            }
           }
+          break;
         }
       }
 
       // 6. Detección de Sucursal para retiro
-      const isBranchPickup = /(?:sucursal|retiro|pasar a buscar|retiro por|urca|funes|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro)/i.test(userMsg);
+      const isBranchPickup = /(?:sucursal|retiro|pasar a buscar|retiro por|urca|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro)/i.test(userMsg);
       if (isBranchPickup && activeOrder) {
-        let branchName = 'URCA CENTRAL (Av. José Roque Funes 1115)';
-        if (/pidal|tejeda|urca 2/i.test(userMsg)) branchName = 'URCA 2 – ALTO TEJEDA (Av. Menéndez Pidal 3575)';
-        else if (/intercountry|alamos|corteza/i.test(userMsg)) branchName = 'INTERCOUNTRY – CORTEZA MALL (Av. Los Álamos 1015)';
-        else if (/quiros|duarte/i.test(userMsg)) branchName = 'DUARTE QUIRÓS (Av. Duarte Quirós 5130)';
-        else if (/allende|figueroa|mercadito/i.test(userMsg)) branchName = 'VILLA ALLENDE (Av. Figueroa Alcorta 480)';
-        else if (/san isidro|luchesse/i.test(userMsg)) branchName = 'COUNTRY SAN ISIDRO (Av. Padre Luchesse km 2)';
-
-        db.updateOrder(activeOrder.id, {
-          branch: branchName,
-          deliveryType: 'pickup'
-        });
+        const branches = db.getBranches() || [];
+        let matchedBranch = branches.find(b =>
+          b.name && userMsg.includes(b.name.toLowerCase().split(' ')[0].toLowerCase())
+        );
+        let branchName = matchedBranch?.name || 'URCA CENTRAL';
+        if (!matchedBranch) {
+          if (/pidal|tejeda|urca 2/i.test(userMsg)) branchName = 'URCA 2 – ALTO TEJEDA';
+          else if (/intercountry|alamos|corteza/i.test(userMsg)) branchName = 'INTERCOUNTRY – CORTEZA MALL';
+          else if (/quiros|duarte/i.test(userMsg)) branchName = 'DUARTE QUIRÓS';
+          else if (/allende|figueroa|mercadito/i.test(userMsg)) branchName = 'VILLA ALLENDE';
+          else if (/san isidro|luchesse/i.test(userMsg)) branchName = 'COUNTRY SAN ISIDRO';
+        }
+        db.updateOrder(activeOrder.id, { branch: branchName, deliveryType: 'pickup' });
         if (clientLead.jid || clientLead.id) {
-          db.updateLead(clientLead.jid || clientLead.id, {
-            preferredBranch: branchName,
-            deliveryType: 'pickup'
-          });
+          db.updateLead(clientLead.jid || clientLead.id, { preferredBranch: branchName, deliveryType: 'pickup' });
         }
       }
 
       // 7. Detección de Medio de Pago
       if (/(?:efectivo|transferencia|mercado pago|mp|alias)/i.test(userMsg) && activeOrder) {
         let paymentMethod = 'Efectivo';
-        if (/transferencia|alias/i.test(userMsg)) paymentMethod = 'Transferencia (republica.carne.mp)';
-        else if (/mercado pago|mp/i.test(userMsg)) paymentMethod = 'Mercado Pago (Link / Tarjetas)';
-
+        if (/transferencia|alias/i.test(userMsg)) paymentMethod = 'Transferencia';
+        else if (/mercado pago|mp/i.test(userMsg)) paymentMethod = 'Mercado Pago';
         db.updateOrder(activeOrder.id, { paymentMethod });
       }
 
@@ -178,23 +158,140 @@ export class OrderSyncEngine {
   }
 
   /**
-   * Parser inteligente de productos, unidades y precios
+   * Parsea los ítems directamente desde el resumen del agente.
+   * Busca bloques tipo "Detalle de tu pedido" o listas con • / * y extrae
+   * nombre, cantidad y precio. Luego enriquece con el catálogo real.
+   * Esta es la fuente de verdad: el agente ya calculó todo desde el catálogo.
+   */
+  static extractItemsFromAgentReply(replyMsg, catalog) {
+    const items = [];
+    const products = [];
+    let total = 0;
+
+    if (!replyMsg) return { items, products, total };
+
+    // Patrones de líneas de detalle del pedido que emite el agente
+    // Ej: "* 2 kg de Milanesas de Ternera: $24.990" 
+    //     "• 1.5 kg Vacío Especial — $17.250"
+    //     "* *2 kg de Milanesas de Ternera (Promo):* $24.990"
+    const lineRegex = /[•*\-]\s+\*?(\d+(?:[.,]\d+)?)\s*(kg|kilos?|unidades?|u\b|gr|gramos?)?\*?\s+(?:de\s+)?\*?([A-Za-záéíóúñÁÉÍÓÚÑ\s\(\)\/]+?)\*?\s*[:\-–—]\*?\s*\$?\s*([\d.,]+)/gi;
+
+    // También capturar el total general del resumen
+    const totalRegex = /(?:total[^:]*|total estimado)[:\s]*\$?\s*([\d.,]+)/gi;
+
+    let match;
+    while ((match = lineRegex.exec(replyMsg)) !== null) {
+      const qty = parseFloat((match[1] || '1').replace(',', '.'));
+      const unit = (match[2] || 'kg').toLowerCase().replace(/s$/, '').replace('kilo', 'kg');
+      const rawName = (match[3] || '').trim().replace(/\s+/g, ' ');
+      const rawPrice = parseFloat((match[4] || '0').replace(/\./g, '').replace(',', '.'));
+
+      if (!rawName || rawPrice <= 0) continue;
+
+      // Intentar encontrar el producto en el catálogo real por nombre
+      const catalogProduct = this.matchCatalogProduct(rawName, catalog);
+
+      // Precio unitario: si el agente puso el total del renglón, calcular unitario
+      // Si la cantidad es > 1, el precio reportado puede ser subtotal o unitario
+      let unitPrice = rawPrice;
+      let subtotal = rawPrice;
+
+      if (catalogProduct) {
+        // Usar precio real del catálogo
+        unitPrice = Number(catalogProduct.price) || unitPrice;
+        subtotal = Math.round(unitPrice * qty);
+      } else if (qty > 1 && rawPrice > 0) {
+        // El agente reportó el subtotal del renglón (ej: "2 kg x $12.495 = $24.990")
+        // Intentar determinar si es unitario o subtotal según magnitud
+        const perUnit = rawPrice / qty;
+        // Si el precio por unidad parece razonable (entre $100 y $100.000/kg), es subtotal
+        if (perUnit >= 100 && perUnit <= 100000) {
+          unitPrice = perUnit;
+        } else {
+          subtotal = Math.round(unitPrice * qty);
+        }
+      }
+
+      const productEntry = {
+        id: catalogProduct?.id || `prod-${rawName.toLowerCase().replace(/\s+/g, '-')}`,
+        plu: catalogProduct?.plu || '',
+        name: catalogProduct?.name || rawName,
+        price: unitPrice,
+        unitPrice: unitPrice,
+        quantity: qty,
+        unit: catalogProduct?.unit || unit,
+        subtotal: subtotal
+      };
+
+      products.push(productEntry);
+      items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
+      total += subtotal;
+    }
+
+    // Capturar total general si lo menciona el agente
+    let totalMatch;
+    while ((totalMatch = totalRegex.exec(replyMsg)) !== null) {
+      const t = parseFloat((totalMatch[1] || '0').replace(/\./g, '').replace(',', '.'));
+      if (t > total) total = t;
+    }
+
+    return { items, products, total };
+  }
+
+  /**
+   * Busca el mejor producto del catálogo real por similitud de nombre.
+   * Retorna null si no encuentra match suficientemente bueno.
+   */
+  static matchCatalogProduct(name, catalog) {
+    if (!Array.isArray(catalog) || catalog.length === 0) return null;
+    const clean = name.toLowerCase().trim();
+
+    // Exact match primero
+    let found = catalog.find(p => (p.name || '').toLowerCase().trim() === clean);
+    if (found) return found;
+
+    // Includes match
+    found = catalog.find(p => (p.name || '').toLowerCase().includes(clean) || clean.includes((p.name || '').toLowerCase()));
+    if (found) return found;
+
+    // Partial word match (score >= 60%)
+    let bestScore = 0;
+    let bestProd = null;
+    const cleanWords = clean.split(/\s+/).filter(w => w.length > 2);
+    for (const prod of catalog) {
+      const prodName = (prod.name || '').toLowerCase();
+      const prodWords = prodName.split(/\s+/).filter(w => w.length > 2);
+      if (cleanWords.length === 0 || prodWords.length === 0) continue;
+      const matchCount = cleanWords.filter(w => prodName.includes(w)).length;
+      const score = matchCount / Math.max(cleanWords.length, 1);
+      if (score > bestScore && score >= 0.5) {
+        bestScore = score;
+        bestProd = prod;
+      }
+    }
+    return bestProd;
+  }
+
+  /**
+   * Parser de productos desde el texto del cliente (fallback cuando el agente
+   * no incluyó detalle en su respuesta).
+   * Lee SOLO desde el catálogo real de la DB, sin hardcodes.
    */
   static extractProductsFromText(text, catalog) {
     const products = [];
     const items = [];
     let total = 0;
 
+    if (!Array.isArray(catalog) || catalog.length === 0) return { products, items, total };
+
     const lowerText = text.toLowerCase();
     for (const prod of catalog) {
-      const prodName = prod.name.toLowerCase();
-      // Palabras clave o nombre del producto
-      const isMentioned = lowerText.includes(prodName) || 
-        (prod.plu && lowerText.includes(prod.plu)) ||
+      const prodName = (prod.name || '').toLowerCase();
+      const isMentioned = lowerText.includes(prodName) ||
+        (prod.plu && lowerText.includes(String(prod.plu))) ||
         (Array.isArray(prod.keywords) && prod.keywords.some(kw => lowerText.includes(kw.toLowerCase())));
 
       if (isMentioned) {
-        // Extraer cantidad
         const qtyRegex = new RegExp(`(\\d+(?:[\\.,]\\d+)?)\\s*(?:kg|kilos?|unidades?|un|bolsas?|botellas?|combos?|piezas?)?\\s+(?:de\\s+)?(?:${prodName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'i');
         const match = text.match(qtyRegex);
         const quantity = match ? parseFloat(match[1].replace(',', '.')) : 1;
