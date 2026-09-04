@@ -2943,16 +2943,17 @@ Whenever the user asks about the current time, date, products count, orders, or 
       // Si es un comando estrictamente atómico (ej: solo un dígito o palabra clave de confirmación/cancelación directa)
       const isPureAtomicAction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim());
 
-      let effectiveProvider = settings.aiProvider || 'gemini';
-      if (effectiveProvider === 'system_default') {
+      let effectiveProvider = settings.aiProvider || 'system_default';
+      if (effectiveProvider === 'system_default' || effectiveProvider === 'inherited') {
         effectiveProvider = db.getSettings()?.aiProvider || 'gemini';
       }
-      let effectiveModel = settings.aiModel || getDefaultModelForProvider(effectiveProvider);
-      if (effectiveModel === 'default') {
+      let effectiveModel = settings.aiModel || 'default';
+      if (effectiveModel === 'default' || effectiveModel === 'inherited') {
         effectiveModel = db.getSettings()?.aiModel || getDefaultModelForProvider(effectiveProvider);
       }
       const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
       const effectiveMaxTokens = settings.aiMaxTokens || 2048;
+
 
       const combinedSystemPrompt = `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}`;
 
@@ -3022,7 +3023,8 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
     if (shouldSendAudio && replyText) {
       try {
-        const speech = await SpeechService.textToSpeech(replyText);
+        const effectiveVoice = (settings.voiceType === 'custom' && settings.voiceId) ? settings.voiceId : null;
+        const speech = await SpeechService.textToSpeech(replyText, effectiveVoice);
         audioOggPath = speech.oggPath;
         audioMp3Path = speech.mp3Path;
         audioDuration = speech.durationSeconds;

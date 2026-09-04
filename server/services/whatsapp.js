@@ -556,16 +556,27 @@ export class WhatsAppService {
         const oggPath = path.join(CONFIG.MEDIA_DIR, `in_${Date.now()}_${msg.key.id}.ogg`);
         fs.writeFileSync(oggPath, buffer);
 
-        // Convertir a MP3 para reproducción en el CRM
-        const mp3Path = await AudioConverter.convertOggToMp3(oggPath);
-        mediaUrl = `/media/${path.basename(mp3Path)}`;
+        // Convertir a MP3 para reproducción en el CRM (con fallback a OGG nativo)
+        let playablePath = oggPath;
+        try {
+          playablePath = await AudioConverter.convertOggToMp3(oggPath);
+        } catch (convErr) {
+          console.warn('[WhatsApp] No se pudo convertir a MP3, usando OGG original:', convErr.message);
+          playablePath = oggPath;
+        }
+        mediaUrl = `/media/${path.basename(playablePath)}`;
 
         // Transcribir audio a texto con IA
-        textContent = await SpeechService.transcribeAudio(mp3Path);
-        console.log(`🎙️ Transcripción de audio: "${textContent}"`);
+        try {
+          textContent = await SpeechService.transcribeAudio(playablePath);
+          console.log(`🎙️ Transcripción de audio: "${textContent}"`);
+        } catch (sttErr) {
+          console.warn('[WhatsApp] Error en transcripción:', sttErr.message);
+          textContent = '🎤 [Nota de voz recibida]';
+        }
       } catch (err) {
         console.error('Error procesando audio entrante:', err);
-        textContent = '[Nota de voz recibida]';
+        textContent = '🎤 [Nota de voz recibida]';
       }
     } else if (messageContent.imageMessage || (messageContent.documentMessage && messageContent.documentMessage.mimetype?.startsWith('image/'))) {
       // 3. Detección de Imágenes (Productos, Comprobantes de Pago, Tickets)

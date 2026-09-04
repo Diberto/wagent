@@ -57,14 +57,20 @@ export class SpeechService {
     const settings = db.getSettings();
 
     try {
-      // Asegurar conversión a MP3 si es OGG
+      // Asegurar conversión a MP3 si es OGG/WEBM/OPUS
       let mp3Path = audioPath;
-      if (audioPath.endsWith('.ogg')) {
-        mp3Path = await AudioConverter.convertOggToMp3(audioPath);
+      if (audioPath.endsWith('.ogg') || audioPath.endsWith('.oga') || audioPath.endsWith('.opus') || audioPath.endsWith('.webm')) {
+        try {
+          mp3Path = await AudioConverter.convertOggToMp3(audioPath);
+        } catch (convErr) {
+          console.warn('[SpeechService] No se pudo convertir OGG a MP3, usando original:', convErr.message);
+          mp3Path = audioPath;
+        }
       }
 
-      // 1. Prioridad: ElevenLabs Scribe Speech-to-Text (Ultra precisión y comprensión de español)
-      if (settings.elevenlabsApiKey) {
+      // 1. Prioridad: ElevenLabs Scribe Speech-to-Text
+      const elevenKey = settings.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY;
+      if (elevenKey && fs.existsSync(mp3Path)) {
         try {
           const fileBuffer = fs.readFileSync(mp3Path);
           const formData = new FormData();
@@ -76,7 +82,7 @@ export class SpeechService {
           const scribeRes = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
             method: 'POST',
             headers: {
-              'xi-api-key': settings.elevenlabsApiKey
+              'xi-api-key': elevenKey
             },
             body: formData
           });
@@ -96,73 +102,90 @@ export class SpeechService {
         }
       }
 
-      // 2. Intentar con OpenAI Whisper si hay API key válida de OpenAI
-      const isValidOpenAiKey = settings.openaiApiKey && settings.openaiApiKey.startsWith('sk-');
-      if (isValidOpenAiKey) {
-        const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-        const transcription = await openai.audio.transcriptions.create({
-          file: fs.createReadStream(mp3Path),
-          model: 'whisper-1',
-          language: 'es'
-        });
+      // 2. Intentar con OpenAI Whisper si hay API key válida
+      const openAiKey = settings.openaiApiKey || process.env.OPENAI_API_KEY;
+      const isValidOpenAiKey = openAiKey && openAiKey.startsWith('sk-');
+      if (isValidOpenAiKey && fs.existsSync(mp3Path)) {
+        try {
+          const openai = new OpenAI({ apiKey: openAiKey });
+          const transcription = await openai.audio.transcriptions.create({
+            file: fs.createReadStream(mp3Path),
+            model: 'whisper-1',
+            language: 'es'
+          });
 
-        if (transcription && transcription.text) {
-          return transcription.text.trim();
+          if (transcription && transcription.text) {
+            return transcription.text.trim();
+          }
+        } catch (openAiErr) {
+          console.warn('[OpenAI STT] Error:', openAiErr.message);
         }
       }
 
-      // 2.1 Intentar con Groq Whisper (alta velocidad y precisión)
-      const groqKey = settings.groqApiKey || (settings.customApiKey && settings.customApiKey.startsWith('gsk_') ? settings.customApiKey : null);
-      if (groqKey) {
-        const groq = new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1' });
-        const transcription = await groq.audio.transcriptions.create({
-          file: fs.createReadStream(mp3Path),
-          model: 'whisper-large-v3',
-          language: 'es'
-        });
+      // 2.1 Intentar con Groq Whisper (alta velocidad, precisión y bajo costo)
+      const groqKey = settings.groqApiKey || process.env.GROQ_API_KEY || (settings.customApiKey && settings.customApiKey.startsWith('gsk_') ? settings.customApiKey : null);
+      if (groqKey && fs.existsSync(mp3Path)) {
+        try {
+          const groq = new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1' });
+          const transcription = await groq.audio.transcriptions.create({
+            file: fs.createReadStream(mp3Path),
+            model: 'whisper-large-v3',
+            language: 'es'
+          });
 
-        if (transcription && transcription.text) {
-          return transcription.text.trim();
+          if (transcription && transcription.text) {
+            return transcription.text.trim();
+          }
+        } catch (groqErr) {
+          console.warn('[Groq STT] Error:', groqErr.message);
         }
       }
 
       // 3. Intentar con Google Gemini Multimodal si hay API key válida de Gemini
-      const isValidGeminiKey = settings.geminiApiKey && settings.geminiApiKey.length > 20 && settings.geminiApiKey.startsWith('AIza');
-      if (isValidGeminiKey) {
+      const geminiKey = settings.geminiApiKey || settings.ai?.geminiApiKey || process.env.GEMINI_API_KEY;
+      if (geminiKey && geminiKey.length > 15 && fs.existsSync(mp3Path)) {
         try {
-          const genAI = new GoogleGenerativeAI(settings.geminiApiKey);
-          const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+          const genAI = new GoogleGenerativeAI(geminiKey);
+          // Probar modelos vigentes de Gemini
+          const candidateModels = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+          for (const modelName of candidateModels) {
+            try {
+              const model = genAI.getGenerativeModel({ model: modelName });
+              const audioBuffer = fs.readFileSync(mp3Path);
+              const base64Audio = audioBuffer.toString('base64');
 
-          const audioBuffer = fs.readFileSync(mp3Path);
-          const base64Audio = audioBuffer.toString('base64');
+              const result = await model.generateContent([
+                {
+                  inlineData: {
+                    mimeType: mp3Path.endsWith('.ogg') ? 'audio/ogg' : 'audio/mp3',
+                    data: base64Audio
+                  }
+                },
+                {
+                  text: 'Transcribe este audio en español con máxima fidelidad. Devuelve ÚNICAMENTE el texto transcrito sin explicaciones ni comillas adicionales.'
+                }
+              ]);
 
-          const result = await model.generateContent([
-            {
-              inlineData: {
-                mimeType: 'audio/mp3',
-                data: base64Audio
+              const text = result.response.text();
+              if (text && text.trim()) {
+                console.log(`🎙️ [Gemini STT (${modelName})] Transcrito: "${text.trim()}"`);
+                return text.trim();
               }
-            },
-            {
-              text: 'Transcribe este audio en español con máxima fidelidad. Devuelve ÚNICAMENTE el texto transcrito sin explicaciones ni comillas adicionales.'
+            } catch (innerErr) {
+              // Intentar siguiente modelo
             }
-          ]);
-
-          const text = result.response.text();
-          if (text) {
-            return text.trim();
           }
         } catch (geminiErr) {
           console.warn('Gemini STT error:', geminiErr.message);
         }
       }
 
-      // 4. Si no hay transcripción disponible, devolver aviso descriptivo
-      console.log('Nota de voz recibida sin transcripción activa.');
-      return '[Nota de voz recibida del cliente]';
+      // 4. Si ninguna API externa devolvió transcripción
+      console.log('Nota de voz recibida (pendiente de transcripción por API externa o Web Speech).');
+      return '🎤 [Nota de voz recibida del cliente]';
     } catch (error) {
       console.warn('Advertencia en transcripción de audio:', error.message);
-      return '[Nota de voz recibida del cliente]';
+      return '🎤 [Nota de voz recibida del cliente]';
     }
   }
 
@@ -182,7 +205,7 @@ export class SpeechService {
     let provider = settings.ttsProvider || 'edge';
     let voice = customVoice;
 
-    if (!voice) {
+    if (!voice || voice === 'systemDefault' || voice === 'system_default') {
       if (provider === 'elevenlabs') {
         voice = settings.elevenlabsVoiceId || '9rvdnhrYoXoUt4igKpBw';
       } else if (provider === 'openai') {
@@ -200,30 +223,8 @@ export class SpeechService {
         let voiceId = voice || settings.elevenlabsVoiceId || '9rvdnhrYoXoUt4igKpBw';
         const modelId = settings.elevenlabsModelId || 'eleven_turbo_v2_5';
 
-        let elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': settings.elevenlabsApiKey,
-            'Content-Type': 'application/json',
-            'Accept': 'audio/mpeg'
-          },
-          body: JSON.stringify({
-            text,
-            model_id: modelId,
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0.0,
-              use_speaker_boost: true
-            }
-          })
-        });
-
-        // Si la voz de librería es rechazada en cuenta Free (400/402), reintentar con voz estándar oficial (Adam)
-        if (!elevenRes.ok && (elevenRes.status === 400 || elevenRes.status === 402)) {
-          console.warn(`⚠️ Voz ${voiceId} requiere plan pago en ElevenLabs. Usando voz estándar oficial Adam (pNInz6obpgDQGcFmaJgB)...`);
-          voiceId = 'pNInz6obpgDQGcFmaJgB';
-          elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        try {
+          let elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
             method: 'POST',
             headers: {
               'xi-api-key': settings.elevenlabsApiKey,
@@ -241,16 +242,20 @@ export class SpeechService {
               }
             })
           });
-        }
 
-        if (elevenRes.ok) {
-          const arrayBuffer = await elevenRes.arrayBuffer();
-          fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
-          console.log(`🎙️ [ElevenLabs] Audio sintetizado con éxito (${voiceId})`);
-        } else {
-          const errText = await elevenRes.text();
-          console.warn(`⚠️ ElevenLabs error (${elevenRes.status}): ${errText}. Usando Edge Neural como respaldo...`);
-          await this.generateEdgeTts(text, settings.aiVoiceModel || 'es-AR-TomasNeural', tempRawMp3);
+          if (elevenRes.ok) {
+            const arrayBuffer = await elevenRes.arrayBuffer();
+            fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
+            console.log(`🎙️ [ElevenLabs] Audio sintetizado con éxito (${voiceId})`);
+          } else {
+            console.warn(`⚠️ ElevenLabs error (${elevenRes.status}). Usando Edge Neural como respaldo...`);
+            const fallbackVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : (settings.aiVoiceModel || 'es-AR-TomasNeural');
+            await this.generateEdgeTts(text, fallbackVoice, tempRawMp3);
+          }
+        } catch (elevenErr) {
+          console.warn(`⚠️ ElevenLabs excepción: ${elevenErr.message}. Usando Edge Neural como respaldo...`);
+          const fallbackVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : (settings.aiVoiceModel || 'es-AR-TomasNeural');
+          await this.generateEdgeTts(text, fallbackVoice, tempRawMp3);
         }
       } else if (provider === 'openai' && settings.openaiApiKey) {
         // 2. OpenAI TTS si está configurado
@@ -269,11 +274,11 @@ export class SpeechService {
           fs.writeFileSync(tempRawMp3, buffer);
         } catch (openaiErr) {
           console.warn(`⚠️ OpenAI TTS error: ${openaiErr.message}. Usando Edge Neural como respaldo...`);
-          await this.generateEdgeTts(text, 'es-MX-DaliaNeural', tempRawMp3);
+          await this.generateEdgeTts(text, 'es-AR-TomasNeural', tempRawMp3);
         }
       } else {
         // 3. Microsoft Edge Neural TTS (Gratuito, ultra realista y rápido)
-        const edgeVoice = voice.startsWith('es-') ? voice : 'es-MX-DaliaNeural';
+        const edgeVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : (settings.aiVoiceModel || 'es-AR-TomasNeural');
         await this.generateEdgeTts(text, edgeVoice, tempRawMp3);
       }
 
@@ -282,6 +287,7 @@ export class SpeechService {
 
       const wordCount = text.split(/\s+/).length;
       const estimatedDuration = Math.max(2, Math.round(wordCount / 2.5));
+
 
       return {
         oggPath,

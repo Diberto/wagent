@@ -295,6 +295,27 @@ export default function ChatInbox({
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
+  const speechRecognitionRef = useRef(null);
+  const liveTranscriptionRef = useRef('');
+  const [transcribingMsgId, setTranscribingMsgId] = useState(null);
+
+  const handleRequestTranscription = async (msg) => {
+    if (!selectedLead?.jid || !msg?.id) return;
+    try {
+      setTranscribingMsgId(msg.id);
+      const res = await fetch(`/api/chats/${encodeURIComponent(selectedLead.jid)}/messages/${encodeURIComponent(msg.id)}/transcribe`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (res.ok && data.message) {
+        setMessages(prev => prev.map(m => String(m.id) === String(msg.id) ? data.message : m));
+      }
+    } catch (err) {
+      console.error('Error solicitando transcripción:', err);
+    } finally {
+      setTranscribingMsgId(null);
+    }
+  };
 
   // Cargar mensajes cuando cambia el lead seleccionado
   useEffect(() => {
@@ -757,12 +778,32 @@ export default function ChatInbox({
     onSendMessage(selectedLead.jid, textToSend);
   };
 
-  // Grabación de audio con MediaRecorder
+  // Grabación de audio con MediaRecorder y reconocimiento de voz asistido
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
+
+      // Iniciar reconocimiento de voz en vivo en el navegador si está disponible
+      liveTranscriptionRef.current = '';
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        try {
+          const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+          speechRecognitionRef.current = new SpeechRec();
+          speechRecognitionRef.current.lang = 'es-AR';
+          speechRecognitionRef.current.continuous = true;
+          speechRecognitionRef.current.interimResults = true;
+          speechRecognitionRef.current.onresult = (event) => {
+            let finalTranscript = '';
+            for (let i = 0; i < event.results.length; ++i) {
+              finalTranscript += event.results[i][0].transcript;
+            }
+            liveTranscriptionRef.current = finalTranscript;
+          };
+          speechRecognitionRef.current.start();
+        } catch (_) {}
+      }
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -771,10 +812,17 @@ export default function ChatInbox({
       };
 
       mediaRecorderRef.current.onstop = async () => {
+        if (speechRecognitionRef.current) {
+          try { speechRecognitionRef.current.stop(); } catch (_) {}
+        }
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         if (audioBlob.size > 0 && selectedLead) {
           const formData = new FormData();
           formData.append('audio', audioBlob, `voice_note_${Date.now()}.webm`);
+          if (liveTranscriptionRef.current) {
+            formData.append('transcription', liveTranscriptionRef.current);
+          }
+          formData.append('duration', String(recordingSeconds || 5));
           onSendAudio(selectedLead.jid, formData);
         }
         stream.getTracks().forEach(track => track.stop());
@@ -794,6 +842,9 @@ export default function ChatInbox({
   };
 
   const stopRecording = (cancel = false) => {
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch (_) {}
+    }
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
     }
@@ -1355,7 +1406,7 @@ export default function ChatInbox({
                               />
 
                               {/* Burbuja de Transcripción de Audio */}
-                              {hasTranscription && (
+                              {hasTranscription ? (
                                 <div className="bg-black/30 rounded-xl p-2.5 border border-white/10 text-xs space-y-1">
                                   <div className="flex items-center justify-between text-[10px] font-bold text-emerald-400">
                                     <span className="flex items-center gap-1">
@@ -1374,9 +1425,23 @@ export default function ChatInbox({
                                     "{msg.content}"
                                   </p>
                                 </div>
+                              ) : (
+                                <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
+                                  <span className="italic">Audio de voz</span>
+                                  <button
+                                    type="button"
+                                    disabled={transcribingMsgId === msg.id}
+                                    onClick={() => handleRequestTranscription(msg)}
+                                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 px-2 py-0.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all flex items-center gap-1"
+                                  >
+                                    <Sparkles size={10} className={transcribingMsgId === msg.id ? 'animate-spin' : ''} />
+                                    <span>{transcribingMsgId === msg.id ? 'Transcribiendo...' : 'Transcribir'}</span>
+                                  </button>
+                                </div>
                               )}
                             </div>
                           )}
+
 
                           {/* Texto del mensaje si no es solo audio */}
                           {msg.type !== 'audio' && msg.content && (

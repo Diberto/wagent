@@ -28,6 +28,8 @@ import RecipesView from './components/RecipesView';
 import SystemHealthView from './components/SystemHealthView';
 import MultiAgentChatView from './components/MultiAgentChatView';
 import CouponsView from './components/CouponsView';
+import DatabaseView from './components/DatabaseView';
+import { playNotificationChime, playOrderChime, playMessagePing } from './utils/soundEffects';
 
 const socket = io();
 
@@ -48,6 +50,17 @@ export default function App() {
   const [targetOrderId, setTargetOrderId] = useState(null);
   const [calls, setCalls] = useState([]);
   const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
+
+  // Notification Center & Toast State
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const saved = localStorage.getItem('wagent_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [toasts, setToasts] = useState([]);
 
   // Users & RBAC Session State
   const [allUsers, setAllUsers] = useState([]);
@@ -149,12 +162,46 @@ export default function App() {
     }
   };
 
+  const addNotification = (notif) => {
+    const item = {
+      id: Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      ...notif
+    };
+    setNotifications(prev => {
+      const updated = [item, ...prev].slice(0, 50);
+      try { localStorage.setItem('wagent_notifications', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    // Toast flotante temporal (5 segundos)
+    setToasts(prev => [...prev, item]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== item.id));
+    }, 5000);
+
+    // Notificación nativa del navegador si está habilitada
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(item.title || 'WAgent Notificación', {
+          body: item.message,
+          icon: '/favicon.ico'
+        });
+      } catch (e) {}
+    }
+  };
+
   useEffect(() => {
     loadLeads();
     loadCalls();
     loadWhatsAppStatus();
     loadSettings();
     loadUsers();
+
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
 
     socket.on('connect', () => {
       console.log('Conectado a Socket.IO');
@@ -201,6 +248,58 @@ export default function App() {
       if (lead && selectedLead?.jid === lead.jid) {
         setSelectedLead(lead);
       }
+      if (message && !message.fromMe) {
+        playMessagePing();
+        addNotification({
+          title: `Mensaje de ${lead?.name || message.pushName || 'WhatsApp'}`,
+          message: message.body?.slice(0, 70) || (message.type === 'audio' ? '🎵 Nota de voz' : '📎 Archivo recibido'),
+          type: 'message',
+          tab: 'inbox',
+          jid: lead?.jid || message.remoteJid
+        });
+      }
+    });
+
+    socket.on('order:new', (order) => {
+      playOrderChime();
+      addNotification({
+        title: `Nuevo Pedido #${order?.orderNumber || order?.id?.slice(-5) || ''}`,
+        message: `${order?.customerName || 'Cliente'} - $${Number(order?.total || 0).toLocaleString()} (${order?.paymentMethod || 'Efectivo'})`,
+        type: 'order',
+        tab: 'orders',
+        data: order
+      });
+    });
+
+    socket.on('order:update', (order) => {
+      playNotificationChime();
+      addNotification({
+        title: `Pedido #${order?.orderNumber || order?.id?.slice(-5) || ''} Actualizado`,
+        message: `Estado: ${order?.status || 'Actualizado'} - ${order?.customerName || ''}`,
+        type: 'order',
+        tab: 'orders',
+        data: order
+      });
+    });
+
+    socket.on('pos:shift:opened', (shift) => {
+      playNotificationChime();
+      addNotification({
+        title: 'Caja POS Abierta',
+        message: `Turno iniciado por ${shift?.openedByName || 'Operador'} con $${shift?.initialCash || 0}`,
+        type: 'pos',
+        tab: 'pos'
+      });
+    });
+
+    socket.on('pos:shift:closed', (shift) => {
+      playNotificationChime();
+      addNotification({
+        title: 'Caja POS Cerrada',
+        message: `Turno cerrado por ${shift?.closedByName || 'Operador'}. Ventas: $${shift?.totalSales || 0}`,
+        type: 'pos',
+        tab: 'pos'
+      });
     });
 
     socket.on('whatsapp:call', ({ call, lead }) => {
@@ -410,6 +509,25 @@ export default function App() {
           }}
           isMobileDrawerOpen={isMobileDrawerOpen}
           setIsMobileDrawerOpen={setIsMobileDrawerOpen}
+          notifications={notifications}
+          onMarkAllNotificationsRead={() => {
+            setNotifications(prev => {
+              const updated = prev.map(n => ({ ...n, read: true }));
+              try { localStorage.setItem('wagent_notifications', JSON.stringify(updated)); } catch (e) {}
+              return updated;
+            });
+          }}
+          onClearNotifications={() => {
+            setNotifications([]);
+            try { localStorage.removeItem('wagent_notifications'); } catch (e) {}
+          }}
+          onSelectNotification={(notif) => {
+            if (notif.tab) setCurrentTab(notif.tab);
+            if (notif.jid && leads.length > 0) {
+              const targetLead = leads.find(l => l.jid === notif.jid);
+              if (targetLead) setSelectedLead(targetLead);
+            }
+          }}
         />
       )}
 
@@ -571,6 +689,10 @@ export default function App() {
             }}
           />
         )}
+
+        {currentTab === 'database' && (
+          <DatabaseView socket={socket} />
+        )}
       </main>
 
       {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet screens < lg solo en panel Admin) */}
@@ -667,6 +789,44 @@ export default function App() {
         isOpen={isMediaGalleryOpen}
         onClose={() => setIsMediaGalleryOpen(false)}
       />
+
+      {/* Floating Toast Notification Alerts */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            onClick={() => {
+              if (toast.tab) setCurrentTab(toast.tab);
+              if (toast.jid && leads.length > 0) {
+                const targetLead = leads.find(l => l.jid === toast.jid);
+                if (targetLead) setSelectedLead(targetLead);
+              }
+              setToasts(prev => prev.filter(t => t.id !== toast.id));
+            }}
+            className="pointer-events-auto bg-[#1e293b]/95 backdrop-blur-md border border-emerald-500/40 text-white p-3.5 rounded-2xl shadow-2xl flex items-start gap-3 transform transition-all duration-300 animate-slide-up hover:scale-102 cursor-pointer"
+          >
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+              <PackageCheck size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-emerald-400 truncate">{toast.title}</span>
+                <span className="text-[10px] text-slate-400 shrink-0">{toast.time}</span>
+              </div>
+              <p className="text-xs text-slate-200 line-clamp-2 mt-0.5">{toast.message}</p>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setToasts(prev => prev.filter(t => t.id !== toast.id));
+              }}
+              className="text-slate-400 hover:text-white shrink-0 p-1"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
 
     </div>
   );

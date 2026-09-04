@@ -54,6 +54,29 @@ export default function AgentsView({ socket, currentUser }) {
   const [agentModal, setAgentModal] = useState(null); // null | { mode: 'create'|'edit', data: { ... } }
   const [isTestingAiModel, setIsTestingAiModel] = useState(false);
   const [aiModelTestResult, setAiModelTestResult] = useState(null);
+  const [previewingVoice, setPreviewingVoice] = useState(false);
+
+  const handleTestVoice = async (voiceId) => {
+    try {
+      setPreviewingVoice(true);
+      const res = await fetch('/api/speech/preview-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voiceId: voiceId || 'es-AR-TomasNeural' })
+      });
+      const data = await res.json();
+      if (res.ok && data.audioUrl) {
+        const audio = new Audio(data.audioUrl);
+        audio.play().catch(e => console.warn('Error reproduciendo audio:', e));
+      } else {
+        alert(data.error || 'Error al generar la prueba de voz');
+      }
+    } catch (err) {
+      alert('Error de conexión al probar la voz');
+    } finally {
+      setPreviewingVoice(false);
+    }
+  };
 
   // Simulador de Chat
   const [simAgent, setSimAgent] = useState(null);
@@ -402,14 +425,15 @@ export default function AgentsView({ socket, currentUser }) {
                 personality: 'Cálido, cordobés amigable y experto en asados.',
                 promptInstructions: '',
                 firstMessage: '¡Hola! 👋 Soy tu asesor virtual de República de la Carne. ¿En qué te puedo ayudar hoy?',
-                aiProvider: 'gemini',
-                aiModel: 'gemini-2.5-flash',
+                aiProvider: 'system_default',
+                aiModel: 'default',
                 aiTemperature: 0.7,
                 aiMaxTokens: 500,
                 apiKeyOverride: '',
                 customEndpoint: '',
-                ttsProvider: 'elevenlabs',
-                voiceId: 'ErXwobaYiN019PkySvjV',
+                voiceType: 'system_default',
+                ttsProvider: 'inherited',
+                voiceId: '',
                 assignedBranches: ['all'],
                 isAI: true,
                 phoneNumber: '',
@@ -418,6 +442,7 @@ export default function AgentsView({ socket, currentUser }) {
                 isDefault: false
               }
             })}
+
             className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/20 flex items-center gap-1.5 transition-all"
           >
             <Plus size={16} /> Nuevo Agente IA
@@ -1382,30 +1407,118 @@ export default function AgentsView({ socket, currentUser }) {
                 </div>
               </div>
 
-              {/* First Message & Voice */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Mensaje de Saludo Inicial</label>
-                  <input
-                    type="text"
-                    value={agentModal.data.firstMessage}
-                    onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, firstMessage: e.target.value } })}
-                    placeholder="¡Hola! ¿En qué te puedo asesorar hoy? 🥩"
-                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-                  />
+              {/* First Message */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Mensaje de Saludo Inicial</label>
+                <input
+                  type="text"
+                  value={agentModal.data.firstMessage}
+                  onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, firstMessage: e.target.value } })}
+                  placeholder="¡Hola! ¿En qué te puedo asesorar hoy? 🥩"
+                  className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Voz del Agente */}
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 size={16} className="text-emerald-400" />
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-100">Configuración de Voz del Agente</h4>
+                      <p className="text-[11px] text-slate-400">Seleccioná si este agente hereda la voz del sistema o tiene su propia voz</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTestVoice(agentModal.data.voiceType === 'custom' ? agentModal.data.voiceId : null)}
+                    disabled={previewingVoice}
+                    className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                  >
+                    <Volume2 size={13} className={previewingVoice ? 'animate-ping' : ''} />
+                    <span>{previewingVoice ? 'Sintetizando...' : '▶️ Escuchar Muestra'}</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">ID de Voz (ElevenLabs / Edge)</label>
-                  <input
-                    type="text"
-                    value={agentModal.data.voiceId}
-                    onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, voiceId: e.target.value } })}
-                    placeholder="Ej: ErXwobaYiN019PkySvjV"
-                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex items-start gap-2.5 ${
+                    (agentModal.data.voiceType || 'system_default') === 'system_default'
+                      ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500 text-white'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="voiceType"
+                      checked={(agentModal.data.voiceType || 'system_default') === 'system_default'}
+                      onChange={() => setAgentModal({ ...agentModal, data: { ...agentModal.data, voiceType: 'system_default', voiceId: '' } })}
+                      className="mt-0.5 text-emerald-500"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">🌐 Voz por Defecto del Sistema</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                        Hereda automáticamente la voz configurada en Ajustes (es-AR-TomasNeural / Argentina)
+                      </div>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex items-start gap-2.5 ${
+                    agentModal.data.voiceType === 'custom'
+                      ? 'bg-purple-950/40 border-purple-500/80 ring-1 ring-purple-500 text-white'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="voiceType"
+                      checked={agentModal.data.voiceType === 'custom'}
+                      onChange={() => setAgentModal({ ...agentModal, data: { ...agentModal.data, voiceType: 'custom', voiceId: agentModal.data.voiceId || 'es-AR-TomasNeural' } })}
+                      className="mt-0.5 text-purple-500"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">🎙️ Voz Personalizada</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                        Elegí una locución neuronal específica o ingresá un Voice ID propio
+                      </div>
+                    </div>
+                  </label>
                 </div>
+
+                {agentModal.data.voiceType === 'custom' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 animate-in fade-in">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Voces Neuronales en Español
+                      </label>
+                      <select
+                        value={agentModal.data.voiceId || 'es-AR-TomasNeural'}
+                        onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, voiceId: e.target.value } })}
+                        className="w-full bg-slate-950 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="es-AR-TomasNeural">🇦🇷 Tomás (Argentina - Amigable, natural)</option>
+                        <option value="es-AR-ElenaNeural">🇦🇷 Elena (Argentina - Cálida, cordial)</option>
+                        <option value="es-MX-DaliaNeural">🇲🇽 Dalia (México - Ejecutiva, clara)</option>
+                        <option value="es-ES-AlvaroNeural">🇪🇸 Álvaro (España - Formal, neutro)</option>
+                        <option value="es-CO-GonzaloNeural">🇨🇴 Gonzalo (Colombia - Amable, cercano)</option>
+                        <option value="es-CL-LorenzoNeural">🇨🇱 Lorenzo (Chile - Profesional)</option>
+                        <option value="pNInz6obpgDQGcFmaJgB">🎙️ Adam (ElevenLabs - Locutor estándar)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                        Identificador Técnico / Voice ID
+                      </label>
+                      <input
+                        type="text"
+                        value={agentModal.data.voiceId || ''}
+                        onChange={e => setAgentModal({ ...agentModal, data: { ...agentModal.data, voiceId: e.target.value } })}
+                        placeholder="ej: es-AR-TomasNeural o Voice ID ElevenLabs"
+                        className="w-full bg-slate-950 border border-slate-700 px-3 py-2 rounded-xl text-xs text-slate-100 font-mono focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
+
 
               {/* Modal Footer */}
               <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">

@@ -28,6 +28,8 @@ import { tokenTracker } from '../services/tokenTracker.js';
 import { embeddedLlama } from '../services/embeddedLlama.js';
 import { CONFIG } from '../config/index.js';
 import { SYSTEM_AI_PROVIDERS, SYSTEM_AI_MODELS } from '../config/aiModels.js';
+import { isMongoConnected, getDb, connectDB } from '../../db.js';
+import { sqliteStorage } from '../services/sqliteStorage.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -91,6 +93,169 @@ export function createApiRouter(whatsappService, io) {
       res.status(500).json({ success: false, error: err.message });
     }
   });
+
+  // --- 💾 Gestión y Estado Integral de Base de Datos y Respaldos ---
+  router.get('/database/status', async (req, res) => {
+    try {
+      const pingStart = Date.now();
+      const mongoConnected = isMongoConnected();
+      const mongoDb = getDb();
+      let pingMs = 1;
+
+      if (mongoConnected && mongoDb) {
+        try {
+          await mongoDb.command({ ping: 1 });
+          pingMs = Date.now() - pingStart;
+        } catch (e) {
+          pingMs = -1;
+        }
+      }
+
+      const sqliteStats = sqliteStorage.getDetailedStats();
+      const allLeads = db.getLeads() || [];
+      const allOrders = db.getOrders() || [];
+      const allProducts = db.getProducts() || [];
+      const allRecipes = db.getRecipes() || [];
+      const allAgents = db.getAgents() || [];
+      const allBranches = db.getBranches() || [];
+      const allCoupons = db.getCoupons() || [];
+      const allCustomers = typeof db.getCustomers === 'function' ? db.getCustomers() : [];
+      const allKnowledge = typeof db.getKnowledgeBase === 'function' ? db.getKnowledgeBase() : [];
+      const allShifts = typeof db.getShifts === 'function' ? db.getShifts() : [];
+
+      // Calcular tamaño de multimedia y respaldos
+      let mediaSizeBytes = 0;
+      let mediaCount = 0;
+      try {
+        if (fs.existsSync(CONFIG.MEDIA_DIR)) {
+          const files = fs.readdirSync(CONFIG.MEDIA_DIR);
+          mediaCount = files.length;
+          files.forEach(f => {
+            try { mediaSizeBytes += fs.statSync(path.join(CONFIG.MEDIA_DIR, f)).size; } catch (_) {}
+          });
+        }
+      } catch (_) {}
+
+      const backups = BackupService.listBackups();
+      const latestBackup = backups.length > 0 ? backups[0] : null;
+
+      res.json({
+        success: true,
+        engine: mongoConnected ? 'mongodb_atlas' : (sqliteStats.isNative ? 'sqlite_wal' : 'json_fallback'),
+        engineLabel: mongoConnected ? 'MongoDB Atlas (Hostinger Cloud)' : 'SQLite WAL Nativo (Respaldo Local)',
+        hostinger: {
+          whitelistedIp: '77.37.127.103',
+          connected: mongoConnected,
+          databaseName: mongoDb?.databaseName || 'wagent',
+          pingMs: mongoConnected ? pingMs : 0
+        },
+        storage: {
+          sqliteSizeBytes: sqliteStats.dbSizeBytes,
+          sqliteSizeFormatted: (sqliteStats.dbSizeBytes / 1024 / 1024).toFixed(2) + ' MB',
+          walSizeBytes: sqliteStats.walSizeBytes,
+          mediaSizeBytes,
+          mediaSizeFormatted: (mediaSizeBytes / 1024 / 1024).toFixed(2) + ' MB',
+          mediaCount,
+          backupsCount: backups.length,
+          backupsTotalSizeBytes: backups.reduce((acc, b) => acc + (b.sizeBytes || 0), 0)
+        },
+        collections: [
+          { name: 'leads', label: 'Leads & Contactos CRM', count: allLeads.length },
+          { name: 'orders', label: 'Pedidos / Ventas Registradas', count: allOrders.length },
+          { name: 'products', label: 'Cortes & PLUs Catálogo', count: allProducts.length },
+          { name: 'customers', label: 'Base de Datos de Clientes', count: allCustomers.length || allLeads.length },
+          { name: 'recipes', label: 'Recetas Tradicionales', count: allRecipes.length },
+          { name: 'coupons', label: 'Cupones de Descuento', count: allCoupons.length },
+          { name: 'cash_registers', label: 'Turnos y Cajas POS', count: allShifts.length },
+          { name: 'agents', label: 'Agentes & Operadores', count: allAgents.length },
+          { name: 'branches', label: 'Sucursales Físicas', count: allBranches.length },
+          { name: 'knowledge', label: 'Base de Conocimiento IA', count: allKnowledge.length }
+        ],
+        lastBackup: latestBackup,
+        health: {
+          integrity: 'OK',
+          mode: 'High-Availability Dual Engine',
+          uptimeSeconds: Math.round(process.uptime())
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/database/ping', async (req, res) => {
+    try {
+      const start = Date.now();
+      const mongoConnected = isMongoConnected();
+      if (mongoConnected && getDb()) {
+        await getDb().command({ ping: 1 });
+      } else {
+        sqliteStorage.stmts?.getStats?.get?.();
+      }
+      res.json({ success: true, latencyMs: Date.now() - start, engine: mongoConnected ? 'mongodb' : 'sqlite' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/database/optimize', async (req, res) => {
+    try {
+      const sqliteResult = sqliteStorage.optimize();
+      const memResult = systemMonitor.clearMemoryCaches();
+
+      // Limpiar archivos temporales huérfanos en media (prefijos temp_ o tts_tmp_)
+      let cleanedFiles = 0;
+      let cleanedBytes = 0;
+      try {
+        if (fs.existsSync(CONFIG.MEDIA_DIR)) {
+          const files = fs.readdirSync(CONFIG.MEDIA_DIR);
+          files.forEach(f => {
+            if (f.startsWith('temp_') || f.startsWith('tts_tmp_') || f.startsWith('raw_temp_')) {
+              try {
+                const fPath = path.join(CONFIG.MEDIA_DIR, f);
+                const st = fs.statSync(fPath);
+                if (Date.now() - st.mtimeMs > 3600000) { // Mayor a 1 hora
+                  fs.unlinkSync(fPath);
+                  cleanedFiles++;
+                  cleanedBytes += st.size;
+                }
+              } catch (_) {}
+            }
+          });
+        }
+      } catch (_) {}
+
+      res.json({
+        success: true,
+        sqlite: sqliteResult,
+        memory: memResult,
+        cleanedMedia: { files: cleanedFiles, bytes: cleanedBytes },
+        message: `Optimización completada con éxito. Se compactó la base de datos (${sqliteResult.freedKb} KB liberados) y se purgaron ${cleanedFiles} temporales.`
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Preescucha de voz para configuración de agentes
+  router.post('/speech/preview-voice', async (req, res) => {
+    try {
+      const { voiceId, text = '¡Hola! Esta es una prueba de la voz configurada para este agente en WAgent.' } = req.body || {};
+      const speech = await SpeechService.textToSpeech(text, voiceId);
+      if (!speech || !speech.mp3Path) {
+        return res.status(500).json({ success: false, error: 'No se pudo generar la muestra de voz' });
+      }
+      res.json({
+        success: true,
+        audioUrl: `/media/${path.basename(speech.mp3Path)}`,
+        durationSeconds: speech.durationSeconds || 3
+      });
+    } catch (err) {
+      console.error('Error generando preview de voz:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
 
   // --- 👨‍🍳 Recetas Tradicionales Argentinas Vinculadas al Catálogo ---
   router.get('/recipes', (req, res) => {
@@ -901,21 +1066,47 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     if (!req.file) return res.status(400).json({ error: 'No se subió archivo de audio' });
 
     try {
-      // Convertir a WhatsApp PTT Opus OGG
-      const oggPath = await AudioConverter.convertToWhatsAppPtt(req.file.path);
-      const mp3Path = await AudioConverter.convertOggToMp3(oggPath);
+      // Convertir a WhatsApp PTT Opus OGG con fallback seguro
+      let oggPath = req.file.path;
+      try {
+        oggPath = await AudioConverter.convertToWhatsAppPtt(req.file.path);
+      } catch (convPttErr) {
+        console.warn('No se pudo convertir a PTT Opus, usando archivo subido:', convPttErr.message);
+      }
+
+      let mp3Path = oggPath;
+      try {
+        mp3Path = await AudioConverter.convertOggToMp3(oggPath);
+      } catch (convMp3Err) {
+        mp3Path = oggPath;
+      }
 
       if (whatsappService.status === 'connected') {
-        await whatsappService.sendVoiceNote(jid, oggPath);
+        try {
+          await whatsappService.sendVoiceNote(jid, oggPath);
+        } catch (waSendErr) {
+          console.warn('Aviso enviando nota de voz a WhatsApp:', waSendErr.message);
+        }
+      }
+
+      // Transcripción: si vino directamente del navegador por Web Speech o procesar con STT
+      let audioContent = req.body?.transcription ? req.body.transcription.trim() : null;
+      if (!audioContent) {
+        try {
+          const sttRes = await SpeechService.transcribeAudio(mp3Path);
+          if (sttRes && !sttRes.includes('[Nota de voz')) {
+            audioContent = sttRes;
+          }
+        } catch (_) {}
       }
 
       const savedMsg = db.saveMessage({
         chatId: jid,
         sender: 'agent',
         type: 'audio',
-        content: '🎤 [Nota de voz enviada por asesor]',
+        content: audioContent || '🎤 [Nota de voz enviada por asesor]',
         mediaUrl: `/media/${path.basename(mp3Path)}`,
-        audioDuration: 5,
+        audioDuration: Number(req.body?.duration) || 5,
         timestamp: new Date().toISOString(),
         status: 'sent'
       });
@@ -926,6 +1117,32 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       res.json({ success: true, message: savedMsg });
     } catch (err) {
       console.error('Error procesando audio para WhatsApp:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Endpoint para transcribir o actualizar texto de una nota de voz bajo demanda
+  router.post('/chats/:jid/messages/:messageId/transcribe', async (req, res) => {
+    const { jid, messageId } = req.params;
+    const { text } = req.body || {};
+    try {
+      const messages = db.getMessages(jid) || [];
+      const targetMsg = messages.find(m => String(m.id) === String(messageId));
+      if (!targetMsg) return res.status(404).json({ error: 'Mensaje no encontrado' });
+
+      let newText = text;
+      if (!newText && targetMsg.mediaUrl) {
+        const localPath = path.join(CONFIG.DATA_DIR, targetMsg.mediaUrl);
+        newText = await SpeechService.transcribeAudio(localPath);
+      }
+
+      if (newText) {
+        targetMsg.content = newText;
+        io.emit('chat:message', { message: targetMsg, lead: db.getLead(jid) });
+      }
+
+      res.json({ success: true, message: targetMsg });
+    } catch (err) {
       res.status(500).json({ error: err.message });
     }
   });

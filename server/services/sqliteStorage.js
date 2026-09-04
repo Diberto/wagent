@@ -641,6 +641,83 @@ class SQLiteStorage {
     }
   }
 
+  optimize() {
+    const startTime = Date.now();
+    let beforeBytes = 0;
+    let afterBytes = 0;
+
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        beforeBytes = fs.statSync(DB_FILE).size;
+      }
+    } catch (_) {}
+
+    if (this.isNative && this.db) {
+      try {
+        this.db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+        this.db.exec('PRAGMA optimize;');
+        this.db.exec('VACUUM;');
+        this.db.exec('ANALYZE;');
+      } catch (err) {
+        console.warn('⚠️ [SQLiteStorage] Error en optimización VACUUM:', err.message);
+      }
+    }
+
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        afterBytes = fs.statSync(DB_FILE).size;
+      }
+    } catch (_) {}
+
+    const freedBytes = Math.max(0, beforeBytes - afterBytes);
+    return {
+      success: true,
+      durationMs: Date.now() - startTime,
+      beforeSizeBytes: beforeBytes,
+      afterSizeBytes: afterBytes,
+      freedBytes,
+      freedKb: Math.round(freedBytes / 1024 * 10) / 10,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  getDetailedStats() {
+    const stats = {
+      isNative: this.isNative,
+      dbFile: DB_FILE,
+      jsonFile: JSON_FILE,
+      dbSizeBytes: 0,
+      walSizeBytes: 0,
+      tables: []
+    };
+
+    try {
+      if (fs.existsSync(DB_FILE)) stats.dbSizeBytes = fs.statSync(DB_FILE).size;
+      const walPath = `${DB_FILE}-wal`;
+      if (fs.existsSync(walPath)) stats.walSizeBytes = fs.statSync(walPath).size;
+    } catch (_) {}
+
+    const tableNames = ['products', 'orders', 'leads', 'recipes', 'agents', 'branches', 'cash_registers', 'tasks'];
+
+    if (this.isNative && this.db) {
+      for (const t of tableNames) {
+        try {
+          const row = this.db.prepare(`SELECT count(*) as count FROM ${t}`).get();
+          stats.tables.push({ name: t, count: row?.count || 0 });
+        } catch (_) {
+          stats.tables.push({ name: t, count: 0 });
+        }
+      }
+    } else {
+      stats.tables = tableNames.map(t => ({
+        name: t,
+        count: (this.fallbackData?.[t] || []).length
+      }));
+    }
+
+    return stats;
+  }
+
   initFallback() {
     this.fallbackData = { products: [], orders: [], leads: [], recipes: [], agents: [], branches: [] };
     if (fs.existsSync(JSON_FILE)) {
@@ -653,3 +730,4 @@ class SQLiteStorage {
 }
 
 export const sqliteStorage = new SQLiteStorage();
+

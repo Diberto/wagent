@@ -6,11 +6,16 @@ export default function AudioPlayer({ audioUrl, duration = 0, isAgent = false })
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(duration || 0);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [loadError, setLoadError] = useState(false);
   const audioRef = useRef(null);
+
+  // Normalizar URL si es necesario
+  const normalizedUrl = audioUrl ? (audioUrl.startsWith('http') || audioUrl.startsWith('/') ? audioUrl : `/${audioUrl}`) : '';
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    setLoadError(false);
 
     const handleLoadedMetadata = () => {
       if (audio.duration && !isNaN(audio.duration)) {
@@ -27,28 +32,44 @@ export default function AudioPlayer({ audioUrl, duration = 0, isAgent = false })
       setCurrentTime(0);
     };
 
+    const handleError = (e) => {
+      console.warn('Audio element error:', e);
+      setLoadError(true);
+      setIsPlaying(false);
+    };
+
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
     };
-  }, [audioUrl]);
+  }, [normalizedUrl]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !normalizedUrl) return;
 
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => setIsPlaying(true)).catch(err => console.error('Audio play error:', err));
+      setLoadError(false);
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch(err => {
+          console.error('Audio play error:', err);
+          setLoadError(true);
+          setIsPlaying(false);
+        });
     }
   };
+
 
   const handleSeek = (e) => {
     const audio = audioRef.current;
@@ -81,14 +102,15 @@ export default function AudioPlayer({ audioUrl, duration = 0, isAgent = false })
 
   return (
     <div className={`flex items-center gap-3 p-2.5 rounded-2xl max-w-sm ${isAgent ? 'bg-emerald-950/40 border border-emerald-500/20' : 'bg-slate-800/80 border border-slate-700/50'}`}>
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <audio ref={audioRef} src={normalizedUrl} preload="metadata" />
 
       {/* Botón de Reproducir / Pausa */}
       <button
         onClick={togglePlay}
+        disabled={!normalizedUrl}
         className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform active:scale-95 shadow-md flex-shrink-0 ${
           isAgent ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'bg-slate-200 hover:bg-white text-slate-900'
-        }`}
+        } ${!normalizedUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         {isPlaying ? <Pause size={18} className="fill-current" /> : <Play size={18} className="fill-current ml-0.5" />}
       </button>

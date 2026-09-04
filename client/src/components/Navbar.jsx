@@ -30,8 +30,11 @@ import {
   UserCheck,
   ChefHat,
   Activity,
-  Tag
+  Tag,
+  Bell,
+  Database
 } from 'lucide-react';
+
 
 export default function Navbar({ 
   currentTab, 
@@ -48,9 +51,14 @@ export default function Navbar({
   allUsers = [],
   onSwitchUser,
   isMobileDrawerOpen,
-  setIsMobileDrawerOpen
+  setIsMobileDrawerOpen,
+  notifications = [],
+  onMarkAllNotificationsRead,
+  onClearNotifications,
+  onSelectNotification
 }) {
   const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null); // 'commercial' | 'ai_modules' | null
   const [drawerSearch, setDrawerSearch] = useState('');
   const navRef = useRef(null);
@@ -89,6 +97,7 @@ export default function Navbar({
       icon: Sparkles,
       items: [
         { id: 'multi-agent', label: '👥 Team Multi-Agente Ops', icon: Users, desc: 'Chat interno con Carlos, Mateo, Stock y DevOps' },
+        { id: 'database', label: '💾 Base de Datos & Respaldos', icon: Database, desc: 'Estado MongoDB Atlas/SQLite, copias de seguridad y optimizaciones' },
         { id: 'system-health', label: '📊 Monitoreo & Recursos', icon: Activity, desc: 'Telemetría CPU/RAM, estado de módulos y optimización BD' },
         { id: 'agents', label: 'Agentes IA Personalizados', icon: Bot, desc: 'Perfiles, historias, roles, personalidades y avatares' },
         { id: 'neural-memory', label: 'Red Neuronal & Grafo', icon: Brain, desc: 'Grafo cognitivo y aprendizaje continuo' },
@@ -326,6 +335,84 @@ export default function Navbar({
           }`} />
         </button>
 
+        {/* Centro de Notificaciones en Vivo */}
+        <div className="relative">
+          <button
+            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            className="relative p-2 rounded-xl bg-[#182229] hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 hover:border-slate-600 transition-all shadow-sm active:scale-95"
+            title="Centro de Notificaciones en Vivo (Pedidos, Estados, Clientes)"
+          >
+            <Bell size={16} className={notifications.some(n => !n.read) ? 'text-amber-400' : ''} />
+            {notifications.filter(n => !n.read).length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center animate-bounce shadow-md">
+                {notifications.filter(n => !n.read).length > 9 ? '9+' : notifications.filter(n => !n.read).length}
+              </span>
+            )}
+          </button>
+
+          {/* Menú Desplegable de Notificaciones */}
+          {isNotificationsOpen && (
+            <div className="absolute right-0 top-12 w-80 sm:w-96 bg-[#111b21] border border-slate-700/80 rounded-2xl shadow-2xl p-3 space-y-2.5 z-50 animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Bell size={14} className="text-amber-400" />
+                  <span className="text-xs font-bold text-white">Notificaciones en Vivo</span>
+                  <span className="text-[10px] px-2 py-0.2 rounded-full bg-slate-800 text-slate-300 font-mono">
+                    {notifications.length}
+                  </span>
+                </div>
+                {notifications.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (onMarkAllNotificationsRead) onMarkAllNotificationsRead();
+                    }}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
+                  >
+                    Marcar leídas
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-80 overflow-y-auto space-y-1.5 custom-scrollbar">
+                {notifications.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 text-xs space-y-1">
+                    <p>No hay notificaciones recientes.</p>
+                    <p className="text-[10px] text-slate-500">Los cambios de pedidos y ventas aparecerán aquí en vivo.</p>
+                  </div>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        if (onSelectNotification) onSelectNotification(n);
+                        setIsNotificationsOpen(false);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        n.read
+                          ? 'bg-slate-900/40 border-slate-800/80 text-slate-400 hover:bg-slate-800/40'
+                          : 'bg-slate-900/90 border-slate-700 text-slate-100 hover:bg-slate-850 shadow-sm ring-1 ring-emerald-500/20'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                          <span>{n.icon || '📢'}</span>
+                          <span>{n.title}</span>
+                        </div>
+                        <span className="text-[9px] font-mono text-slate-500 flex-shrink-0">
+                          {n.timeFormatted || 'ahora'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                        {n.message}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Botón de Ajustes Generales */}
         <button
           onClick={onOpenSettings}
@@ -334,6 +421,7 @@ export default function Navbar({
         >
           <Settings size={16} />
         </button>
+
 
         {/* Chip Selector de Usuario / Perfil Activo */}
         <div className="relative">
