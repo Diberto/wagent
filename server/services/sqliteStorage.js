@@ -139,6 +139,30 @@ class SQLiteStorage {
       );
       CREATE INDEX IF NOT EXISTS idx_cash_registers_branch ON cash_registers(branch_id, status);
 
+      -- Usuarios Unificados (Clientes, Staff, Cadetes, Admins y Agentes de IA)
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT,
+        role TEXT DEFAULT 'cliente',
+        user_type TEXT DEFAULT 'customer',
+        phone TEXT UNIQUE,
+        email TEXT UNIQUE,
+        full_name TEXT NOT NULL,
+        password_hash TEXT,
+        otp_hash TEXT,
+        otp_expires_at INTEGER,
+        address TEXT,
+        neighborhood TEXT,
+        postal_code TEXT,
+        birth_date TEXT,
+        status TEXT DEFAULT 'active',
+        ai_controller TEXT,
+        preferences TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        data TEXT NOT NULL
+      );
+
       -- Cola de Tareas Asíncronas
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
@@ -161,6 +185,50 @@ class SQLiteStorage {
         updated_at TEXT NOT NULL
       );
     `);
+
+    // Auto-migración segura de columnas en tabla users si ya existía previamente
+    try {
+      const userCols = this.db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+      if (userCols.length > 0) {
+        const requiredCols = [
+          { name: 'user_type', type: "TEXT DEFAULT 'customer'" },
+          { name: 'phone', type: 'TEXT' },
+          { name: 'email', type: 'TEXT' },
+          { name: 'full_name', type: "TEXT DEFAULT 'Usuario'" },
+          { name: 'password_hash', type: 'TEXT' },
+          { name: 'otp_hash', type: 'TEXT' },
+          { name: 'otp_expires_at', type: 'INTEGER' },
+          { name: 'address', type: 'TEXT' },
+          { name: 'neighborhood', type: 'TEXT' },
+          { name: 'postal_code', type: 'TEXT' },
+          { name: 'birth_date', type: 'TEXT' },
+          { name: 'status', type: "TEXT DEFAULT 'active'" },
+          { name: 'ai_controller', type: 'TEXT' },
+          { name: 'preferences', type: 'TEXT' },
+          { name: 'created_at', type: 'TEXT' },
+          { name: 'updated_at', type: 'TEXT' },
+          { name: 'data', type: 'TEXT' }
+        ];
+        for (const col of requiredCols) {
+          if (!userCols.includes(col.name)) {
+            try {
+              this.db.exec(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type};`);
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Crear índices de users una vez asegurada la existencia de columnas
+    try {
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+        CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_users_type ON users(user_type);
+        CREATE INDEX IF NOT EXISTS idx_users_neighborhood ON users(neighborhood);
+        CREATE INDEX IF NOT EXISTS idx_users_postal_code ON users(postal_code);
+      `);
+    } catch (_) {}
   }
 
   prepareStatements() {
@@ -271,6 +339,37 @@ class SQLiteStorage {
           data = excluded.data
       `),
 
+      // Users (Cuentas unificadas & Agentes de IA)
+      getAllUsers: this.db.prepare('SELECT data FROM users ORDER BY created_at DESC'),
+      getUserById: this.db.prepare('SELECT data FROM users WHERE id = ?'),
+      getUserByPhone: this.db.prepare('SELECT data FROM users WHERE phone = ?'),
+      getUserByEmail: this.db.prepare('SELECT data FROM users WHERE email = ?'),
+      getUserByUsername: this.db.prepare('SELECT data FROM users WHERE username = ?'),
+      upsertUser: this.db.prepare(`
+        INSERT INTO users (id, username, role, user_type, phone, email, full_name, password_hash, otp_hash, otp_expires_at, address, neighborhood, postal_code, birth_date, status, ai_controller, preferences, created_at, updated_at, data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          username = excluded.username,
+          role = excluded.role,
+          user_type = excluded.user_type,
+          phone = excluded.phone,
+          email = excluded.email,
+          full_name = excluded.full_name,
+          password_hash = excluded.password_hash,
+          otp_hash = excluded.otp_hash,
+          otp_expires_at = excluded.otp_expires_at,
+          address = excluded.address,
+          neighborhood = excluded.neighborhood,
+          postal_code = excluded.postal_code,
+          birth_date = excluded.birth_date,
+          status = excluded.status,
+          ai_controller = excluded.ai_controller,
+          preferences = excluded.preferences,
+          updated_at = excluded.updated_at,
+          data = excluded.data
+      `),
+      deleteUser: this.db.prepare('DELETE FROM users WHERE id = ?'),
+
       // KV Store
       getKV: this.db.prepare('SELECT value FROM kv_store WHERE key = ?'),
       setKV: this.db.prepare(`
@@ -336,6 +435,12 @@ class SQLiteStorage {
       // Branches
       if (Array.isArray(data.branches)) {
         for (const b of data.branches) this.saveBranch(b);
+      }
+      // Users
+      if (Array.isArray(data.users)) {
+        for (const u of data.users) {
+          try { this.saveUser(u); } catch (_) {}
+        }
       }
       // Settings & Stores
       if (data.settings) this.setKV('settings', data.settings);
@@ -598,6 +703,149 @@ class SQLiteStorage {
     return s;
   }
 
+  // --- MÉTODOS CRUD USUARIOS UNIFICADOS & AGENTES IA ---
+  getUsers({ userType = 'all', search = '', limit = 100 } = {}) {
+    if (this.isNative) {
+      const rows = this.stmts.getAllUsers.all();
+      let users = rows.map(r => JSON.parse(r.data));
+      if (userType && userType !== 'all') {
+        users = users.filter(u => u.userType === userType);
+      }
+      if (search) {
+        const q = search.toLowerCase();
+        users = users.filter(u => 
+          (u.fullName && u.fullName.toLowerCase().includes(q)) ||
+          (u.phone && u.phone.includes(q)) ||
+          (u.email && u.email.toLowerCase().includes(q))
+        );
+      }
+      return users.slice(0, limit);
+    }
+    let users = this.fallbackData.users || [];
+    if (userType && userType !== 'all') users = users.filter(u => u.userType === userType);
+    return users.slice(0, limit);
+  }
+
+  getUserById(id) {
+    if (this.isNative) {
+      const row = this.stmts.getUserById.get(String(id));
+      return row ? JSON.parse(row.data) : null;
+    }
+    return (this.fallbackData.users || []).find(u => String(u.id) === String(id)) || null;
+  }
+
+  getUserByPhone(phone) {
+    if (this.isNative) {
+      const row = this.stmts.getUserByPhone.get(String(phone));
+      return row ? JSON.parse(row.data) : null;
+    }
+    return (this.fallbackData.users || []).find(u => String(u.phone) === String(phone)) || null;
+  }
+
+  getUserByEmail(email) {
+    if (this.isNative) {
+      const row = this.stmts.getUserByEmail.get(String(email).toLowerCase());
+      return row ? JSON.parse(row.data) : null;
+    }
+    return (this.fallbackData.users || []).find(u => u.email?.toLowerCase() === String(email).toLowerCase()) || null;
+  }
+
+  getUserByUsername(username) {
+    if (!username) return null;
+    if (this.isNative) {
+      const row = this.stmts.getUserByUsername.get(String(username).trim());
+      return row ? JSON.parse(row.data) : null;
+    }
+    return (this.fallbackData.users || []).find(u => u.username === String(username).trim()) || null;
+  }
+
+  getUserByIdentifier(identifier) {
+    if (!identifier) return null;
+    const str = String(identifier).trim();
+    // 1. Probar por ID
+    let u = this.getUserById(str);
+    if (u) return u;
+    // 2. Probar por username
+    u = this.getUserByUsername(str);
+    if (u) return u;
+    // 3. Probar por email si tiene @
+    if (str.includes('@')) {
+      u = this.getUserByEmail(str);
+      if (u) return u;
+    }
+    // 4. Probar por teléfono
+    u = this.getUserByPhone(str);
+    if (u) return u;
+    // 5. Búsqueda por dígitos
+    const digits = str.replace(/\D/g, '');
+    if (digits.length >= 8) {
+      const all = this.getUsers({ limit: 1000 });
+      return all.find(x => x.phone && x.phone.replace(/\D/g, '').endsWith(digits.slice(-8))) || null;
+    }
+    return null;
+  }
+
+  saveUser(u) {
+    let existing = null;
+    if (u.id) existing = this.getUserById(u.id);
+    if (!existing && u.email) existing = this.getUserByEmail(u.email);
+    if (!existing && u.phone) existing = this.getUserByPhone(u.phone);
+    if (!existing && u.username) existing = this.getUserByUsername(u.username);
+
+    if (existing) {
+      if (!u.id) u.id = existing.id;
+      if (!u.username) u.username = existing.username;
+      u = { ...existing, ...u };
+    }
+
+    if (!u.id) u.id = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const now = new Date().toISOString();
+    const username = u.username || u.email || (u.phone ? u.phone.replace(/\D/g, '') : null) || u.id;
+    const role = String(u.role || existing?.role || (u.userType === 'admin' ? 'admin' : (u.userType === 'staff' ? 'cajero' : (u.userType === 'ai_agent' ? 'agente' : 'cliente'))));
+    if (this.isNative) {
+      this.stmts.upsertUser.run(
+        String(u.id),
+        String(username),
+        String(role),
+        String(u.userType || 'customer'),
+        u.phone ? String(u.phone) : null,
+        u.email ? String(u.email).toLowerCase() : null,
+        String(u.fullName || u.name || 'Usuario'),
+        u.passwordHash ? String(u.passwordHash) : null,
+        u.otpRecord?.hash ? String(u.otpRecord.hash) : null,
+        u.otpRecord?.expiresAt ? Number(u.otpRecord.expiresAt) : null,
+        u.address ? String(u.address) : null,
+        u.neighborhood ? String(u.neighborhood) : null,
+        u.postalCode ? String(u.postalCode) : null,
+        u.birthDate ? String(u.birthDate) : null,
+        String(u.status || 'active'),
+        u.aiController ? JSON.stringify(u.aiController) : null,
+        u.preferences ? JSON.stringify(u.preferences) : null,
+        String(u.createdAt || now),
+        now,
+        JSON.stringify(u)
+      );
+    } else {
+      if (!this.fallbackData.users) this.fallbackData.users = [];
+      const idx = this.fallbackData.users.findIndex(x => x.id === u.id);
+      if (idx >= 0) this.fallbackData.users[idx] = u;
+      else this.fallbackData.users.unshift(u);
+    }
+    return u;
+  }
+
+  saveUsers(users) {
+    for (const u of users) this.saveUser(u);
+    return users;
+  }
+
+  deleteUser(id) {
+    if (this.isNative) this.stmts.deleteUser.run(String(id));
+    else if (this.fallbackData.users) {
+      this.fallbackData.users = this.fallbackData.users.filter(x => x.id !== id);
+    }
+  }
+
   getKV(key, defaultValue = null) {
     if (this.isNative) {
       const row = this.stmts.getKV.get(key);
@@ -697,7 +945,7 @@ class SQLiteStorage {
       if (fs.existsSync(walPath)) stats.walSizeBytes = fs.statSync(walPath).size;
     } catch (_) {}
 
-    const tableNames = ['products', 'orders', 'leads', 'recipes', 'agents', 'branches', 'cash_registers', 'tasks'];
+    const tableNames = ['users', 'products', 'orders', 'leads', 'recipes', 'agents', 'branches', 'cash_registers', 'tasks'];
 
     if (this.isNative && this.db) {
       for (const t of tableNames) {

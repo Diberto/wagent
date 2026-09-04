@@ -39,6 +39,7 @@ import {
   Globe
 } from 'lucide-react';
 import SearchableCombobox from './ui/SearchableCombobox.jsx';
+import CustomerPortalModal from './CustomerPortalModal';
 
 /**
  * Resuelve la URL base de la API del CRM de forma transparente.
@@ -161,11 +162,51 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Formulario de Checkout
+  // Formulario de Checkout (Perfil 7/7 Universal)
   const [deliveryType, setDeliveryType] = useState('delivery'); // 'delivery' | 'pickup'
-  const [customerName, setCustomerName] = useState(() => localStorage.getItem('republica_customer_name') || '');
-  const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem('republica_customer_phone') || '');
-  const [customerAddress, setCustomerAddress] = useState(() => localStorage.getItem('republica_customer_address') || '');
+  const [customerName, setCustomerName] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('wagent_user') || '{}');
+      return u.fullName || u.name || localStorage.getItem('republica_customer_name') || '';
+    } catch { return localStorage.getItem('republica_customer_name') || ''; }
+  });
+  const [customerPhone, setCustomerPhone] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('wagent_user') || '{}');
+      return u.phone || localStorage.getItem('republica_customer_phone') || '';
+    } catch { return localStorage.getItem('republica_customer_phone') || ''; }
+  });
+  const [customerEmail, setCustomerEmail] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('wagent_user') || '{}');
+      return u.email || localStorage.getItem('republica_customer_email') || '';
+    } catch { return localStorage.getItem('republica_customer_email') || ''; }
+  });
+  const [customerAddress, setCustomerAddress] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('wagent_user') || '{}');
+      return u.address || localStorage.getItem('republica_customer_address') || '';
+    } catch { return localStorage.getItem('republica_customer_address') || ''; }
+  });
+  const [customerNeighborhood, setCustomerNeighborhood] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('wagent_user') || '{}');
+      return u.neighborhood || localStorage.getItem('republica_customer_neighborhood') || '';
+    } catch { return localStorage.getItem('republica_customer_neighborhood') || ''; }
+  });
+  const [customerPostalCode, setCustomerPostalCode] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('wagent_user') || '{}');
+      return u.postalCode || localStorage.getItem('republica_customer_postal_code') || '';
+    } catch { return localStorage.getItem('republica_customer_postal_code') || ''; }
+  });
+  const [customerBirthDate, setCustomerBirthDate] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('wagent_user') || '{}');
+      return u.birthDate || localStorage.getItem('republica_customer_birth_date') || '';
+    } catch { return localStorage.getItem('republica_customer_birth_date') || ''; }
+  });
+  const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
   const [customerFiscalCondition, setCustomerFiscalCondition] = useState('CF'); // 'CF' | 'RI'
   const [customerCuit, setCustomerCuit] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState(DEFAULT_BRANCHES[0].id);
@@ -441,21 +482,43 @@ export default function StorefrontView({ onBackToAdmin = null }) {
   };
 
 
-  // Checkout y creación de pedido sincronizado
+  // Checkout y creación de pedido sincronizado con Puerta de Entrada 7/7
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     if (!customerName.trim() || !customerPhone.trim()) {
-      alert('Por favor completá tu Nombre y Teléfono de WhatsApp para confirmar el pedido.');
+      alert('Por favor completá tu Nombre y Teléfono celular (WhatsApp) para confirmar el pedido.');
       return;
     }
-    if (deliveryType === 'delivery' && !customerAddress.trim()) {
-      alert('Por favor ingresá tu Dirección completa de entrega en Córdoba.');
+    if (deliveryType === 'delivery') {
+      if (!customerAddress.trim()) {
+        alert('Por favor ingresá tu Dirección completa de entrega.');
+        return;
+      }
+      if (!customerNeighborhood.trim()) {
+        alert('Por favor ingresá tu Barrio o Localidad.');
+        return;
+      }
+      if (!customerPostalCode.trim()) {
+        alert('Por favor ingresá tu Código Postal.');
+        return;
+      }
+    }
+    if (!customerEmail.trim() || !customerEmail.includes('@')) {
+      alert('Por favor ingresá un Correo Electrónico válido para enviarte el comprobante de compra.');
+      return;
+    }
+    if (!customerBirthDate.trim()) {
+      alert('Por favor ingresá tu Fecha de Nacimiento (Día del Cumpleaños) para tus promociones y regalos.');
       return;
     }
 
     setIsSubmittingOrder(true);
     localStorage.setItem('republica_customer_name', customerName);
     localStorage.setItem('republica_customer_phone', customerPhone);
+    localStorage.setItem('republica_customer_email', customerEmail);
+    localStorage.setItem('republica_customer_neighborhood', customerNeighborhood);
+    localStorage.setItem('republica_customer_postal_code', customerPostalCode);
+    localStorage.setItem('republica_customer_birth_date', customerBirthDate);
     if (deliveryType === 'delivery') {
       localStorage.setItem('republica_customer_address', customerAddress);
     }
@@ -465,8 +528,14 @@ export default function StorefrontView({ onBackToAdmin = null }) {
     try {
       const orderPayload = {
         customerName: customerName.trim(),
+        fullName: customerName.trim(),
         phone: customerPhone.trim(),
+        customerEmail: customerEmail.trim(),
+        email: customerEmail.trim(),
         address: deliveryType === 'delivery' ? customerAddress.trim() : selectedBranchObj.address,
+        neighborhood: customerNeighborhood.trim(),
+        postalCode: customerPostalCode.trim(),
+        birthDate: customerBirthDate.trim(),
         fiscalCondition: customerFiscalCondition,
         cuit: customerFiscalCondition === 'RI' ? customerCuit.trim() : '',
         customerDoc: customerFiscalCondition === 'RI' ? customerCuit.trim() : '',
@@ -485,6 +554,24 @@ export default function StorefrontView({ onBackToAdmin = null }) {
         source: 'TIENDA_ONLINE_WEB',
         notes: orderNotes.trim()
       };
+
+      // Registrar o sincronizar cuenta de usuario unificada
+      try {
+        const apiBase = getStoreApiUrl();
+        fetch(`${apiBase}/api/v1/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: customerName.trim(),
+            phone: customerPhone.trim(),
+            email: customerEmail.trim(),
+            address: customerAddress.trim(),
+            neighborhood: customerNeighborhood.trim(),
+            postalCode: customerPostalCode.trim(),
+            birthDate: customerBirthDate.trim()
+          })
+        }).catch(() => {});
+      } catch (_) {}
 
 
       const apiBase = getStoreApiUrl();
@@ -753,6 +840,14 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                 <Package size={13} />
                 <span>Mis Pedidos</span>
               </button>
+              <button
+                onClick={() => setIsPortalModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 font-bold"
+                title="Portal de Usuario Unificado & Autoservicio"
+              >
+                <User size={13} />
+                <span>Mi Cuenta</span>
+              </button>
             </nav>
 
             {/* Botón Carrito Apple Glass */}
@@ -787,7 +882,7 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                 : 'border-transparent text-slate-400'
             }`}
           >
-            🥩 Catálogo & Cortes
+            🥩 Catálogo
           </button>
           <button
             onClick={() => {
@@ -800,7 +895,14 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                 : 'border-transparent text-slate-400'
             }`}
           >
-            📦 Rastrear Pedido
+            📦 Pedidos
+          </button>
+          <button
+            onClick={() => setIsPortalModalOpen(true)}
+            className="flex-1 py-2.5 text-center border-b-2 border-transparent text-emerald-400 font-bold hover:bg-white/[0.04] flex items-center justify-center gap-1"
+          >
+            <User size={12} />
+            <span>Mi Cuenta</span>
           </button>
         </nav>
       </header>
@@ -1181,8 +1283,8 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                       />
                     </div>
                   ) : (
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                         Dirección de Entrega en Córdoba
                       </label>
                       <div className="relative">
@@ -1191,38 +1293,105 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                           type="text"
                           value={customerAddress}
                           onChange={(e) => setCustomerAddress(e.target.value)}
-                          placeholder="Calle, Número, Barrio (ej: Av. Funes 1115, Urca)"
+                          placeholder="Calle y Número (ej: Av. Funes 1115)"
                           className="w-full bg-slate-900 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
                         />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
+                            Barrio / Zona
+                          </label>
+                          <input
+                            type="text"
+                            value={customerNeighborhood}
+                            onChange={(e) => setCustomerNeighborhood(e.target.value)}
+                            placeholder="Ej: Urca / Villa Belgrano"
+                            className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
+                            Código Postal
+                          </label>
+                          <input
+                            type="text"
+                            value={customerPostalCode}
+                            onChange={(e) => setCustomerPostalCode(e.target.value)}
+                            placeholder="Ej: 5009"
+                            className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Datos del Cliente */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
-                        Tu Nombre
-                      </label>
-                      <input
-                        type="text"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Ej: Juan Pérez"
-                        className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
-                      />
+                  {/* Datos del Cliente (Perfil Universal 7/7) */}
+                  <div className="space-y-2 pt-1 border-t border-white/10">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider">
+                        👤 Perfil de Cliente (7/7 Datos)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsPortalModalOpen(true)}
+                        className="text-[10px] text-sky-400 hover:text-sky-300 underline font-semibold"
+                      >
+                        ¿Ya tenés cuenta? Iniciar Sesión
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
-                        WhatsApp (Celular)
-                      </label>
-                      <input
-                        type="tel"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="Ej: 3512345678"
-                        className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
-                      />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
+                          Nombre y Apellido
+                        </label>
+                        <input
+                          type="text"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Ej: Juan Pérez"
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
+                          WhatsApp (Celular)
+                        </label>
+                        <input
+                          type="tel"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          placeholder="Ej: 3512345678"
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
+                          Correo Electrónico
+                        </label>
+                        <input
+                          type="email"
+                          value={customerEmail}
+                          onChange={(e) => setCustomerEmail(e.target.value)}
+                          placeholder="ejemplo@email.com"
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-400 mb-1 uppercase tracking-wider">
+                          Fecha de Nacimiento
+                        </label>
+                        <input
+                          type="date"
+                          value={customerBirthDate}
+                          onChange={(e) => setCustomerBirthDate(e.target.value)}
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1525,6 +1694,23 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
           )}
         </div>
       </footer>
+
+      {/* Modal de Portal de Usuario Unificado & Autoservicio */}
+      <CustomerPortalModal
+        isOpen={isPortalModalOpen}
+        onClose={() => setIsPortalModalOpen(false)}
+        onUserUpdated={(updatedUser) => {
+          if (updatedUser) {
+            if (updatedUser.fullName) setCustomerName(updatedUser.fullName);
+            if (updatedUser.phone) setCustomerPhone(updatedUser.phone);
+            if (updatedUser.email) setCustomerEmail(updatedUser.email);
+            if (updatedUser.address) setCustomerAddress(updatedUser.address);
+            if (updatedUser.neighborhood) setCustomerNeighborhood(updatedUser.neighborhood);
+            if (updatedUser.postalCode) setCustomerPostalCode(updatedUser.postalCode);
+            if (updatedUser.birthDate) setCustomerBirthDate(updatedUser.birthDate);
+          }
+        }}
+      />
 
     </div>
   );

@@ -30,6 +30,8 @@ import MultiAgentChatView from './components/MultiAgentChatView';
 import CouponsView from './components/CouponsView';
 import DatabaseView from './components/DatabaseView';
 import LogsView from './components/LogsView';
+import SuiteNavigation from './components/SuiteNavigation';
+import CustomerPortalModal from './components/CustomerPortalModal';
 import { playNotificationChime, playOrderChime, playMessagePing } from './utils/soundEffects';
 
 const socket = io();
@@ -78,6 +80,7 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [isMediaGalleryOpen, setIsMediaGalleryOpen] = useState(false);
+  const [isCustomerPortalOpen, setIsCustomerPortalOpen] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callTargetLead, setCallTargetLead] = useState(null);
 
@@ -543,6 +546,7 @@ export default function App() {
               if (targetLead) setSelectedLead(targetLead);
             }
           }}
+          onOpenCustomerPortal={() => setIsCustomerPortalOpen(true)}
         />
       )}
 
@@ -846,6 +850,32 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {/* Suite Navigation Dock (Desktop floating dock + mobile theme switcher & quick profile) */}
+      {currentTab !== 'storefront' && !isPosStandalone && (
+        <SuiteNavigation
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          currentUser={currentUser}
+          onOpenCustomerPortal={() => setIsCustomerPortalOpen(true)}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          notificationsCount={notifications.filter(n => !n.read).length}
+        />
+      )}
+
+      {/* Universal Customer & User Portal Modal */}
+      <CustomerPortalModal
+        isOpen={isCustomerPortalOpen}
+        onClose={() => setIsCustomerPortalOpen(false)}
+        currentUser={currentUser}
+        onUserUpdated={(updatedUser) => {
+          if (updatedUser) {
+            setCurrentUser(updatedUser);
+            localStorage.setItem('wagent_user', JSON.stringify(updatedUser));
+            loadUsers();
+          }
+        }}
+      />
 
     </div>
   );

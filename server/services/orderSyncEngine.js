@@ -1,5 +1,6 @@
 import { db, parseArgentinePrice } from './database.js';
 import { extractCleanAddress, isGarbageAddress } from './ai.js';
+import { UserAuthService } from './userAuthService.js';
 
 /**
  * Motor Inteligente de Sincronización y Registro de Pedidos en Vivo
@@ -104,6 +105,32 @@ export class OrderSyncEngine {
         }
       }
 
+      // 4.1 Extracción y Normalización Canónica del Perfil del Cliente (7 Datos Obligatorios)
+      const extractedProfile = this.extractProfileDataFromText(customerText);
+      if (cleanAddr) extractedProfile.address = cleanAddr;
+
+      const currentProfileState = {
+        fullName: extractedProfile.fullName || clientLead?.name || clientLead?.pushName || clientName,
+        phone: clientPhone,
+        address: cleanAddr || clientLead?.address || activeOrder?.address || '',
+        neighborhood: extractedProfile.neighborhood || clientLead?.neighborhood || clientLead?.barrio || '',
+        postalCode: extractedProfile.postalCode || clientLead?.postalCode || clientLead?.postal_code || '',
+        email: extractedProfile.email || clientLead?.email || '',
+        birthDate: extractedProfile.birthDate || clientLead?.birthDate || clientLead?.birth_date || ''
+      };
+      const profileGate = UserAuthService.evaluateProfileCompleteness(currentProfileState);
+
+      // Si se extrajo nueva información, persistir en Lead y cuenta de Usuario
+      if (Object.keys(extractedProfile).length > 0) {
+        if (clientLead?.jid || clientLead?.id) {
+          db.updateLead(clientLead.jid || clientLead.id, extractedProfile);
+        }
+        UserAuthService.registerOrUpdateUser({
+          ...currentProfileState,
+          userType: 'customer'
+        }).catch(() => {});
+      }
+
       // 5. Detección de Sucursal para retiro
       const isBranchPickup = /(?:sucursal|retiro|pasar a buscar|retiro por|urca|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro)/i.test(userMsg);
       let branchName = activeOrder?.branch || clientLead?.preferredBranch || '';
@@ -188,6 +215,14 @@ export class OrderSyncEngine {
             totalAmount: totalAmountToOrder > 0 ? totalAmountToOrder : activeOrder.totalAmount,
             deliveryType,
             address: cleanAddr || activeOrder.address || '',
+            neighborhood: currentProfileState.neighborhood || activeOrder.neighborhood || '',
+            postalCode: currentProfileState.postalCode || activeOrder.postalCode || '',
+            customerEmail: currentProfileState.email || activeOrder.customerEmail || '',
+            profileGate: {
+              isComplete: profileGate.isComplete,
+              score: profileGate.score,
+              missingFields: profileGate.missing
+            },
             branch: branchName || activeOrder.branch || '',
             paymentMethod,
             updatedAt: new Date().toISOString()
@@ -197,7 +232,8 @@ export class OrderSyncEngine {
           activeOrder = db.createOrder({
             jid: clientJid,
             phone: clientPhone,
-            customerName: clientName,
+            customerName: currentProfileState.fullName,
+            customerEmail: currentProfileState.email,
             items: itemsToOrder,
             products: productsToOrder,
             totalAmount: totalAmountToOrder,
@@ -207,6 +243,13 @@ export class OrderSyncEngine {
             origin: 'WHATSAPP',
             deliveryType,
             address: cleanAddr || '',
+            neighborhood: currentProfileState.neighborhood || '',
+            postalCode: currentProfileState.postalCode || '',
+            profileGate: {
+              isComplete: profileGate.isComplete,
+              score: profileGate.score,
+              missingFields: profileGate.missing
+            },
             branch: branchName || '',
             paymentMethod
           });
@@ -598,5 +641,47 @@ export class OrderSyncEngine {
     }
 
     return { products, items, total };
+  }
+
+  /**
+   * Extrae automáticamente los 7 datos canónicos del perfil del cliente desde texto libre
+   */
+  static extractProfileDataFromText(text = '') {
+    if (!text) return {};
+    const res = {};
+    const str = String(text);
+
+    // 1. Email
+    const emailMatch = str.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+    if (emailMatch) res.email = emailMatch[0].toLowerCase();
+
+    // 2. Código Postal (4 dígitos o formato argentino C1425BGA)
+    const cpMatch = str.match(/\b(?:c\.?p\.?|c[oó]digo postal|cp)[\s:]*([A-Za-z]?[0-9]{4}[A-Za-z]{0,3})\b/i)
+      || str.match(/\b([0-9]{4})\b(?!\s*(?:kg|g|gr|gramos|kilos|\$|pesos|un|unidades))/i);
+    if (cpMatch) res.postalCode = cpMatch[1].toUpperCase();
+
+    // 3. Barrio / Localidad
+    const barrioMatch = str.match(/\b(?:barrio|en el barrio|zona|vecindario|localidad)[\s:]+([A-Za-zÁÉÍÓÚáéíóúñÑ0-9\s]+?)(?:,|\.|\n|$|\s+(?:cp|c[oó]digo|depto|piso|tel|correo|email|nac[ií]))/i);
+    if (barrioMatch && barrioMatch[1] && barrioMatch[1].trim().length >= 3) {
+      res.neighborhood = barrioMatch[1].trim();
+    }
+
+    // 4. Fecha de Nacimiento (ej: 24/10/1988 o 24-10-1988 o "24 de octubre")
+    const dateMatch = str.match(/\b(?:naci(?:do)?|cumple(?:a[ñn]os)?|nacimiento)?[\s:]*(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/i);
+    if (dateMatch) {
+      const day = dateMatch[1].padStart(2, '0');
+      const month = dateMatch[2].padStart(2, '0');
+      const year = dateMatch[3] ? (dateMatch[3].length === 2 ? `19${dateMatch[3]}` : dateMatch[3]) : '2000';
+      res.birthDate = `${year}-${month}-${day}`;
+    }
+
+    // 5. Nombre completo si el usuario dice "me llamo ...", "mi nombre es ...", "soy ..."
+    const nameMatch = str.match(/\b(?:me llamo|mi nombre es|soy)[\s:]+([A-Za-zÁÉÍÓÚáéíóúñÑ\s]+?)(?:,|\.|\n|$|\s+(?:y vivo|mi direcci[oó]n|mi tel|mi cel|mi mail|mi correo))/i);
+    if (nameMatch && nameMatch[1] && nameMatch[1].trim().length >= 3) {
+      res.fullName = nameMatch[1].trim();
+      res.name = nameMatch[1].trim();
+    }
+
+    return res;
   }
 }

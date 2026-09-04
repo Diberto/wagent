@@ -56,7 +56,8 @@ export default function Navbar({
   notifications = [],
   onMarkAllNotificationsRead,
   onClearNotifications,
-  onSelectNotification
+  onSelectNotification,
+  onOpenCustomerPortal
 }) {
   const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -486,6 +487,19 @@ export default function Navbar({
                     </button>
                   );
                 })}
+              </div>
+
+              <div className="pt-2 border-t border-slate-800">
+                <button
+                  onClick={() => {
+                    setIsUserSwitcherOpen(false);
+                    if (onOpenCustomerPortal) onOpenCustomerPortal();
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md transition"
+                >
+                  <UserCheck size={14} />
+                  <span>Mi Perfil & Datos (7/7)</span>
+                </button>
               </div>
             </div>
           )}

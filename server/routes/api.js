@@ -32,6 +32,7 @@ import { isMongoConnected, getDb, connectDB } from '../../db.js';
 import { sqliteStorage } from '../services/sqliteStorage.js';
 import { DbMigrationService } from '../services/dbMigrationService.js';
 import { auditLogger } from '../services/auditLogger.js';
+import { UserAuthService } from '../services/userAuthService.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -5286,27 +5287,234 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   // =========================================================================
   // --- 15. USERS & ROLES RBAC API ---
   // =========================================================================
-  router.get('/users', (req, res) => {
-    res.json(db.getUsers());
+  // Helper middleware para verificar Bearer Token
+  const requireAuth = (req, res, next) => {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query.token || req.headers['x-auth-token']);
+    if (!token) return res.status(401).json({ error: 'Token de autenticación requerido' });
+    const decoded = UserAuthService.verifyToken(token);
+    if (!decoded) return res.status(401).json({ error: 'Token inválido o expirado' });
+    req.user = decoded;
+    next();
+  };
+
+  // --- Auth Endpoints (/api/v1/auth) ---
+  router.post('/v1/auth/register', async (req, res) => {
+    try {
+      const user = await UserAuthService.registerOrUpdateUser(req.body);
+      const token = UserAuthService.generateToken(user);
+      io.emit('user:new', UserAuthService.sanitizeUser(user));
+      res.json({ success: true, token, user: UserAuthService.sanitizeUser(user) });
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
+    }
   });
 
-  router.post('/users', (req, res) => {
-    const user = db.createUser(req.body);
-    io.emit('user:new', user);
-    res.json(user);
+  router.post('/v1/auth/login', async (req, res) => {
+    try {
+      const { identifier, username, phone, email, password } = req.body;
+      const targetId = identifier || username || phone || email;
+      const result = await UserAuthService.authenticate({ identifier: targetId, password });
+      res.json(result);
+    } catch (err) {
+      res.status(401).json({ success: false, error: err.message });
+    }
   });
 
-  router.put('/users/:id', (req, res) => {
-    const user = db.updateUser(req.params.id, req.body);
+  router.post('/v1/auth/forgot-password', async (req, res) => {
+    try {
+      const { identifier, phone, email } = req.body;
+      const targetId = identifier || phone || email;
+      const resetInfo = await UserAuthService.initiatePasswordReset(targetId);
+
+      // Si el usuario tiene teléfono, intentar enviar OTP por WhatsApp
+      if (whatsappService && resetInfo.phone) {
+        const cleanJid = resetInfo.phone.replace(/\D/g, '') + '@s.whatsapp.net';
+        const msg = `🥩🔐 *República de la Carne - Código de Seguridad*\n\nHola *${resetInfo.fullName}*, recibimos una solicitud de recuperación de contraseña.\n\nTu código de verificación de 6 dígitos es:\n👉 *${resetInfo.code}*\n\n_Válido por 10 minutos. Si no lo solicitaste, podés ignorar este mensaje._`;
+        try {
+          await whatsappService.sendTextMessage(cleanJid, msg);
+        } catch (waErr) {
+          console.warn('⚠️ No se pudo enviar OTP por WhatsApp:', waErr.message);
+        }
+      }
+
+      auditLogger.recordEvent({
+        action: 'PASSWORD_RESET_REQUESTED',
+        category: 'AUTH',
+        details: `OTP emitido para ${targetId}`,
+        severity: 'LOW'
+      });
+
+      res.json({
+        success: true,
+        message: 'Código OTP de 6 dígitos generado y despachado por WhatsApp/Email.',
+        target: resetInfo.phone || resetInfo.email
+      });
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/v1/auth/verify-otp', async (req, res) => {
+    try {
+      const { identifier, phone, email, otp } = req.body;
+      const user = await UserAuthService.findUserByIdentifier(identifier || phone || email);
+      if (!user) return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+      const val = UserAuthService.verifyOtpCode(otp, user.otpRecord);
+      if (!val.valid) return res.status(400).json({ success: false, error: val.reason });
+      res.json({ success: true, message: 'Código OTP válido' });
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/v1/auth/reset-password', async (req, res) => {
+    try {
+      const { identifier, phone, email, otp, newPassword } = req.body;
+      const targetId = identifier || phone || email;
+      const result = await UserAuthService.completePasswordReset({ identifier: targetId, otp, newPassword });
+      io.emit('user:update', result.user);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- Perfil del Usuario Autenticado (/api/v1/user/me) ---
+  router.get('/v1/user/me', requireAuth, async (req, res) => {
+    const user = await UserAuthService.findUserByIdentifier(req.user.sub);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-    io.emit('user:update', user);
-    res.json(user);
+    res.json(UserAuthService.sanitizeUser(user));
+  });
+
+  router.put('/v1/user/me/profile', requireAuth, async (req, res) => {
+    try {
+      const current = await UserAuthService.findUserByIdentifier(req.user.sub);
+      if (!current) return res.status(404).json({ error: 'Usuario no encontrado' });
+      const updated = await UserAuthService.registerOrUpdateUser({
+        ...current,
+        ...req.body,
+        id: current.id
+      });
+      io.emit('user:update', UserAuthService.sanitizeUser(updated));
+      res.json(UserAuthService.sanitizeUser(updated));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // --- Usuarios & Agentes de IA Unificados (/api/v1/users) ---
+  router.get('/v1/users', async (req, res) => {
+    const users = await UserAuthService.getUsers(req.query);
+    res.json(users);
+  });
+
+  router.post('/v1/users', async (req, res) => {
+    try {
+      const user = await UserAuthService.registerOrUpdateUser(req.body);
+      io.emit('user:new', UserAuthService.sanitizeUser(user));
+      res.json(UserAuthService.sanitizeUser(user));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/v1/users/:id', async (req, res) => {
+    try {
+      const updated = await UserAuthService.registerOrUpdateUser({ ...req.body, id: req.params.id });
+      io.emit('user:update', UserAuthService.sanitizeUser(updated));
+      res.json(UserAuthService.sanitizeUser(updated));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Compatibilidad hacia atrás con endpoints de /users
+  router.get('/users', async (req, res) => {
+    const users = await UserAuthService.getUsers(req.query);
+    res.json(users);
+  });
+
+  router.post('/users', async (req, res) => {
+    try {
+      const user = await UserAuthService.registerOrUpdateUser(req.body);
+      io.emit('user:new', UserAuthService.sanitizeUser(user));
+      res.json(UserAuthService.sanitizeUser(user));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/users/:id', async (req, res) => {
+    try {
+      const updated = await UserAuthService.registerOrUpdateUser({ ...req.body, id: req.params.id });
+      io.emit('user:update', UserAuthService.sanitizeUser(updated));
+      res.json(UserAuthService.sanitizeUser(updated));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   router.delete('/users/:id', (req, res) => {
-    const success = db.deleteUser(req.params.id);
-    io.emit('user:delete', req.params.id);
-    res.json({ success });
+    try {
+      if (sqliteStorage && typeof sqliteStorage.deleteUser === 'function') {
+        sqliteStorage.deleteUser(req.params.id);
+      }
+      const success = db.deleteUser(req.params.id);
+      io.emit('user:delete', req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Micro-App 1: Tienda Web (/api/v1/store) ---
+  router.get('/v1/store/catalog', (req, res) => {
+    const products = db.getProducts().filter(p => p.isAvailable !== false && p.isAvailableDelivery !== false);
+    const categories = Array.from(new Set(products.map(p => p.category || 'Carnicería'))).filter(Boolean);
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.json({ products, categories, count: products.length });
+  });
+
+  router.post('/v1/store/validate-profile', (req, res) => {
+    const completeness = UserAuthService.evaluateProfileCompleteness(req.body);
+    res.json(completeness);
+  });
+
+  // --- Micro-App 2: POS Mostrador (/api/v1/pos) ---
+  router.get('/v1/pos/quick-search', async (req, res) => {
+    const { q = '' } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+    const users = await UserAuthService.getUsers({ search: q, limit: 10 });
+    res.json(users);
+  });
+
+  // --- Micro-App 3: KDS / Comandas Cocina (/api/v1/kds) ---
+  router.get('/v1/kds/orders', (req, res) => {
+    const { branchId } = req.query;
+    let orders = db.getOrders().filter(o => ['pending', 'preparing', 'confirmed'].includes(o.status));
+    if (branchId) orders = orders.filter(o => o.branchId === branchId || o.branch === branchId);
+    res.json(orders);
+  });
+
+  router.patch('/v1/kds/orders/:id/status', async (req, res) => {
+    const { status, operatorName } = req.body;
+    const updated = db.updateOrderStatus(req.params.id, status);
+    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+    io.emit('order:update', updated);
+    res.json(updated);
+  });
+
+  // --- Micro-App 4: Cadetes / Delivery (/api/v1/delivery) ---
+  router.get('/v1/delivery/manifest', (req, res) => {
+    const orders = db.getOrders().filter(o => ['in_transit', 'preparing', 'confirmed'].includes(o.status) && o.deliveryType !== 'pickup');
+    const zones = {};
+    for (const o of orders) {
+      const zoneKey = o.neighborhood || o.postalCode || 'Sin Zona';
+      if (!zones[zoneKey]) zones[zoneKey] = [];
+      zones[zoneKey].push(o);
+    }
+    res.json({ zones, totalOrders: orders.length });
   });
 
   router.get('/roles', (req, res) => {

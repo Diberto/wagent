@@ -22,7 +22,15 @@ import {
   Sliders, 
   Shield, 
   Eye, 
-  EyeOff 
+  EyeOff,
+  Bot,
+  Sparkles,
+  Cpu,
+  Phone,
+  Mail,
+  MapPin,
+  Home,
+  Calendar
 } from 'lucide-react';
 
 export default function UsersView({ socket, currentUser, onSwitchUser }) {
@@ -170,9 +178,16 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
     setUserModal({
       mode: 'create',
       data: {
+        userType: 'staff', // 'customer' | 'staff' | 'driver' | 'admin' | 'ai_agent'
         name: '',
+        fullName: '',
         username: '',
+        phone: '',
         email: '',
+        address: '',
+        neighborhood: '',
+        postalCode: '',
+        birthDate: '',
         fiscalCondition: 'CF',
         cuit: '',
         role: defaultRole.id,
@@ -183,7 +198,14 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         pin: '1234',
         status: 'active',
         tabs: [...(defaultRole.tabs || [])],
-        permissions: { ...(defaultRole.permissions || {}) }
+        permissions: { ...(defaultRole.permissions || {}) },
+        aiController: {
+          provider: 'gemini',
+          model: 'gemini-1.5-flash-latest',
+          temperature: 0.4,
+          systemRole: 'Sos el maestro asador experto y asistente inteligente de República de la Carne...',
+          assignedTools: ['query_catalog', 'calculate_portions', 'create_order']
+        }
       }
     });
     setShowPin(false);
@@ -192,17 +214,25 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
   const handleOpenEditUser = (user) => {
     const userRoles = Array.isArray(user.roles) && user.roles.length > 0 ? user.roles : [user.role || 'cajero'];
     const userBranches = Array.isArray(user.branches) && user.branches.length > 0 ? user.branches : (user.branchId ? [user.branchId] : []);
+    const isAi = user.userType === 'ai_agent' || user.role === 'agente_ia' || user.role === 'agente_ia_principal' || !!user.aiController;
 
     setUserModal({
       mode: 'edit',
       data: {
         id: user.id,
-        name: user.name || '',
+        userType: user.userType || (isAi ? 'ai_agent' : (user.role === 'cliente' ? 'customer' : 'staff')),
+        name: user.name || user.fullName || '',
+        fullName: user.fullName || user.name || '',
         username: user.username || '',
+        phone: user.phone || '',
         email: user.email || '',
+        address: user.address || '',
+        neighborhood: user.neighborhood || '',
+        postalCode: user.postalCode || '',
+        birthDate: user.birthDate || '',
         fiscalCondition: user.fiscalCondition || 'CF',
         cuit: user.cuit || '',
-        role: userRoles[0] || 'cajero',
+        role: userRoles[0] || (isAi ? 'agente_ia' : 'cajero'),
         roles: userRoles,
         branchId: userBranches[0] || '',
         branches: userBranches,
@@ -210,7 +240,14 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         pin: user.pin || '1234',
         status: user.status || 'active',
         tabs: [...(user.tabs || [])],
-        permissions: { ...(user.permissions || {}) }
+        permissions: { ...(user.permissions || {}) },
+        aiController: user.aiController || {
+          provider: 'gemini',
+          model: 'gemini-1.5-flash-latest',
+          temperature: 0.4,
+          systemRole: 'Sos el maestro asador experto y asistente inteligente de República de la Carne...',
+          assignedTools: ['query_catalog', 'calculate_portions', 'create_order']
+        }
       }
     });
     setShowPin(false);
@@ -323,8 +360,10 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
 
   const getRoleBadge = (roleId) => {
     switch (roleId) {
+      case 'agente_ia':
       case 'agente_ia_principal':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-gradient-to-r from-emerald-500/20 to-purple-500/20 text-emerald-300 border border-emerald-400/40 shadow-sm">🤖 Agente IA Principal (Central)</span>;
+      case 'agente':
+        return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-gradient-to-r from-emerald-500/20 to-purple-500/20 text-emerald-300 border border-emerald-400/40 shadow-sm">🤖 Agente IA Autónomo</span>;
       case 'admin':
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-purple-500/15 text-purple-400 border border-purple-500/30">👑 Administrador Total</span>;
       case 'gerencia':
@@ -336,7 +375,7 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
       case 'repartidor':
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-sky-500/15 text-sky-400 border border-sky-500/30">🛵 Repartidor</span>;
       case 'cliente':
-        return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-lime-500/15 text-lime-400 border border-lime-500/30">🛒 Cliente</span>;
+        return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-lime-500/15 text-lime-400 border border-lime-500/30">🛒 Cliente (7/7)</span>;
       default:
         return <span className="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-slate-700/30 text-slate-300 border border-slate-700">{roleId}</span>;
     }
@@ -344,12 +383,16 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = 
-      (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.name || u.fullName || '').toLowerCase().includes(search.toLowerCase()) ||
       (u.username || '').toLowerCase().includes(search.toLowerCase()) ||
+      (u.phone || '').includes(search) ||
       (u.email || '').toLowerCase().includes(search.toLowerCase());
-    const userRoles = Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role || 'cajero'];
-    const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
-    return matchesSearch && matchesRole;
+    const userRoles = Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role || (u.userType === 'ai_agent' ? 'agente_ia' : 'cajero')];
+    const isAi = u.userType === 'ai_agent' || u.role === 'agente_ia' || u.role === 'agente_ia_principal' || u.role === 'agente' || !!u.aiController;
+    
+    if (roleFilter === 'all') return matchesSearch;
+    if (roleFilter === 'agente_ia') return matchesSearch && isAi;
+    return matchesSearch && (userRoles.includes(roleFilter) || u.userType === roleFilter);
   });
 
   return (
@@ -362,10 +405,10 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
             <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
               <Users size={18} />
             </div>
-            Gestión de Usuarios, Perfiles & Permisos (RBAC)
+            Gestión Unificada de Usuarios & Agentes de IA
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Configura roles personalizables para Admin, Gerencia, Encargados, Cajeros y Repartidores con permisos por área
+            Flujo universal de cuentas: Clientes con perfil 7/7, Staff operativo, Repartidores y Agentes Autónomos con LLM integrado
           </p>
         </div>
 
@@ -374,22 +417,29 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
           className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-purple-500 hover:bg-purple-400 text-white font-extrabold text-xs shadow-lg shadow-purple-500/20 transition-all active:scale-95 whitespace-nowrap self-start sm:self-auto"
         >
           <Plus size={16} />
-          Nuevo Usuario
+          Nuevo Usuario o Agente IA
         </button>
       </div>
 
       {/* Role Summary Grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         {[
-          { role: 'admin', label: 'Admin', count: users.filter(u => u.role === 'admin').length, color: 'text-purple-400' },
+          { role: 'agente_ia', label: '🤖 Agentes IA', count: users.filter(u => u.userType === 'ai_agent' || u.role === 'agente_ia' || u.role === 'agente_ia_principal' || !!u.aiController).length, color: 'text-emerald-400' },
+          { role: 'admin', label: 'Admin', count: users.filter(u => u.role === 'admin' && u.userType !== 'ai_agent').length, color: 'text-purple-400' },
           { role: 'gerencia', label: 'Gerencia', count: users.filter(u => u.role === 'gerencia').length, color: 'text-blue-400' },
           { role: 'encargado', label: 'Encargados', count: users.filter(u => u.role === 'encargado').length, color: 'text-emerald-400' },
           { role: 'cajero', label: 'Cajeros', count: users.filter(u => u.role === 'cajero').length, color: 'text-amber-400' },
           { role: 'repartidor', label: 'Repartidores', count: users.filter(u => u.role === 'repartidor').length, color: 'text-sky-400' },
-          { role: 'cliente', label: 'Clientes', count: users.filter(u => u.role === 'cliente').length, color: 'text-lime-400' },
+          { role: 'cliente', label: 'Clientes (7/7)', count: users.filter(u => u.role === 'cliente' || u.userType === 'customer').length, color: 'text-lime-400' },
         ].map(r => (
-          <div key={r.role} className="bg-[#182229] border border-slate-800 rounded-2xl p-3 space-y-1">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{r.label}</div>
+          <div 
+            key={r.role} 
+            onClick={() => setRoleFilter(r.role)}
+            className={`bg-[#182229] border rounded-2xl p-3 space-y-1 cursor-pointer transition hover:border-purple-500/50 ${
+              roleFilter === r.role ? 'border-purple-500/80 bg-purple-500/10' : 'border-slate-800'
+            }`}
+          >
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate">{r.label}</div>
             <div className={`text-xl font-extrabold ${r.color}`}>{r.count}</div>
           </div>
         ))}
@@ -420,6 +470,7 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 text-xs">
           {[
             { id: 'all', label: 'Todos' },
+            { id: 'agente_ia', label: '🤖 Agentes IA' },
             { id: 'admin', label: '👑 Admin' },
             { id: 'gerencia', label: '📊 Gerencia' },
             { id: 'encargado', label: '🏪 Encargados' },
@@ -554,6 +605,24 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                       )}
                     </div>
 
+                    {/* AI Controller details */}
+                    {(user.userType === 'ai_agent' || user.aiController) && (
+                      <div className="p-2.5 bg-gradient-to-r from-emerald-950/40 to-purple-950/30 border border-emerald-500/30 rounded-2xl space-y-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-emerald-300 flex items-center gap-1.5 text-[11px]">
+                            <Sparkles size={13} className="text-emerald-400" />
+                            {user.aiController?.provider === 'openai' ? 'OpenAI' : 'Google Gemini'} · {user.aiController?.model || 'Flash'}
+                          </span>
+                          <span className="text-[10px] font-mono text-purple-300 bg-purple-950/50 px-2 py-0.5 rounded-full border border-purple-500/30">
+                            temp: {user.aiController?.temperature ?? 0.4}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 italic line-clamp-2">
+                          "{user.aiController?.systemRole || 'Asistente de ventas inteligente'}"
+                        </p>
+                      </div>
+                    )}
+
                     {/* Ver Lead link for clientes */}
                     {user.linkedLeadId && (
                       <div className="px-2.5 py-1.5 rounded-xl bg-lime-500/10 border border-lime-500/20 text-[11px] text-lime-300 flex items-center gap-1.5 font-semibold">
@@ -562,8 +631,19 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                       </div>
                     )}
                     {user.phone && (
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                        <span>📱</span> {user.phone}
+                      <div className="text-[11px] text-slate-300 flex items-center gap-1.5">
+                        <Phone size={12} className="text-slate-400" /> {user.phone}
+                      </div>
+                    )}
+                    {user.address && (
+                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5 truncate">
+                        <MapPin size={12} className="text-slate-500 shrink-0" /> {user.address} {user.neighborhood ? `(${user.neighborhood})` : ''}
+                      </div>
+                    )}
+                    {user.profileStatus && (
+                      <div className="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+                        <ShieldCheck size={12} className={user.profileStatus === 'VERIFIED_COMPLETE' ? 'text-emerald-400' : 'text-amber-400'} />
+                        <span>Perfil 7/7: {user.profileStatus === 'VERIFIED_COMPLETE' ? 'Completo' : 'En proceso'}</span>
                       </div>
                     )}
                   </div>
@@ -645,29 +725,65 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
 
             <form onSubmit={handleSaveUser} className="space-y-4 text-xs">
               
+              {/* User Type Switcher (Humano vs Agente IA) */}
+              <div className="bg-[#111b21] p-1.5 rounded-2xl border border-slate-700/80 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setUserModal(prev => ({
+                    ...prev,
+                    data: { ...prev.data, userType: 'staff', role: prev.data.role === 'agente_ia' ? 'cajero' : prev.data.role }
+                  }))}
+                  className={`flex-1 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition ${
+                    userModal.data.userType !== 'ai_agent'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <UserCheck size={15} />
+                  <span>👤 Usuario Personal / Cliente</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserModal(prev => ({
+                    ...prev,
+                    data: { ...prev.data, userType: 'ai_agent', role: 'agente_ia' }
+                  }))}
+                  className={`flex-1 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition ${
+                    userModal.data.userType === 'ai_agent'
+                      ? 'bg-gradient-to-r from-emerald-600 to-purple-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Bot size={15} />
+                  <span>🤖 Agente IA Autónomo</span>
+                </button>
+              </div>
+
               {/* Basic Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Nombre y Apellido:</label>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    {userModal.data.userType === 'ai_agent' ? 'Nombre del Agente IA:' : 'Nombre y Apellido Completo:'}
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej: Marcos Benítez"
+                    placeholder={userModal.data.userType === 'ai_agent' ? 'Ej: Mateo el Asador' : 'Ej: Marcos Benítez'}
                     value={userModal.data.name}
                     onChange={(e) => setUserModal({
                       ...userModal,
-                      data: { ...userModal.data, name: e.target.value }
+                      data: { ...userModal.data, name: e.target.value, fullName: e.target.value }
                     })}
                     className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Nombre de Usuario (Login):</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Nombre de Usuario (Login / Identificador):</label>
                   <input
                     type="text"
                     required
-                    placeholder="Ej: marcos.reparto"
+                    placeholder="Ej: mateo.asador o marcos.reparto"
                     value={userModal.data.username}
                     onChange={(e) => setUserModal({
                       ...userModal,
@@ -678,44 +794,219 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                 </div>
               </div>
 
-              {/* Contact Email & PIN */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Email de Contacto:</label>
-                  <input
-                    type="email"
-                    placeholder="marcos@republicadelacarne.com"
-                    value={userModal.data.email}
-                    onChange={(e) => setUserModal({
-                      ...userModal,
-                      data: { ...userModal.data, email: e.target.value }
-                    })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
+              {/* Si es Agente de IA: Panel de Configuración de Modelo LLM */}
+              {userModal.data.userType === 'ai_agent' ? (
+                <div className="p-3.5 bg-gradient-to-br from-emerald-950/40 to-purple-950/40 border border-emerald-500/30 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                      <Sparkles size={15} />
+                      Cerebro & Modelo de IA
+                    </span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono px-2 py-0.5 rounded-full border border-emerald-500/40">
+                      Flujo Universal & Zero-Latency
+                    </span>
+                  </div>
 
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">PIN / Clave de Acceso Rápido:</label>
-                  <div className="relative">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Proveedor de IA:</label>
+                      <select
+                        value={userModal.data.aiController?.provider || 'gemini'}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: {
+                            ...userModal.data,
+                            aiController: { ...userModal.data.aiController, provider: e.target.value }
+                          }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="gemini">Google Gemini (Oficial)</option>
+                        <option value="openai">OpenAI (GPT-4o / Mini)</option>
+                        <option value="anthropic">Anthropic Claude 3.5</option>
+                        <option value="groq">Groq Llama 3</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Modelo de Lenguaje:</label>
+                      <input
+                        type="text"
+                        placeholder="gemini-1.5-flash-latest"
+                        value={userModal.data.aiController?.model || 'gemini-1.5-flash-latest'}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: {
+                            ...userModal.data,
+                            aiController: { ...userModal.data.aiController, model: e.target.value }
+                          }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-slate-300 font-semibold">Temperatura / Creatividad:</label>
+                      <span className="font-mono text-emerald-400 font-bold">
+                        {userModal.data.aiController?.temperature ?? 0.4}
+                      </span>
+                    </div>
                     <input
-                      type={showPin ? "text" : "password"}
-                      maxLength={8}
-                      placeholder="1234"
-                      value={userModal.data.pin}
+                      type="range"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={userModal.data.aiController?.temperature ?? 0.4}
                       onChange={(e) => setUserModal({
                         ...userModal,
-                        data: { ...userModal.data, pin: e.target.value }
+                        data: {
+                          ...userModal.data,
+                          aiController: { ...userModal.data.aiController, temperature: parseFloat(e.target.value) }
+                        }
                       })}
-                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono tracking-widest focus:outline-none focus:border-purple-500"
+                      className="w-full accent-emerald-500"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPin(!showPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                    >
-                      {showPin ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
                   </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Instrucción / Rol de Sistema:</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Sos Mateo, maestro asador experto de República de la Carne..."
+                      value={userModal.data.aiController?.systemRole || ''}
+                      onChange={(e) => setUserModal({
+                        ...userModal,
+                        data: {
+                          ...userModal.data,
+                          aiController: { ...userModal.data.aiController, systemRole: e.target.value }
+                        }
+                      })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-purple-500 text-xs"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* Si es Usuario Humano: 7 Campos de Perfil */
+                <div className="p-3 bg-[#111b21] rounded-2xl border border-slate-800 space-y-3">
+                  <div className="font-semibold text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck size={14} className="text-emerald-400" />
+                      Datos de Contacto & Perfil 7/7
+                    </span>
+                    <span className="text-[10px] text-slate-400">Universal CRM & WhatsApp</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Teléfono Celular (WhatsApp):</label>
+                      <input
+                        type="tel"
+                        placeholder="+54 9 11 4455-6677"
+                        value={userModal.data.phone || ''}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: { ...userModal.data, phone: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Email:</label>
+                      <input
+                        type="email"
+                        placeholder="cliente@gmail.com"
+                        value={userModal.data.email || ''}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: { ...userModal.data, email: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-300 font-semibold mb-1">Dirección de Entrega:</label>
+                      <input
+                        type="text"
+                        placeholder="Av. Santa Fe 3420, Piso 4B"
+                        value={userModal.data.address || ''}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: { ...userModal.data, address: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Barrio / Localidad:</label>
+                      <input
+                        type="text"
+                        placeholder="Palermo / Urca"
+                        value={userModal.data.neighborhood || ''}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: { ...userModal.data, neighborhood: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Código Postal:</label>
+                      <input
+                        type="text"
+                        placeholder="1425"
+                        value={userModal.data.postalCode || ''}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: { ...userModal.data, postalCode: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-slate-300 font-semibold mb-1">Fecha de Nacimiento (Cumpleaños):</label>
+                      <input
+                        type="date"
+                        value={userModal.data.birthDate || ''}
+                        onChange={(e) => setUserModal({
+                          ...userModal,
+                          data: { ...userModal.data, birthDate: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PIN / Clave */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">PIN / Clave de Acceso:</label>
+                <div className="relative">
+                  <input
+                    type={showPin ? "text" : "password"}
+                    maxLength={12}
+                    placeholder="1234"
+                    value={userModal.data.pin}
+                    onChange={(e) => setUserModal({
+                      ...userModal,
+                      data: { ...userModal.data, pin: e.target.value }
+                    })}
+                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono tracking-widest focus:outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPin(!showPin)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    {showPin ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
                 </div>
               </div>
 
