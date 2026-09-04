@@ -3013,8 +3013,20 @@ Whenever the user asks about the current time, date, products count, orders, or 
       });
     } catch (tokErr) {}
 
+    // Resolver agente asignado al chat o agente activo por defecto
+    const allAgents = db.getAgents() || [];
+    let currentAgent = null;
+    if (lead?.assignedAgentId) {
+      currentAgent = allAgents.find(a => a.id === lead.assignedAgentId);
+    }
+    if (!currentAgent) {
+      currentAgent = allAgents.find(a => a.isDefault || a.isActive) || allAgents[0];
+    }
+
     const shouldSendAudio = Boolean(
-      settings.alwaysVoiceReply || (isAudioInput && settings.voiceRepliesEnabled)
+      currentAgent?.alwaysVoiceReply ||
+      settings.alwaysVoiceReply ||
+      (isAudioInput && (settings.voiceRepliesEnabled !== false || currentAgent?.voiceRepliesEnabled !== false))
     );
 
     let audioOggPath = null;
@@ -3023,7 +3035,18 @@ Whenever the user asks about the current time, date, products count, orders, or 
 
     if (shouldSendAudio && replyText) {
       try {
-        const effectiveVoice = (settings.voiceType === 'custom' && settings.voiceId) ? settings.voiceId : null;
+        // Prioridad de voz: 1. Agente asignado (si no es herencia de sistema) -> 2. Configuración global
+        let effectiveVoice = null;
+        if (currentAgent?.voiceId && currentAgent.voiceId !== 'systemDefault' && currentAgent.voiceId !== 'system_default') {
+          effectiveVoice = currentAgent.voiceId;
+        } else if (settings.voiceType === 'custom' && settings.voiceId) {
+          effectiveVoice = settings.voiceId;
+        } else if (settings.aiVoiceModel) {
+          effectiveVoice = settings.aiVoiceModel;
+        } else {
+          effectiveVoice = 'es-AR-TomasNeural';
+        }
+
         const speech = await SpeechService.textToSpeech(replyText, effectiveVoice);
         audioOggPath = speech.oggPath;
         audioMp3Path = speech.mp3Path;

@@ -30,6 +30,7 @@ import { CONFIG } from '../config/index.js';
 import { SYSTEM_AI_PROVIDERS, SYSTEM_AI_MODELS } from '../config/aiModels.js';
 import { isMongoConnected, getDb, connectDB } from '../../db.js';
 import { sqliteStorage } from '../services/sqliteStorage.js';
+import { DbMigrationService } from '../services/dbMigrationService.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -232,6 +233,68 @@ export function createApiRouter(whatsappService, io) {
         cleanedMedia: { files: cleanedFiles, bytes: cleanedBytes },
         message: `Optimización completada con éxito. Se compactó la base de datos (${sqliteResult.freedKb} KB liberados) y se purgaron ${cleanedFiles} temporales.`
       });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- 🌐 Configuración, Testeo Real y Migración Multi-Motor de Base de Datos ---
+  router.get('/database/config', (req, res) => {
+    try {
+      const config = DbMigrationService.getActiveConfig();
+      // Enmascarar contraseñas en URLs para seguridad en el frontend
+      const masked = JSON.parse(JSON.stringify(config));
+      if (masked.mongodb?.uri) {
+        masked.mongodb.uri = masked.mongodb.uri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/, '$1******$3');
+      }
+      if (masked.supabase?.connectionString) {
+        masked.supabase.connectionString = masked.supabase.connectionString.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)/, '$1******$3');
+      }
+      res.json({ success: true, config: masked });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/database/config', (req, res) => {
+    try {
+      const updated = DbMigrationService.saveConfig(req.body);
+      res.json({ success: true, config: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/database/test-connection', async (req, res) => {
+    try {
+      const { type, config } = req.body;
+      if (!type) return res.status(400).json({ success: false, error: 'Tipo de base de datos requerido' });
+      const result = await DbMigrationService.testConnection({ type, config });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/database/migrate', async (req, res) => {
+    try {
+      const { targetType, targetConfig } = req.body;
+      if (!targetType) return res.status(400).json({ success: false, error: 'Motor destino requerido' });
+      const result = await DbMigrationService.migrateData({ targetType, targetConfig, io });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/database/switch-engine', async (req, res) => {
+    try {
+      const { engine } = req.body;
+      if (!engine) return res.status(400).json({ success: false, error: 'Motor requerido' });
+      const current = DbMigrationService.getActiveConfig();
+      current.activeEngine = engine;
+      DbMigrationService.saveConfig(current);
+      res.json({ success: true, message: `Motor activo cambiado a ${engine}`, activeEngine: engine });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -2019,12 +2082,25 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
     const updated = db.updateOrderStatus(req.params.id, status);
 
+    let notified = false;
+    let notificationError = null;
+
     if (notify) {
-      const targetJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      let targetJid = null;
+      if (whatsappService && typeof whatsappService.getCleanOrderClientJid === 'function') {
+        targetJid = await whatsappService.getCleanOrderClientJid(order);
+      } else {
+        targetJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
+      }
+
       if (targetJid && whatsappService && whatsappService.status === 'connected') {
         const msgToSend = customMessage || `¡Hola ${order.customerName || 'Cliente'}! Tu pedido #${order.id} ha cambiado de estado a: *${status}*. 🥩`;
         try {
-          await whatsappService.sendMessage(targetJid, msgToSend);
+          if (typeof whatsappService.sendTextMessage === 'function') {
+            await whatsappService.sendTextMessage(targetJid, msgToSend);
+          } else if (typeof whatsappService.sendMessage === 'function') {
+            await whatsappService.sendMessage(targetJid, msgToSend);
+          }
           const savedMsg = db.saveMessage({
             chatId: targetJid,
             sender: 'agent',
@@ -2033,15 +2109,21 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
             timestamp: new Date().toISOString()
           });
           io.emit('chat:message', { message: savedMsg });
+          notified = true;
         } catch (waErr) {
           console.error('Error enviando notificación de estado por WhatsApp:', waErr);
+          notificationError = waErr.message || 'Error al enviar por WhatsApp';
         }
+      } else {
+        notificationError = !whatsappService || whatsappService.status !== 'connected'
+          ? 'WhatsApp no está conectado'
+          : 'No se pudo determinar el JID o teléfono del cliente';
       }
     }
 
     io.emit('order:update', updated);
     io.emit('orders:sync', db.getOrders());
-    res.json(updated);
+    res.json({ ...updated, notified, notificationError });
   });
 
   const handleOrderMercadoPago = async (req, res) => {

@@ -807,10 +807,11 @@ export class WhatsAppService {
 
     const cleanJid = jidNormalizedUser(jid);
     const audioBuffer = Buffer.isBuffer(audioPathOrBuffer) ? audioPathOrBuffer : fs.readFileSync(audioPathOrBuffer);
+    const isOgg = typeof audioPathOrBuffer === 'string' ? (audioPathOrBuffer.endsWith('.ogg') || audioPathOrBuffer.endsWith('.opus')) : true;
 
     return await this.sock.sendMessage(cleanJid, {
       audio: audioBuffer,
-      mimetype: 'audio/ogg; codecs=opus',
+      mimetype: isOgg ? 'audio/ogg; codecs=opus' : 'audio/mp4',
       ptt: true // Nota de voz nativa en WhatsApp
     });
   }
@@ -1397,6 +1398,22 @@ export class WhatsAppManager {
       session = this.primarySession;
     }
     return session.sendBranchDerivationNotification(order, branch, notifyClient);
+  }
+
+  async getCleanOrderClientJid(order, userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session) {
+      session = this.primarySession;
+    }
+    return session ? session.getCleanOrderClientJid(order) : null;
+  }
+
+  async sendTextMessage(jid, text, userId = 'default') {
+    let session = this.getSession(userId);
+    if (!session || session.status !== 'connected') {
+      session = this.primarySession;
+    }
+    return session.sendTextMessage(jid, text);
   }
 }
 

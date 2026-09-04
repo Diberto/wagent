@@ -21,7 +21,13 @@ import {
   X,
   Radio,
   Wifi,
-  FileDown
+  FileDown,
+  ArrowLeftRight,
+  ArrowRight,
+  Globe,
+  Sliders,
+  CheckCheck,
+  Send
 } from 'lucide-react';
 
 export default function DatabaseView({ socket = null }) {
@@ -33,7 +39,7 @@ export default function DatabaseView({ socket = null }) {
   const [optResult, setOptResult] = useState(null);
   const [pingLatency, setPingLatency] = useState(null);
   const [pinging, setPinging] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'backups' | 'optimize'
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'backups' | 'optimize' | 'migration'
   const [collectionSearch, setCollectionSearch] = useState('');
 
   // Modal Crear Respaldo
@@ -49,11 +55,188 @@ export default function DatabaseView({ socket = null }) {
   // Subir Respaldo Externo
   const [uploadingBackup, setUploadingBackup] = useState(false);
 
+  // Configuración & Migración Multi-Motor
+  const [dbConfig, setDbConfig] = useState(null);
+  const [selectedTargetEngine, setSelectedTargetEngine] = useState('mongodb');
+  const [targetConfig, setTargetConfig] = useState({
+    mongodbUri: 'mongodb://77.37.127.103:27017/wagent',
+    mongodbDbName: 'wagent',
+    supabaseUrl: '',
+    firebaseProjectId: '',
+    mysqlUri: ''
+  });
+  const [testingConn, setTestingConn] = useState(false);
+  const [connTestResult, setConnTestResult] = useState(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState(null);
+  const [migrationResult, setMigrationResult] = useState(null);
+  const [switchingEngine, setSwitchingEngine] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configSaveSuccess, setConfigSaveSuccess] = useState(false);
+
   useEffect(() => {
     fetchData();
+    fetchDbConfig();
+
+    if (socket) {
+      const handleMigProgress = (data) => {
+        setMigrationProgress(data);
+      };
+      socket.on('database:migration:progress', handleMigProgress);
+      return () => {
+        socket.off('database:migration:progress', handleMigProgress);
+      };
+    }
+
     const interval = setInterval(fetchStatusOnly, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [socket]);
+
+  const fetchDbConfig = async () => {
+    try {
+      const res = await fetch('/api/database/config');
+      if (res.ok) {
+        const data = await res.json();
+        setDbConfig(data.config);
+        if (data.config?.mongodb?.uri) {
+          setTargetConfig(prev => ({ ...prev, mongodbUri: data.config.mongodb.uri, mongodbDbName: data.config.mongodb.dbName || 'wagent' }));
+        }
+        if (data.config?.supabase?.connectionString) {
+          setTargetConfig(prev => ({ ...prev, supabaseUrl: data.config.supabase.connectionString }));
+        }
+        if (data.config?.firebase?.projectId) {
+          setTargetConfig(prev => ({ ...prev, firebaseProjectId: data.config.firebase.projectId }));
+        }
+        if (data.config?.mysql?.uri) {
+          setTargetConfig(prev => ({ ...prev, mysqlUri: data.config.mysql.uri }));
+        }
+      }
+    } catch (e) {
+      console.warn('Error cargando config de DB:', e);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConn(true);
+    setConnTestResult(null);
+    try {
+      let configPayload = {};
+      if (selectedTargetEngine === 'mongodb') {
+        configPayload = { uri: targetConfig.mongodbUri, dbName: targetConfig.mongodbDbName };
+      } else if (selectedTargetEngine === 'supabase') {
+        configPayload = { connectionString: targetConfig.supabaseUrl };
+      } else if (selectedTargetEngine === 'firebase') {
+        configPayload = { projectId: targetConfig.firebaseProjectId };
+      } else if (selectedTargetEngine === 'mysql') {
+        configPayload = { uri: targetConfig.mysqlUri };
+      }
+
+      const res = await fetch('/api/database/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: selectedTargetEngine, config: configPayload })
+      });
+      const data = await res.json();
+      setConnTestResult(data);
+    } catch (err) {
+      setConnTestResult({ success: false, error: err.message });
+    } finally {
+      setTestingConn(false);
+    }
+  };
+
+  const handleStartMigration = async () => {
+    if (!window.confirm(`¿Iniciar migración transparente hacia ${selectedTargetEngine.toUpperCase()}? Se transferirán productos, clientes, pedidos, mensajes y agentes sin pérdida de información.`)) {
+      return;
+    }
+
+    setMigrating(true);
+    setMigrationProgress({ percentage: 5, message: 'Iniciando conexión con motor destino...' });
+    setMigrationResult(null);
+
+    try {
+      let configPayload = {};
+      if (selectedTargetEngine === 'mongodb') {
+        configPayload = { uri: targetConfig.mongodbUri, dbName: targetConfig.mongodbDbName };
+      } else if (selectedTargetEngine === 'supabase') {
+        configPayload = { connectionString: targetConfig.supabaseUrl };
+      } else if (selectedTargetEngine === 'firebase') {
+        configPayload = { projectId: targetConfig.firebaseProjectId };
+      } else if (selectedTargetEngine === 'mysql') {
+        configPayload = { uri: targetConfig.mysqlUri };
+      } else if (selectedTargetEngine === 'sqlite') {
+        configPayload = {};
+      }
+
+      const res = await fetch('/api/database/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType: selectedTargetEngine, targetConfig: configPayload })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMigrationResult({ success: true, stats: data.stats });
+        await fetchData();
+        await fetchDbConfig();
+      } else {
+        setMigrationResult({ success: false, error: data.error });
+      }
+    } catch (err) {
+      setMigrationResult({ success: false, error: err.message });
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  const handleSaveDbConfig = async () => {
+    setSavingConfig(true);
+    setConfigSaveSuccess(false);
+    try {
+      const payload = {
+        mongodb: { uri: targetConfig.mongodbUri, dbName: targetConfig.mongodbDbName },
+        supabase: { connectionString: targetConfig.supabaseUrl },
+        firebase: { projectId: targetConfig.firebaseProjectId },
+        mysql: { uri: targetConfig.mysqlUri }
+      };
+      const res = await fetch('/api/database/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setConfigSaveSuccess(true);
+        setTimeout(() => setConfigSaveSuccess(false), 3000);
+        await fetchDbConfig();
+      } else {
+        alert(data.error || 'Error al guardar la configuración');
+      }
+    } catch (e) {
+      alert('Error guardando configuración: ' + e.message);
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
+  const handleSwitchEngine = async (engine) => {
+    setSwitchingEngine(true);
+    try {
+      const res = await fetch('/api/database/switch-engine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ engine })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchDbConfig();
+        await fetchData();
+      }
+    } catch (err) {
+      alert('Error cambiando motor: ' + err.message);
+    } finally {
+      setSwitchingEngine(false);
+    }
+  };
 
   const fetchData = async () => {
     setRefreshing(true);
@@ -396,6 +579,21 @@ export default function DatabaseView({ socket = null }) {
         >
           <Zap size={14} />
           <span>Mantenimiento & Desfragmentación</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('migration')}
+          className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-2 ${
+            activeTab === 'migration'
+              ? 'border-sky-500 text-sky-400 bg-slate-800/40'
+              : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/20'
+          }`}
+        >
+          <ArrowLeftRight size={14} />
+          <span>Configurar & Migrar Motores</span>
+          <span className="ml-1 px-1.5 py-0.5 rounded-md text-[10px] bg-sky-950 border border-sky-500/40 text-sky-300 font-mono uppercase">
+            {dbConfig?.activeEngine || 'SQLITE'}
+          </span>
         </button>
       </div>
 
@@ -781,6 +979,491 @@ export default function DatabaseView({ socket = null }) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* PESTAÑA 4: CONFIGURACIÓN & MIGRACIÓN MULTI-MOTOR */}
+        {activeTab === 'migration' && (
+          <div className="space-y-6 animate-in fade-in">
+            {/* Banner de Estado del Motor Activo */}
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-sky-950/40 border border-sky-500/20 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 flex-shrink-0">
+                  <Database size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">Motor Activo en Tiempo Real</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span>
+                      EN LÍNEA
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white capitalize flex items-center gap-2 mt-0.5">
+                    {dbConfig?.activeEngine === 'sqlite' && 'SQLite WAL (Almacenamiento Local de Alta Velocidad)'}
+                    {dbConfig?.activeEngine === 'mongodb' && 'MongoDB (Atlas / Hostinger VPS Distribuido)'}
+                    {dbConfig?.activeEngine === 'supabase' && 'Supabase (PostgreSQL Cloud Realtime)'}
+                    {dbConfig?.activeEngine === 'firebase' && 'Firebase Firestore (Google Cloud Serverless)'}
+                    {dbConfig?.activeEngine === 'mysql' && 'MySQL / MariaDB (Enterprise SQL)'}
+                    {!dbConfig?.activeEngine && 'SQLite WAL'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Todas las lecturas y escrituras del CRM, agentes de IA, pedidos y WhatsApp se procesan a través de este motor.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {configSaveSuccess && (
+                  <span className="px-3 py-1 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 animate-in fade-in">
+                    <CheckCircle2 size={13} />
+                    Configuración Guardada
+                  </span>
+                )}
+                <button
+                  onClick={handleSaveDbConfig}
+                  disabled={savingConfig}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-all flex items-center gap-2"
+                >
+                  <FileText size={13} />
+                  <span>{savingConfig ? 'Guardando...' : 'Guardar Credenciales'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Selector de Motor Target (Cards) */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                  <Sliders size={14} className="text-sky-400" />
+                  <span>Seleccionar Motor para Configurar o Migrar</span>
+                </h4>
+                <span className="text-[11px] text-slate-400">
+                  Haz clic en un motor para editar credenciales o migrar datos
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {[
+                  {
+                    id: 'mongodb',
+                    name: 'MongoDB',
+                    badge: 'NoSQL / VPS',
+                    desc: 'Atlas o VPS dedicado (Hostinger 77.37.127.103)',
+                    color: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/40 text-emerald-300',
+                    iconBg: 'bg-emerald-500/20 text-emerald-400'
+                  },
+                  {
+                    id: 'supabase',
+                    name: 'Supabase',
+                    badge: 'PostgreSQL',
+                    desc: 'PostgreSQL en la nube, pgvector y realtime',
+                    color: 'from-teal-500/20 to-cyan-500/10 border-teal-500/40 text-teal-300',
+                    iconBg: 'bg-teal-500/20 text-teal-400'
+                  },
+                  {
+                    id: 'firebase',
+                    name: 'Firebase',
+                    badge: 'Firestore',
+                    desc: 'Google Cloud NoSQL autoescalable serverless',
+                    color: 'from-amber-500/20 to-orange-500/10 border-amber-500/40 text-amber-300',
+                    iconBg: 'bg-amber-500/20 text-amber-400'
+                  },
+                  {
+                    id: 'mysql',
+                    name: 'MySQL',
+                    badge: 'Relacional SQL',
+                    desc: 'Estándar empresarial para ERP y contabilidad',
+                    color: 'from-blue-500/20 to-indigo-500/10 border-blue-500/40 text-blue-300',
+                    iconBg: 'bg-blue-500/20 text-blue-400'
+                  },
+                  {
+                    id: 'sqlite',
+                    name: 'SQLite WAL',
+                    badge: 'Local Zero-Ops',
+                    desc: 'Archivo local ultra-rápido de cero dependencias',
+                    color: 'from-purple-500/20 to-slate-500/10 border-purple-500/40 text-purple-300',
+                    iconBg: 'bg-purple-500/20 text-purple-400'
+                  }
+                ].map(engine => {
+                  const isSelected = selectedTargetEngine === engine.id;
+                  const isActive = (dbConfig?.activeEngine || 'sqlite') === engine.id;
+
+                  return (
+                    <button
+                      key={engine.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTargetEngine(engine.id);
+                        setConnTestResult(null);
+                      }}
+                      className={`p-4 rounded-2xl text-left transition-all border relative flex flex-col justify-between ${
+                        isSelected
+                          ? `bg-gradient-to-b ${engine.color} shadow-lg ring-2 ring-sky-500/50`
+                          : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                      }`}
+                    >
+                      {isActive && (
+                        <span className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          ACTIVO
+                        </span>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${engine.iconBg}`}>
+                            <Database size={15} />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-white">{engine.name}</div>
+                            <div className="text-[10px] text-slate-400">{engine.badge}</div>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug line-clamp-2 mt-1">
+                          {engine.desc}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px]">
+                        <span className={isSelected ? 'text-sky-300 font-semibold' : 'text-slate-500'}>
+                          {isSelected ? 'Configurando' : 'Seleccionar'}
+                        </span>
+                        {isSelected && <Check size={12} className="text-sky-400" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Panel de Configuración del Motor Seleccionado */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Formulario de Conexión */}
+              <div className="lg:col-span-7 bg-slate-900/80 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Globe size={16} className="text-sky-400" />
+                      <span>Parámetros de Conexión: <span className="uppercase text-sky-400">{selectedTargetEngine}</span></span>
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Ingresa las credenciales para probar la conectividad y transferir tus datos.
+                    </p>
+                  </div>
+
+                  {dbConfig?.activeEngine !== selectedTargetEngine && (
+                    <button
+                      onClick={() => handleSwitchEngine(selectedTargetEngine)}
+                      disabled={switchingEngine}
+                      className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md transition-all flex items-center gap-1.5"
+                    >
+                      <ArrowLeftRight size={13} className={switchingEngine ? 'animate-spin' : ''} />
+                      <span>{switchingEngine ? 'Cambiando...' : 'Activar como Motor Principal'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Campos Específicos por Motor */}
+                {selectedTargetEngine === 'mongodb' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-300">
+                        URI de Conexión MongoDB
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetConfig(prev => ({
+                            ...prev,
+                            mongodbUri: 'mongodb://admin:WAgent2026@77.37.127.103:27017/wagent?authSource=admin',
+                            mongodbDbName: 'wagent'
+                          }));
+                        }}
+                        className="text-[11px] text-sky-400 hover:text-sky-300 underline font-mono"
+                      >
+                        Aplicar VPS Hostinger (77.37.127.103)
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={targetConfig.mongodbUri}
+                      onChange={e => setTargetConfig({ ...targetConfig, mongodbUri: e.target.value })}
+                      placeholder="mongodb://usuario:contraseña@servidor:27017/wagent o mongodb+srv://..."
+                      className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+                    />
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-300 block mb-1">
+                        Nombre de la Base de Datos
+                      </label>
+                      <input
+                        type="text"
+                        value={targetConfig.mongodbDbName}
+                        onChange={e => setTargetConfig({ ...targetConfig, mongodbDbName: e.target.value })}
+                        placeholder="wagent"
+                        className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {selectedTargetEngine === 'supabase' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-300">
+                        Connection String PostgreSQL (Supabase)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetConfig(prev => ({
+                            ...prev,
+                            supabaseUrl: 'postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres'
+                          }));
+                        }}
+                        className="text-[11px] text-teal-400 hover:text-teal-300 underline font-mono"
+                      >
+                        Cargar Plantilla Supabase
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={targetConfig.supabaseUrl}
+                      onChange={e => setTargetConfig({ ...targetConfig, supabaseUrl: e.target.value })}
+                      placeholder="postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres"
+                      className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                    />
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      💡 Puedes obtener este connection string en tu dashboard de Supabase en <strong>Project Settings → Database → Connection string (URI)</strong>.
+                    </p>
+                  </div>
+                )}
+
+                {selectedTargetEngine === 'firebase' && (
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-slate-300 block">
+                      Google Cloud / Firebase Project ID
+                    </label>
+                    <input
+                      type="text"
+                      value={targetConfig.firebaseProjectId}
+                      onChange={e => setTargetConfig({ ...targetConfig, firebaseProjectId: e.target.value })}
+                      placeholder="ej: wagent-crm-prod"
+                      className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500"
+                    />
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      💡 La sincronización utiliza la API REST nativa de Google Cloud Firestore. Cada colección del CRM se creará como una colección raíz en Firestore.
+                    </p>
+                  </div>
+                )}
+
+                {selectedTargetEngine === 'mysql' && (
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-slate-300 block">
+                      URI de Conexión MySQL / MariaDB
+                    </label>
+                    <input
+                      type="text"
+                      value={targetConfig.mysqlUri}
+                      onChange={e => setTargetConfig({ ...targetConfig, mysqlUri: e.target.value })}
+                      placeholder="mysql://root:password@127.0.0.1:3306/wagent"
+                      className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                )}
+
+                {selectedTargetEngine === 'sqlite' && (
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-white">
+                      <HardDrive size={15} className="text-purple-400" />
+                      <span>Motor SQLite WAL Local</span>
+                    </div>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      El motor SQLite local no requiere servidor externo. Guarda todas las colecciones en <code>data/wagent.db</code> con modo WAL (Write-Ahead Logging) habilitado para máxima concurrencia y persistencia transaccional.
+                    </p>
+                  </div>
+                )}
+
+                {/* Botón Probar Conexión */}
+                <div className="pt-2 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={testingConn || selectedTargetEngine === 'sqlite'}
+                    className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-500 hover:to-teal-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-sky-600/20 transition-all flex items-center gap-2"
+                  >
+                    <Radio size={14} className={testingConn ? 'animate-pulse text-white' : ''} />
+                    <span>{testingConn ? 'Midiendo Latencia & Handshake...' : 'Probar Conexión en Vivo'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveDbConfig}
+                    disabled={savingConfig}
+                    className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+                  >
+                    <CheckCheck size={14} />
+                    <span>Guardar Parámetros</span>
+                  </button>
+                </div>
+
+                {/* Resultado del Test de Conexión */}
+                {connTestResult && (
+                  <div className={`p-4 rounded-2xl border text-xs animate-in fade-in ${
+                    connTestResult.success
+                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
+                      : 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+                  }`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2.5">
+                        {connTestResult.success ? (
+                          <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertTriangle size={16} className="text-rose-400 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <div className="font-bold text-sm">
+                            {connTestResult.success ? 'Conexión Exitosa y Validada' : 'Error de Conexión'}
+                          </div>
+                          <div className="mt-1 text-slate-300">
+                            {connTestResult.message || connTestResult.error}
+                          </div>
+                          {connTestResult.pingMs !== undefined && (
+                            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-900/40 border border-emerald-500/30 text-emerald-300 font-mono text-[11px]">
+                              <Wifi size={12} />
+                              <span>Latencia medidor: {connTestResult.pingMs} ms</span>
+                            </div>
+                          )}
+                          {connTestResult.collections && (
+                            <div className="mt-1 text-[11px] text-slate-400 font-mono">
+                              Colecciones remotas encontradas: {connTestResult.collections.join(', ') || 'Ninguna (BD Vacía)'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setConnTestResult(null)}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Panel Asistente de Migración */}
+              <div className="lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col justify-between space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <ArrowLeftRight size={18} className="text-indigo-400" />
+                    <div>
+                      <h4 className="text-sm font-bold text-white">
+                        Migración Transparente & Frictionless
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Copia íntegra de colecciones sin interrumpir la operación
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Origen</div>
+                        <div className="text-xs font-bold text-slate-200 mt-0.5">
+                          SQLite WAL (Local)
+                        </div>
+                      </div>
+                      <ArrowRight size={14} className="text-slate-500" />
+                      <div className="text-right">
+                        <div className="text-[10px] uppercase tracking-wider text-sky-400 font-semibold">Destino</div>
+                        <div className="text-xs font-bold text-sky-300 mt-0.5 uppercase">
+                          {selectedTargetEngine}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-400 mb-1.5">
+                        Colecciones a Sincronizar (13):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          'leads', 'orders', 'messages', 'products',
+                          'agents', 'users', 'settings', 'branches',
+                          'drivers', 'shifts', 'templates', 'coupons', 'calls'
+                        ].map(col => (
+                          <span
+                            key={col}
+                            className="px-2 py-0.5 rounded-lg text-[10px] font-mono bg-slate-800/80 border border-slate-700/60 text-slate-300"
+                          >
+                            {col}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Estado de Migración en Progreso */}
+                {migrating && (
+                  <div className="p-4 rounded-2xl bg-sky-950/40 border border-sky-500/30 space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between text-xs font-semibold text-sky-300">
+                      <span className="flex items-center gap-1.5">
+                        <RefreshCw size={13} className="animate-spin text-sky-400" />
+                        <span>Migrando Datos...</span>
+                      </span>
+                      <span className="font-mono text-sm">{migrationProgress?.percentage || 0}%</span>
+                    </div>
+
+                    <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-400 transition-all duration-300"
+                        style={{ width: `${migrationProgress?.percentage || 0}%` }}
+                      ></div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-300 font-mono truncate">
+                      {migrationProgress?.message || 'Procesando...'}
+                    </div>
+                  </div>
+                )}
+
+                {/* Resultado de Migración */}
+                {migrationResult && (
+                  <div className={`p-4 rounded-2xl border text-xs animate-in fade-in ${
+                    migrationResult.success
+                      ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200'
+                      : 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+                  }`}>
+                    <div className="font-bold flex items-center gap-1.5">
+                      {migrationResult.success ? <CheckCircle2 size={14} className="text-emerald-400" /> : <AlertTriangle size={14} className="text-rose-400" />}
+                      <span>{migrationResult.success ? '¡Migración Finalizada Exitosamente!' : 'Error en la Migración'}</span>
+                    </div>
+                    {migrationResult.error && (
+                      <p className="mt-1 text-slate-300">{migrationResult.error}</p>
+                    )}
+                    {migrationResult.stats && (
+                      <div className="mt-2 text-[11px] space-y-1">
+                        <div className="text-slate-300">Total registros migrados: <strong>{migrationResult.stats.totalCopied || 0}</strong></div>
+                        <div className="text-slate-400 font-mono">Tiempo: {migrationResult.stats.durationMs || 0} ms</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleStartMigration}
+                  disabled={migrating || selectedTargetEngine === 'sqlite'}
+                  className="w-full py-3 bg-gradient-to-r from-indigo-600 via-sky-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 disabled:opacity-50 text-white rounded-2xl text-xs font-bold shadow-xl shadow-sky-600/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <Send size={15} />
+                  <span>{migrating ? 'Migración en Progreso...' : `Iniciar Migración a ${selectedTargetEngine.toUpperCase()}`}</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

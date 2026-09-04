@@ -147,17 +147,18 @@ export class SpeechService {
         try {
           const genAI = new GoogleGenerativeAI(geminiKey);
           // Probar modelos vigentes de Gemini
-          const candidateModels = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+          const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
           for (const modelName of candidateModels) {
             try {
               const model = genAI.getGenerativeModel({ model: modelName });
               const audioBuffer = fs.readFileSync(mp3Path);
               const base64Audio = audioBuffer.toString('base64');
+              const mime = (mp3Path.endsWith('.ogg') || mp3Path.endsWith('.oga') || mp3Path.endsWith('.opus')) ? 'audio/ogg' : 'audio/mpeg';
 
               const result = await model.generateContent([
                 {
                   inlineData: {
-                    mimeType: mp3Path.endsWith('.ogg') ? 'audio/ogg' : 'audio/mp3',
+                    mimeType: mime,
                     data: base64Audio
                   }
                 },
@@ -168,11 +169,11 @@ export class SpeechService {
 
               const text = result.response.text();
               if (text && text.trim()) {
-                console.log(`🎙️ [Gemini STT (${modelName})] Transcrito: "${text.trim()}"`);
+                console.log(`🎙️ [Gemini STT (${modelName})] Transcrito con éxito: "${text.trim()}"`);
                 return text.trim();
               }
             } catch (innerErr) {
-              // Intentar siguiente modelo
+              console.warn(`[Gemini STT (${modelName})] Intento fallido: ${innerErr.message}`);
             }
           }
         } catch (geminiErr) {

@@ -248,23 +248,26 @@ export default function App() {
       if (lead && selectedLead?.jid === lead.jid) {
         setSelectedLead(lead);
       }
-      if (message && !message.fromMe) {
+      const isOutgoing = message.sender === 'agent' || message.fromMe;
+      if (message && !isOutgoing) {
         playMessagePing();
+        const textPreview = message.content || message.body;
         addNotification({
           title: `Mensaje de ${lead?.name || message.pushName || 'WhatsApp'}`,
-          message: message.body?.slice(0, 70) || (message.type === 'audio' ? '🎵 Nota de voz' : '📎 Archivo recibido'),
+          message: textPreview ? textPreview.slice(0, 70) : (message.type === 'audio' ? '🎵 Nota de voz' : '📎 Archivo recibido'),
           type: 'message',
           tab: 'inbox',
-          jid: lead?.jid || message.remoteJid
+          jid: lead?.jid || message.remoteJid || message.chatId
         });
       }
     });
 
     socket.on('order:new', (order) => {
       playOrderChime();
+      const totalNum = Number(order?.totalAmount || order?.total || 0);
       addNotification({
         title: `Nuevo Pedido #${order?.orderNumber || order?.id?.slice(-5) || ''}`,
-        message: `${order?.customerName || 'Cliente'} - $${Number(order?.total || 0).toLocaleString()} (${order?.paymentMethod || 'Efectivo'})`,
+        message: `${order?.customerName || 'Cliente'} - $${totalNum.toLocaleString('es-AR')} (${order?.paymentMethod || 'Efectivo'})`,
         type: 'order',
         tab: 'orders',
         data: order
@@ -273,9 +276,20 @@ export default function App() {
 
     socket.on('order:update', (order) => {
       playNotificationChime();
+      const statusLabels = {
+        pending: 'Pendiente',
+        preparing: 'En Preparación',
+        ready: 'Listo para Entrega',
+        ready_for_pickup: 'Listo para Retiro',
+        in_transit: 'En Camino',
+        delivered: 'Entregado',
+        completed: 'Completado',
+        cancelled: 'Cancelado'
+      };
+      const readableStatus = statusLabels[order?.status] || order?.status || 'Actualizado';
       addNotification({
         title: `Pedido #${order?.orderNumber || order?.id?.slice(-5) || ''} Actualizado`,
-        message: `Estado: ${order?.status || 'Actualizado'} - ${order?.customerName || ''}`,
+        message: `Estado: ${readableStatus} - ${order?.customerName || ''}`,
         type: 'order',
         tab: 'orders',
         data: order
