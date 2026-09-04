@@ -140,10 +140,12 @@ server.listen(PORT, async () => {
   console.log(`📁 Directorio Multimedia: ${CONFIG.MEDIA_DIR}`);
   console.log('====================================================');
 
-  // Inicializar WhatsApp automáticamente si ya existen credenciales guardadas
+  // Inicializar WhatsApp automáticamente si ya existen credenciales guardadas válidas
   const authDir = CONFIG.AUTH_DIR;
-  if (fs.existsSync(authDir) && fs.readdirSync(authDir).length > 0) {
-    console.log('Credenciales de sesión encontradas. Conectando a WhatsApp...');
+  const credsFile = path.join(authDir, 'creds.json');
+  const hasValidCreds = fs.existsSync(credsFile) && fs.statSync(credsFile).size > 20;
+  if (hasValidCreds) {
+    console.log('Credenciales de sesión válidas encontradas. Conectando a WhatsApp...');
     whatsapp.initializePrimary();
   }
 
