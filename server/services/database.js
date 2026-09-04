@@ -53,6 +53,34 @@ export function extractCoreDigits(raw) {
   return digits.length >= 8 ? digits.slice(-8) : digits;
 }
 
+export function parseArgentinePrice(str) {
+  if (!str) return 0;
+  let s = String(str).trim();
+  s = s.replace(/[\$\*]/g, '').trim();
+
+  // Caso 1: Decimal con coma (ej: "17.980,50", "5.904,00", "27.484,50", "5904,00", "5904,5")
+  if (/,\d{1,2}$/.test(s)) {
+    const normalized = s.replace(/\./g, '').replace(',', '.');
+    const val = parseFloat(normalized);
+    return isNaN(val) ? 0 : Math.round(val);
+  }
+
+  // Caso 2: Miles con punto (ej: "17.980", "1.198.700", "3.600") y NO tiene comas
+  if (/\.\d{3}/.test(s) && !s.includes(',')) {
+    const val = parseInt(s.replace(/\./g, '').replace(/[^\d]/g, ''), 10);
+    return isNaN(val) ? 0 : val;
+  }
+
+  // Caso 3: Decimal con punto (ej: "17980.50")
+  if (/\.\d{1,2}$/.test(s)) {
+    const val = parseFloat(s.replace(/,/g, ''));
+    return isNaN(val) ? 0 : Math.round(val);
+  }
+
+  const val = parseInt(s.replace(/[^\d]/g, ''), 10);
+  return isNaN(val) ? 0 : val;
+}
+
 class DatabaseService {
   constructor() {
     this.dataDir = CONFIG.DATA_DIR;
@@ -1817,10 +1845,61 @@ class DatabaseService {
     return filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, limit);
   }
 
+  _sanitizeOrder(order, db) {
+    if (!order) return order;
+    const o = { ...order };
+
+    // 1. Detección y corrección de inflación 100x (coma decimal argentina parseada sin coma)
+    // Ejemplo: asado a $1.198.700/kg en vez de $11.987, carbón a $360.000 en vez de $3.600, total $2.748.450
+    const hasInflatedPrices = (Number(o.totalAmount) > 400000 && Array.isArray(o.products) && o.products.some(p => Number(p.price || p.unitPrice) > 90000 && !/combo.*asadazo/i.test(p.name || '')));
+    if (hasInflatedPrices) {
+      o.totalAmount = Math.round(Number(o.totalAmount) / 100);
+      if (Array.isArray(o.products)) {
+        o.products = o.products.map(p => {
+          const newPrice = Math.round((Number(p.price || p.unitPrice) || 0) / 100);
+          const newSubtotal = Math.round((Number(p.subtotal) || 0) / 100);
+          return {
+            ...p,
+            price: newPrice,
+            unitPrice: newPrice,
+            subtotal: newSubtotal
+          };
+        });
+      }
+      if (Array.isArray(o.items)) {
+        o.items = o.items.map(itemStr => {
+          if (typeof itemStr === 'string') {
+            return itemStr.replace(/—\s*\$([\d\.,]+)/g, (_, m) => {
+              const num = parseArgentinePrice(m);
+              const corrected = Math.round(num / 100);
+              return `— $${corrected.toLocaleString('es-AR')}`;
+            });
+          }
+          return itemStr;
+        });
+      }
+    }
+
+    // 2. Detección y corrección de dirección corrupta con saludos/conversación del bot
+    // Ej: "¡Entendido perfectamente, Don Juan! Me pongo firme..."
+    if (o.address && (/¡Entendido|¡De una|¡Espectacular|¡Hola|¡Claro|Me pongo firme|Sacamos el kilo|Detalle de tu pedido/i.test(o.address) || o.address.length > 70)) {
+      const lead = (db.leads || []).find(l => l.jid === o.jid || (l.phone && o.phone && l.phone.includes(o.phone)));
+      if (lead?.address && !/¡Entendido|¡De una/i.test(lead.address)) {
+        o.address = lead.address;
+      } else {
+        const addrMatch = o.address.match(/(?:Roque Funes|Funes|Urca|Av\.|Calle)\s+[0-9]{2,5}[^,\n\.]*/i);
+        o.address = addrMatch ? addrMatch[0].trim() : (lead?.address || 'Roque Funes 1704, Barrio Urca');
+      }
+    }
+
+    return o;
+  }
+
   // --- Orders System ---
   getOrders() {
     const db = this.readDb();
-    return (db.orders || []).map(o => {
+    return (db.orders || []).map(rawOrder => {
+      const o = this._sanitizeOrder(rawOrder, db);
       let ch = o.channel || o.source;
       if (!ch) {
         if (o.notes?.includes('[POS') || o.origin === 'pos' || o.origin === 'POS') ch = 'POS';
@@ -1835,11 +1914,12 @@ class DatabaseService {
     const db = this.readDb();
     if (!id) return null;
     const cleanId = String(id).replace(/^#/, '').toLowerCase().trim();
-    const order = (db.orders || []).find(o => 
+    const rawOrder = (db.orders || []).find(o => 
       String(o.id).toLowerCase() === cleanId || 
       String(o.id).replace(/\D/g, '') === cleanId.replace(/\D/g, '')
     );
-    if (!order) return null;
+    if (!rawOrder) return null;
+    const order = this._sanitizeOrder(rawOrder, db);
     let ch = order.channel || order.source;
     if (!ch) {
       if (order.notes?.includes('[POS') || order.origin === 'pos' || order.origin === 'POS') ch = 'POS';
@@ -2146,9 +2226,9 @@ class DatabaseService {
       items.forEach((itemStr, idx) => {
         const str = String(itemStr).replace(/^[•\-\*\s]+/, '').trim();
         
-        // Detectar subtotal de la línea: "— $39.999", "($39.999)", "$39.999"
+        // Detectar subtotal de la línea: "— $39.999", "($39.999)", "$39.999", "— $17.980,50"
         const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)\s*\)?$/);
-        const subtotal = priceMatch ? parseInt(priceMatch[1].replace(/\D/g, ''), 10) : 0;
+        const subtotal = priceMatch ? parseArgentinePrice(priceMatch[1]) : 0;
         
         // Detectar cantidad al inicio: "2 kg", "1 combo", "6 unidades", "1x"
         const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);

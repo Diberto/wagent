@@ -1,11 +1,11 @@
-import { db } from './database.js';
-import { extractCleanAddress } from './ai.js';
+import { db, parseArgentinePrice } from './database.js';
+import { extractCleanAddress, isGarbageAddress } from './ai.js';
 
 /**
  * Motor Inteligente de Sincronización y Registro de Pedidos en Vivo
  * Parsea los items DESDE EL REPLY DEL AGENTE (fuente de verdad conversacional)
  * y los valida/enriquece contra el catálogo real de la base de datos.
- * NUNCA usa precios ni ítems hardcodeados.
+ * NUNCA usa precios ni ítems hardcodeados ni infla decimales argentinos.
  */
 export class OrderSyncEngine {
   /**
@@ -60,10 +60,59 @@ export class OrderSyncEngine {
         totalAmountToOrder = fromUser.total;
       }
 
-      // 3. Buscar si ya existe una orden activa (pending o preparing) para este JID
+      // 3. Buscar si ya existe una orden activa (pending o preparing o draft) para este JID
       let activeOrder = db.getActiveOrdersByJid(clientJid)[0] || null;
 
-      // 4. Si se detectaron ítems, crear o actualizar la orden
+      // 4. Detección de Dirección física para delivery con protección anti-conversación
+      let cleanAddr = extractCleanAddress(userMsg);
+      if (!cleanAddr && replyMsg) {
+        // Buscar sección específica de Dirección en el reply del bot
+        const addrMatch = replyMsg.match(/(?:🏠\s*\*?Direcci[oó]n:\*?|📍\s*\*?Modalidad:\*?\s*Env[ií]o\s+a\s+domicilio\s*\(?|Direcci[oó]n\s+de\s+entrega:\s*)([^)\n\r]+)/i);
+        if (addrMatch && addrMatch[1]) {
+          const candidate = addrMatch[1].replace(/^[*(:\s]+|[)*:\s]+$/g, '').trim();
+          cleanAddr = extractCleanAddress(candidate);
+        }
+      }
+      if (!cleanAddr) {
+        if (activeOrder?.address && !isGarbageAddress(activeOrder.address)) {
+          cleanAddr = activeOrder.address;
+        } else if (clientLead?.address && !isGarbageAddress(clientLead.address)) {
+          cleanAddr = clientLead.address;
+        }
+      }
+
+      // 5. Detección de Sucursal para retiro
+      const isBranchPickup = /(?:sucursal|retiro|pasar a buscar|retiro por|urca|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro)/i.test(userMsg);
+      let branchName = activeOrder?.branch || clientLead?.preferredBranch || '';
+      let deliveryType = activeOrder?.deliveryType || clientLead?.deliveryType || (isBranchPickup ? 'pickup' : 'delivery');
+
+      if (isBranchPickup) {
+        deliveryType = 'pickup';
+        const branches = db.getBranches() || [];
+        let matchedBranch = branches.find(b =>
+          b.name && userMsg.includes(b.name.toLowerCase().split(' ')[0].toLowerCase())
+        );
+        branchName = matchedBranch?.name || 'URCA CENTRAL';
+        if (!matchedBranch) {
+          if (/pidal|tejeda|urca 2/i.test(userMsg)) branchName = 'URCA 2 – ALTO TEJEDA';
+          else if (/intercountry|alamos|corteza/i.test(userMsg)) branchName = 'INTERCOUNTRY – CORTEZA MALL';
+          else if (/quiros|duarte/i.test(userMsg)) branchName = 'DUARTE QUIRÓS';
+          else if (/allende|figueroa|mercadito/i.test(userMsg)) branchName = 'VILLA ALLENDE';
+          else if (/san isidro|luchesse/i.test(userMsg)) branchName = 'COUNTRY SAN ISIDRO';
+        }
+      } else if (cleanAddr) {
+        deliveryType = 'delivery';
+      }
+
+      // 6. Detección de Medio de Pago
+      let paymentMethod = activeOrder?.paymentMethod || 'Efectivo contraentrega';
+      if (/(?:efectivo|transferencia|mercado pago|mp|alias)/i.test(userMsg)) {
+        if (/transferencia|alias/i.test(userMsg)) paymentMethod = 'Transferencia';
+        else if (/mercado pago|mp/i.test(userMsg)) paymentMethod = 'Mercado Pago';
+        else paymentMethod = 'Efectivo';
+      }
+
+      // 7. Si se detectaron ítems, crear o actualizar la orden
       if (itemsToOrder.length > 0) {
         if (activeOrder && ['pending', 'preparing', 'draft'].includes(activeOrder.status)) {
           // Actualizar orden existente con los items confirmados por el agente
@@ -71,6 +120,10 @@ export class OrderSyncEngine {
             items: itemsToOrder,
             products: productsToOrder.length > 0 ? productsToOrder : activeOrder.products,
             totalAmount: totalAmountToOrder > 0 ? totalAmountToOrder : activeOrder.totalAmount,
+            deliveryType,
+            address: cleanAddr || activeOrder.address || '',
+            branch: branchName || activeOrder.branch || '',
+            paymentMethod,
             updatedAt: new Date().toISOString()
           });
         } else {
@@ -86,9 +139,10 @@ export class OrderSyncEngine {
             channel: 'WHATSAPP',
             source: 'WHATSAPP',
             origin: 'WHATSAPP',
-            deliveryType: clientLead.deliveryType || 'delivery',
-            address: clientLead.address || '',
-            branch: clientLead.preferredBranch || ''
+            deliveryType,
+            address: cleanAddr || '',
+            branch: branchName || '',
+            paymentMethod
           });
         }
 
@@ -96,47 +150,24 @@ export class OrderSyncEngine {
           db.updateLead(clientLead.jid || clientLead.id, {
             currentOrder: activeOrder.id,
             lastOrderId: activeOrder.id,
-            stage: stage || 'proposal'
+            stage: stage || 'proposal',
+            address: cleanAddr || clientLead.address,
+            deliveryType,
+            preferredBranch: branchName || clientLead.preferredBranch
           });
         }
-      }
+      } else if (activeOrder) {
+        // Aunque no hayan cambiado los items en este turno (ej: cliente solo dijo la dirección o el pago),
+        // actualizar dirección, sucursal o pago en la orden activa
+        const updates = {};
+        if (cleanAddr && cleanAddr !== activeOrder.address) updates.address = cleanAddr;
+        if (branchName && branchName !== activeOrder.branch) updates.branch = branchName;
+        if (deliveryType && deliveryType !== activeOrder.deliveryType) updates.deliveryType = deliveryType;
+        if (paymentMethod && paymentMethod !== activeOrder.paymentMethod) updates.paymentMethod = paymentMethod;
 
-      // 5. Detección de Dirección física para delivery con extractCleanAddress
-      const cleanAddr = extractCleanAddress(userMsg) || extractCleanAddress(replyMsg);
-      if (cleanAddr && activeOrder) {
-        db.updateOrder(activeOrder.id, { address: cleanAddr, deliveryType: 'delivery' });
-        if (clientLead.jid || clientLead.id) {
-          db.updateLead(clientLead.jid || clientLead.id, { address: cleanAddr, deliveryType: 'delivery' });
+        if (Object.keys(updates).length > 0) {
+          activeOrder = db.updateOrder(activeOrder.id, updates);
         }
-      }
-
-      // 6. Detección de Sucursal para retiro
-      const isBranchPickup = /(?:sucursal|retiro|pasar a buscar|retiro por|urca|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro)/i.test(userMsg);
-      if (isBranchPickup && activeOrder) {
-        const branches = db.getBranches() || [];
-        let matchedBranch = branches.find(b =>
-          b.name && userMsg.includes(b.name.toLowerCase().split(' ')[0].toLowerCase())
-        );
-        let branchName = matchedBranch?.name || 'URCA CENTRAL';
-        if (!matchedBranch) {
-          if (/pidal|tejeda|urca 2/i.test(userMsg)) branchName = 'URCA 2 – ALTO TEJEDA';
-          else if (/intercountry|alamos|corteza/i.test(userMsg)) branchName = 'INTERCOUNTRY – CORTEZA MALL';
-          else if (/quiros|duarte/i.test(userMsg)) branchName = 'DUARTE QUIRÓS';
-          else if (/allende|figueroa|mercadito/i.test(userMsg)) branchName = 'VILLA ALLENDE';
-          else if (/san isidro|luchesse/i.test(userMsg)) branchName = 'COUNTRY SAN ISIDRO';
-        }
-        db.updateOrder(activeOrder.id, { branch: branchName, deliveryType: 'pickup' });
-        if (clientLead.jid || clientLead.id) {
-          db.updateLead(clientLead.jid || clientLead.id, { preferredBranch: branchName, deliveryType: 'pickup' });
-        }
-      }
-
-      // 7. Detección de Medio de Pago
-      if (/(?:efectivo|transferencia|mercado pago|mp|alias)/i.test(userMsg) && activeOrder) {
-        let paymentMethod = 'Efectivo';
-        if (/transferencia|alias/i.test(userMsg)) paymentMethod = 'Transferencia';
-        else if (/mercado pago|mp/i.test(userMsg)) paymentMethod = 'Mercado Pago';
-        db.updateOrder(activeOrder.id, { paymentMethod });
       }
 
       return activeOrder;
@@ -150,7 +181,7 @@ export class OrderSyncEngine {
    * Parsea los ítems directamente desde el resumen del agente.
    * Busca bloques tipo "Detalle de tu pedido" o listas con • / * y extrae
    * nombre, cantidad y precio. Luego enriquece con el catálogo real.
-   * Esta es la fuente de verdad: el agente ya calculó todo desde el catálogo.
+   * Soporta flechas "→ *$17.980,50*", guiones "— $17.980" y listas sin flechas "($11.987/kg)".
    */
   static extractItemsFromAgentReply(replyMsg, catalog) {
     const items = [];
@@ -165,40 +196,64 @@ export class OrderSyncEngine {
       if (!line.startsWith('*') && !line.startsWith('•') && !line.startsWith('-')) continue;
 
       // Quitar la viñeta inicial y espacios/asteriscos residuales
-      const clean = line.replace(/^[\s•*\-]+/, '').trim();
-      if (!clean || /detalle|total|opciones|respondé|cómo seguimos|paso 4|recordamos que|ya ten[ií]a/i.test(clean)) continue;
+      let clean = line.replace(/^[\s•*\-]+/, '').trim();
+      if (!clean || /detalle|total|opciones|respondé|cómo seguimos|paso\b|recordamos|nota:/i.test(clean)) continue;
 
-      // Buscar precio al final de la línea: después de '—', '-', ':', '*', o '$'
-      // Ej: "— $3.750", ":* $39.999", ": $24.990 (total)", "— $11.250", "$28.900"
-      const lastPriceMatch = clean.match(/(?:—|-|:|\*|\$)\s*\*?\s*\$?\s*([\d\.,]+)\s*\*?(?:\s*(?:total|en total|\([^)]*\)|por los 2kg|\*))?\s*$/i);
-      if (!lastPriceMatch) continue;
+      // CASO A: Subtotal después de flecha o guión: "→ *$17.980,50*", "-> $5.904,00", "— $17.980"
+      let subtotal = 0;
+      let textBeforePrice = clean;
 
-      const rawPrice = parseInt(lastPriceMatch[1].replace(/\D/g, ''), 10);
-      if (isNaN(rawPrice) || rawPrice <= 0) continue;
+      const arrowMatch = clean.match(/(?:→|->|—|:\*|\:)\s*\*?\$?\s*([\d\.,]+)\s*\*?\s*$/i);
+      if (arrowMatch) {
+        subtotal = parseArgentinePrice(arrowMatch[1]);
+        textBeforePrice = clean.substring(0, arrowMatch.index).trim();
+      }
 
-      // Cortar la línea antes del separador del precio final
-      const separatorIdx = lastPriceMatch.index !== undefined ? lastPriceMatch.index : clean.lastIndexOf(lastPriceMatch[0]);
-      const textBeforePrice = (separatorIdx >= 0 ? clean.substring(0, separatorIdx) : clean).trim().replace(/[:—\-\(\*]+$/, '').trim();
+      // CASO B: Precio unitario entre paréntesis (ej: "($11.987/kg)" o "($3.600/un)")
+      let unitPriceFromParenthesis = 0;
+      const unitPriceMatch = textBeforePrice.match(/\(\s*\$?\s*([\d\.,]+)\s*\/\s*(?:kg|kilo|un|unidad|bolsa|botella|combo|u)\s*\)/i);
+      if (unitPriceMatch) {
+        unitPriceFromParenthesis = parseArgentinePrice(unitPriceMatch[1]);
+        textBeforePrice = textBeforePrice.replace(unitPriceMatch[0], '').trim();
+      }
+
+      // Limpiar notas residuales entre paréntesis (ej: "(est. 400g aprox.)" o "(est. 400g)")
+      textBeforePrice = textBeforePrice.replace(/\([^)]*\)/g, '').trim();
 
       // Detectar cantidad y unidad al inicio con soporte para multiplicadores 1x, 2x, 1X
       const qtyMatch = textBeforePrice.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b|kg|kilos?|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?/i);
       const qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
       let unit = 'kg';
+      let isUnitMode = false;
+      let unitCount = 0;
+
       if (qtyMatch) {
         const fullQtyStr = qtyMatch[0].toLowerCase();
-        if (/x\b/.test(fullQtyStr)) unit = 'un';
-        else if (/k/.test(fullQtyStr)) unit = 'kg';
-        else if (/bols/.test(fullQtyStr)) unit = 'bolsa';
-        else if (/bot/.test(fullQtyStr)) unit = 'botella';
-        else if (/comb/.test(fullQtyStr)) unit = 'combo';
-        else if (/tira/.test(fullQtyStr)) unit = 'tira';
-        else if (/bife/.test(fullQtyStr)) unit = 'bife';
-        else if (/u/.test(fullQtyStr)) unit = 'un';
+        if (/unidades?|un\b|u\b/.test(fullQtyStr)) {
+          unit = 'un';
+          isUnitMode = true;
+          unitCount = Math.round(qty);
+        } else if (/k/.test(fullQtyStr)) {
+          unit = 'kg';
+        } else if (/bols/.test(fullQtyStr)) {
+          unit = 'bolsa';
+          isUnitMode = true;
+          unitCount = Math.round(qty);
+        } else if (/bot/.test(fullQtyStr)) {
+          unit = 'botella';
+          isUnitMode = true;
+          unitCount = Math.round(qty);
+        } else if (/comb/.test(fullQtyStr)) {
+          unit = 'combo';
+          isUnitMode = true;
+          unitCount = Math.round(qty);
+        }
       }
 
       const rawName = qtyMatch ? textBeforePrice.slice(qtyMatch[0].length).trim() : textBeforePrice;
       let cleanName = rawName
         .replace(/^[xX]\s+/i, '')
+        .replace(/^(?:de|unidades?|un|bolsas?|kilos?|kg)\s+de\s+/i, '')
         .replace(/^de\s+/i, '')
         .replace(/^[*_"]+|[*_":]+$/g, '')
         .trim();
@@ -207,7 +262,36 @@ export class OrderSyncEngine {
 
       // Intentar vincular con el catálogo real por similitud
       const catalogProduct = this.matchCatalogProduct(cleanName, catalog);
-      const unitPrice = qty > 0 ? Math.round(rawPrice / qty) : rawPrice;
+      const catalogPrice = catalogProduct ? Number(catalogProduct.price) : 0;
+
+      // Si no vino subtotal explícito en la línea (Turno 1 cuando el bot solo dio lista previa con unit price)
+      if (subtotal <= 0) {
+        const effectiveUnitPrice = unitPriceFromParenthesis > 0 ? unitPriceFromParenthesis : catalogPrice;
+        if (isUnitMode && (catalogProduct?.unit === 'kg' || unit === 'un')) {
+          // Si es por unidad y el corte se cotiza por kg (ej: 4 chorizos a $14.760/kg)
+          const unitsPerKg = catalogProduct?.unitsPerKg || 8;
+          const estimatedWeightKg = Number((qty / unitsPerKg).toFixed(3));
+          subtotal = Math.round(estimatedWeightKg * effectiveUnitPrice);
+        } else {
+          subtotal = Math.round(qty * effectiveUnitPrice);
+        }
+      }
+
+      if (subtotal <= 0) continue;
+
+      // Calcular unitPrice y cantidad final para la orden
+      let finalQuantity = qty;
+      let finalUnit = catalogProduct?.unit || unit;
+      let unitPrice = 0;
+
+      if (isUnitMode && catalogProduct?.unit === 'kg') {
+        const unitsPerKg = catalogProduct?.unitsPerKg || 8;
+        finalQuantity = Number((qty / unitsPerKg).toFixed(3));
+        finalUnit = 'kg';
+        unitPrice = catalogPrice > 0 ? catalogPrice : (finalQuantity > 0 ? Math.round(subtotal / finalQuantity) : subtotal);
+      } else {
+        unitPrice = qty > 0 ? Math.round(subtotal / qty) : subtotal;
+      }
 
       const productEntry = {
         id: catalogProduct?.id || `prod_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
@@ -217,21 +301,29 @@ export class OrderSyncEngine {
         name: catalogProduct?.name || cleanName,
         price: unitPrice,
         unitPrice: unitPrice,
-        quantity: qty,
-        unit: catalogProduct?.unit || unit,
-        subtotal: rawPrice
+        quantity: finalQuantity,
+        unit: finalUnit,
+        isUnitMode: isUnitMode,
+        unitCount: isUnitMode ? qty : 0,
+        subtotal: subtotal
       };
 
       products.push(productEntry);
-      items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${rawPrice.toLocaleString('es-AR')}`);
-      total += rawPrice;
+      if (isUnitMode && unitCount > 0) {
+        items.push(`• ${unitCount} Unidades de ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
+      } else {
+        items.push(`• ${finalQuantity} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
+      }
+      total += subtotal;
     }
 
     // Verificar si hay total general explícito
-    const totalMatch = replyMsg.match(/(?:total[^:]*|total estimado|total acumulado estimado)[:\s]*\*?\$?\s*([\d.,]+)/i);
+    const totalMatch = replyMsg.match(/(?:total[^:\n]*|total estimado|total acumulado estimado)[:\s]*\*?\$?\s*([\d.,]+)/i);
     if (totalMatch) {
-      const explicitTotal = parseInt(totalMatch[1].replace(/\D/g, ''), 10);
-      if (explicitTotal > 0 && explicitTotal >= total) total = explicitTotal;
+      const explicitTotal = parseArgentinePrice(totalMatch[1]);
+      if (explicitTotal > 0) {
+        total = explicitTotal;
+      }
     }
 
     return { items, products, total };
