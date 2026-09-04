@@ -194,9 +194,10 @@ export class SpeechService {
    * Convierte texto a audio / nota de voz de WhatsApp (Text-to-Speech)
    * @param {string} rawText - Texto a sintetizar
    * @param {string} customVoice - Voz opcional
+   * @param {Object} [options={}] - Opciones adicionales (ej: { isTest: true })
    * @returns {Promise<{ oggPath: string, mp3Path: string, durationSeconds: number }>}
    */
-  static async textToSpeech(rawText, customVoice = null) {
+  static async textToSpeech(rawText, customVoice = null, options = {}) {
     const text = this.cleanTextForSpeech(rawText);
     if (!text) {
       return { oggPath: null, mp3Path: null, durationSeconds: 0 };
@@ -217,99 +218,110 @@ export class SpeechService {
     }
 
     const tempRawMp3 = path.join(CONFIG.MEDIA_DIR, `tts_raw_${Date.now()}_${Math.random().toString(36).substr(2, 5)}.mp3`);
+    let mp3Generated = false;
 
-    try {
-      // 1. ElevenLabs TTS (Ultra-realista, clonación y voces premium)
-      if (provider === 'elevenlabs' && settings.elevenlabsApiKey) {
-        let voiceId = voice || settings.elevenlabsVoiceId || '9rvdnhrYoXoUt4igKpBw';
-        const modelId = settings.elevenlabsModelId || 'eleven_turbo_v2_5';
+    // 1. ElevenLabs TTS (Ultra-realista, clonación y voces premium)
+    if (provider === 'elevenlabs' && settings.elevenlabsApiKey) {
+      let voiceId = voice || settings.elevenlabsVoiceId || '9rvdnhrYoXoUt4igKpBw';
+      const modelId = settings.elevenlabsModelId || 'eleven_turbo_v2_5';
 
-        try {
-          let elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-            method: 'POST',
-            headers: {
-              'xi-api-key': settings.elevenlabsApiKey,
-              'Content-Type': 'application/json',
-              'Accept': 'audio/mpeg'
-            },
-            body: JSON.stringify({
-              text,
-              model_id: modelId,
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75,
-                style: 0.0,
-                use_speaker_boost: true
-              }
-            })
-          });
-
-          if (elevenRes.ok) {
-            const arrayBuffer = await elevenRes.arrayBuffer();
-            fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
-            console.log(`🎙️ [ElevenLabs] Audio sintetizado con éxito (${voiceId})`);
-          } else {
-            console.warn(`⚠️ ElevenLabs error (${elevenRes.status}). Usando Edge Neural como respaldo...`);
-            const fallbackVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : (settings.aiVoiceModel || 'es-AR-TomasNeural');
-            await this.generateEdgeTts(text, fallbackVoice, tempRawMp3);
-          }
-        } catch (elevenErr) {
-          console.warn(`⚠️ ElevenLabs excepción: ${elevenErr.message}. Usando Edge Neural como respaldo...`);
-          const fallbackVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : (settings.aiVoiceModel || 'es-AR-TomasNeural');
-          await this.generateEdgeTts(text, fallbackVoice, tempRawMp3);
-        }
-      } else if (provider === 'openai' && settings.openaiApiKey) {
-        // 2. OpenAI TTS si está configurado
-        try {
-          const openai = new OpenAI({ apiKey: settings.openaiApiKey });
-          const validOpenAiVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-          const openAiVoice = validOpenAiVoices.includes(voice) ? voice : 'nova';
-
-          const mp3Response = await openai.audio.speech.create({
-            model: 'tts-1',
-            voice: openAiVoice,
-            input: text
-          });
-
-          const buffer = Buffer.from(await mp3Response.arrayBuffer());
-          fs.writeFileSync(tempRawMp3, buffer);
-        } catch (openaiErr) {
-          console.warn(`⚠️ OpenAI TTS error: ${openaiErr.message}. Usando Edge Neural como respaldo...`);
-          await this.generateEdgeTts(text, 'es-AR-TomasNeural', tempRawMp3);
-        }
-      } else {
-        // 3. Microsoft Edge Neural TTS (Gratuito, ultra realista y rápido)
-        const edgeVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : (settings.aiVoiceModel || 'es-AR-TomasNeural');
-        await this.generateEdgeTts(text, edgeVoice, tempRawMp3);
-      }
-
-      // Convertir a WhatsApp PTT (.ogg con codec libopus)
-      const oggPath = await AudioConverter.convertToWhatsAppPtt(tempRawMp3);
-
-      const wordCount = text.split(/\s+/).length;
-      const estimatedDuration = Math.max(2, Math.round(wordCount / 2.5));
-
-
-      return {
-        oggPath,
-        mp3Path: tempRawMp3,
-        durationSeconds: estimatedDuration
-      };
-    } catch (error) {
-      console.error('Error en Text-to-Speech:', error);
-      // Último intento de contingencia garantizado
       try {
-        await this.generateEdgeTts(text, 'es-MX-DaliaNeural', tempRawMp3);
-        const oggPath = await AudioConverter.convertToWhatsAppPtt(tempRawMp3);
-        return {
-          oggPath,
-          mp3Path: tempRawMp3,
-          durationSeconds: 3
-        };
-      } catch (fallbackError) {
-        throw error;
+        let elevenRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': settings.elevenlabsApiKey,
+            'Content-Type': 'application/json',
+            'Accept': 'audio/mpeg'
+          },
+          body: JSON.stringify({
+            text,
+            model_id: modelId,
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+              style: 0.0,
+              use_speaker_boost: true
+            }
+          })
+        });
+
+        if (elevenRes.ok) {
+          const arrayBuffer = await elevenRes.arrayBuffer();
+          fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
+          mp3Generated = true;
+          console.log(`🎙️ [ElevenLabs] Audio sintetizado con éxito (${voiceId})`);
+        } else {
+          console.warn(`⚠️ ElevenLabs error (${elevenRes.status}). Usando Edge Neural como respaldo...`);
+        }
+      } catch (elevenErr) {
+        console.warn(`⚠️ ElevenLabs excepción: ${elevenErr.message}. Usando Edge Neural como respaldo...`);
       }
     }
+
+    // 2. OpenAI TTS si está configurado y ElevenLabs no generó
+    if (!mp3Generated && provider === 'openai' && settings.openaiApiKey) {
+      try {
+        const openai = new OpenAI({ apiKey: settings.openaiApiKey });
+        const validOpenAiVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+        const openAiVoice = validOpenAiVoices.includes(voice) ? voice : 'nova';
+
+        const mp3Response = await openai.audio.speech.create({
+          model: 'tts-1',
+          voice: openAiVoice,
+          input: text
+        });
+
+        const buffer = Buffer.from(await mp3Response.arrayBuffer());
+        fs.writeFileSync(tempRawMp3, buffer);
+        mp3Generated = true;
+      } catch (openaiErr) {
+        console.warn(`⚠️ OpenAI TTS error: ${openaiErr.message}. Usando Edge Neural como respaldo...`);
+      }
+    }
+
+    // 3. Microsoft Edge Neural TTS (Gratuito, ultra realista y rápido)
+    if (!mp3Generated) {
+      try {
+        const edgeVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : (settings.aiVoiceModel || 'es-AR-TomasNeural');
+        await this.generateEdgeTts(text, edgeVoice, tempRawMp3);
+        mp3Generated = true;
+      } catch (edgeErr) {
+        console.warn(`⚠️ Error en Edge TTS con voz ${voice}: ${edgeErr.message}. Reintentando con voz neutra...`);
+        try {
+          await this.generateEdgeTts(text, 'es-AR-TomasNeural', tempRawMp3);
+          mp3Generated = true;
+        } catch (innerEdge) {
+          console.error('⚠️ Falló también fallback de Edge TTS:', innerEdge.message);
+        }
+      }
+    }
+
+    // Si aún no se generó MP3 por restricciones extremas de red o filesystem
+    if (!fs.existsSync(tempRawMp3)) {
+      throw new Error('No se pudo generar el archivo de voz MP3');
+    }
+
+    // Convertir a WhatsApp PTT (.ogg con codec libopus) de forma no bloqueante
+    let oggPath = null;
+    if (!options.isTest) {
+      try {
+        oggPath = await AudioConverter.convertToWhatsAppPtt(tempRawMp3);
+      } catch (convErr) {
+        console.warn('⚠️ FFmpeg PTT conversion no disponible en este servidor. Usando MP3 nativo:', convErr.message);
+        oggPath = tempRawMp3;
+      }
+    } else {
+      oggPath = tempRawMp3;
+    }
+
+    const wordCount = text.split(/\s+/).length;
+    const estimatedDuration = Math.max(2, Math.round(wordCount / 2.5));
+
+    return {
+      oggPath: oggPath || tempRawMp3,
+      mp3Path: tempRawMp3,
+      durationSeconds: estimatedDuration
+    };
   }
 
   /**
@@ -317,12 +329,13 @@ export class SpeechService {
    */
   static async generateEdgeTts(text, voice, targetMp3Path) {
     const tts = new MsEdgeTTS();
-    await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const cleanVoice = (typeof voice === 'string' && voice.startsWith('es-')) ? voice : 'es-AR-TomasNeural';
+    await tts.setMetadata(cleanVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
     const tempDir = path.join(CONFIG.MEDIA_DIR, `tts_tmp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
     fs.mkdirSync(tempDir, { recursive: true });
     
-    await tts.toFile(tempDir, text);
-    const generatedMp3 = path.join(tempDir, 'audio.mp3');
+    const result = await tts.toFile(tempDir, text);
+    const generatedMp3 = result?.audioFilePath || path.join(tempDir, 'audio.mp3');
     
     if (fs.existsSync(generatedMp3)) {
       fs.copyFileSync(generatedMp3, targetMp3Path);
@@ -330,6 +343,8 @@ export class SpeechService {
         fs.unlinkSync(generatedMp3);
         fs.rmdirSync(tempDir);
       } catch (e) {}
+    } else {
+      throw new Error(`Edge TTS no pudo generar el archivo de audio`);
     }
   }
 

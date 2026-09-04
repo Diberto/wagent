@@ -27,7 +27,13 @@ import {
   Globe,
   Sliders,
   CheckCheck,
-  Send
+  Send,
+  Key,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  Info
 } from 'lucide-react';
 
 export default function DatabaseView({ socket = null }) {
@@ -58,11 +64,20 @@ export default function DatabaseView({ socket = null }) {
   // Configuración & Migración Multi-Motor
   const [dbConfig, setDbConfig] = useState(null);
   const [selectedTargetEngine, setSelectedTargetEngine] = useState('mongodb');
+  const [showSecretKey, setShowSecretKey] = useState(false);
   const [targetConfig, setTargetConfig] = useState({
+    mongodbAuthMode: 'uri', // 'uri' | 'apikey'
     mongodbUri: 'mongodb://77.37.127.103:27017/wagent',
     mongodbDbName: 'wagent',
+    mongodbApiKey: '',
+    mongodbEndpoint: '',
+    mongodbDataSource: 'Cluster0',
+    supabaseAuthMode: 'apikey', // 'apikey' | 'uri'
+    supabaseProjectUrl: '',
+    supabaseApiKey: '',
     supabaseUrl: '',
     firebaseProjectId: '',
+    firebaseApiKey: '',
     mysqlUri: ''
   });
   const [testingConn, setTestingConn] = useState(false);
@@ -98,18 +113,23 @@ export default function DatabaseView({ socket = null }) {
       if (res.ok) {
         const data = await res.json();
         setDbConfig(data.config);
-        if (data.config?.mongodb?.uri) {
-          setTargetConfig(prev => ({ ...prev, mongodbUri: data.config.mongodb.uri, mongodbDbName: data.config.mongodb.dbName || 'wagent' }));
-        }
-        if (data.config?.supabase?.connectionString) {
-          setTargetConfig(prev => ({ ...prev, supabaseUrl: data.config.supabase.connectionString }));
-        }
-        if (data.config?.firebase?.projectId) {
-          setTargetConfig(prev => ({ ...prev, firebaseProjectId: data.config.firebase.projectId }));
-        }
-        if (data.config?.mysql?.uri) {
-          setTargetConfig(prev => ({ ...prev, mysqlUri: data.config.mysql.uri }));
-        }
+        const cfg = data.config || {};
+        setTargetConfig(prev => ({
+          ...prev,
+          mongodbAuthMode: cfg.mongodb?.authMode || (cfg.mongodb?.apiKey ? 'apikey' : 'uri'),
+          mongodbUri: cfg.mongodb?.uri || prev.mongodbUri,
+          mongodbDbName: cfg.mongodb?.dbName || prev.mongodbDbName,
+          mongodbApiKey: cfg.mongodb?.apiKey || '',
+          mongodbEndpoint: cfg.mongodb?.endpoint || '',
+          mongodbDataSource: cfg.mongodb?.dataSource || 'Cluster0',
+          supabaseAuthMode: cfg.supabase?.authMode || (cfg.supabase?.apiKey ? 'apikey' : 'uri'),
+          supabaseProjectUrl: cfg.supabase?.projectUrl || '',
+          supabaseApiKey: cfg.supabase?.apiKey || '',
+          supabaseUrl: cfg.supabase?.connectionString || prev.supabaseUrl,
+          firebaseProjectId: cfg.firebase?.projectId || prev.firebaseProjectId,
+          firebaseApiKey: cfg.firebase?.apiKey || '',
+          mysqlUri: cfg.mysql?.uri || prev.mysqlUri
+        }));
       }
     } catch (e) {
       console.warn('Error cargando config de DB:', e);
@@ -122,11 +142,26 @@ export default function DatabaseView({ socket = null }) {
     try {
       let configPayload = {};
       if (selectedTargetEngine === 'mongodb') {
-        configPayload = { uri: targetConfig.mongodbUri, dbName: targetConfig.mongodbDbName };
+        configPayload = {
+          authMode: targetConfig.mongodbAuthMode || 'uri',
+          uri: targetConfig.mongodbUri,
+          dbName: targetConfig.mongodbDbName,
+          apiKey: targetConfig.mongodbApiKey,
+          endpoint: targetConfig.mongodbEndpoint,
+          dataSource: targetConfig.mongodbDataSource
+        };
       } else if (selectedTargetEngine === 'supabase') {
-        configPayload = { connectionString: targetConfig.supabaseUrl };
+        configPayload = {
+          authMode: targetConfig.supabaseAuthMode || 'apikey',
+          projectUrl: targetConfig.supabaseProjectUrl,
+          apiKey: targetConfig.supabaseApiKey,
+          connectionString: targetConfig.supabaseUrl
+        };
       } else if (selectedTargetEngine === 'firebase') {
-        configPayload = { projectId: targetConfig.firebaseProjectId };
+        configPayload = {
+          projectId: targetConfig.firebaseProjectId,
+          apiKey: targetConfig.firebaseApiKey
+        };
       } else if (selectedTargetEngine === 'mysql') {
         configPayload = { uri: targetConfig.mysqlUri };
       }
@@ -157,11 +192,26 @@ export default function DatabaseView({ socket = null }) {
     try {
       let configPayload = {};
       if (selectedTargetEngine === 'mongodb') {
-        configPayload = { uri: targetConfig.mongodbUri, dbName: targetConfig.mongodbDbName };
+        configPayload = {
+          authMode: targetConfig.mongodbAuthMode || 'uri',
+          uri: targetConfig.mongodbUri,
+          dbName: targetConfig.mongodbDbName,
+          apiKey: targetConfig.mongodbApiKey,
+          endpoint: targetConfig.mongodbEndpoint,
+          dataSource: targetConfig.mongodbDataSource
+        };
       } else if (selectedTargetEngine === 'supabase') {
-        configPayload = { connectionString: targetConfig.supabaseUrl };
+        configPayload = {
+          authMode: targetConfig.supabaseAuthMode || 'apikey',
+          projectUrl: targetConfig.supabaseProjectUrl,
+          apiKey: targetConfig.supabaseApiKey,
+          connectionString: targetConfig.supabaseUrl
+        };
       } else if (selectedTargetEngine === 'firebase') {
-        configPayload = { projectId: targetConfig.firebaseProjectId };
+        configPayload = {
+          projectId: targetConfig.firebaseProjectId,
+          apiKey: targetConfig.firebaseApiKey
+        };
       } else if (selectedTargetEngine === 'mysql') {
         configPayload = { uri: targetConfig.mysqlUri };
       } else if (selectedTargetEngine === 'sqlite') {
@@ -193,9 +243,24 @@ export default function DatabaseView({ socket = null }) {
     setConfigSaveSuccess(false);
     try {
       const payload = {
-        mongodb: { uri: targetConfig.mongodbUri, dbName: targetConfig.mongodbDbName },
-        supabase: { connectionString: targetConfig.supabaseUrl },
-        firebase: { projectId: targetConfig.firebaseProjectId },
+        mongodb: {
+          authMode: targetConfig.mongodbAuthMode || 'uri',
+          uri: targetConfig.mongodbUri,
+          dbName: targetConfig.mongodbDbName,
+          apiKey: targetConfig.mongodbApiKey,
+          endpoint: targetConfig.mongodbEndpoint,
+          dataSource: targetConfig.mongodbDataSource
+        },
+        supabase: {
+          authMode: targetConfig.supabaseAuthMode || 'apikey',
+          projectUrl: targetConfig.supabaseProjectUrl,
+          apiKey: targetConfig.supabaseApiKey,
+          connectionString: targetConfig.supabaseUrl
+        },
+        firebase: {
+          projectId: targetConfig.firebaseProjectId,
+          apiKey: targetConfig.firebaseApiKey
+        },
         mysql: { uri: targetConfig.mysqlUri }
       };
       const res = await fetch('/api/database/config', {
@@ -1164,103 +1229,438 @@ export default function DatabaseView({ socket = null }) {
 
                 {/* Campos Específicos por Motor */}
                 {selectedTargetEngine === 'mongodb' && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-slate-300">
-                        URI de Conexión MongoDB
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTargetConfig(prev => ({
-                            ...prev,
-                            mongodbUri: 'mongodb://admin:WAgent2026@77.37.127.103:27017/wagent?authSource=admin',
-                            mongodbDbName: 'wagent'
-                          }));
-                        }}
-                        className="text-[11px] text-sky-400 hover:text-sky-300 underline font-mono"
-                      >
-                        Aplicar VPS Hostinger (77.37.127.103)
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={targetConfig.mongodbUri}
-                      onChange={e => setTargetConfig({ ...targetConfig, mongodbUri: e.target.value })}
-                      placeholder="mongodb://usuario:contraseña@servidor:27017/wagent o mongodb+srv://..."
-                      className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-                    />
+                  <div className="space-y-4">
+                    {/* Selector de Modo de Autenticación */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-2xl bg-slate-950 border border-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setTargetConfig({ ...targetConfig, mongodbAuthMode: 'apikey' })}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                            targetConfig.mongodbAuthMode === 'apikey'
+                              ? 'bg-emerald-600 text-white shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Key size={13} />
+                          <span>Clave API (Atlas Data API)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTargetConfig({ ...targetConfig, mongodbAuthMode: 'uri' })}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                            targetConfig.mongodbAuthMode !== 'apikey'
+                              ? 'bg-emerald-600 text-white shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Globe size={13} />
+                          <span>URI Directa (TCP / Driver)</span>
+                        </button>
+                      </div>
 
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1">
-                        Nombre de la Base de Datos
-                      </label>
-                      <input
-                        type="text"
-                        value={targetConfig.mongodbDbName}
-                        onChange={e => setTargetConfig({ ...targetConfig, mongodbDbName: e.target.value })}
-                        placeholder="wagent"
-                        className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-                      />
+                      <a
+                        href="https://cloud.mongodb.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold underline px-2 py-1"
+                      >
+                        <span>Obtener credenciales en Atlas</span>
+                        <ExternalLink size={11} />
+                      </a>
                     </div>
+
+                    {/* Modo API Key (Atlas Data API) */}
+                    {targetConfig.mongodbAuthMode === 'apikey' ? (
+                      <div className="space-y-3 animate-in fade-in">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                              <Key size={13} className="text-emerald-400" />
+                              <span>API Key de MongoDB Atlas</span>
+                            </label>
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Requerido
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showSecretKey ? 'text' : 'password'}
+                              value={targetConfig.mongodbApiKey}
+                              onChange={e => setTargetConfig({ ...targetConfig, mongodbApiKey: e.target.value })}
+                              placeholder="ej: abcd1234efgh5678ijkl9012"
+                              className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 pr-10 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowSecretKey(!showSecretKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                              title={showSecretKey ? 'Ocultar' : 'Mostrar'}
+                            >
+                              {showSecretKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                              <Globe size={13} className="text-sky-400" />
+                              <span>URL del Endpoint Data API</span>
+                            </label>
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Requerido
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            value={targetConfig.mongodbEndpoint}
+                            onChange={e => setTargetConfig({ ...targetConfig, mongodbEndpoint: e.target.value })}
+                            placeholder="https://data.mongodb-api.com/app/data-abcde/endpoint/data/v1"
+                            className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300 block mb-1">
+                              Cluster / Data Source
+                            </label>
+                            <input
+                              type="text"
+                              value={targetConfig.mongodbDataSource}
+                              onChange={e => setTargetConfig({ ...targetConfig, mongodbDataSource: e.target.value })}
+                              placeholder="Cluster0"
+                              className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300 block mb-1">
+                              Nombre de Base de Datos
+                            </label>
+                            <input
+                              type="text"
+                              value={targetConfig.mongodbDbName}
+                              onChange={e => setTargetConfig({ ...targetConfig, mongodbDbName: e.target.value })}
+                              placeholder="wagent"
+                              className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                          <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                            <Info size={13} className="text-emerald-400" />
+                            <span>¿Cómo obtener tu API Key en MongoDB Atlas?</span>
+                          </div>
+                          <p>1. Ingresa a <a href="https://cloud.mongodb.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-400 underline">cloud.mongodb.com</a> y abre tu organización o cluster.</p>
+                          <p>2. En el menú ve a <strong>App Services</strong> → Selecciona tu aplicación (o crea una) → Entra a <strong>Data API</strong>.</p>
+                          <p>3. Habilita el Data API, genera una <strong>API Key</strong> y copia el <strong>URL del Endpoint</strong>.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Modo URI Directa */
+                      <div className="space-y-3 animate-in fade-in">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                            <Globe size={13} className="text-emerald-400" />
+                            <span>URI de Conexión MongoDB</span>
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Requerido
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetConfig(prev => ({
+                                ...prev,
+                                mongodbUri: 'mongodb://admin:WAgent2026@77.37.127.103:27017/wagent?authSource=admin',
+                                mongodbDbName: 'wagent'
+                              }));
+                            }}
+                            className="text-[11px] text-sky-400 hover:text-sky-300 underline font-mono"
+                          >
+                            Cargar VPS Hostinger (77.37.127.103)
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={targetConfig.mongodbUri}
+                          onChange={e => setTargetConfig({ ...targetConfig, mongodbUri: e.target.value })}
+                          placeholder="mongodb://usuario:contraseña@servidor:27017/wagent o mongodb+srv://..."
+                          className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+                        />
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1">
+                            Nombre de la Base de Datos
+                          </label>
+                          <input
+                            type="text"
+                            value={targetConfig.mongodbDbName}
+                            onChange={e => setTargetConfig({ ...targetConfig, mongodbDbName: e.target.value })}
+                            placeholder="wagent"
+                            className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                          <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                            <Info size={13} className="text-emerald-400" />
+                            <span>¿Dónde encontrar tu Connection String en Atlas?</span>
+                          </div>
+                          <p>1. En <a href="https://cloud.mongodb.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-400 underline">cloud.mongodb.com</a> ve a <strong>Database Deployments</strong>.</p>
+                          <p>2. Haz clic en <strong>Connect</strong> → Selecciona <strong>Drivers</strong> (Node.js) y copia la cadena <code>mongodb+srv://...</code>.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {selectedTargetEngine === 'supabase' && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-slate-300">
-                        Connection String PostgreSQL (Supabase)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTargetConfig(prev => ({
-                            ...prev,
-                            supabaseUrl: 'postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres'
-                          }));
-                        }}
-                        className="text-[11px] text-teal-400 hover:text-teal-300 underline font-mono"
+                  <div className="space-y-4">
+                    {/* Selector de Modo de Autenticación */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-2xl bg-slate-950 border border-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setTargetConfig({ ...targetConfig, supabaseAuthMode: 'apikey' })}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                            targetConfig.supabaseAuthMode === 'apikey'
+                              ? 'bg-teal-600 text-white shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Key size={13} />
+                          <span>Clave API & REST (Recomendado)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTargetConfig({ ...targetConfig, supabaseAuthMode: 'uri' })}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                            targetConfig.supabaseAuthMode !== 'apikey'
+                              ? 'bg-teal-600 text-white shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Globe size={13} />
+                          <span>Cadena PostgreSQL (URI Directa)</span>
+                        </button>
+                      </div>
+
+                      <a
+                        href="https://supabase.com/dashboard/project/_/settings/api"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-teal-400 hover:text-teal-300 font-semibold underline px-2 py-1"
                       >
-                        Cargar Plantilla Supabase
-                      </button>
+                        <span>Obtener credenciales en Supabase</span>
+                        <ExternalLink size={11} />
+                      </a>
                     </div>
-                    <input
-                      type="text"
-                      value={targetConfig.supabaseUrl}
-                      onChange={e => setTargetConfig({ ...targetConfig, supabaseUrl: e.target.value })}
-                      placeholder="postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres"
-                      className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-teal-500"
-                    />
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      💡 Puedes obtener este connection string en tu dashboard de Supabase en <strong>Project Settings → Database → Connection string (URI)</strong>.
-                    </p>
+
+                    {/* Modo API Key & REST */}
+                    {targetConfig.supabaseAuthMode === 'apikey' ? (
+                      <div className="space-y-3 animate-in fade-in">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                              <Globe size={13} className="text-teal-400" />
+                              <span>Project URL de Supabase</span>
+                            </label>
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Requerido
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            value={targetConfig.supabaseProjectUrl}
+                            onChange={e => setTargetConfig({ ...targetConfig, supabaseProjectUrl: e.target.value })}
+                            placeholder="https://xyzprojectref.supabase.co"
+                            className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                              <Key size={13} className="text-teal-400" />
+                              <span>API Key de Supabase (anon o service_role)</span>
+                            </label>
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Requerido
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showSecretKey ? 'text' : 'password'}
+                              value={targetConfig.supabaseApiKey}
+                              onChange={e => setTargetConfig({ ...targetConfig, supabaseApiKey: e.target.value })}
+                              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                              className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 pr-10 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowSecretKey(!showSecretKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                              title={showSecretKey ? 'Ocultar' : 'Mostrar'}
+                            >
+                              {showSecretKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                          <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                            <Info size={13} className="text-teal-400" />
+                            <span>¿Cómo obtener tus claves en Supabase?</span>
+                          </div>
+                          <p>1. Ingresa a tu proyecto en <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank" rel="noopener noreferrer" className="text-teal-400 underline">supabase.com/dashboard</a>.</p>
+                          <p>2. Ve a <strong>Project Settings → API</strong>.</p>
+                          <p>3. Encontrarás tu <strong>Project URL</strong> y tu clave <code>anon public</code> o <code>service_role secret</code>.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Modo URI PostgreSQL */
+                      <div className="space-y-3 animate-in fade-in">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                            <Globe size={13} className="text-teal-400" />
+                            <span>Connection String PostgreSQL (Supabase)</span>
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Requerido
+                            </span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetConfig(prev => ({
+                                ...prev,
+                                supabaseUrl: 'postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres'
+                              }));
+                            }}
+                            className="text-[11px] text-teal-400 hover:text-teal-300 underline font-mono"
+                          >
+                            Cargar Plantilla Supabase
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={targetConfig.supabaseUrl}
+                          onChange={e => setTargetConfig({ ...targetConfig, supabaseUrl: e.target.value })}
+                          placeholder="postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres"
+                          className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-teal-500"
+                        />
+                        <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                          <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                            <Info size={13} className="text-teal-400" />
+                            <span>¿Dónde encontrar el Connection String en Supabase?</span>
+                          </div>
+                          <p>En el dashboard ve a <strong>Project Settings → Database → Connection string (URI)</strong>.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {selectedTargetEngine === 'firebase' && (
                   <div className="space-y-3">
-                    <label className="text-xs font-semibold text-slate-300 block">
-                      Google Cloud / Firebase Project ID
-                    </label>
-                    <input
-                      type="text"
-                      value={targetConfig.firebaseProjectId}
-                      onChange={e => setTargetConfig({ ...targetConfig, firebaseProjectId: e.target.value })}
-                      placeholder="ej: wagent-crm-prod"
-                      className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500"
-                    />
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      💡 La sincronización utiliza la API REST nativa de Google Cloud Firestore. Cada colección del CRM se creará como una colección raíz en Firestore.
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-300">
+                        Credenciales de Google Cloud / Firebase
+                      </span>
+                      <a
+                        href="https://console.firebase.google.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300 font-semibold underline"
+                      >
+                        <span>Abrir Firebase Console</span>
+                        <ExternalLink size={11} />
+                      </a>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                          <Layers size={13} className="text-amber-400" />
+                          <span>Google Cloud / Firebase Project ID</span>
+                        </label>
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Requerido
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={targetConfig.firebaseProjectId}
+                        onChange={e => setTargetConfig({ ...targetConfig, firebaseProjectId: e.target.value })}
+                        placeholder="ej: wagent-crm-prod"
+                        className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                          <Key size={13} className="text-amber-400" />
+                          <span>Clave de API Web (Firebase Web API Key)</span>
+                        </label>
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          Recomendado
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showSecretKey ? 'text' : 'password'}
+                          value={targetConfig.firebaseApiKey}
+                          onChange={e => setTargetConfig({ ...targetConfig, firebaseApiKey: e.target.value })}
+                          placeholder="ej: AIzaSyD..."
+                          className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 pr-10 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSecretKey(!showSecretKey)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                          title={showSecretKey ? 'Ocultar' : 'Mostrar'}
+                        >
+                          {showSecretKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-400 space-y-1">
+                      <div className="font-semibold text-slate-200 flex items-center gap-1.5">
+                        <Info size={13} className="text-amber-400" />
+                        <span>¿Cómo obtener tus credenciales de Firebase?</span>
+                      </div>
+                      <p>1. Ve a <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-amber-400 underline">console.firebase.google.com</a> y abre tu proyecto.</p>
+                      <p>2. Haz clic en el engranaje ⚙️ de <strong>Configuración del proyecto</strong> (Project Settings).</p>
+                      <p>3. En la pestaña <strong>General</strong> encontrarás el <strong>Id. del proyecto</strong> y la <strong>Clave de API web</strong>.</p>
+                    </div>
                   </div>
                 )}
 
                 {selectedTargetEngine === 'mysql' && (
                   <div className="space-y-3">
-                    <label className="text-xs font-semibold text-slate-300 block">
-                      URI de Conexión MySQL / MariaDB
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs font-semibold text-slate-300">
+                          URI de Conexión MySQL / MariaDB
+                        </label>
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Requerido
+                        </span>
+                      </div>
+                      <a
+                        href="https://hpanel.hostinger.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 font-semibold underline"
+                      >
+                        <span>Abrir Hostinger hPanel</span>
+                        <ExternalLink size={11} />
+                      </a>
+                    </div>
                     <input
                       type="text"
                       value={targetConfig.mysqlUri}
@@ -1268,6 +1668,9 @@ export default function DatabaseView({ socket = null }) {
                       placeholder="mysql://root:password@127.0.0.1:3306/wagent"
                       className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-blue-500"
                     />
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      💡 Ingresa el host, usuario, contraseña y base de datos con el formato <code>mysql://usuario:clave@host:3306/nombre_db</code>.
+                    </p>
                   </div>
                 )}
 

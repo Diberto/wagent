@@ -68,6 +68,13 @@ export class OrderSyncEngine {
         totalAmountToOrder = fromUser.total;
       }
 
+      // Si aún no hay items, verificar si el lead tiene un carrito borrador persistido en memoria
+      if (itemsToOrder.length === 0 && clientLead?.draftCart?.items?.length > 0) {
+        itemsToOrder = clientLead.draftCart.items;
+        productsToOrder = clientLead.draftCart.products || [];
+        totalAmountToOrder = clientLead.draftCart.total || 0;
+      }
+
       // 3. Buscar si ya existe una orden activa (pending o preparing o draft) para este JID
       let activeOrder = db.getActiveOrdersByJid(clientJid)[0] || null;
 
@@ -131,7 +138,50 @@ export class OrderSyncEngine {
       // 7. Si se detectaron ítems, crear o actualizar la orden
       if (itemsToOrder.length > 0) {
         if (activeOrder && ['pending', 'preparing', 'draft'].includes(activeOrder.status)) {
-          // Actualizar orden existente con los items confirmados por el agente
+          const isExplicitResetOrReplace = /(?:solo quiero|quiero solo|un solo|una sola|nada mas|en vez de|cambia|cambiame|modifica|modificame|borra todo|borrá todo|empecemos de nuevo|arranquemos de nuevo)/i.test(userMsg);
+          const isAdditionIntent = /(?:agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|mas|más|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2)/i.test(userMsg);
+
+          // Si el cliente está agregando cortes o la orden activa ya tenía productos que no fueron mencionados en este turno aislado
+          if (!isExplicitResetOrReplace && Array.isArray(activeOrder.products) && activeOrder.products.length > 0) {
+            const mergedProductsMap = new Map();
+            // Cargar productos previos de la orden
+            for (const p of activeOrder.products) {
+              const key = (p.id || p.name || '').toLowerCase().trim();
+              if (key) mergedProductsMap.set(key, { ...p });
+            }
+
+            // Integrar productos del nuevo turno
+            for (const p of productsToOrder) {
+              const key = (p.id || p.name || '').toLowerCase().trim();
+              if (key) {
+                if (isAdditionIntent && mergedProductsMap.has(key)) {
+                  const existing = mergedProductsMap.get(key);
+                  const newQty = (Number(existing.quantity) || 1) + (Number(p.quantity) || 1);
+                  const unitP = Number(p.unitPrice || existing.unitPrice || p.price || 0);
+                  const newSub = unitP > 0 ? Math.round(unitP * newQty) : ((Number(existing.subtotal) || 0) + (Number(p.subtotal) || 0));
+                  mergedProductsMap.set(key, {
+                    ...existing,
+                    quantity: newQty,
+                    subtotal: newSub
+                  });
+                } else {
+                  mergedProductsMap.set(key, { ...p });
+                }
+              }
+            }
+
+            const combinedProducts = Array.from(mergedProductsMap.values());
+            if (combinedProducts.length >= productsToOrder.length) {
+              productsToOrder = combinedProducts;
+              totalAmountToOrder = combinedProducts.reduce((acc, p) => acc + (Number(p.subtotal) || 0), 0);
+              itemsToOrder = combinedProducts.map(p => {
+                const q = p.isUnitMode ? `${p.unitCount || p.quantity} Unidades` : `${p.quantity} ${p.unit || 'kg'}`;
+                return `• ${q} ${p.name} — $${(Number(p.subtotal) || 0).toLocaleString('es-AR')}`;
+              });
+            }
+          }
+
+          // Actualizar orden existente con los items confirmados y combinados
           activeOrder = db.updateOrder(activeOrder.id, {
             items: itemsToOrder,
             products: productsToOrder.length > 0 ? productsToOrder : activeOrder.products,
@@ -195,13 +245,13 @@ export class OrderSyncEngine {
 
   /**
    * Parsea los ítems directamente desde el resumen del agente.
-   * Soporta tanto formato clásico:
-   *   "• 1,5 kg de ASADO SURTIDO PREMIUM ($11.987/kg) → *$17.980,50*"
-   * como formato estructurado con dos puntos:
-   *   "* *Costilla:* 1,2 kg — *$26.999/kg*"
-   *   "* *Matambrito de Cerdo (Entrecot):* 0,5 kg — *$10.890/kg*"
-   *   "* *Chorizo de Cerdo:* 4 unidades — *$14.760/kg*"
-   *   "* *Carbón:* 1 bolsa (4kg Flamar) — *$3.600/un*"
+   * Soporta múltiples formatos:
+   *   - Viñetas: "*   *Costilla:* 1,2 kg — *$26.999/kg*"
+   *   - Formato flecha: "• 1,5 kg de ASADO SURTIDO PREMIUM ($11.987/kg) → *$17.980,50*"
+   *   - Formato sin flecha: "* 1,5 kg de ASADO SURTIDO PREMIUM ($11.987/kg)"
+   *   - Listas numeradas: "1. 1,5 kg de Asado", "2) 4 Chorizos de Cerdo"
+   *   - Emojis y cantidades directas: "🥩 4 Unidades de CHORIZO DE CERDO ($14.760/kg)"
+   * NUNCA descarta cortes acordados aunque su subtotal sea provisional o dependa de balanza.
    */
   static extractItemsFromAgentReply(replyMsg, catalog) {
     const items = [];
@@ -213,10 +263,22 @@ export class OrderSyncEngine {
     const lines = replyMsg.split('\n');
     for (const rawLine of lines) {
       const line = rawLine.trim();
-      if (!line.startsWith('*') && !line.startsWith('•') && !line.startsWith('-')) continue;
+      if (!line) continue;
 
-      let clean = line.replace(/^[\s•*\-]+/, '').trim();
-      if (!clean || /detalle|total|opciones|respondé|cómo seguimos|paso\b|recordamos|nota:/i.test(clean)) continue;
+      // Detectar si la línea parece un ítem (empieza con viñeta, número, emoji o cantidad)
+      const isBulletOrNum = /^[\s•*\-+]|^\d+[\.\)]\s*|^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉]\s*|^[0-9]+(?:[.,][0-9]+)?\s*(?:kg|kilos?|unidades?|un|bolsas?|botellas?|combos?|tiras?|bifes?)\b/i.test(line);
+      if (!isBulletOrNum) continue;
+
+      let clean = line
+        .replace(/^[\s•*\-+]+/, '')
+        .replace(/^\d+[\.\)]\s*/, '')
+        .replace(/^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉]\s*/, '')
+        .trim();
+
+      // Ignorar encabezados, resúmenes o metadatos de conversación
+      if (!clean || /^(?:detalle|total|opciones|respondé|cómo seguimos|paso\b|recordamos|nota:|modalidad|direcci[oó]n|forma de pago|medio de pago|sucursal|horario)/i.test(clean)) {
+        continue;
+      }
 
       let nameCandidate = '';
       let qtyStr = '';
@@ -225,12 +287,12 @@ export class OrderSyncEngine {
       let unitPrice = 0;
       let isPerUnit = false;
 
-      // PATRÓN 1: Formato "Nombre: Cantidad [Unidad] — Precio"
+      // PATRÓN 1: Formato con dos puntos "Nombre: Cantidad [Unidad] — Precio"
       // Ej: "*Costilla:* 1,2 kg — *$26.999/kg*"
-      // Ej: "*Matambrito de Cerdo (Entrecot):* 0,5 kg — *$10.890/kg*"
+      // Ej: "*Carbón:* 1 bolsa (4kg Flamar) — *$3.600/un*"
       const colonFormatMatch = clean.match(/^[*_"]?([^*_":]+(?:\([^)]+\))?)[*_"]?\s*:\s*(.+)$/i);
 
-      if (colonFormatMatch && !/(?:direcci[oó]n|modalidad|forma de pago|pago|sucursal|entrega|horario)/i.test(colonFormatMatch[1])) {
+      if (colonFormatMatch && !/(?:direcci[oó]n|modalidad|forma de pago|medio de pago|pago|sucursal|entrega|horario|total)/i.test(colonFormatMatch[1])) {
         nameCandidate = colonFormatMatch[1].trim();
         const rest = colonFormatMatch[2].trim();
 
@@ -242,7 +304,7 @@ export class OrderSyncEngine {
           qtyStr = rest;
         }
       } else {
-        // PATRÓN 2: Formato clásico "Cantidad [Unidad] [de] Nombre [PrecioUnitario] [→ Subtotal]"
+        // PATRÓN 2: Formato flecha/guión "Cantidad [Unidad] [de] Nombre [PrecioUnitario] [→ Subtotal]"
         const arrowMatch = clean.match(/(?:→|->|—)\s*\*?\$?\s*([\d\.,]+(?:\/\w+)?)\s*\*?\s*$/i);
         let textBeforePrice = clean;
         if (arrowMatch) {
@@ -250,15 +312,16 @@ export class OrderSyncEngine {
           textBeforePrice = clean.substring(0, arrowMatch.index).trim();
         }
 
-        const unitPriceMatch = textBeforePrice.match(/\(\s*\$?\s*([\d\.,]+)\s*\/\s*(?:kg|kilo|un|unidad|bolsa|botella|combo|u)\s*\)/i);
+        const unitPriceMatch = textBeforePrice.match(/\(\s*\*?\$?\s*([\d\.,]+)\s*\/\s*(?:kg|kilo|un|unidad|bolsa|botella|combo|u)\*?\s*\)/i);
         if (unitPriceMatch) {
           priceStr = priceStr || unitPriceMatch[0];
           textBeforePrice = textBeforePrice.replace(unitPriceMatch[0], '').trim();
         }
 
-        const qtyMatch = textBeforePrice.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b|kg|kilos?|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?/i);
+        // Extraer cantidad al inicio del texto (tolerando asteriscos de formato como *1,5 kg de...)
+        const qtyMatch = textBeforePrice.match(/^[*_"]?\s*(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b|kg|kilos?|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?/i);
         if (qtyMatch) {
-          qtyStr = qtyMatch[0];
+          qtyStr = qtyMatch[0].replace(/[*_"]/g, '').trim();
           nameCandidate = textBeforePrice.slice(qtyMatch[0].length).trim();
         } else {
           nameCandidate = textBeforePrice;
@@ -310,7 +373,7 @@ export class OrderSyncEngine {
         }
       }
 
-      // Limpieza de nombre
+      // Limpieza exhaustiva de nombre
       let cleanName = nameCandidate
         .replace(/^[*_"]+|[*_":]+$/g, '')
         .replace(/^[xX]\s+/i, '')
@@ -320,7 +383,7 @@ export class OrderSyncEngine {
 
       if (!cleanName) continue;
 
-      // Vincular con catálogo real
+      // Vincular con catálogo real de la carnicería
       const catalogProduct = this.matchCatalogProduct(cleanName, catalog);
       const catalogPrice = catalogProduct ? Number(catalogProduct.price) : 0;
       const effectiveUnitPrice = unitPrice > 0 ? unitPrice : catalogPrice;
@@ -335,8 +398,6 @@ export class OrderSyncEngine {
         }
       }
 
-      if (subtotal <= 0) continue;
-
       let finalQuantity = qty;
       let finalUnit = catalogProduct?.unit || unit;
       let finalUnitPrice = effectiveUnitPrice;
@@ -346,8 +407,8 @@ export class OrderSyncEngine {
         finalQuantity = Number((qty / unitsPerKg).toFixed(3));
         finalUnit = 'kg';
         finalUnitPrice = effectiveUnitPrice;
-      } else {
-        finalUnitPrice = qty > 0 ? Math.round(subtotal / qty) : subtotal;
+      } else if (subtotal > 0 && qty > 0 && finalUnitPrice === 0) {
+        finalUnitPrice = Math.round(subtotal / qty);
       }
 
       const productEntry = {
@@ -387,14 +448,25 @@ export class OrderSyncEngine {
   }
 
   /**
-   * Busca el mejor producto del catálogo real por similitud de nombre.
-   * Retorna null si no encuentra match suficientemente bueno.
+   * Busca el mejor producto del catálogo real por similitud ponderada de palabras.
+   * Evita falsos positivos con notas entre paréntesis o palabras cortas.
    */
   static matchCatalogProduct(name, catalog) {
-    if (!Array.isArray(catalog) || catalog.length === 0) return null;
-    const clean = name.toLowerCase().trim();
+    if (!Array.isArray(catalog) || catalog.length === 0 || !name) return null;
 
-    // 1. Exact match primero
+    const normalizeWord = (w = '') => {
+      let s = w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      // Normalizar plurales a singulares comunes en carnicería
+      if (s.endsWith('es') && s.length > 4) s = s.slice(0, -2);
+      else if (s.endsWith('s') && !s.endsWith('ss') && s.length > 3) s = s.slice(0, -1);
+      if (s === 'matambrito') s = 'matambre';
+      return s;
+    };
+
+    const clean = name.toLowerCase().trim();
+    const cleanNorm = normalizeWord(clean);
+
+    // 1. Coincidencia exacta estricta
     let found = catalog.find(p => (p.name || '').toLowerCase().trim() === clean);
     if (found) return found;
 
@@ -405,31 +477,63 @@ export class OrderSyncEngine {
       if (found) return found;
     }
 
-    // 3. Includes match
-    found = catalog.find(p => (p.name || '').toLowerCase().includes(clean) || clean.includes((p.name || '').toLowerCase()));
-    if (found) return found;
+    // Extraer palabras significativas (sin artículos ni preposiciones)
+    const stopWords = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'x', 'para', 'con', 'en']);
+    const targetWords = (withoutParens || clean)
+      .split(/[\s,()\-]+/)
+      .map(normalizeWord)
+      .filter(w => w.length >= 3 && !stopWords.has(w));
 
-    if (withoutParens) {
-      found = catalog.find(p => (p.name || '').toLowerCase().includes(withoutParens) || withoutParens.includes((p.name || '').toLowerCase()));
-      if (found) return found;
-    }
+    // Si había paréntesis, también extraer esas palabras secundarias con menor peso
+    const parensMatch = clean.match(/\(([^)]+)\)/);
+    const parensWords = parensMatch
+      ? parensMatch[1].split(/[\s,()\-]+/).map(normalizeWord).filter(w => w.length >= 3 && !stopWords.has(w))
+      : [];
 
-    // 4. Partial word match (score >= 60%)
     let bestScore = 0;
-    let bestProd = null;
-    const cleanWords = (withoutParens || clean).split(/\s+/).filter(w => w.length > 2);
+    let bestProduct = null;
+
     for (const prod of catalog) {
-      const prodName = (prod.name || '').toLowerCase();
-      const prodWords = prodName.split(/\s+/).filter(w => w.length > 2);
-      if (cleanWords.length === 0 || prodWords.length === 0) continue;
-      const matchCount = cleanWords.filter(w => prodName.includes(w)).length;
-      const score = matchCount / Math.max(cleanWords.length, 1);
-      if (score > bestScore && score >= 0.5) {
-        bestScore = score;
-        bestProd = prod;
+      const prodRaw = (prod.name || '').toLowerCase().trim();
+      if (!prodRaw) continue;
+
+      const prodWords = prodRaw
+        .split(/[\s,()\-]+/)
+        .map(normalizeWord)
+        .filter(w => w.length >= 3 && !stopWords.has(w));
+
+      if (prodWords.length === 0) continue;
+
+      // Calcular coincidencia de palabras principales
+      let matches = 0;
+      for (const tw of targetWords) {
+        if (prodWords.some(pw => pw === tw || pw.includes(tw) || tw.includes(pw))) {
+          matches++;
+        }
+      }
+
+      // Calcular coincidencia de palabras secundarias (en paréntesis)
+      let secondaryMatches = 0;
+      for (const sw of parensWords) {
+        if (prodWords.some(pw => pw === sw || pw.includes(sw) || sw.includes(pw))) {
+          secondaryMatches++;
+        }
+      }
+
+      // Bonus si comparten tipo de carne clave (ej: cerdo, pollo, vacio, costilla)
+      const hasMeatTypeBonus = targetWords.some(tw => ['cerdo', 'pollo', 'vaca', 'ternera'].includes(tw) && prodWords.includes(tw));
+
+      const primaryScore = matches / Math.max(targetWords.length, 1);
+      const secondaryScore = (secondaryMatches * 0.4) / Math.max(parensWords.length || 1, 1);
+      const totalScore = primaryScore + secondaryScore + (hasMeatTypeBonus ? 0.25 : 0);
+
+      if (totalScore > bestScore && totalScore >= 0.5) {
+        bestScore = totalScore;
+        bestProduct = prod;
       }
     }
-    return bestProd;
+
+    return bestProduct;
   }
 
   /**

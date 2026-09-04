@@ -40,6 +40,7 @@ import {
   Printer,
   Share2,
   ChevronRight,
+  ChevronDown,
   Receipt,
   Archive,
   ArchiveRestore,
@@ -107,122 +108,14 @@ export const parseOrderItems = (order) => {
     const l = name.toLowerCase();
     if (l.includes('combo') || l.includes('asadazo')) return '⭐';
     if (l.includes('chori') || l.includes('morcilla') || l.includes('chinchu') || l.includes('molleja')) return '🌭';
-    if (l.includes('cerdo') || l.includes('pechito') || l.includes('costeleta')) return '🐖';
+    if (l.includes('cerdo') || l.includes('pechito') || l.includes('costeleta') || l.includes('entrecot de cerdo')) return '🐖';
     if (l.includes('pollo') || l.includes('milanesa')) return '🍽️';
     if (l.includes('carbón') || l.includes('carbon')) return '🔥';
     if (l.includes('vino') || l.includes('malbec')) return '🍷';
     return '🥩';
   };
 
-  // 1. Si ya tiene productos estructurados (formato moderno)
-  if (Array.isArray(order.products) && order.products.length > 0) {
-    return order.products.map((p, idx) => {
-      const qty = Number(p.quantity) || 1;
-      const unit = p.unit || 'kg';
-      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
-      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
-        ? rawName 
-        : (p.product || `Corte Seleccionado ${idx + 1}`);
-      const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
-      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
-      return {
-        id: p.id || `prod-${idx}`,
-        name,
-        quantity: qty,
-        unit,
-        price: unitPrice,
-        total: lineSubtotal > 0 ? lineSubtotal : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.products.length)),
-        icon: p.icon || getIcon(name)
-      };
-    });
-  }
-
-  // 2. Intentar parsear items como JSON string si viene así guardado
-  let parsedProducts = null;
-  if (typeof order.items === 'string') {
-    const trimmed = order.items.trim();
-    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      try {
-        parsedProducts = JSON.parse(trimmed);
-        if (!Array.isArray(parsedProducts)) parsedProducts = [parsedProducts];
-      } catch (e) { parsedProducts = null; }
-    }
-  }
-  if (parsedProducts && parsedProducts.length > 0 && typeof parsedProducts[0] === 'object') {
-    return parsedProducts.map((p, idx) => {
-      const qty = Number(p.quantity || p.qty || 1);
-      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.product || '');
-      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
-        ? rawName 
-        : `Corte Seleccionado ${idx + 1}`;
-      const sub = Number(p.subtotal || p.total || p.price || 0) * (Number(p.quantity || 1));
-      const total = Number(p.subtotal || sub || p.price || 0);
-      return {
-        id: p.id || `pjson-${idx}`,
-        name,
-        quantity: qty,
-        unit: p.unit || 'kg',
-        price: Number(p.unitPrice || p.price || 0) || (qty > 0 ? Math.round(total / qty) : total),
-        total: total > 0 ? total : Math.round((Number(order.totalAmount) || 0) / Math.max(1, parsedProducts.length)),
-        icon: p.icon || getIcon(name)
-      };
-    });
-  }
-
-  // 3. Normalizar items: array con posibles objetos o strings
-  let rawItems = [];
-  if (Array.isArray(order.items)) {
-    rawItems = order.items.map((item) => {
-      if (typeof item === 'object' && item !== null) {
-        // Objeto en el array de items → convertir directamente
-        const qty = Number(item.quantity || item.qty || 1);
-        const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
-        const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : 'Corte Seleccionado';
-        const sub = Number(item.subtotal || 0) || (Number(item.unitPrice || item.price || 0) * qty);
-        return {
-          __obj: true,
-          id: item.id || `oi-${Math.random()}`,
-          name,
-          quantity: qty,
-          unit: item.unit || 'kg',
-          price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
-          total: sub > 0 ? sub : Math.round((Number(order.totalAmount) || 0)),
-          icon: item.icon || getIcon(name)
-        };
-      }
-      return String(item).trim();
-    }).filter(Boolean);
-  } else if (typeof order.items === 'string') {
-    rawItems = order.items.split('\n').map(s => s.trim()).filter(Boolean);
-  }
-
-  // 4. Devolver directamente los que ya son objetos
-  const objItems = rawItems.filter(i => i && typeof i === 'object' && i.__obj);
-  const strItems = rawItems.filter(i => typeof i === 'string');
-
-  const result = objItems.map(i => ({ ...i, __obj: undefined }));
-
-  if (strItems.length === 0 && result.length === 0) {
-    return [{
-      id: 'default-0',
-      name: 'Pedido de Carnicería (Cortes Seleccionados)',
-      quantity: 1,
-      unit: 'un',
-      price: Number(order.totalAmount) || 0,
-      total: Number(order.totalAmount) || 0,
-      icon: '🥩'
-    }];
-  }
-
-  if (result.length > 0 && strItems.length === 0) return result;
-
-  return rawItems.map((itemStr, idx) => {
-    // Si el item ya fue procesado como objeto
-    if (itemStr && typeof itemStr === 'object' && itemStr.__obj) {
-      const { __obj, ...rest } = itemStr;
-      return rest;
-    }
-
+  const parseSingleTextItem = (itemStr, idx, totalAmount, count) => {
     let cleanStr = String(itemStr).replace(/^[•\-\*\d\.\)\s]+/, '').trim();
     let qty = 1;
     let unit = 'un';
@@ -254,12 +147,10 @@ export const parseOrderItems = (order) => {
       lineSubtotal = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
       name = name.replace(/(?:—|\-|\()\s*\$?\s*[0-9.,]+\s*\)?$/i, '').trim();
     } else {
-      lineSubtotal = Math.round((Number(order.totalAmount) || 0) / Math.max(1, rawItems.length));
+      lineSubtotal = Math.round((Number(totalAmount) || 0) / Math.max(1, count));
     }
 
     const unitPrice = (qty > 0 && lineSubtotal > 0) ? Math.round(lineSubtotal / qty) : lineSubtotal;
-
-    // Limpiar comillas sobrantes
     name = name.replace(/^["'"]+|["'"]+$/g, '').trim();
 
     return {
@@ -268,10 +159,124 @@ export const parseOrderItems = (order) => {
       quantity: qty,
       unit,
       price: unitPrice,
-      total: lineSubtotal > 0 ? lineSubtotal : (Number(order.totalAmount) || 0),
+      total: lineSubtotal > 0 ? lineSubtotal : (Number(totalAmount) || 0),
       icon: getIcon(name)
     };
-  });
+  };
+
+  // 1. Parsear productos estructurados si existen
+  let structuredList = [];
+  if (Array.isArray(order.products) && order.products.length > 0) {
+    structuredList = order.products.map((p, idx) => {
+      const qty = Number(p.quantity) || 1;
+      const unit = p.unit || 'kg';
+      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
+      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
+        ? rawName 
+        : (p.product || `Corte Seleccionado ${idx + 1}`);
+      const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
+      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
+      return {
+        id: p.id || `prod-${idx}`,
+        name,
+        quantity: qty,
+        unit,
+        price: unitPrice,
+        total: lineSubtotal > 0 ? lineSubtotal : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.products.length)),
+        icon: p.icon || getIcon(name)
+      };
+    });
+  }
+
+  // 2. Extraer líneas de texto de items
+  let rawTextLines = [];
+  if (Array.isArray(order.items)) {
+    order.items.forEach(item => {
+      if (typeof item === 'object' && item !== null) {
+        const qty = Number(item.quantity || item.qty || 1);
+        const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
+        const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : 'Corte Seleccionado';
+        const sub = Number(item.subtotal || 0) || (Number(item.unitPrice || item.price || 0) * qty);
+        structuredList.push({
+          id: item.id || `oi-${Math.random()}`,
+          name,
+          quantity: qty,
+          unit: item.unit || 'kg',
+          price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
+          total: sub > 0 ? sub : Math.round((Number(order.totalAmount) || 0)),
+          icon: item.icon || getIcon(name)
+        });
+      } else if (typeof item === 'string' && item.trim()) {
+        rawTextLines.push(item.trim());
+      }
+    });
+  } else if (typeof order.items === 'string' && order.items.trim()) {
+    const trimmed = order.items.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        arr.forEach((p, idx) => {
+          if (typeof p === 'object' && p !== null) {
+            const qty = Number(p.quantity || p.qty || 1);
+            const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.product || '');
+            const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte ${idx + 1}`;
+            const total = Number(p.subtotal || p.total || 0) || (Number(p.price || 0) * qty);
+            structuredList.push({
+              id: p.id || `pj-${idx}`,
+              name,
+              quantity: qty,
+              unit: p.unit || 'kg',
+              price: Number(p.unitPrice || p.price || 0) || (qty > 0 ? Math.round(total / qty) : total),
+              total: total > 0 ? total : Math.round((Number(order.totalAmount) || 0) / Math.max(1, arr.length)),
+              icon: p.icon || getIcon(name)
+            });
+          }
+        });
+      } catch (e) {
+        rawTextLines = trimmed.split('\n').map(s => s.trim()).filter(Boolean);
+      }
+    } else {
+      rawTextLines = trimmed.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  // 3. Si hay líneas de texto de items, verificar si aportan cortes no incluidos en structuredList
+  if (rawTextLines.length > 0) {
+    const parsedTextItems = rawTextLines.map((str, idx) =>
+      parseSingleTextItem(str, idx, order.totalAmount, rawTextLines.length)
+    );
+
+    if (structuredList.length === 0) {
+      return parsedTextItems;
+    }
+
+    // Si structuredList ya tiene items, incorporar aquellos de rawTextLines que no estén repetidos
+    for (const textItem of parsedTextItems) {
+      const cleanName = textItem.name.toLowerCase().trim();
+      const isDuplicate = structuredList.some(p => {
+        const pName = p.name.toLowerCase().trim();
+        return pName === cleanName || pName.includes(cleanName) || cleanName.includes(pName);
+      });
+      if (!isDuplicate) {
+        structuredList.push(textItem);
+      }
+    }
+  }
+
+  if (structuredList.length > 0) {
+    return structuredList;
+  }
+
+  return [{
+    id: 'default-0',
+    name: 'Pedido de Carnicería (Cortes Seleccionados)',
+    quantity: 1,
+    unit: 'un',
+    price: Number(order.totalAmount) || 0,
+    total: Number(order.totalAmount) || 0,
+    icon: '🥩'
+  }];
 };
 
 
@@ -1861,21 +1866,16 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                         title="Haz clic para ver el detalle y desglose completo del pedido"
                       >
                         <div className="flex flex-wrap gap-1">
-                          {parseOrderItems(order).slice(0, 2).map((prod, idx) => (
+                          {parseOrderItems(order).map((prod, idx) => (
                             <span 
                               key={idx} 
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#111b21] border border-slate-800 group-hover:border-emerald-500/50 text-slate-200 text-[11px] font-medium transition truncate max-w-[200px]"
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#111b21] border border-slate-800 group-hover:border-emerald-500/50 text-slate-200 text-[11px] font-medium transition truncate max-w-[240px]"
                             >
                               <span>{prod.icon}</span>
                               <span className="font-bold text-emerald-400 font-mono">{prod.quantity}{prod.unit !== 'un' ? prod.unit : 'x'}</span>
                               <span className="truncate">{prod.name}</span>
                             </span>
                           ))}
-                          {parseOrderItems(order).length > 2 && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                              +{parseOrderItems(order).length - 2} más
-                            </span>
-                          )}
                         </div>
                         <div className="text-[10px] text-slate-500 group-hover:text-emerald-400 flex items-center gap-1 transition">
                           <Eye size={10} /> Clic para abrir detalle

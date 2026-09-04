@@ -251,6 +251,15 @@ export function createApiRouter(whatsappService, io) {
       if (masked.supabase?.connectionString) {
         masked.supabase.connectionString = masked.supabase.connectionString.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)/, '$1******$3');
       }
+      if (masked.mongodb?.apiKey && masked.mongodb.apiKey.length > 8) {
+        masked.mongodb.apiKey = masked.mongodb.apiKey.slice(0, 4) + '******' + masked.mongodb.apiKey.slice(-4);
+      }
+      if (masked.supabase?.apiKey && masked.supabase.apiKey.length > 8) {
+        masked.supabase.apiKey = masked.supabase.apiKey.slice(0, 4) + '******' + masked.supabase.apiKey.slice(-4);
+      }
+      if (masked.firebase?.apiKey && masked.firebase.apiKey.length > 8) {
+        masked.firebase.apiKey = masked.firebase.apiKey.slice(0, 4) + '******' + masked.firebase.apiKey.slice(-4);
+      }
       res.json({ success: true, config: masked });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
@@ -3821,17 +3830,30 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
-  // Prueba de síntesis de voz en vivo en el navegador
+  // Prueba de síntesis de voz en vivo en el navegador (100% resiliente e independiente de FFmpeg)
   router.post('/ai/test-voice', async (req, res) => {
-    const { text = '¡Hola! Soy tu asistente de ventas por WhatsApp.', voice } = req.body;
+    const { text = '¡Hola! Soy tu asistente de ventas por República de la Carne.', voice } = req.body;
     try {
-      const speech = await SpeechService.textToSpeech(text, voice);
+      const speech = await SpeechService.textToSpeech(text, voice, { isTest: true });
       res.json({
+        success: true,
         audioUrl: `/media/${path.basename(speech.mp3Path)}`,
-        duration: speech.durationSeconds
+        duration: speech.durationSeconds || 3
       });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.warn('⚠️ Falló síntesis en /ai/test-voice, intentando fallback directo con Edge Neural:', err.message);
+      try {
+        const fallbackMp3 = path.join(CONFIG.MEDIA_DIR, `voice_test_fallback_${Date.now()}.mp3`);
+        await SpeechService.generateEdgeTts(text, voice || 'es-AR-TomasNeural', fallbackMp3);
+        res.json({
+          success: true,
+          audioUrl: `/media/${path.basename(fallbackMp3)}`,
+          duration: 3
+        });
+      } catch (innerErr) {
+        console.error('Error final en /ai/test-voice:', innerErr.message);
+        res.status(500).json({ success: false, error: err.message || innerErr.message });
+      }
     }
   });
 
