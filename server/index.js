@@ -140,14 +140,10 @@ server.listen(PORT, async () => {
   console.log(`📁 Directorio Multimedia: ${CONFIG.MEDIA_DIR}`);
   console.log('====================================================');
 
-  // Inicializar WhatsApp automáticamente si ya existen credenciales guardadas válidas
-  const authDir = CONFIG.AUTH_DIR;
-  const credsFile = path.join(authDir, 'creds.json');
-  const hasValidCreds = fs.existsSync(credsFile) && fs.statSync(credsFile).size > 20;
-  if (hasValidCreds) {
-    console.log('Credenciales de sesión válidas encontradas. Conectando a WhatsApp...');
-    whatsapp.initializePrimary();
-  }
+  // Inicializar WhatsApp automáticamente si ya existen credenciales guardadas válidas (tanto maestra como de usuarios)
+  await whatsapp.initializeAllSavedSessions().catch(err => {
+    console.error('Error inicializando sesiones guardadas de WhatsApp:', err);
+  });
 
   // Inicializar conexión con MongoDB Atlas si está configurado en Hostinger
   connectDB().catch(err => console.warn('Aviso MongoDB:', err.message));

@@ -757,25 +757,35 @@ export default function ChatInbox({
   }, [messages]);
 
   // Manejar envío de texto con render optimista
-  const handleSendText = (e) => {
+  const handleSendText = async (e) => {
     e?.preventDefault();
     if (!inputText.trim() || !selectedLead) return;
 
     const textToSend = inputText.trim();
     setInputText('');
 
+    const tempId = `temp-${Date.now()}`;
     const optimisticMsg = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       chatId: selectedLead.jid,
       sender: 'agent',
       type: 'text',
       content: textToSend,
       timestamp: new Date().toISOString(),
-      status: 'sent'
+      status: 'pending'
     };
     setMessages(prev => [...prev, optimisticMsg]);
 
-    onSendMessage(selectedLead.jid, textToSend);
+    try {
+      if (onSendMessage) {
+        const res = await onSendMessage(selectedLead.jid, textToSend);
+        if (res && res.message) {
+          setMessages(prev => prev.map(m => m.id === tempId ? res.message : m));
+        }
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed', deliveryWarning: err.message } : m));
+    }
   };
 
   // Grabación de audio con MediaRecorder y reconocimiento de voz asistido
@@ -1451,9 +1461,25 @@ export default function ChatInbox({
                           )}
 
                           {/* Check de estado de entrega */}
-                          <div className="flex items-center justify-end gap-1 text-[10px] text-slate-300/70 pt-0.5">
-                            {isUser ? null : <CheckCheck size={13} className="text-sky-300" />}
-                          </div>
+                          {!isUser && (
+                            <div className="flex items-center justify-end gap-1 text-[10px] pt-0.5">
+                              {msg.status === 'failed' ? (
+                                <span className="text-rose-400 font-bold flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded" title={msg.deliveryWarning || 'No se pudo entregar por WhatsApp'}>
+                                  <AlertCircle size={12} className="text-rose-400" />
+                                  <span>No enviado por WhatsApp</span>
+                                </span>
+                              ) : msg.status === 'pending' ? (
+                                <span className="text-amber-300 flex items-center gap-1" title="Pendiente de conexión de WhatsApp">
+                                  <Clock size={11} className="text-amber-300" />
+                                  <span>Pendiente</span>
+                                </span>
+                              ) : (
+                                <span title="Entregado">
+                                  <CheckCheck size={13} className="text-sky-300" />
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

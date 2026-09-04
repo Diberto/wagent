@@ -825,14 +825,76 @@ export class WhatsAppService {
   }
 
   /**
+   * Resuelve y normaliza el JID del destinatario a un identificador canónico de WhatsApp válido (@s.whatsapp.net o @g.us)
+   * Soportando identificadores @lid, teléfonos con o sin formato internacional (+), y IDs de leads.
+   */
+  async formatRecipientJid(rawJid) {
+    if (!rawJid) return null;
+    let target = String(rawJid).trim();
+
+    // 1. Si es un ID de lead (lead-xxx, test-xxx, usr-xxx), buscar en DB
+    if (target.startsWith('lead-') || target.startsWith('test-') || target.startsWith('usr-')) {
+      const lead = db.getLead(target);
+      if (lead) {
+        target = lead.jid || lead.altJid || lead.phone || target;
+      }
+    }
+
+    // 2. Si es un identificador @lid, intentar resolver a JID telefónico real
+    if (target.includes('@lid')) {
+      const resolved = await this.resolvePhoneJid(target);
+      if (resolved && resolved.includes('@s.whatsapp.net')) {
+        target = resolved;
+      } else {
+        const lead = db.getLead(target);
+        if (lead?.phone && !lead.phone.includes('@lid') && !isLidIdentifier(lead.phone)) {
+          const norm = normalizePhoneNumber(lead.phone);
+          const digits = (norm || lead.phone).replace(/\D/g, '');
+          if (digits.length >= 8) {
+            target = `${digits}@s.whatsapp.net`;
+            this.lidToPhoneMap.set(rawJid, target);
+          }
+        }
+      }
+    }
+
+    // 3. Si es un grupo (@g.us), mantenerlo tal cual
+    if (target.endsWith('@g.us')) {
+      return target;
+    }
+
+    // 4. Si contiene @s.whatsapp.net, limpiar caracteres espurios (+, espacios, dos puntos)
+    if (target.includes('@s.whatsapp.net')) {
+      const userPart = target.split('@')[0].replace(/\D/g, '');
+      if (userPart.length >= 8) {
+        return `${userPart}@s.whatsapp.net`;
+      }
+    }
+
+    // 5. Si es un número telefónico en cualquier formato (con o sin +, espacios, guiones)
+    const norm = normalizePhoneNumber(target);
+    const digits = (norm || target).replace(/\D/g, '');
+    if (digits.length >= 8) {
+      return `${digits}@s.whatsapp.net`;
+    }
+
+    const fallback = jidNormalizedUser(target);
+    return fallback || null;
+  }
+
+  /**
    * Envía un mensaje de texto a un JID
    */
   async sendTextMessage(jid, text) {
     if (!this.sock || this.status !== 'connected') {
-      throw new Error('WhatsApp no está conectado');
+      throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]`);
     }
-    const cleanJid = jidNormalizedUser(jid);
+    const cleanJid = await this.formatRecipientJid(jid);
+    if (!cleanJid) {
+      throw new Error(`JID o teléfono de destinatario inválido: "${jid}"`);
+    }
     const cleanText = (text || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
+    console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando a ${cleanJid}: "${cleanText.slice(0, 80)}..."`);
     return await this.sock.sendMessage(cleanJid, { text: cleanText });
   }
 
@@ -845,10 +907,13 @@ export class WhatsAppService {
    */
   async sendImageMessage(jid, imagePathOrBuffer, caption = '') {
     if (!this.sock || this.status !== 'connected') {
-      throw new Error('WhatsApp no está conectado');
+      throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]`);
     }
 
-    const cleanJid = jidNormalizedUser(jid);
+    const cleanJid = await this.formatRecipientJid(jid);
+    if (!cleanJid) {
+      throw new Error(`JID o teléfono de destinatario inválido: "${jid}"`);
+    }
     const imgBuffer = Buffer.isBuffer(imagePathOrBuffer) ? imagePathOrBuffer : fs.readFileSync(imagePathOrBuffer);
     const cleanCaption = (caption || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
 
@@ -863,10 +928,13 @@ export class WhatsAppService {
    */
   async sendVoiceNote(jid, audioPathOrBuffer) {
     if (!this.sock || this.status !== 'connected') {
-      throw new Error('WhatsApp no está conectado');
+      throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]`);
     }
 
-    const cleanJid = jidNormalizedUser(jid);
+    const cleanJid = await this.formatRecipientJid(jid);
+    if (!cleanJid) {
+      throw new Error(`JID o teléfono de destinatario inválido: "${jid}"`);
+    }
     const audioBuffer = Buffer.isBuffer(audioPathOrBuffer) ? audioPathOrBuffer : fs.readFileSync(audioPathOrBuffer);
     const isOgg = typeof audioPathOrBuffer === 'string' ? (audioPathOrBuffer.endsWith('.ogg') || audioPathOrBuffer.endsWith('.opus')) : true;
 
@@ -1410,71 +1478,140 @@ export class WhatsAppManager {
   }
 
   get status() {
+    if (this.primarySession?.status === 'connected') return 'connected';
+    for (const session of this.sessions.values()) {
+      if (session && session.status === 'connected') {
+        return 'connected';
+      }
+    }
     return this.primarySession?.status || 'disconnected';
   }
 
-  async sendTextMessage(jid, text, userId = 'default') {
-    let session = this.getSession(userId);
+  get isAnyConnected() {
+    return this.status === 'connected';
+  }
+
+  /**
+   * Resuelve dinámicamente la mejor sesión activa y conectada.
+   * Si el usuario operador tiene una sesión conectada, se prioriza.
+   * Si no, utiliza la sesión primaria o cualquier otra sesión conectada en el pool.
+   */
+  getActiveConnectedSession(preferredUserId = null) {
+    if (preferredUserId) {
+      const preferred = this.sessions.get(preferredUserId);
+      if (preferred && preferred.status === 'connected') {
+        return preferred;
+      }
+    }
+    if (this.primarySession && this.primarySession.status === 'connected') {
+      return this.primarySession;
+    }
+    for (const session of this.sessions.values()) {
+      if (session && session.status === 'connected') {
+        return session;
+      }
+    }
+    return (preferredUserId && this.sessions.get(preferredUserId)) || this.primarySession;
+  }
+
+  /**
+   * Inicializa de forma automática todas las sesiones de WhatsApp que tengan credenciales guardadas válidas
+   * (tanto la sesión default maestra como sesiones de usuarios/administradores específicos).
+   */
+  async initializeAllSavedSessions() {
+    console.log('🔄 [WhatsAppManager] Escaneando y conectando sesiones de WhatsApp guardadas...');
+    
+    // 1. Sesión Maestra Principal ('default')
+    const primaryCreds = path.join(CONFIG.AUTH_DIR, 'creds.json');
+    if (fs.existsSync(primaryCreds)) {
+      try {
+        if (fs.statSync(primaryCreds).size > 20) {
+          console.log('📱 Inicializando sesión WhatsApp principal [default]...');
+          this.primarySession.initialize().catch(err => {
+            console.warn('Aviso inicializando sesión default:', err.message);
+          });
+        }
+      } catch (_) {}
+    }
+
+    // 2. Sesiones de Usuario en DATA_DIR (ej: auth_info_baileys_usr-central-admin)
+    try {
+      if (fs.existsSync(CONFIG.DATA_DIR)) {
+        const entries = fs.readdirSync(CONFIG.DATA_DIR);
+        for (const entry of entries) {
+          if (entry.startsWith('auth_info_baileys_')) {
+            const userId = entry.replace('auth_info_baileys_', '');
+            const credsFile = path.join(CONFIG.DATA_DIR, entry, 'creds.json');
+            if (fs.existsSync(credsFile)) {
+              try {
+                if (fs.statSync(credsFile).size > 20) {
+                  console.log(`📱 Inicializando sesión de WhatsApp guardada para usuario [${userId}]...`);
+                  const session = this.getSession(userId);
+                  session.initialize().catch(err => {
+                    console.warn(`Aviso inicializando sesión de usuario [${userId}]:`, err.message);
+                  });
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      }
+    } catch (scanErr) {
+      console.warn('Error escaneando directorios de autenticación de WhatsApp:', scanErr.message);
+    }
+  }
+
+  async sendTextMessage(jid, text, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
-      session = this.primarySession;
+      throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendTextMessage(jid, text);
   }
 
-  async sendVoiceNote(jid, audioPathOrBuffer, userId = 'default') {
-    let session = this.getSession(userId);
+  async sendVoiceNote(jid, audioPathOrBuffer, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
-      session = this.primarySession;
+      throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendVoiceNote(jid, audioPathOrBuffer);
   }
 
-  async sendImageMessage(jid, imagePathOrBuffer, caption = '', userId = 'default') {
-    let session = this.getSession(userId);
+  async sendImageMessage(jid, imagePathOrBuffer, caption = '', userId = null) {
+    const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
-      session = this.primarySession;
+      throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendImageMessage(jid, imagePathOrBuffer, caption);
   }
 
-  async sendMessage(jid, text, media = null, userId = 'default') {
-    let session = this.getSession(userId);
+  async sendMessage(jid, text, media = null, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
-      session = this.primarySession;
+      throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendMessage(jid, text, media);
   }
 
-  async sendDriverDispatchNotification(order, driver, notifyClient = true, userId = 'default') {
-    let session = this.getSession(userId);
+  async sendDriverDispatchNotification(order, driver, notifyClient = true, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
-      session = this.primarySession;
+      throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendDriverDispatchNotification(order, driver, notifyClient);
   }
 
-  async sendBranchDerivationNotification(order, branch, notifyClient = true, userId = 'default') {
-    let session = this.getSession(userId);
+  async sendBranchDerivationNotification(order, branch, notifyClient = true, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
-      session = this.primarySession;
+      throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendBranchDerivationNotification(order, branch, notifyClient);
   }
 
-  async getCleanOrderClientJid(order, userId = 'default') {
-    let session = this.getSession(userId);
-    if (!session) {
-      session = this.primarySession;
-    }
+  async getCleanOrderClientJid(order, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
     return session ? session.getCleanOrderClientJid(order) : null;
-  }
-
-  async sendTextMessage(jid, text, userId = 'default') {
-    let session = this.getSession(userId);
-    if (!session || session.status !== 'connected') {
-      session = this.primarySession;
-    }
-    return session.sendTextMessage(jid, text);
   }
 }
 

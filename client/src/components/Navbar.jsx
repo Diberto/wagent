@@ -33,7 +33,9 @@ import {
   Tag,
   Bell,
   Database,
-  Terminal
+  Terminal,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 
@@ -57,7 +59,9 @@ export default function Navbar({
   onMarkAllNotificationsRead,
   onClearNotifications,
   onSelectNotification,
-  onOpenCustomerPortal
+  onOpenCustomerPortal,
+  isDockVisible = true,
+  onToggleDock
 }) {
   const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -415,6 +419,21 @@ export default function Navbar({
             </div>
           )}
         </div>
+
+        {/* Botón Alternar Barra Inferior / Modo Pantalla Completa Limpia */}
+        {onToggleDock && (
+          <button
+            onClick={onToggleDock}
+            className={`hidden lg:flex p-2 rounded-xl transition-all shadow-sm active:scale-95 border ${
+              isDockVisible
+                ? 'bg-[#182229] hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/80'
+                : 'bg-red-600/20 text-red-400 border-red-500/40 hover:bg-red-600/30'
+            }`}
+            title={isDockVisible ? "Ocultar barra inferior (Modo Pantalla Completa)" : "Mostrar barra inferior de la Suite"}
+          >
+            {isDockVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        )}
 
         {/* Botón de Ajustes Generales */}
         <button

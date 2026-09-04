@@ -1102,16 +1102,32 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   router.post('/chats/:jid/messages', async (req, res) => {
     const { jid } = req.params;
-    const { text, sendViaWhatsApp = true } = req.body;
+    const { text, sendViaWhatsApp = true, userId = null } = req.body;
 
     if (!text) return res.status(400).json({ error: 'El texto es obligatorio' });
 
     try {
       let sentKeyId = null;
-      // Si WhatsApp está conectado, enviar mensaje real
-      if (sendViaWhatsApp && whatsappService.status === 'connected') {
-        const sent = await whatsappService.sendTextMessage(jid, text);
-        sentKeyId = sent?.key?.id || null;
+      let deliveryStatus = 'sent';
+      let deliveryWarning = null;
+
+      // Si WhatsApp debe enviar el mensaje real
+      if (sendViaWhatsApp) {
+        if (whatsappService && whatsappService.status === 'connected') {
+          try {
+            const operatorUserId = userId || req.user?.id || 'usr-central-admin';
+            const sent = await whatsappService.sendTextMessage(jid, text, operatorUserId);
+            sentKeyId = sent?.key?.id || null;
+          } catch (sendErr) {
+            console.error(`❌ Error transmitiendo mensaje WhatsApp a ${jid}:`, sendErr.message);
+            deliveryStatus = 'failed';
+            deliveryWarning = sendErr.message || 'Error transmitiendo por WhatsApp';
+          }
+        } else {
+          console.warn(`⚠️ Mensaje guardado en base de datos pero WhatsApp no está conectado (${whatsappService?.status || 'desconectado'})`);
+          deliveryStatus = 'pending';
+          deliveryWarning = 'WhatsApp no está conectado en el servidor';
+        }
       }
 
       const msg = db.saveMessage({
@@ -1121,13 +1137,22 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         type: 'text',
         content: text,
         timestamp: new Date().toISOString(),
-        status: 'sent'
+        status: deliveryStatus,
+        deliveryWarning
       });
 
       const lead = db.getLead(jid);
       io.emit('chat:message', { message: msg, lead });
 
-      res.json({ success: true, message: msg });
+      if (deliveryStatus === 'failed') {
+        return res.status(502).json({
+          success: false,
+          error: deliveryWarning,
+          message: msg
+        });
+      }
+
+      res.json({ success: true, message: msg, warning: deliveryWarning });
     } catch (err) {
       console.error('Error enviando mensaje manual:', err);
       res.status(500).json({ error: err.message });
@@ -1155,12 +1180,19 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         mp3Path = oggPath;
       }
 
-      if (whatsappService.status === 'connected') {
+      let audioSent = false;
+      let audioWarning = null;
+      if (whatsappService && whatsappService.status === 'connected') {
         try {
-          await whatsappService.sendVoiceNote(jid, oggPath);
+          const operatorUserId = req.body?.userId || req.user?.id || 'usr-central-admin';
+          await whatsappService.sendVoiceNote(jid, oggPath, operatorUserId);
+          audioSent = true;
         } catch (waSendErr) {
           console.warn('Aviso enviando nota de voz a WhatsApp:', waSendErr.message);
+          audioWarning = waSendErr.message;
         }
+      } else {
+        audioWarning = 'WhatsApp no está conectado en el servidor';
       }
 
       // Transcripción: si vino directamente del navegador por Web Speech o procesar con STT
@@ -1182,11 +1214,20 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         mediaUrl: `/media/${path.basename(mp3Path)}`,
         audioDuration: Number(req.body?.duration) || 5,
         timestamp: new Date().toISOString(),
-        status: 'sent'
+        status: audioSent ? 'sent' : (audioWarning ? 'failed' : 'pending'),
+        deliveryWarning: audioWarning
       });
 
       const lead = db.getLead(jid);
       io.emit('chat:message', { message: savedMsg, lead });
+
+      if (audioWarning && !audioSent) {
+        return res.status(502).json({
+          success: false,
+          error: audioWarning,
+          message: savedMsg
+        });
+      }
 
       res.json({ success: true, message: savedMsg });
     } catch (err) {

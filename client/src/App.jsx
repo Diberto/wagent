@@ -69,6 +69,9 @@ export default function App() {
   const [allUsers, setAllUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isDockVisible, setIsDockVisible] = useState(() => {
+    return localStorage.getItem('wagent_suite_dock_collapsed') !== 'true';
+  });
   
   // WhatsApp Baileys State
   const [whatsappStatus, setWhatsappStatus] = useState('disconnected');
@@ -234,17 +237,37 @@ export default function App() {
     });
 
     socket.on('whatsapp:status', (data) => {
-      if (!data || (data.sessionId && data.sessionId !== 'default')) return;
-      console.log('WhatsApp primary status event:', data);
-      setWhatsappStatus(data.status);
-      setQrDataUrl(data.qrDataUrl);
-      setWhatsappUser(data.user);
+      if (!data) return;
+      console.log('WhatsApp status event:', data);
+      if (!data.sessionId || data.sessionId === 'default' || data.sessionId === currentUser?.id) {
+        setWhatsappStatus(data.status);
+        setQrDataUrl(data.qrDataUrl);
+        setWhatsappUser(data.user);
+      }
+    });
+
+    socket.on('whatsapp:sessions', (sessions) => {
+      if (sessions && typeof sessions === 'object') {
+        const userSession = currentUser?.id ? sessions[currentUser.id] : null;
+        const defaultSession = sessions['default'];
+        const anyConnected = Object.values(sessions).find(s => s && s.status === 'connected');
+        const active = (userSession && userSession.status === 'connected')
+          ? userSession
+          : ((defaultSession && defaultSession.status === 'connected') ? defaultSession : anyConnected);
+
+        if (active) {
+          setWhatsappStatus(active.status);
+          setWhatsappUser(active.user);
+        }
+      }
     });
 
     socket.on('whatsapp:qr', (data) => {
-      if (!data || (data.sessionId && data.sessionId !== 'default')) return;
-      setQrDataUrl(data.qrDataUrl);
-      setWhatsappStatus('qr_ready');
+      if (!data) return;
+      if (!data.sessionId || data.sessionId === 'default' || data.sessionId === currentUser?.id) {
+        setQrDataUrl(data.qrDataUrl);
+        setWhatsappStatus('qr_ready');
+      }
     });
 
     socket.on('chat:message', ({ message, lead }) => {
@@ -431,24 +454,68 @@ export default function App() {
   // Enviar Mensajes
   const handleSendMessage = async (jid, text) => {
     try {
-      await fetch(`/api/chats/${encodeURIComponent(jid)}/messages`, {
+      const res = await fetch(`/api/chats/${encodeURIComponent(jid)}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, sendViaWhatsApp: true })
+        body: JSON.stringify({ 
+          text, 
+          sendViaWhatsApp: true,
+          userId: currentUser?.id || 'usr-central-admin'
+        })
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false || data.error) {
+        const errorMsg = data.error || data.warning || 'No se pudo entregar por WhatsApp';
+        console.warn('Advertencia entrega WhatsApp:', errorMsg);
+        addNotification({
+          title: '⚠️ WhatsApp: Fallo de Envío',
+          message: errorMsg,
+          icon: '⚠️'
+        });
+      } else if (data.warning) {
+        addNotification({
+          title: 'ℹ️ Aviso de Mensaje',
+          message: data.warning,
+          icon: 'ℹ️'
+        });
+      }
+      return data;
     } catch (err) {
       console.error('Error enviando mensaje:', err);
+      addNotification({
+        title: '❌ Error al Enviar',
+        message: err.message,
+        icon: '❌'
+      });
+      throw err;
     }
   };
 
   const handleSendAudio = async (jid, formData) => {
     try {
-      await fetch(`/api/chats/${encodeURIComponent(jid)}/send-audio`, {
+      if (currentUser?.id && !formData.has('userId')) {
+        formData.append('userId', currentUser.id);
+      }
+      const res = await fetch(`/api/chats/${encodeURIComponent(jid)}/send-audio`, {
         method: 'POST',
         body: formData
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false || data.error) {
+        addNotification({
+          title: '⚠️ Nota de Voz: Fallo de Envío',
+          message: data.error || data.warning || 'Error enviando nota de voz a WhatsApp',
+          icon: '🎤'
+        });
+      }
+      return data;
     } catch (err) {
       console.error('Error enviando nota de voz:', err);
+      addNotification({
+        title: '❌ Error Nota de Voz',
+        message: err.message,
+        icon: '❌'
+      });
     }
   };
 
@@ -547,6 +614,12 @@ export default function App() {
             }
           }}
           onOpenCustomerPortal={() => setIsCustomerPortalOpen(true)}
+          isDockVisible={isDockVisible}
+          onToggleDock={() => {
+            const next = !isDockVisible;
+            setIsDockVisible(next);
+            localStorage.setItem('wagent_suite_dock_collapsed', String(!next));
+          }}
         />
       )}
 
@@ -860,6 +933,8 @@ export default function App() {
           onOpenCustomerPortal={() => setIsCustomerPortalOpen(true)}
           onOpenSettings={() => setIsSettingsModalOpen(true)}
           notificationsCount={notifications.filter(n => !n.read).length}
+          isDockVisible={isDockVisible}
+          setIsDockVisible={setIsDockVisible}
         />
       )}
 
