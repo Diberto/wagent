@@ -249,7 +249,6 @@ export class WhatsAppService {
           const isLoggedOut = statusCode === DisconnectReason.loggedOut || 
                              statusCode === 401 || 
                              statusCode === DisconnectReason.badSession || 
-                             statusCode === 500 || 
                              statusCode === DisconnectReason.forbidden ||
                              statusCode === 403 ||
                              statusCode === 405 ||
@@ -264,7 +263,7 @@ export class WhatsAppService {
           this.user = null;
           this.emitStatus();
 
-          // Si la sesión fue revocada por WhatsApp (401, 500, 403, 405, 411), purgar todo y generar QR limpio
+          // Si la sesión fue revocada explícitamente por WhatsApp (401, loggedOut, badSession), purgar y generar QR limpio
           if (isLoggedOut) {
             console.log(`⚠️ Sesión [${this.sessionId}] cerrada definitivamente por WhatsApp (${statusCode}). Purgando credenciales y backup para emitir nuevo QR...`);
             await this.clearAuthFiles({ clearBackup: true });
@@ -276,19 +275,8 @@ export class WhatsAppService {
             return;
           }
 
-          // Si falló 4 o más veces consecutivas antes de conectar, los tokens locales están desfasados
-          if (this.reconnectAttempts >= 4) {
-            console.warn(`⚠️ Sesión [${this.sessionId}] acumuló ${this.reconnectAttempts} fallos consecutivos (${statusCode}). Purgando credenciales inválidas para generar nuevo QR limpio...`);
-            await this.clearAuthFiles({ clearBackup: true });
-            this.reconnectAttempts = 0;
-            setTimeout(() => {
-              this.isInitializing = false;
-              this.initialize({ resetAuth: true });
-            }, 2500);
-            return;
-          }
-
-          // Reconexión estándar por caída transitoria de socket (ej: 428, 408, 515)
+          // Reconexión estándar por caída transitoria de socket (ej: 428, 408, 515, 500, stream conflict)
+          // NUNCA purgar credenciales guardadas por reintentos de red temporales
           this.reconnectAttempts++;
           const delayMs = Math.min(30000, Math.round(3000 * Math.pow(1.25, Math.min(this.reconnectAttempts, 8))));
           console.log(`Reintentando conexión automática (${this.reconnectAttempts}) en ${Math.round(delayMs / 1000)}s...`);
@@ -825,45 +813,49 @@ export class WhatsAppService {
   }
 
   /**
-   * Resuelve y normaliza el JID del destinatario a un identificador canónico de WhatsApp válido (@s.whatsapp.net o @g.us)
-   * Soportando identificadores @lid, teléfonos con o sin formato internacional (+), y IDs de leads.
+   * Resuelve y normaliza el JID del destinatario a un identificador canónico de WhatsApp válido (@s.whatsapp.net, @lid o @g.us)
+   * Preserva fielmente identificadores @lid, detecta teléfonos argentinos con o sin '9' vía onWhatsApp,
+   * y garantiza entrega física al dispositivo del cliente.
    */
   async formatRecipientJid(rawJid) {
     if (!rawJid) return null;
     let target = String(rawJid).trim();
 
-    // 1. Si es un ID de lead (lead-xxx, test-xxx, usr-xxx), buscar en DB
-    if (target.startsWith('lead-') || target.startsWith('test-') || target.startsWith('usr-')) {
-      const lead = db.getLead(target);
-      if (lead) {
-        target = lead.jid || lead.altJid || lead.phone || target;
-      }
-    }
-
-    // 2. Si es un identificador @lid, intentar resolver a JID telefónico real
-    if (target.includes('@lid')) {
-      const resolved = await this.resolvePhoneJid(target);
-      if (resolved && resolved.includes('@s.whatsapp.net')) {
-        target = resolved;
-      } else {
-        const lead = db.getLead(target);
-        if (lead?.phone && !lead.phone.includes('@lid') && !isLidIdentifier(lead.phone)) {
-          const norm = normalizePhoneNumber(lead.phone);
-          const digits = (norm || lead.phone).replace(/\D/g, '');
-          if (digits.length >= 8) {
-            target = `${digits}@s.whatsapp.net`;
-            this.lidToPhoneMap.set(rawJid, target);
-          }
-        }
-      }
-    }
-
-    // 3. Si es un grupo (@g.us), mantenerlo tal cual
+    // 1. Grupos de WhatsApp (@g.us): retornar sin modificaciones
     if (target.endsWith('@g.us')) {
       return target;
     }
 
-    // 4. Si contiene @s.whatsapp.net, limpiar caracteres espurios (+, espacios, dos puntos)
+    // 2. Identificadores de Dispositivo Vinculado / Privacidad (@lid)
+    if (target.endsWith('@lid')) {
+      // 2.1 Si ya tenemos el número telefónico real en caché en memoria
+      if (this.lidToPhoneMap.has(target)) {
+        return this.lidToPhoneMap.get(target);
+      }
+      // 2.2 Intentar resolver contra el almacén criptográfico de Baileys
+      const resolved = await this.resolvePhoneJid(target);
+      if (resolved && resolved.includes('@s.whatsapp.net')) {
+        this.lidToPhoneMap.set(target, resolved);
+        return resolved;
+      }
+      // 2.3 Si el lead en la BD tiene un teléfono real no-LID asociado
+      const lead = db.getLead(target);
+      if (lead?.phone && !isLidIdentifier(lead.phone)) {
+        const cleanPhoneDigits = String(lead.phone).replace(/\D/g, '');
+        if (cleanPhoneDigits.length >= 8) {
+          const phoneJid = `${cleanPhoneDigits}@s.whatsapp.net`;
+          this.lidToPhoneMap.set(target, phoneJid);
+          return phoneJid;
+        }
+      }
+      // 2.4 CRÍTICO: Si no se pudo asociar a un número telefónico, PRESERVAR @lid TAL CUAL.
+      // Baileys tiene soporte nativo para entregar mensajes punto a punto a JIDs @lid.
+      // NUNCA transformar el número LID en un teléfono falso @s.whatsapp.net.
+      const cleanLidDigits = target.split('@')[0].replace(/\D/g, '');
+      return `${cleanLidDigits}@lid`;
+    }
+
+    // 3. Usuario estándar (@s.whatsapp.net)
     if (target.includes('@s.whatsapp.net')) {
       const userPart = target.split('@')[0].replace(/\D/g, '');
       if (userPart.length >= 8) {
@@ -871,7 +863,46 @@ export class WhatsAppService {
       }
     }
 
-    // 5. Si es un número telefónico en cualquier formato (con o sin +, espacios, guiones)
+    // 4. Si es un identificador de Lead en la base de datos (lead-xxx, test-xxx, usr-xxx)
+    if (target.startsWith('lead-') || target.startsWith('test-') || target.startsWith('usr-')) {
+      const lead = db.getLead(target);
+      if (lead) {
+        if (lead.jid && (lead.jid.endsWith('@s.whatsapp.net') || lead.jid.endsWith('@lid') || lead.jid.endsWith('@g.us'))) {
+          return this.formatRecipientJid(lead.jid);
+        }
+        if (lead.altJid) {
+          return this.formatRecipientJid(lead.altJid);
+        }
+        if (lead.phone && !isLidIdentifier(lead.phone)) {
+          target = lead.phone;
+        }
+      }
+    }
+
+    // 5. Es un número de teléfono en formato crudo (+54 9 351..., 54351..., 351...)
+    // 5.1 Verificar si existe un Lead con este teléfono que ya tenga su JID canónico guardado
+    const existingLead = db.getLead(target);
+    if (existingLead?.jid && (existingLead.jid.endsWith('@s.whatsapp.net') || existingLead.jid.endsWith('@lid'))) {
+      return this.formatRecipientJid(existingLead.jid);
+    }
+
+    const rawDigits = target.replace(/\D/g, '');
+
+    // 5.2 Si el socket Baileys está conectado, consultar a WhatsApp directamente (onWhatsApp / USync)
+    // para obtener el JID exacto y canónico registrado en WhatsApp (resuelve automáticamente 54 vs 549)
+    if (this.sock && this.status === 'connected' && rawDigits.length >= 8) {
+      try {
+        const onWaResults = await this.sock.onWhatsApp(rawDigits);
+        if (Array.isArray(onWaResults) && onWaResults.length > 0 && onWaResults[0]?.exists) {
+          const verifiedJid = onWaResults[0].jid;
+          if (verifiedJid) {
+            return verifiedJid;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 5.3 Normalización local estándar para Argentina e internacional
     const norm = normalizePhoneNumber(target);
     const digits = (norm || target).replace(/\D/g, '');
     if (digits.length >= 8) {
@@ -883,19 +914,21 @@ export class WhatsAppService {
   }
 
   /**
-   * Envía un mensaje de texto a un JID
+   * Envía un mensaje de texto a un JID con confirmación de entrega al socket
    */
   async sendTextMessage(jid, text) {
     if (!this.sock || this.status !== 'connected') {
-      throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]`);
+      throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]. Estado actual: ${this.status}`);
     }
     const cleanJid = await this.formatRecipientJid(jid);
     if (!cleanJid) {
       throw new Error(`JID o teléfono de destinatario inválido: "${jid}"`);
     }
     const cleanText = (text || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
-    console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando a ${cleanJid}: "${cleanText.slice(0, 80)}..."`);
-    return await this.sock.sendMessage(cleanJid, { text: cleanText });
+    console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando a ${cleanJid} (WS Open: ${Boolean(this.sock?.ws?.isOpen)}): "${cleanText.slice(0, 80)}..."`);
+    const sent = await this.sock.sendMessage(cleanJid, { text: cleanText });
+    console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Entregado exitosamente a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
+    return sent;
   }
 
   async sendMessage(jid, text) {
@@ -917,10 +950,13 @@ export class WhatsAppService {
     const imgBuffer = Buffer.isBuffer(imagePathOrBuffer) ? imagePathOrBuffer : fs.readFileSync(imagePathOrBuffer);
     const cleanCaption = (caption || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
 
-    return await this.sock.sendMessage(cleanJid, {
+    console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando imagen a ${cleanJid}...`);
+    const sent = await this.sock.sendMessage(cleanJid, {
       image: imgBuffer,
       caption: cleanCaption
     });
+    console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Imagen entregada a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
+    return sent;
   }
 
   /**
@@ -938,11 +974,14 @@ export class WhatsAppService {
     const audioBuffer = Buffer.isBuffer(audioPathOrBuffer) ? audioPathOrBuffer : fs.readFileSync(audioPathOrBuffer);
     const isOgg = typeof audioPathOrBuffer === 'string' ? (audioPathOrBuffer.endsWith('.ogg') || audioPathOrBuffer.endsWith('.opus')) : true;
 
-    return await this.sock.sendMessage(cleanJid, {
+    console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando nota de voz a ${cleanJid}...`);
+    const sent = await this.sock.sendMessage(cleanJid, {
       audio: audioBuffer,
       mimetype: isOgg ? 'audio/ogg; codecs=opus' : 'audio/mp4',
       ptt: true // Nota de voz nativa en WhatsApp
     });
+    console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Nota de voz entregada a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
+    return sent;
   }
 
   /**
@@ -1422,9 +1461,51 @@ export class WhatsAppManager {
   constructor(io) {
     this.io = io;
     this.sessions = new Map();
-    // Sesión Maestra Principal
+
+    // Migración automática de credenciales legadas desde usr-central-admin hacia auth_info_baileys
+    this.migrateLegacyAdminAuth();
+
+    // Sesión Maestra Principal Unificada para la Línea Central de la Empresa
     this.primarySession = new WhatsAppService(io, 'default', CONFIG.AUTH_DIR);
     this.sessions.set('default', this.primarySession);
+    this.sessions.set('usr-central-admin', this.primarySession);
+    this.sessions.set('admin_central', this.primarySession);
+  }
+
+  /**
+   * Si existen credenciales válidas en la carpeta legada de usr-central-admin y la principal está vacía,
+   * migrar los archivos automáticamente a la ubicación canónica y respaldar
+   */
+  migrateLegacyAdminAuth() {
+    try {
+      const legacyDir = path.join(CONFIG.DATA_DIR, 'auth_info_baileys_usr-central-admin');
+      const targetDir = CONFIG.AUTH_DIR;
+      const legacyCreds = path.join(legacyDir, 'creds.json');
+      const targetCreds = path.join(targetDir, 'creds.json');
+
+      const hasLegacyCreds = fs.existsSync(legacyCreds) && fs.statSync(legacyCreds).size > 20;
+      const hasTargetCreds = fs.existsSync(targetCreds) && fs.statSync(targetCreds).size > 20;
+
+      if (hasLegacyCreds && !hasTargetCreds) {
+        console.log('🔄 [WhatsAppManager] Migrando credenciales activas desde usr-central-admin a la sesión principal auth_info_baileys...');
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+        const files = fs.readdirSync(legacyDir);
+        for (const file of files) {
+          fs.copyFileSync(path.join(legacyDir, file), path.join(targetDir, file));
+        }
+        console.log(`✅ [WhatsAppManager] ${files.length} archivos de autenticación migrados a ${targetDir}.`);
+
+        const backupDir = path.join(CONFIG.DATA_DIR, 'backups', 'auth_backup_default');
+        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+        for (const file of files) {
+          fs.copyFileSync(path.join(legacyDir, file), path.join(backupDir, file));
+        }
+      }
+    } catch (err) {
+      console.warn('Aviso comprobando migración de auth legado:', err.message);
+    }
   }
 
   async initializePrimary() {
@@ -1433,8 +1514,12 @@ export class WhatsAppManager {
 
   getSession(userId = 'default') {
     const id = userId || 'default';
+    // Unificar alias del administrador central con la sesión principal maestra
+    if (id === 'default' || id === 'usr-central-admin' || id === 'admin_central' || id === 'usr-admin') {
+      return this.primarySession;
+    }
     if (!this.sessions.has(id)) {
-      const authDir = id === 'default' ? CONFIG.AUTH_DIR : path.join(CONFIG.DATA_DIR, `auth_info_baileys_${id}`);
+      const authDir = path.join(CONFIG.DATA_DIR, `auth_info_baileys_${id}`);
       const service = new WhatsAppService(this.io, id, authDir);
       this.sessions.set(id, service);
     }
@@ -1461,7 +1546,11 @@ export class WhatsAppManager {
   }
 
   getStatus(userId = 'default') {
-    const session = this.getSession(userId);
+    const id = userId || 'default';
+    if (id === 'default' || id === 'usr-central-admin' || id === 'admin_central' || id === 'usr-admin') {
+      return this.primarySession.getStatus();
+    }
+    const session = this.getSession(id);
     return session.getStatus();
   }
 
@@ -1497,21 +1586,29 @@ export class WhatsAppManager {
    * Si no, utiliza la sesión primaria o cualquier otra sesión conectada en el pool.
    */
   getActiveConnectedSession(preferredUserId = null) {
-    if (preferredUserId) {
+    // Si el usuario preferido es el admin central o default, usar la sesión primaria
+    if (!preferredUserId || preferredUserId === 'default' || preferredUserId === 'usr-central-admin' || preferredUserId === 'admin_central') {
+      if (this.primarySession && this.primarySession.status === 'connected') {
+        return this.primarySession;
+      }
+    } else {
       const preferred = this.sessions.get(preferredUserId);
       if (preferred && preferred.status === 'connected') {
         return preferred;
       }
     }
+
     if (this.primarySession && this.primarySession.status === 'connected') {
       return this.primarySession;
     }
+
     for (const session of this.sessions.values()) {
       if (session && session.status === 'connected') {
         return session;
       }
     }
-    return (preferredUserId && this.sessions.get(preferredUserId)) || this.primarySession;
+
+    return this.primarySession;
   }
 
   /**
@@ -1521,7 +1618,7 @@ export class WhatsAppManager {
   async initializeAllSavedSessions() {
     console.log('🔄 [WhatsAppManager] Escaneando y conectando sesiones de WhatsApp guardadas...');
     
-    // 1. Sesión Maestra Principal ('default')
+    // 1. Sesión Maestra Principal ('default' / central business line)
     const primaryCreds = path.join(CONFIG.AUTH_DIR, 'creds.json');
     if (fs.existsSync(primaryCreds)) {
       try {
@@ -1534,21 +1631,25 @@ export class WhatsAppManager {
       } catch (_) {}
     }
 
-    // 2. Sesiones de Usuario en DATA_DIR (ej: auth_info_baileys_usr-central-admin)
+    // 2. Sesiones de Operadores independientes en DATA_DIR (omitiendo alias del admin central para evitar conflictos)
     try {
       if (fs.existsSync(CONFIG.DATA_DIR)) {
         const entries = fs.readdirSync(CONFIG.DATA_DIR);
         for (const entry of entries) {
           if (entry.startsWith('auth_info_baileys_')) {
             const userId = entry.replace('auth_info_baileys_', '');
+            // Omitir carpetas del admin central para no duplicar el socket con la cuenta principal
+            if (userId === 'usr-central-admin' || userId === 'admin_central' || userId === 'usr-admin') {
+              continue;
+            }
             const credsFile = path.join(CONFIG.DATA_DIR, entry, 'creds.json');
             if (fs.existsSync(credsFile)) {
               try {
                 if (fs.statSync(credsFile).size > 20) {
-                  console.log(`📱 Inicializando sesión de WhatsApp guardada para usuario [${userId}]...`);
+                  console.log(`📱 Inicializando sesión de WhatsApp guardada para operador [${userId}]...`);
                   const session = this.getSession(userId);
                   session.initialize().catch(err => {
-                    console.warn(`Aviso inicializando sesión de usuario [${userId}]:`, err.message);
+                    console.warn(`Aviso inicializando sesión de operador [${userId}]:`, err.message);
                   });
                 }
               } catch (_) {}

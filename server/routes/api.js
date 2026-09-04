@@ -1101,7 +1101,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   });
 
   router.post('/chats/:jid/messages', async (req, res) => {
-    const { jid } = req.params;
+    const rawJid = req.params.jid;
+    const jid = decodeURIComponent(rawJid);
     const { text, sendViaWhatsApp = true, userId = null } = req.body;
 
     if (!text) return res.status(400).json({ error: 'El texto es obligatorio' });
@@ -1113,20 +1114,22 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
       // Si WhatsApp debe enviar el mensaje real
       if (sendViaWhatsApp) {
-        if (whatsappService && whatsappService.status === 'connected') {
+        const isConnected = whatsappService && (whatsappService.isAnyConnected || whatsappService.status === 'connected');
+        if (isConnected) {
           try {
-            const operatorUserId = userId || req.user?.id || 'usr-central-admin';
+            const operatorUserId = userId || req.user?.id || 'default';
             const sent = await whatsappService.sendTextMessage(jid, text, operatorUserId);
             sentKeyId = sent?.key?.id || null;
+            deliveryStatus = 'sent';
           } catch (sendErr) {
             console.error(`❌ Error transmitiendo mensaje WhatsApp a ${jid}:`, sendErr.message);
             deliveryStatus = 'failed';
             deliveryWarning = sendErr.message || 'Error transmitiendo por WhatsApp';
           }
         } else {
-          console.warn(`⚠️ Mensaje guardado en base de datos pero WhatsApp no está conectado (${whatsappService?.status || 'desconectado'})`);
-          deliveryStatus = 'pending';
-          deliveryWarning = 'WhatsApp no está conectado en el servidor';
+          console.warn(`⚠️ Intento de envío pero WhatsApp no está conectado (${whatsappService?.status || 'desconectado'})`);
+          deliveryStatus = 'failed';
+          deliveryWarning = 'WhatsApp no está conectado en el servidor. Por favor verifica la vinculación en el panel.';
         }
       }
 
@@ -1152,7 +1155,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         });
       }
 
-      res.json({ success: true, message: msg, warning: deliveryWarning });
+      res.json({ success: true, message: msg });
     } catch (err) {
       console.error('Error enviando mensaje manual:', err);
       res.status(500).json({ error: err.message });
@@ -1161,7 +1164,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   // Subir y enviar nota de voz grabada desde el CRM
   router.post('/chats/:jid/send-audio', upload.single('audio'), async (req, res) => {
-    const { jid } = req.params;
+    const rawJid = req.params.jid;
+    const jid = decodeURIComponent(rawJid);
     if (!req.file) return res.status(400).json({ error: 'No se subió archivo de audio' });
 
     try {
@@ -1182,9 +1186,11 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
       let audioSent = false;
       let audioWarning = null;
-      if (whatsappService && whatsappService.status === 'connected') {
+      const isConnected = whatsappService && (whatsappService.isAnyConnected || whatsappService.status === 'connected');
+
+      if (isConnected) {
         try {
-          const operatorUserId = req.body?.userId || req.user?.id || 'usr-central-admin';
+          const operatorUserId = req.body?.userId || req.user?.id || 'default';
           await whatsappService.sendVoiceNote(jid, oggPath, operatorUserId);
           audioSent = true;
         } catch (waSendErr) {
@@ -1214,7 +1220,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         mediaUrl: `/media/${path.basename(mp3Path)}`,
         audioDuration: Number(req.body?.duration) || 5,
         timestamp: new Date().toISOString(),
-        status: audioSent ? 'sent' : (audioWarning ? 'failed' : 'pending'),
+        status: audioSent ? 'sent' : 'failed',
         deliveryWarning: audioWarning
       });
 
