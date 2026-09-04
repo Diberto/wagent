@@ -47,6 +47,14 @@ export class OrderSyncEngine {
         return null;
       }
 
+      // 1.1 Detección de Consulta de Estado de Pedido (Anti-Duplicación Omnicanal)
+      // Si el cliente sólo está consultando cómo va su pedido web, POS o WhatsApp, NO duplicar ni modificar
+      const isStatusInquiryIntent = /(?:c[oó]mo va|a qu[eé] hora|cu[aá]ndo llega|d[oó]nde est[aá]|ya sali[oó]|estado de mi pedido|mi pedido|pedido de la web|pedido web|pedido pos|hice un pedido|consultar pedido|qu[eé] pas[oó] con mi pedido)/i.test(userMsg);
+      const existingActiveOrder = db.getActiveOrdersByJid(clientJid)[0] || null;
+      if (isStatusInquiryIntent && existingActiveOrder) {
+        return existingActiveOrder;
+      }
+
       // 2. Parsear items DESDE EL REPLY DEL AGENTE (es la fuente de verdad conversacional)
       //    El agente ya confirmó los cortes con precios reales del catálogo
       let { items: itemsToOrder, products: productsToOrder, total: totalAmountToOrder }

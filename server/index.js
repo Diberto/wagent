@@ -11,6 +11,7 @@ import { CONFIG } from './config/index.js';
 import { db } from './services/database.js';
 import { WhatsAppManager } from './services/whatsapp.js';
 import { BackupService } from './services/backup.js';
+import { auditLogger } from './services/auditLogger.js';
 import { createApiRouter } from './routes/api.js';
 import { connectDB } from '../db.js';
 
@@ -51,8 +52,9 @@ const io = new SocketIOServer(server, {
   pingInterval: 25000
 });
 
-// Vincular WebSockets a la Base de Datos para sincronización en tiempo real
+// Vincular WebSockets a la Base de Datos y Audit Logger para sincronización en tiempo real
 db.setIo(io);
+auditLogger.setIo(io);
 
 // Middleware estándar
 app.use(cors());

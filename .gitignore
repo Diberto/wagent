@@ -9,6 +9,7 @@ data/db.json
 data/db.json.bak*
 data/db.backup*
 data/backups/
+data/audit_logs.json
 data/*.tmp*
 data/*.tmp.*
 data/*.db*

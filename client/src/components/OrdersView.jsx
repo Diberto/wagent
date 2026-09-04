@@ -46,10 +46,10 @@ import {
   FolderArchive,
   Banknote,
   Coins,
-  ChevronDown,
   Wallet,
   Bot,
-  Sparkles
+  Sparkles,
+  Hash
 } from 'lucide-react';
 import ClientLocationMap from './ClientLocationMap.jsx';
 import TicketPrintModal from './TicketPrintModal.jsx';
@@ -119,9 +119,12 @@ export const parseOrderItems = (order) => {
     return order.products.map((p, idx) => {
       const qty = Number(p.quantity) || 1;
       const unit = p.unit || 'kg';
-      const name = p.name || 'Corte Seleccionado';
+      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
+      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
+        ? rawName 
+        : (p.product || `Corte Seleccionado ${idx + 1}`);
       const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
-      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
+      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
       return {
         id: p.id || `prod-${idx}`,
         name,
@@ -148,7 +151,10 @@ export const parseOrderItems = (order) => {
   if (parsedProducts && parsedProducts.length > 0 && typeof parsedProducts[0] === 'object') {
     return parsedProducts.map((p, idx) => {
       const qty = Number(p.quantity || p.qty || 1);
-      const name = p.name || p.product || 'Corte Seleccionado';
+      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.product || '');
+      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
+        ? rawName 
+        : `Corte Seleccionado ${idx + 1}`;
       const sub = Number(p.subtotal || p.total || p.price || 0) * (Number(p.quantity || 1));
       const total = Number(p.subtotal || sub || p.price || 0);
       return {
@@ -170,7 +176,8 @@ export const parseOrderItems = (order) => {
       if (typeof item === 'object' && item !== null) {
         // Objeto en el array de items → convertir directamente
         const qty = Number(item.quantity || item.qty || 1);
-        const name = item.name || item.product || 'Corte Seleccionado';
+        const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
+        const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : 'Corte Seleccionado';
         const sub = Number(item.subtotal || 0) || (Number(item.unitPrice || item.price || 0) * qty);
         return {
           __obj: true,
@@ -178,7 +185,7 @@ export const parseOrderItems = (order) => {
           name,
           quantity: qty,
           unit: item.unit || 'kg',
-          price: Number(item.unitPrice || item.price || 0),
+          price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
           total: sub > 0 ? sub : Math.round((Number(order.totalAmount) || 0)),
           icon: item.icon || getIcon(name)
         };
@@ -340,7 +347,6 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
 
   // Manual Payment Registration Modal
   const [manualPaymentModal, setManualPaymentModal] = useState(null); // null | { order, paymentMethod, paymentStatus, paidAmount, transactionRef, notes, isSubmitting, success }
-
   // Branch Derivation Modal State
   const [deriveModal, setDeriveModal] = useState(null); // null | { order, branchId, notes, notifyClient, isDeriving, deriveSuccess }
 
@@ -353,6 +359,56 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   // Modo Autopilot de notificaciones y despachos automáticos
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [notificationToast, setNotificationToast] = useState(null); // null | { type: 'success' | 'warning' | 'error', text }
+
+  // Modal de Configuración de Código de Operación y Numeración de Pedidos
+  const [sequenceModal, setSequenceModal] = useState(null); // null | { prefix, nextNumber, padding, isSaving }
+
+  const handleOpenSequenceModal = async () => {
+    try {
+      const res = await fetch('/api/orders/sequence');
+      const data = await res.json();
+      setSequenceModal({
+        prefix: data.prefix || 'ORD-',
+        nextNumber: data.nextNumber || 1001,
+        padding: data.padding || 4,
+        isSaving: false
+      });
+    } catch (e) {
+      setSequenceModal({
+        prefix: 'ORD-',
+        nextNumber: 1001,
+        padding: 4,
+        isSaving: false
+      });
+    }
+  };
+
+  const handleSaveSequenceModal = async () => {
+    if (!sequenceModal) return;
+    setSequenceModal(prev => ({ ...prev, isSaving: true }));
+    try {
+      const res = await fetch('/api/orders/sequence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prefix: sequenceModal.prefix,
+          nextNumber: parseInt(sequenceModal.nextNumber, 10),
+          padding: parseInt(sequenceModal.padding, 10)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotificationToast('success', `Código de operación actualizado: ${data.prefix}${String(data.nextNumber).padStart(data.padding, '0')}`);
+        setSequenceModal(null);
+      } else {
+        alert(data.error || 'Error al guardar configuración');
+        setSequenceModal(prev => ({ ...prev, isSaving: false }));
+      }
+    } catch (err) {
+      alert('Error guardando configuración: ' + err.message);
+      setSequenceModal(prev => ({ ...prev, isSaving: false }));
+    }
+  };
 
   useEffect(() => {
     // Cargar estado inicial de Autopilot
@@ -1532,6 +1588,15 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
               <div className={`w-2 h-2 rounded-full ${autopilotEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
               <Bot size={15} className={autopilotEnabled ? 'text-emerald-400' : 'text-slate-400'} />
               <span>{autopilotEnabled ? 'Autopilot: ON' : 'Autopilot: Manual'}</span>
+            </button>
+
+            <button
+              onClick={handleOpenSequenceModal}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#182229] hover:bg-[#202c33] border border-amber-500/30 hover:border-amber-500/60 text-amber-300 hover:text-amber-200 text-xs font-semibold shadow-sm transition"
+              title="Configurar código de operación y numeración inicial de pedidos"
+            >
+              <Hash size={13} className="text-amber-400" />
+              <span>Código / Secuencia</span>
             </button>
 
             <button
@@ -4274,6 +4339,105 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
             >
               <X size={15} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Configuración de Código de Operación y Numeración */}
+      {sequenceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-[#182229] border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+                  <Hash size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Código de Operación y Numeración</h3>
+                  <p className="text-[11px] text-slate-400">Personalizá el prefijo y número inicial de pedidos</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSequenceModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Prefijo del Código:</label>
+                <input
+                  type="text"
+                  value={sequenceModal.prefix}
+                  onChange={(e) => setSequenceModal({ ...sequenceModal, prefix: e.target.value.toUpperCase() })}
+                  placeholder="Ej: ORD-, PED-, FAC-, TK-"
+                  className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono uppercase focus:outline-none focus:border-amber-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Identificador que acompaña a cada número (ej. ORD-, TK-, FAC-)</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Próximo Número Inicial:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={sequenceModal.nextNumber}
+                    onChange={(e) => setSequenceModal({ ...sequenceModal, nextNumber: e.target.value })}
+                    className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Dígitos Mínimos (Relleno):</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={sequenceModal.padding}
+                    onChange={(e) => setSequenceModal({ ...sequenceModal, padding: e.target.value })}
+                    className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview Box */}
+              <div className="bg-[#111b21] border border-amber-500/30 rounded-2xl p-3.5 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">Vista Previa Próximo Pedido</div>
+                  <div className="text-xl font-black text-white font-mono mt-0.5">
+                    #{sequenceModal.prefix || 'ORD-'}{String(sequenceModal.nextNumber || 1).padStart(parseInt(sequenceModal.padding, 10) || 4, '0')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSequenceModal({ ...sequenceModal, nextNumber: 1 })}
+                  className="px-2.5 py-1 text-[11px] font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg transition"
+                >
+                  Reiniciar a 1
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-700/60">
+              <button
+                type="button"
+                onClick={() => setSequenceModal(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={sequenceModal.isSaving}
+                onClick={handleSaveSequenceModal}
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {sequenceModal.isSaving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                <span>Guardar Configuración</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

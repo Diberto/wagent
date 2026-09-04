@@ -598,16 +598,25 @@ export default function POSView({
       customerName: activeCart.customerName || 'Cliente Mostrador',
       phone: activeCart.phone || '',
       address: activeCart.address || '',
-      items: activeCart.items.map(it => ({
+      products: activeCart.items.map(it => ({
         id: it.id,
-        name: it.name,
-        price: it.price,
-        unitPrice: it.price,
-        quantity: it.quantity,
+        plu: it.plu || '',
+        barcode: it.barcode || '',
+        name: String(it.name || 'Corte Seleccionado'),
+        price: Number(it.price || 0),
+        unitPrice: Number(it.price || 0),
+        quantity: Number(it.quantity || 1),
         unit: it.unit || 'kg',
-        ivaRate: 10.5,
-        subtotal: it.price * it.quantity
+        isUnitMode: Boolean(it.isUnitMode),
+        unitCount: it.unitCount || 0,
+        subtotal: Number(it.price || 0) * Number(it.quantity || 1)
       })),
+      items: activeCart.items.map(it => {
+        if (it.isUnitMode && it.unitCount > 0) {
+          return `• ${it.unitCount} Unidades de ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+        }
+        return `• ${it.quantity} ${it.unit || 'kg'} ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+      }),
       totalAmount: total,
       paymentMethod: activeCart.paymentMethod,
       branchId: activeBranchId || activeCart.branchId,
@@ -705,16 +714,25 @@ export default function POSView({
       phone: dispatchForm.phone || activeCart.phone || '',
       address: dispatchForm.address || '',
       shippingAddress: dispatchForm.address || '',
-      items: activeCart.items.map(it => ({
+      products: activeCart.items.map(it => ({
         id: it.id,
-        name: it.name,
-        price: it.price,
-        unitPrice: it.price,
-        quantity: it.quantity,
+        plu: it.plu || '',
+        barcode: it.barcode || '',
+        name: String(it.name || 'Corte Seleccionado'),
+        price: Number(it.price || 0),
+        unitPrice: Number(it.price || 0),
+        quantity: Number(it.quantity || 1),
         unit: it.unit || 'kg',
-        ivaRate: 10.5,
-        subtotal: it.price * it.quantity
+        isUnitMode: Boolean(it.isUnitMode),
+        unitCount: it.unitCount || 0,
+        subtotal: Number(it.price || 0) * Number(it.quantity || 1)
       })),
+      items: activeCart.items.map(it => {
+        if (it.isUnitMode && it.unitCount > 0) {
+          return `• ${it.unitCount} Unidades de ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+        }
+        return `• ${it.quantity} ${it.unit || 'kg'} ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+      }),
       totalAmount: total,
       paymentMethod: dispatchForm.paymentMethod,
       branchId: activeBranchId,

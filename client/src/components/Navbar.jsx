@@ -32,7 +32,8 @@ import {
   Activity,
   Tag,
   Bell,
-  Database
+  Database,
+  Terminal
 } from 'lucide-react';
 
 
@@ -99,6 +100,7 @@ export default function Navbar({
         { id: 'multi-agent', label: '👥 Team Multi-Agente Ops', icon: Users, desc: 'Chat interno con Carlos, Mateo, Stock y DevOps' },
         { id: 'database', label: '💾 Base de Datos & Respaldos', icon: Database, desc: 'Estado MongoDB Atlas/SQLite, copias de seguridad y optimizaciones' },
         { id: 'system-health', label: '📊 Monitoreo & Recursos', icon: Activity, desc: 'Telemetría CPU/RAM, estado de módulos y optimización BD' },
+        { id: 'system-logs', label: '📜 Auditoría & Logs del Sistema', icon: Terminal, desc: 'Historial en vivo de pedidos, chats, agentes y sistema' },
         { id: 'agents', label: 'Agentes IA Personalizados', icon: Bot, desc: 'Perfiles, historias, roles, personalidades y avatares' },
         { id: 'neural-memory', label: 'Red Neuronal & Grafo', icon: Brain, desc: 'Grafo cognitivo y aprendizaje continuo' },
         { id: 'campaigns', label: 'Difusiones & Campañas', icon: Send, desc: 'Envíos masivos y ofertas' },

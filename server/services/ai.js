@@ -2933,7 +2933,10 @@ Whenever the user asks about the current time, date, products count, orders, or 
       const activeOrd = db.getActiveOrdersByJid(jid || lead?.id || lead)[0] || null;
       let orderStatusContext = 'Estado de Pedidos del Cliente: No tiene pedidos activos ni pendientes registrados en carnicería.';
       if (activeOrd) {
-        orderStatusContext = `Estado de Pedidos del Cliente: Tiene el Pedido Activo #${activeOrd.id} (${activeOrd.status}) con los cortes: ${Array.isArray(activeOrd.items) ? activeOrd.items.join(', ') : activeOrd.items}, Total: $${activeOrd.totalAmount}. IMPORTANTE: Si el cliente en esta conversación solicita una nueva opción de asado o nuevos cortes, este nuevo pedido actualiza o reemplaza lo anterior; NO menciones ni sumes productos antiguos que el cliente no haya vuelto a solicitar expresamente.`;
+        const originLabel = activeOrd.channel === 'TIENDA' ? 'la Tienda Web' : (activeOrd.channel === 'POS' ? 'el Mostrador / POS' : 'WhatsApp');
+        const deliveryInfo = activeOrd.deliveryType === 'pickup' ? `Retiro por sucursal ${activeOrd.branch || 'URCA'}` : `Envío a domicilio (${activeOrd.address || 'Córdoba Capital'})`;
+        orderStatusContext = `Estado de Pedidos del Cliente (FLUJO CENTRALIZADO OMNICANAL): Tiene el Pedido Activo #${activeOrd.id} realizado a través de ${originLabel}. Estado: "${activeOrd.status}" (${activeOrd.isPrepared ? 'Preparado / Listo' : 'En preparación'}). Modalidad: ${deliveryInfo}. Total: $${Number(activeOrd.totalAmount || 0).toLocaleString('es-AR')}. Cortes: ${Array.isArray(activeOrd.items) ? activeOrd.items.join(', ') : activeOrd.items}.
+REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi pedido?", "a qué hora llega?", "hice un pedido por la web/pos", etc.), respóndele con total coherencia, claridad y calidez sobre este Pedido #${activeOrd.id} ya registrado. NUNCA crees un pedido duplicado ni vuelvas a cobrarle por productos que ya compró. Solo ofrece nuevos cortes si el cliente pide expresamente hacer un pedido adicional.`;
       } else if (lead?.draftCart && Array.isArray(lead.draftCart.items) && lead.draftCart.items.length > 0) {
         orderStatusContext = `Estado de Pedidos del Cliente: Tiene un borrador de pedido en curso con: ${lead.draftCart.items.join(', ')}, Total: $${lead.draftCart.total}.`;
       } else if (activeLeadOrders.length > 0) {

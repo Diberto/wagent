@@ -31,6 +31,7 @@ import { SYSTEM_AI_PROVIDERS, SYSTEM_AI_MODELS } from '../config/aiModels.js';
 import { isMongoConnected, getDb, connectDB } from '../../db.js';
 import { sqliteStorage } from '../services/sqliteStorage.js';
 import { DbMigrationService } from '../services/dbMigrationService.js';
+import { auditLogger } from '../services/auditLogger.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -2000,6 +2001,80 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     res.json(db.getOrders());
   });
 
+  // --- Configuración de Código de Operación / Secuencia de Pedidos ---
+  router.get('/orders/sequence', (req, res) => {
+    try {
+      const config = db.getOrderSequenceConfig();
+      res.json({ success: true, ...config });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/orders/sequence', (req, res) => {
+    try {
+      const { prefix, nextNumber, padding } = req.body;
+      const updated = db.updateOrderSequenceConfig({ prefix, nextNumber, padding });
+      auditLogger.info(
+        'system',
+        'sequence_updated',
+        `Secuencia de pedidos configurada: Prefijo "${updated.prefix}", Próximo número: ${updated.nextNumber}, Padding: ${updated.padding}`,
+        updated,
+        { prefix: updated.prefix, nextNumber: updated.nextNumber }
+      );
+      res.json({ success: true, ...updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // --- Logs de Auditoría (Sistema, Chats, Pedidos, Agentes) ---
+  router.get('/logs', (req, res) => {
+    try {
+      const { category, level, search, limit, offset } = req.query;
+      const result = auditLogger.getLogs({ category, level, search, limit, offset });
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/logs/stats', (req, res) => {
+    try {
+      const stats = auditLogger.getStats();
+      res.json({ success: true, ...stats });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.delete('/logs', (req, res) => {
+    try {
+      const result = auditLogger.clearLogs();
+      auditLogger.info('system', 'logs_cleared', 'Historial de logs de auditoría limpiado por el usuario');
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/logs/export', (req, res) => {
+    try {
+      const format = req.query.format === 'csv' ? 'csv' : 'json';
+      const data = auditLogger.exportLogs(format);
+      if (format === 'csv') {
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="audit_logs_${Date.now()}.csv"`);
+        return res.send(data);
+      }
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="audit_logs_${Date.now()}.json"`);
+      return res.send(data);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // --- Validación y Estimación de Franjas y Envíos ---
   router.post('/orders/validate', (req, res) => {
     try {
@@ -2123,6 +2198,15 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
     io.emit('order:update', updated);
     io.emit('orders:sync', db.getOrders());
+
+    auditLogger.info(
+      'orders',
+      'order_status_updated',
+      `Pedido #${order.id} cambió a estado: "${status}" (Cliente: ${order.customerName || 'Cliente'})`,
+      { orderId: order.id, previousStatus: order.status, newStatus: status, notified },
+      { orderId: order.id, customer: order.customerName, phone: order.phone, channel: order.channel }
+    );
+
     res.json({ ...updated, notified, notificationError });
   });
 
@@ -2316,6 +2400,14 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       if (lead) {
         io.emit('lead:update', lead);
       }
+
+      auditLogger.success(
+        'orders',
+        'store_order_created',
+        `Pedido Web #${newOrder.id} recibido de ${customerName} por $${Number(newOrder.totalAmount).toLocaleString('es-AR')}`,
+        { orderId: newOrder.id, itemsCount: items.length, total: newOrder.totalAmount, deliveryType: finalDeliveryType, branch: newOrder.branch },
+        { orderId: newOrder.id, channel: 'TIENDA', customer: customerName, phone: cleanPhone }
+      );
 
       res.json({ success: true, order: newOrder, lead, filterResult });
     } catch (err) {
@@ -2737,6 +2829,14 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
       io.emit('order:new', newOrder);
       io.emit('orders:sync', db.getOrders());
+
+      auditLogger.success(
+        'orders',
+        'pos_sale_created',
+        `Venta POS #${newOrder.id} (${newOrder.customerName || 'Mostrador'}) por $${Number(newOrder.totalAmount).toLocaleString('es-AR')}`,
+        { orderId: newOrder.id, branch: newOrder.branch, total: newOrder.totalAmount, isDelivery, paymentMethod: newOrder.paymentMethod },
+        { orderId: newOrder.id, channel: 'POS', customer: newOrder.customerName, branchId: newOrder.branchId }
+      );
 
       res.status(201).json({ success: true, order: newOrder });
     } catch (err) {

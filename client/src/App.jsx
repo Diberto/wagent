@@ -29,6 +29,7 @@ import SystemHealthView from './components/SystemHealthView';
 import MultiAgentChatView from './components/MultiAgentChatView';
 import CouponsView from './components/CouponsView';
 import DatabaseView from './components/DatabaseView';
+import LogsView from './components/LogsView';
 import { playNotificationChime, playOrderChime, playMessagePing } from './utils/soundEffects';
 
 const socket = io();
@@ -706,6 +707,10 @@ export default function App() {
 
         {currentTab === 'database' && (
           <DatabaseView socket={socket} />
+        )}
+
+        {currentTab === 'system-logs' && (
+          <LogsView socket={socket} />
         )}
       </main>
 

@@ -1892,7 +1892,120 @@ class DatabaseService {
       }
     }
 
+    // 3. Detección y curación de ítems o productos con "[object Object]"
+    const allMasterProducts = db.products || DatabaseService.MASTER_PRODUCTS_SEED || [];
+    let hadCorruptedProduct = false;
+
+    if (Array.isArray(o.products) && o.products.length > 0) {
+      o.products = o.products.map((p, idx) => {
+        const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
+        if (!rawName || rawName === '[object Object]' || rawName.includes('[object Object]')) {
+          hadCorruptedProduct = true;
+          // Buscar producto en catálogo maestro por id, plu o subtotal/precio
+          const matched = allMasterProducts.find(mp => 
+            mp.id === p.id || 
+            (p.plu && mp.plu === p.plu) || 
+            (Number(p.subtotal) > 0 && Number(mp.price) === Number(p.subtotal))
+          );
+          const cleanName = matched?.name || (o.notes?.includes('RETIRO') ? 'Corte Seleccionado' : `Corte Especial ${idx + 1}`);
+          const qty = Number(p.quantity) || 1;
+          const sub = Number(p.subtotal) || (Number(o.totalAmount || 0) / Math.max(1, o.products.length));
+          const uPrice = Number(p.unitPrice || p.price) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : (matched?.price || 0));
+
+          return {
+            ...p,
+            id: p.id || matched?.id || `prod-${idx}`,
+            plu: p.plu || matched?.plu || '',
+            name: cleanName,
+            price: uPrice,
+            unitPrice: uPrice,
+            quantity: qty,
+            unit: p.unit || matched?.unit || 'kg',
+            subtotal: sub
+          };
+        }
+        return p;
+      });
+    }
+
+    if (Array.isArray(o.items)) {
+      const hasCorruptedItems = o.items.some(it => typeof it !== 'string' || it.includes('[object Object]'));
+      if (hasCorruptedItems || (hadCorruptedProduct && Array.isArray(o.products) && o.products.length > 0)) {
+        if (Array.isArray(o.products) && o.products.length > 0) {
+          o.items = o.products.map(p => {
+            if (p.isUnitMode && p.unitCount > 0) {
+              return `• ${p.unitCount} Unidades de ${p.name} — $${Number(p.subtotal || 0).toLocaleString('es-AR')}`;
+            }
+            return `• ${p.quantity} ${p.unit || 'kg'} ${p.name} — $${Number(p.subtotal || 0).toLocaleString('es-AR')}`;
+          });
+        }
+      }
+    }
+
     return o;
+  }
+
+  // --- Order Numbering Sequence & Operation Code ---
+  getOrderSequenceConfig() {
+    const db = this.readDb();
+    const settings = db.settings || {};
+    return {
+      prefix: settings.orderPrefix !== undefined ? String(settings.orderPrefix) : 'ORD-',
+      nextNumber: parseInt(settings.nextOrderNumber, 10) || 1001,
+      padding: parseInt(settings.orderNumberPadding, 10) || 4
+    };
+  }
+
+  updateOrderSequenceConfig({ prefix, nextNumber, padding }) {
+    const db = this.readDb();
+    if (!db.settings) db.settings = {};
+    if (prefix !== undefined) {
+      db.settings.orderPrefix = String(prefix).trim();
+    }
+    if (nextNumber !== undefined) {
+      const num = parseInt(nextNumber, 10);
+      if (!isNaN(num) && num >= 1) {
+        db.settings.nextOrderNumber = num;
+      }
+    }
+    if (padding !== undefined) {
+      const pad = parseInt(padding, 10);
+      if (!isNaN(pad) && pad >= 1 && pad <= 10) {
+        db.settings.orderNumberPadding = pad;
+      }
+    }
+    this.writeDb(db);
+    const updatedConfig = this.getOrderSequenceConfig();
+    if (this.io) {
+      this.io.emit('order:sequence:updated', updatedConfig);
+    }
+    return updatedConfig;
+  }
+
+  generateNextOrderId(dbInstance) {
+    const db = dbInstance || this.readDb();
+    if (!db.settings) db.settings = {};
+    const prefix = db.settings.orderPrefix !== undefined ? String(db.settings.orderPrefix) : 'ORD-';
+    const padding = parseInt(db.settings.orderNumberPadding, 10) || 4;
+
+    let currentNum = parseInt(db.settings.nextOrderNumber, 10);
+    if (isNaN(currentNum) || currentNum < 1) {
+      let maxNum = 1000;
+      (db.orders || []).forEach(o => {
+        const match = String(o.id).match(/\d+/);
+        if (match) {
+          const n = parseInt(match[0], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      currentNum = maxNum + 1;
+    }
+
+    db.settings.nextOrderNumber = currentNum + 1;
+    this.writeDb(db);
+
+    const formattedNum = String(currentNum).padStart(padding, '0');
+    return `${prefix}${formattedNum}`;
   }
 
   // --- Orders System ---
@@ -2000,7 +2113,7 @@ class DatabaseService {
     const lead = typeof jidOrLead === 'object' ? jidOrLead : this.getLead(cleanJid);
     const core = extractCoreDigits(cleanJid || lead?.phone || lead?.jid);
     const altJids = lead?.altJids || [];
-    const activeStatuses = ['pending', 'preparing', 'ready', 'ready_for_pickup', 'in_transit'];
+    const activeStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'ready_for_pickup', 'in_transit'];
 
     return (db.orders || []).filter(o => {
       if (!activeStatuses.includes(o.status)) return false;
@@ -2216,15 +2329,64 @@ class DatabaseService {
       channel = 'TIENDA';
     }
 
-    // Normalizar items y productos estructurados con PLU
+    // Normalizar items y productos estructurados con PLU y protección anti-[object Object]
     const allProducts = db.products || DatabaseService.MASTER_PRODUCTS_SEED;
-    const items = Array.isArray(orderData.items) ? orderData.items : (typeof orderData.items === 'string' ? orderData.items.split('\n').filter(Boolean) : []);
+    let rawItems = Array.isArray(orderData.items) ? orderData.items : (typeof orderData.items === 'string' ? orderData.items.split('\n').filter(Boolean) : []);
     let products = Array.isArray(orderData.products) && orderData.products.length > 0 ? [...orderData.products] : [];
 
-    if (products.length === 0 && items.length > 0) {
+    // Si rawItems contiene objetos (ej. proveniente de POSView activeCart.items) y products está vacío
+    const itemsContainObjects = rawItems.length > 0 && typeof rawItems[0] === 'object' && rawItems[0] !== null;
+    if (itemsContainObjects && products.length === 0) {
+      products = rawItems.map((it, idx) => {
+        const rawName = (typeof it.name === 'string' && it.name !== '[object Object]') ? it.name : '';
+        const matched = allProducts.find(p => p.id === it.id || (it.plu && p.plu === it.plu) || (rawName && p.name.toLowerCase() === rawName.toLowerCase()));
+        const cleanName = rawName || matched?.name || `Corte Seleccionado ${idx + 1}`;
+        const qty = Number(it.quantity || it.cant) || 1;
+        const uPrice = Number(it.price || it.unitPrice || matched?.price) || 0;
+        const sub = Number(it.subtotal) || Math.round(uPrice * qty);
+        return {
+          id: it.id || matched?.id || `prod-${idx}`,
+          plu: it.plu || matched?.plu || '',
+          barcode: it.barcode || matched?.barcode || '',
+          name: cleanName,
+          price: uPrice,
+          unitPrice: uPrice,
+          quantity: qty,
+          unit: it.unit || matched?.unit || 'kg',
+          isUnitMode: Boolean(it.isUnitMode),
+          unitCount: it.unitCount !== undefined ? Number(it.unitCount) : (it.isUnitMode ? Math.round(qty * 8) : 0),
+          subtotal: sub
+        };
+      });
+    }
+
+    if (products.length === 0 && rawItems.length > 0) {
       // Extraer y casar productos desde los textos de items con cantidades y precios reales
-      items.forEach((itemStr, idx) => {
+      rawItems.forEach((itemStr, idx) => {
+        if (typeof itemStr === 'object' && itemStr !== null) {
+          const rawName = (typeof itemStr.name === 'string' && itemStr.name !== '[object Object]') ? itemStr.name : '';
+          const matched = allProducts.find(p => p.id === itemStr.id || (itemStr.plu && p.plu === itemStr.plu) || (rawName && p.name.toLowerCase() === rawName.toLowerCase()));
+          const cleanName = rawName || matched?.name || `Corte Seleccionado ${idx + 1}`;
+          const qty = Number(itemStr.quantity) || 1;
+          const uPrice = Number(itemStr.price || itemStr.unitPrice || matched?.price) || 0;
+          products.push({
+            id: itemStr.id || matched?.id || `prod-${idx}`,
+            plu: itemStr.plu || matched?.plu || '',
+            barcode: itemStr.barcode || matched?.barcode || '',
+            name: cleanName,
+            price: uPrice,
+            unitPrice: uPrice,
+            quantity: qty,
+            unit: itemStr.unit || matched?.unit || 'kg',
+            isUnitMode: Boolean(itemStr.isUnitMode),
+            unitCount: itemStr.unitCount !== undefined ? Number(itemStr.unitCount) : (itemStr.isUnitMode ? Math.round(qty * 8) : 0),
+            subtotal: Number(itemStr.subtotal) || Math.round(uPrice * qty)
+          });
+          return;
+        }
+
         const str = String(itemStr).replace(/^[•\-\*\s]+/, '').trim();
+        if (!str || str === '[object Object]') return;
         
         // Detectar subtotal de la línea: "— $39.999", "($39.999)", "$39.999", "— $17.980,50"
         const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)\s*\)?$/);
@@ -2266,24 +2428,35 @@ class DatabaseService {
       });
     } else if (products.length > 0) {
       products = products.map((p, idx) => {
+        const rawName = (typeof p.name === 'string' && p.name !== '[object Object]') ? p.name : '';
+        const matched = allProducts.find(mp => mp.id === p.id || (p.plu && mp.plu === p.plu) || (rawName && mp.name.toLowerCase() === rawName.toLowerCase()));
+        const cleanName = rawName || matched?.name || `Corte Seleccionado ${idx + 1}`;
         const qty = Number(p.quantity) || 1;
-        const unitPrice = Number(p.unitPrice || p.price || 0);
+        const unitPrice = Number(p.unitPrice || p.price || matched?.price || 0);
         const subtotal = Number(p.subtotal) || Math.round(unitPrice * qty);
         return {
-          id: p.id || `prod-${idx}`,
-          plu: p.plu || '',
-          barcode: p.barcode || '',
-          name: p.name || 'Producto',
+          id: p.id || matched?.id || `prod-${idx}`,
+          plu: p.plu || matched?.plu || '',
+          barcode: p.barcode || matched?.barcode || '',
+          name: cleanName,
           price: unitPrice,
           unitPrice: unitPrice,
           quantity: qty,
-          unit: p.unit || 'kg',
+          unit: p.unit || matched?.unit || 'kg',
           isUnitMode: Boolean(p.isUnitMode),
           unitCount: p.unitCount !== undefined ? Number(p.unitCount) : (p.isUnitMode ? Math.round(qty * 8) : 0),
           subtotal: subtotal
         };
       });
     }
+
+    // Normalizar items a array de strings legibles para comprobantes, tickets y bot
+    const items = products.map(p => {
+      if (p.isUnitMode && p.unitCount > 0) {
+        return `• ${p.unitCount} Unidades de ${p.name} — $${Number(p.subtotal || 0).toLocaleString('es-AR')}`;
+      }
+      return `• ${p.quantity} ${p.unit || 'kg'} ${p.name} — $${Number(p.subtotal || 0).toLocaleString('es-AR')}`;
+    });
 
     // Calcular suma exacta de productos
     const calculatedTotal = products.reduce((acc, p) => acc + (Number(p.subtotal) || (Number(p.price) * Number(p.quantity)) || 0), 0);
@@ -2298,8 +2471,11 @@ class DatabaseService {
       requestedSlotId: orderData.deliverySlotId || orderData.deliverySlot
     });
 
+    // Generar ID de orden con contador secuencial configurable
+    const orderId = orderData.id || this.generateNextOrderId(db);
+
     const newOrder = {
-      id: orderData.id || `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: orderId,
       jid: orderData.jid || '',
       phone: orderData.phone || (orderData.jid ? orderData.jid.split('@')[0] : ''),
       customerName: orderData.customerName || 'Cliente',
@@ -2330,12 +2506,14 @@ class DatabaseService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ...orderData,
+      id: orderId,
       channel: channel,
       source: channel,
       origin: channel,
       branch: branchName,
       branchName: branchName,
       branchId: branchId,
+      items: items,
       products: products,
       totalAmount: finalTotalAmount,
       deliverySlot: orderData.deliverySlot || deliveryCalc.suggestedSlotId,
@@ -2374,6 +2552,7 @@ class DatabaseService {
       lead.totalSpent = (lead.totalSpent || 0) + newOrder.totalAmount;
       lead.lastOrderAt = newOrder.createdAt;
       lead.lastOrderId = newOrder.id;
+      lead.currentOrder = newOrder.id;
 
       // Preferencias gastronómicas del cliente
       if (!lead.preferences) {

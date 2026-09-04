@@ -8,16 +8,26 @@ import { sqliteStorage } from './sqliteStorage.js';
 let MongoClientClass = null;
 let PgClientClass = null;
 
-// Cargar dinámicamente clientes si están disponibles
-try {
-  const mongoModule = await import('mongodb');
-  MongoClientClass = mongoModule.MongoClient;
-} catch (e) {}
+// Cargar dinámicamente clientes bajo demanda (evita top-level await para compatibilidad con CommonJS / LiteSpeed require)
+async function getMongoClientClass() {
+  if (!MongoClientClass) {
+    try {
+      const mongoModule = await import('mongodb');
+      MongoClientClass = mongoModule.MongoClient || mongoModule.default?.MongoClient;
+    } catch (e) {}
+  }
+  return MongoClientClass;
+}
 
-try {
-  const pgModule = await import('pg');
-  PgClientClass = pgModule.default?.Client || pgModule.Client;
-} catch (e) {}
+async function getPgClientClass() {
+  if (!PgClientClass) {
+    try {
+      const pgModule = await import('pg');
+      PgClientClass = pgModule.default?.Client || pgModule.Client;
+    } catch (e) {}
+  }
+  return PgClientClass;
+}
 
 const CONFIG_FILE = path.join(CONFIG.DATA_DIR, 'db_config.json');
 
@@ -116,8 +126,9 @@ export class DbMigrationService {
           const uri = config?.uri || process.env.MONGODB_URI || 'mongodb://77.37.127.103:27017/wagent';
           if (!uri) throw new Error('Se requiere la URI de conexión de MongoDB');
 
-          if (MongoClientClass) {
-            const client = new MongoClientClass(uri, {
+          const Mongo = await getMongoClientClass();
+          if (Mongo) {
+            const client = new Mongo(uri, {
               serverSelectionTimeoutMS: 5000,
               connectTimeoutMS: 5000
             });
@@ -158,8 +169,9 @@ export class DbMigrationService {
           const connStr = config?.connectionString || config?.uri || process.env.SUPABASE_DB_URL;
           if (!connStr) throw new Error('Se requiere la cadena de conexión de PostgreSQL / Supabase');
 
-          if (PgClientClass) {
-            const client = new PgClientClass({
+          const Pg = await getPgClientClass();
+          if (Pg) {
+            const client = new Pg({
               connectionString: connStr,
               connectionTimeoutMillis: 5000,
               ssl: connStr.includes('supabase') || connStr.includes('sslmode=require') ? { rejectUnauthorized: false } : false
@@ -310,9 +322,10 @@ export class DbMigrationService {
     try {
       switch (targetType) {
         case 'mongodb': {
-          if (!MongoClientClass) throw new Error('El driver de MongoDB no está disponible');
+          const Mongo = await getMongoClientClass();
+          if (!Mongo) throw new Error('El driver de MongoDB no está disponible');
           const uri = targetConfig?.uri || 'mongodb://77.37.127.103:27017/wagent';
-          const client = new MongoClientClass(uri, { serverSelectionTimeoutMS: 8000 });
+          const client = new Mongo(uri, { serverSelectionTimeoutMS: 8000 });
           await client.connect();
           const targetDb = client.db();
 
@@ -351,9 +364,10 @@ export class DbMigrationService {
 
         case 'supabase':
         case 'postgres': {
-          if (!PgClientClass) throw new Error('El driver de PostgreSQL no está disponible');
+          const Pg = await getPgClientClass();
+          if (!Pg) throw new Error('El driver de PostgreSQL no está disponible');
           const connStr = targetConfig?.connectionString;
-          const client = new PgClientClass({
+          const client = new Pg({
             connectionString: connStr,
             ssl: connStr.includes('supabase') || connStr.includes('sslmode=require') ? { rejectUnauthorized: false } : false
           });
