@@ -133,8 +133,13 @@ export class MercadoPagoService {
         const priceMatch = str.match(/—\s*\$\s*([\d\.\,]+)/);
         const price = priceMatch ? parseInt(priceMatch[1].replace(/\D/g, ''), 10) : 0;
         
-        const qtyMatch = str.match(/^(\d+(?:[.,]\d+)?)\s*(kg|kilos?|combo|un|unidades?|botellas?|bolsas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
-        const qty = qtyMatch ? Math.max(1, Math.round(parseFloat(qtyMatch[1].replace(',', '.')))) : 1;
+        const qtyMatch = str.match(/^(\d+(?:[.,]\d+)?)\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|combo|un|unidades?|botellas?|bolsas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
+        let rawQty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
+        const rawUnit = qtyMatch && qtyMatch[2] ? qtyMatch[2].toLowerCase() : '';
+        if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
+          rawQty = Number((rawQty / 1000).toFixed(3));
+        }
+        const qty = Math.max(1, Math.round(rawQty));
         const name = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
         const unitPrice = price > 0 ? Math.round(price / qty) : amount;
 

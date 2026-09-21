@@ -791,7 +791,7 @@ export function isGarbageAddress(addr) {
   if (a.length < 4) return true;
 
   // Frases conversacionales, intenciones de comida, recetas o charlas cotidianas
-  if (/(?:quisiera|quiero\s+cocinar|cocinar|hacer\s+algo|comer|receta|plato|comida|familia|somos\s+\d+|comemos|personas|amigos|invitados|asado|asadito|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|precio|cuanto|cuánto|horario|hola|buenas|gracias|chau|opcion|opción|combo|promo|abierto|delivery|envio|envío|solo|nada\s+mas)\b/i.test(a)) {
+  if (/(?:quisiera|quiero\s+cocinar|cocinar|hacer\s+algo|comer|receta|plato|comida|familia|somos\s+\d+|comemos|personas|amigos|invitados|asado|asadito|parrilla|fuego|bife|milanesa|guiso|carne|kilo|kilos|kg|gramos|gr\b|precio|cuanto|cuánto|horario|hola|buenas|gracias|chau|opcion|opción|combo|promo|abierto|delivery|envio|envío|solo|nada\s+mas|me\s+gusta|sumale|sumame|sumar|agrega|agregale|agregame|ponele|sacale|cambia|modifica|bolsa|bolsas|botella|carb[oó]n|le[ñn]a|costilla|vacio|vac[ií]o|chorizo|morcilla|matambre|achura)\b/i.test(a)) {
     // Solo permitir si explícitamente tiene prefijo formal de calle/altura como 'calle', 'av', 'barrio' con número de calle
     const hasExplicitStreetPrefix = /(?:calle|av\b|av\.|avenida|bv\b|bv\.|bulevar|barrio|piso|dpto|departamento|timbre|nro|n°|funes|locelso|pidal|alamos|alcorta|luchesse|quiros|colon|urca|cerro)\b/i.test(a);
     if (!hasExplicitStreetPrefix || !/[0-9]{2,5}/.test(a)) {
@@ -799,8 +799,14 @@ export function isGarbageAddress(addr) {
     }
   }
 
-  // Si no contiene número de calle (altura) ni calles reconocidas de Córdoba
-  if (!/[0-9]{1,5}/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon|cerro|urca|tejeda/i.test(a)) {
+  // Si contiene patrones típicos de elección de propuesta conversacional ("me gusta la 1", "sumale 1 bolsa")
+  if (/(?:me\s+gusta|elijo|opci[oó]n\s*\d|\bla\s+[1-9]\b|\bel\s+[1-9]\b|sumale|sumame|agregale|agregame|bolsa\s+de\s+carb|carb[oó]n)/i.test(a)) {
+    const hasRealAddress = /(?:calle|av\b|av\.|avenida|barrio|funes|locelso|pidal|tejeda|quiros|colon)\s+[a-z0-9\s]{2,}/i.test(a) && /[0-9]{2,5}/.test(a);
+    if (!hasRealAddress) return true;
+  }
+
+  // Si no contiene número de calle (altura real de al menos 2 dígitos) ni calles reconocidas de Córdoba
+  if (!/[0-9]{2,5}/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon|cerro|urca|tejeda/i.test(a)) {
     return true;
   }
 
@@ -894,8 +900,29 @@ export function parseProductsFromItems(items, catalog = null) {
       continue;
     }
 
+    // 1.1 Gramos (ej: "800g de CHORIZO CRIOLLOS — $7.992" o "500 gr de costilla — $13.500")
+    const gramMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s*(?:g\b|gr\b|grs\b|gramos\b)\s*(?:de\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
+    if (gramMatch) {
+      const rawGrams = parseFloat(gramMatch[1].replace(',', '.'));
+      const quantity = Number((rawGrams / 1000).toFixed(3));
+      const name = gramMatch[2].trim();
+      const subtotal = parseInt(gramMatch[3].replace(/\./g, ''), 10);
+      const catProd = matchBestProduct(name, catList) || { name, price: Math.round(subtotal / quantity), unit: 'kg' };
+      prods.push({
+        id: catProd.id || `prod-${name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: catProd.name || name,
+        price: catProd.price || Math.round(subtotal / quantity),
+        quantity,
+        unit: 'kg',
+        isUnitMode: false,
+        unitCount: 0,
+        subtotal
+      });
+      continue;
+    }
+
     // 2. Kilos (ej: "1 kg Vacío Especial Seleccionado — $11.500" o "1.5 kilos de asado — $15.000")
-    const kgMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s+(?:kg|kilos?|kilo)\s+(?:de\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
+    const kgMatch = cleanItem.match(/^(\d+(?:[\.,]\d+)?)\s*(?:kg|kilos?|kilo)\s*(?:de\s+)?(.+?)\s+(?:—|-|:)\s+\$?([0-9\.]+)/i);
     if (kgMatch) {
       const quantity = parseFloat(kgMatch[1].replace(',', '.'));
       const name = kgMatch[2].trim();

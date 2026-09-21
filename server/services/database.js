@@ -2161,9 +2161,13 @@ class DatabaseService {
         const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)\s*\)?$/);
         const subtotal = priceMatch ? parseInt(priceMatch[1].replace(/\D/g, ''), 10) : 0;
         
-        const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
-        const qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
-        const rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
+        const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
+        let qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
+        let rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
+        if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
+          qty = Number((qty / 1000).toFixed(3));
+          rawUnit = 'kg';
+        }
         const rawNamePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
         const namePart = rawNamePart.replace(/^de\s+/i, '').trim();
 
@@ -2392,10 +2396,14 @@ class DatabaseService {
         const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)\s*\)?$/);
         const subtotal = priceMatch ? parseArgentinePrice(priceMatch[1]) : 0;
         
-        // Detectar cantidad al inicio: "2 kg", "1 combo", "6 unidades", "1x"
-        const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
-        const qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
-        const rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
+        // Detectar cantidad al inicio: "2 kg", "800g", "1 combo", "6 unidades", "1x"
+        const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
+        let qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
+        let rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
+        if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
+          qty = Number((qty / 1000).toFixed(3));
+          rawUnit = 'kg';
+        }
         const rawNamePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
         const namePart = rawNamePart.replace(/^de\s+/i, '').trim();
 

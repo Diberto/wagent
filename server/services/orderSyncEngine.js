@@ -86,14 +86,20 @@ export class OrderSyncEngine {
         const lineMatch = replyMsg.match(/(?:🏠\s*)?\*?\s*Direcci[oó]n(?:\s+de\s+entrega)?:\*?\s*([^\n\r]+)/i);
         if (lineMatch && lineMatch[1]) {
           const candidate = lineMatch[1].replace(/^[*(:\s]+|[)*:\s]+$/g, '').trim();
-          cleanAddr = extractCleanAddress(candidate);
+          // Ignorar si es una pregunta del bot (ej: "¿A dónde se lo enviamos? (Calle, número y barrio)")
+          if (!/(?:\?|¿|a d[oó]nde|calle,?\s*n[uú]mero|indicanos|pasame|decime)/i.test(candidate)) {
+            cleanAddr = extractCleanAddress(candidate);
+          }
         }
 
         // 2. Mención en el saludo / introducción: "agendado tu envío a *Roque Funes 1704*"
         if (!cleanAddr) {
           const introMatch = replyMsg.match(/(?:env[ií]o|agendado|entrega)(?:\s+a|\s+en)\s+\*?([A-Za-zÁÉÍÓÚáéíóúñÑ0-9\s,]+?)\*?(?:\.|\n|$)/i);
           if (introMatch && introMatch[1]) {
-            cleanAddr = extractCleanAddress(introMatch[1].trim());
+            const candidateIntro = introMatch[1].trim();
+            if (!/(?:\?|¿|a d[oó]nde|calle,?\s*n[uú]mero)/i.test(candidateIntro)) {
+              cleanAddr = extractCleanAddress(candidateIntro);
+            }
           }
         }
       }
@@ -103,6 +109,25 @@ export class OrderSyncEngine {
         } else if (clientLead?.address && !isGarbageAddress(clientLead.address) && clientLead.address.toLowerCase() !== 'a convenir') {
           cleanAddr = clientLead.address;
         }
+      }
+
+      // Si el mensaje del agente está presentando múltiples alternativas de menú/propuesta
+      // (ej: Opción 1 y Opción 2) y el usuario aún no eligió ninguna opción,
+      // registrar la etapa como 'proposal' y NO crear un pedido activo preliminar que sume todas las alternativas.
+      const hasMultipleOptionProposals = /(?:1️⃣|\bopci[oó]n\s*1\b)/i.test(replyMsg) && /(?:2️⃣|\bopci[oó]n\s*2\b)/i.test(replyMsg);
+      const isOptionSelection = /^(?:opci[oó]n\s*)?[1-9]$/i.test(userMsg.trim()) ||
+        /(?:me\s+gusta|elijo|vamos con|anotame|pasame|mandame)\s+(?:la|el)?\s*(?:opci[oó]n)?\s*[1-9]\b/i.test(userMsg) ||
+        /\b(?:la|el)\s+(?:opci[oó]n\s*)?[1-9]\b/i.test(userMsg) ||
+        /\bopci[oó]n\s*[1-9]\b/i.test(userMsg) ||
+        /^[1-9]️⃣?$/i.test(userMsg.trim());
+
+      if (hasMultipleOptionProposals && !isOptionSelection) {
+        if (clientLead.jid || clientLead.id) {
+          db.updateLead(clientLead.jid || clientLead.id, {
+            stage: 'proposal'
+          });
+        }
+        return null;
       }
 
       // 4.1 Extracción y Normalización Canónica del Perfil del Cliente (7 Datos Obligatorios)
@@ -167,9 +192,13 @@ export class OrderSyncEngine {
         if (activeOrder && ['pending', 'preparing', 'draft'].includes(activeOrder.status)) {
           const isExplicitResetOrReplace = /(?:solo quiero|quiero solo|un solo|una sola|nada mas|en vez de|cambia|cambiame|modifica|modificame|borra todo|borrá todo|empecemos de nuevo|arranquemos de nuevo)/i.test(userMsg);
           const isAdditionIntent = /(?:agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|mas|más|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2)/i.test(userMsg);
+          const hasAuthoritativeDetail = /(?:(?:📋|📝|📦|🛒|🍽️)?\s*\*?\s*(?:Detalle|Resumen)(?:\s+de)?(?:\s+tu|\s+del)?\s+pedido)/i.test(replyMsg);
 
-          // Si el cliente está agregando cortes o la orden activa ya tenía productos que no fueron mencionados en este turno aislado
-          if (!isExplicitResetOrReplace && Array.isArray(activeOrder.products) && activeOrder.products.length > 0) {
+          // Si el cliente está eligiendo una opción o el bot brindó el detalle autoritativo completo del pedido,
+          // los productos extraídos del reply reemplazan completamente cualquier propuesta preliminar
+          const shouldReplaceCart = isExplicitResetOrReplace || isOptionSelection || hasAuthoritativeDetail;
+
+          if (!shouldReplaceCart && isAdditionIntent && Array.isArray(activeOrder.products) && activeOrder.products.length > 0) {
             const mergedProductsMap = new Map();
             // Cargar productos previos de la orden
             for (const p of activeOrder.products) {
@@ -303,177 +332,144 @@ export class OrderSyncEngine {
 
     if (!replyMsg) return { items, products, total };
 
-    const lines = replyMsg.split('\n');
+    // 1. Aislamiento de la sección autoritativa de detalle si existe
+    let relevantText = replyMsg;
+    const detailHeaderMatch = replyMsg.match(/(?:(?:📋|📝|📦|🛒|🍽️)?\s*\*?\s*(?:Detalle|Resumen)(?:\s+de)?(?:\s+tu|\s+del)?\s+pedido[^*:\n]*\*?[:\s]*)/i);
+    if (detailHeaderMatch) {
+      const afterHeader = replyMsg.slice(detailHeaderMatch.index + detailHeaderMatch[0].length);
+      const nextSectionMatch = afterHeader.match(/\n\s*(?:\([^\n]*nota|para que esto|cómo seguimos|1[\.\)]\s*\*?direcci[oó]n|direcci[oó]n completa|medio de pago|¿a d[oó]nde|¿c[oó]mo prefiere)/i);
+      relevantText = nextSectionMatch ? afterHeader.slice(0, nextSectionMatch.index) : afterHeader;
+    }
+
+    const lines = relevantText.split('\n');
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) continue;
 
-      // Detectar si la línea parece un ítem (empieza con viñeta, número, emoji o cantidad)
-      const isBulletOrNum = /^[\s•*\-+]|^\d+[\.\)]\s*|^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉]\s*|^[0-9]+(?:[.,][0-9]+)?\s*(?:kg|kilos?|unidades?|un|bolsas?|botellas?|combos?|tiras?|bifes?)\b/i.test(line);
+      // Descartar encabezados, títulos de opciones o preguntas de checkout
+      if (/(?:opci[oó]n\s*\d|propuesta\s*\d|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|direcci[oó]n|medio de pago|forma de pago|efectivo|transferencia|mercado pago|alias:)/i.test(line)) {
+        continue;
+      }
+
+      // Detectar si parece un item
+      const isBulletOrNum = /^[\s•*\-+]|^\d+[\.\)]\s*|^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉]\s*|^[0-9]+(?:[.,][0-9]+)?\s*(?:kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|bolsas?|botellas?|combos?|tiras?|bifes?)\b/i.test(line);
       if (!isBulletOrNum) continue;
 
       let clean = line
         .replace(/^[\s•*\-+]+/, '')
         .replace(/^\d+[\.\)]\s*/, '')
-        .replace(/^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉]\s*/, '')
+        .replace(/^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉📋📝🛒🍽️]\s*/, '')
         .trim();
 
-      // Ignorar encabezados, resúmenes o metadatos de conversación
-      if (!clean || /^(?:detalle|total|opciones|respondé|cómo seguimos|paso\b|recordamos|nota:|modalidad|direcci[oó]n|forma de pago|medio de pago|sucursal|horario)/i.test(clean)) {
+      if (!clean) continue;
+
+      // Descartar líneas de total, subtotales, notas o metadatos
+      if (/^(?:total|total estimado|total acumulado|subtotal|nota:|para que|av[ií]seme|recordamos|cómo seguimos)/i.test(clean)) {
         continue;
       }
 
-      let nameCandidate = '';
-      let qtyStr = '';
-      let priceStr = '';
-      let subtotal = 0;
-      let unitPrice = 0;
-      let isPerUnit = false;
-
-      // PATRÓN 1: Formato con dos puntos "Nombre: Cantidad [Unidad] — Precio"
-      // Ej: "*Costilla:* 1,2 kg — *$26.999/kg*"
-      // Ej: "*Carbón:* 1 bolsa (4kg Flamar) — *$3.600/un*"
-      const colonFormatMatch = clean.match(/^[*_"]?([^*_":]+(?:\([^)]+\))?)[*_"]?\s*:\s*(.+)$/i);
-
-      if (colonFormatMatch && !/(?:direcci[oó]n|modalidad|forma de pago|medio de pago|pago|sucursal|entrega|horario|total)/i.test(colonFormatMatch[1])) {
-        nameCandidate = colonFormatMatch[1].trim();
-        const rest = colonFormatMatch[2].trim();
-
-        const dashSplit = rest.split(/(?:—|->|→)\s*/);
-        if (dashSplit.length >= 2) {
-          qtyStr = dashSplit[0].trim();
-          priceStr = dashSplit.slice(1).join('—').trim();
-        } else {
-          qtyStr = rest;
-        }
-      } else {
-        // PATRÓN 2: Formato flecha/guión "Cantidad [Unidad] [de] Nombre [PrecioUnitario] [→ Subtotal]"
-        const arrowMatch = clean.match(/(?:→|->|—)\s*\*?\$?\s*([\d\.,]+(?:\/\w+)?)\s*\*?\s*$/i);
-        let textBeforePrice = clean;
-        if (arrowMatch) {
-          priceStr = arrowMatch[1];
-          textBeforePrice = clean.substring(0, arrowMatch.index).trim();
-        }
-
-        const unitPriceMatch = textBeforePrice.match(/\(\s*\*?\$?\s*([\d\.,]+)\s*\/\s*(?:kg|kilo|un|unidad|bolsa|botella|combo|u)\*?\s*\)/i);
-        if (unitPriceMatch) {
-          priceStr = priceStr || unitPriceMatch[0];
-          textBeforePrice = textBeforePrice.replace(unitPriceMatch[0], '').trim();
-        }
-
-        // Extraer cantidad al inicio del texto (tolerando asteriscos de formato como *1,5 kg de...)
-        const qtyMatch = textBeforePrice.match(/^[*_"]?\s*(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b|kg|kilos?|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?/i);
-        if (qtyMatch) {
-          qtyStr = qtyMatch[0].replace(/[*_"]/g, '').trim();
-          nameCandidate = textBeforePrice.slice(qtyMatch[0].length).trim();
-        } else {
-          nameCandidate = textBeforePrice;
-        }
+      // Extraer PLU si viene entre corchetes
+      let plu = '';
+      const pluMatch = clean.match(/\[(?:PLU\s*)?(\d+)\]/i);
+      if (pluMatch && pluMatch[1] && pluMatch[1] !== '0000' && pluMatch[1] !== '0') {
+        plu = pluMatch[1];
       }
 
-      if (!nameCandidate) continue;
+      // Extraer precio unitario: a *$26.999/kg* o ($26.999/kg) o a $3.600/un
+      let unitPrice = 0;
+      const unitPriceMatch = clean.match(/(?:a\s+)?\*?\$?\s*([\d\.,]+)\s*\/\s*([a-zA-Z]+)\*?/i);
+      if (unitPriceMatch) {
+        unitPrice = parseArgentinePrice(unitPriceMatch[1]);
+      }
 
-      // Parsear Cantidad y Unidad
+      // Extraer subtotal directo: — *$40.499* o -> $40.499 o → *$40.498,50*
+      let subtotal = 0;
+      const arrowMatch = clean.match(/(?:→|->|—)\s*\*?\$?\s*([\d\.,]+)\s*\*?\s*$/i);
+      if (arrowMatch) {
+        subtotal = parseArgentinePrice(arrowMatch[1]);
+      }
+
+      // Remover la sección de precios/PLU del texto para quedarnos con Cantidad y Nombre
+      let itemBody = clean
+        .replace(/\s*\([^)]*\[PLU[^)]*\)\s*/gi, '')
+        .replace(/\s*\([^)]*\$\s*[\d\.,]+[^)]*\)\s*/gi, '')
+        .replace(/(?:→|->|—)\s*\*?\$?\s*[\d\.,]+.*$/gi, '')
+        .replace(/[*_"]/g, '')
+        .trim();
+
+      // Extraer cantidad y unidad inicial: "1,5 kg de COSTILLA", "800g de CHORIZO CRIOLLOS", "1 unidad de CARBON X 4 KG"
+      const qtyMatch = itemBody.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b)?\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?(.*)$/i);
+
       let qty = 1;
       let unit = 'kg';
       let isUnitMode = false;
-      let unitCount = 0;
+      let nameCandidate = itemBody;
 
-      const qtyNumMatch = qtyStr.match(/(\d+(?:[.,]\d+)?)/);
-      if (qtyNumMatch) {
-        qty = parseFloat(qtyNumMatch[1].replace(',', '.'));
-      }
+      if (qtyMatch) {
+        const rawQty = parseFloat(qtyMatch[1].replace(',', '.'));
+        const rawUnit = (qtyMatch[2] || '').toLowerCase();
+        nameCandidate = (qtyMatch[3] || '').trim();
 
-      const lowerQty = qtyStr.toLowerCase();
-      if (/unidades?|un\b|u\b/.test(lowerQty)) {
-        unit = 'un';
-        isUnitMode = true;
-        unitCount = Math.round(qty);
-      } else if (/k/.test(lowerQty)) {
-        unit = 'kg';
-      } else if (/bols/.test(lowerQty)) {
-        unit = 'bolsa';
-        isUnitMode = true;
-        unitCount = Math.round(qty);
-      } else if (/bot/.test(lowerQty)) {
-        unit = 'botella';
-        isUnitMode = true;
-        unitCount = Math.round(qty);
-      } else if (/comb/.test(lowerQty)) {
-        unit = 'combo';
-        isUnitMode = true;
-        unitCount = Math.round(qty);
-      }
-
-      // Parsear Precio
-      if (priceStr) {
-        isPerUnit = /\/(?:kg|kilo|un|unidad|bolsa|botella|combo|u)/i.test(priceStr);
-        const parsedNum = parseArgentinePrice(priceStr);
-        if (isPerUnit) {
-          unitPrice = parsedNum;
+        if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
+          qty = Number((rawQty / 1000).toFixed(3));
+          unit = 'kg';
+          isUnitMode = false;
+        } else if (/^(?:unidades?|un|u)$/i.test(rawUnit)) {
+          qty = rawQty;
+          unit = 'un';
+          isUnitMode = true;
+        } else if (/^bolsas?$/i.test(rawUnit)) {
+          qty = rawQty;
+          unit = 'bolsa';
+          isUnitMode = true;
+        } else if (/^botellas?$/i.test(rawUnit)) {
+          qty = rawQty;
+          unit = 'botella';
+          isUnitMode = true;
+        } else if (/^combos?$/i.test(rawUnit)) {
+          qty = rawQty;
+          unit = 'combo';
+          isUnitMode = true;
         } else {
-          subtotal = parsedNum;
+          qty = rawQty;
+          unit = 'kg';
+          isUnitMode = false;
         }
       }
 
-      // Limpieza exhaustiva de nombre
-      let cleanName = nameCandidate
-        .replace(/^[*_"]+|[*_":]+$/g, '')
-        .replace(/^[xX]\s+/i, '')
-        .replace(/^(?:de|unidades?|un|bolsas?|kilos?|kg)\s+de\s+/i, '')
-        .replace(/^de\s+/i, '')
-        .trim();
-
-      if (!cleanName) continue;
+      if (!nameCandidate || nameCandidate.length < 2) continue;
+      if (/^(?:total|total estimado|total acumulado)/i.test(nameCandidate)) continue;
 
       // Vincular con catálogo real de la carnicería
-      const catalogProduct = this.matchCatalogProduct(cleanName, catalog);
+      const catalogProduct = this.matchCatalogProduct(nameCandidate, catalog, plu);
       const catalogPrice = catalogProduct ? Number(catalogProduct.price) : 0;
       const effectiveUnitPrice = unitPrice > 0 ? unitPrice : catalogPrice;
+      const effectiveUnit = catalogProduct?.unit || unit;
 
       if (subtotal <= 0 && effectiveUnitPrice > 0) {
-        if (isUnitMode && (catalogProduct?.unit === 'kg' || unit === 'un')) {
-          const unitsPerKg = catalogProduct?.unitsPerKg || 8;
-          const estimatedKg = Number((qty / unitsPerKg).toFixed(3));
-          subtotal = Math.round(estimatedKg * effectiveUnitPrice);
-        } else {
-          subtotal = Math.round(qty * effectiveUnitPrice);
-        }
-      }
-
-      let finalQuantity = qty;
-      let finalUnit = catalogProduct?.unit || unit;
-      let finalUnitPrice = effectiveUnitPrice;
-
-      if (isUnitMode && catalogProduct?.unit === 'kg') {
-        const unitsPerKg = catalogProduct?.unitsPerKg || 8;
-        finalQuantity = Number((qty / unitsPerKg).toFixed(3));
-        finalUnit = 'kg';
-        finalUnitPrice = effectiveUnitPrice;
-      } else if (subtotal > 0 && qty > 0 && finalUnitPrice === 0) {
-        finalUnitPrice = Math.round(subtotal / qty);
+        subtotal = Math.round(qty * effectiveUnitPrice);
       }
 
       const productEntry = {
-        id: catalogProduct?.id || `prod_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-        plu: catalogProduct?.plu || '',
+        id: catalogProduct?.id || `prod_${nameCandidate.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+        plu: catalogProduct?.plu || plu,
         barcode: catalogProduct?.barcode || '',
         category: catalogProduct?.category || 'Carnicería',
-        name: catalogProduct?.name || cleanName,
-        price: finalUnitPrice,
-        unitPrice: finalUnitPrice,
-        quantity: finalQuantity,
-        unit: finalUnit,
-        isUnitMode: isUnitMode,
+        name: catalogProduct?.name || nameCandidate,
+        price: effectiveUnitPrice,
+        unitPrice: effectiveUnitPrice,
+        quantity: qty,
+        unit: effectiveUnit,
+        isUnitMode: isUnitMode || (catalogProduct && catalogProduct.unit !== 'kg'),
         unitCount: isUnitMode ? qty : 0,
         subtotal: subtotal
       };
 
       products.push(productEntry);
-      if (isUnitMode && unitCount > 0) {
-        items.push(`• ${unitCount} Unidades de ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
+      if (isUnitMode) {
+        items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
       } else {
-        items.push(`• ${finalQuantity} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
+        items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
       }
       total += subtotal;
     }
@@ -482,7 +478,7 @@ export class OrderSyncEngine {
     const totalMatch = replyMsg.match(/(?:total[^:\n]*|total estimado|total acumulado estimado)[:\s]*\*?\$?\s*([\d.,]+)/i);
     if (totalMatch) {
       const explicitTotal = parseArgentinePrice(totalMatch[1]);
-      if (explicitTotal > 0) {
+      if (explicitTotal > 0 && products.length === 0) {
         total = explicitTotal;
       }
     }
@@ -494,26 +490,41 @@ export class OrderSyncEngine {
    * Busca el mejor producto del catálogo real por similitud ponderada de palabras.
    * Evita falsos positivos con notas entre paréntesis o palabras cortas.
    */
-  static matchCatalogProduct(name, catalog) {
+  static matchCatalogProduct(name, catalog, plu = '') {
     if (!Array.isArray(catalog) || catalog.length === 0 || !name) return null;
 
-    const normalizeWord = (w = '') => {
-      let s = w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      // Normalizar plurales a singulares comunes en carnicería
-      if (s.endsWith('es') && s.length > 4) s = s.slice(0, -2);
-      else if (s.endsWith('s') && !s.endsWith('ss') && s.length > 3) s = s.slice(0, -1);
-      if (s === 'matambrito') s = 'matambre';
-      return s;
-    };
+    // 1. PLU exacto si es válido
+    if (plu && plu !== '0000' && plu !== '0') {
+      const byPlu = catalog.find(p => p.plu === plu);
+      if (byPlu) return byPlu;
+    }
 
     const clean = name.toLowerCase().trim();
-    const cleanNorm = normalizeWord(clean);
 
-    // 1. Coincidencia exacta estricta
+    // 2. Coincidencia exacta
     let found = catalog.find(p => (p.name || '').toLowerCase().trim() === clean);
     if (found) return found;
 
-    // 2. Coincidencia sin notas entre paréntesis (ej: "Matambrito de Cerdo (Entrecot)" -> "Matambrito de Cerdo")
+    // 3. Reglas semánticas específicas para insumos y cortes comunes de carnicería
+    if (/\bcarb[oó]n\b/i.test(clean)) {
+      const has4 = clean.includes('4');
+      const has3 = clean.includes('3');
+      const has5 = clean.includes('5');
+      const match = catalog.find(p => /\bcarb[oó]n\b/i.test(p.name) && (has4 ? p.name.includes('4') : has3 ? p.name.includes('3') : has5 ? p.name.includes('5') : true) && Number(p.price) > 0);
+      if (match) return match;
+    }
+
+    if (/\bcostilla\b/i.test(clean)) {
+      const match = catalog.find(p => /\bcostilla\b/i.test(p.name) && !/cerdo/i.test(p.name) && Number(p.price) > 0);
+      if (match) return match;
+    }
+
+    if (/\bchorizo.*criollo/i.test(clean)) {
+      const match = catalog.find(p => /\bchorizo.*criollo/i.test(p.name));
+      if (match) return match;
+    }
+
+    // Coincidencia sin notas entre paréntesis (ej: "Matambrito de Cerdo (Entrecot)" -> "Matambrito de Cerdo")
     const withoutParens = clean.replace(/\([^)]*\)/g, '').trim();
     if (withoutParens && withoutParens !== clean) {
       found = catalog.find(p => (p.name || '').toLowerCase().trim() === withoutParens);
@@ -521,13 +532,20 @@ export class OrderSyncEngine {
     }
 
     // Extraer palabras significativas (sin artículos ni preposiciones)
+    const normalizeWord = (w = '') => {
+      let s = w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      if (s.endsWith('es') && s.length > 4) s = s.slice(0, -2);
+      else if (s.endsWith('s') && !s.endsWith('ss') && s.length > 3) s = s.slice(0, -1);
+      if (s === 'matambrito') s = 'matambre';
+      return s;
+    };
+
     const stopWords = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'x', 'para', 'con', 'en']);
     const targetWords = (withoutParens || clean)
       .split(/[\s,()\-]+/)
       .map(normalizeWord)
       .filter(w => w.length >= 3 && !stopWords.has(w));
 
-    // Si había paréntesis, también extraer esas palabras secundarias con menor peso
     const parensMatch = clean.match(/\(([^)]+)\)/);
     const parensWords = parensMatch
       ? parensMatch[1].split(/[\s,()\-]+/).map(normalizeWord).filter(w => w.length >= 3 && !stopWords.has(w))
@@ -547,10 +565,10 @@ export class OrderSyncEngine {
 
       if (prodWords.length === 0) continue;
 
-      // Calcular coincidencia de palabras principales
+      // Calcular coincidencia de palabras principales con prefijos de al menos 5 letras (evita carbón -> bicarbonato)
       let matches = 0;
       for (const tw of targetWords) {
-        if (prodWords.some(pw => pw === tw || pw.includes(tw) || tw.includes(pw))) {
+        if (prodWords.some(pw => pw === tw || (pw.length >= 5 && tw.length >= 5 && (pw.startsWith(tw) || tw.startsWith(pw))))) {
           matches++;
         }
       }
@@ -558,7 +576,7 @@ export class OrderSyncEngine {
       // Calcular coincidencia de palabras secundarias (en paréntesis)
       let secondaryMatches = 0;
       for (const sw of parensWords) {
-        if (prodWords.some(pw => pw === sw || pw.includes(sw) || sw.includes(pw))) {
+        if (prodWords.some(pw => pw === sw || (pw.length >= 5 && sw.length >= 5 && (pw.startsWith(sw) || sw.startsWith(pw))))) {
           secondaryMatches++;
         }
       }
@@ -618,9 +636,14 @@ export class OrderSyncEngine {
       const isMentioned = hasExplicitPlu || hasNameMatch;
 
       if (isMentioned) {
-        const qtyRegex = new RegExp(`(\\d+(?:[\\.,]\\d+)?)\\s*(?:kg|kilos?|unidades?|un|bolsas?|botellas?|combos?|piezas?)?\\s+(?:de\\s+)?(?:${escapedName})`, 'i');
+        const qtyRegex = new RegExp(`(\\d+(?:[\\.,]\\d+)?)\\s*(?:(kg|kilos?|k\\b|g\\b|gr\\b|grs\\b|gramos\\b|unidades?|un|bolsas?|botellas?|combos?|piezas?))?\\s+(?:de\\s+)?(?:${escapedName})`, 'i');
         const match = text.match(qtyRegex);
-        const quantity = match ? parseFloat(match[1].replace(',', '.')) : 1;
+        let quantity = match ? parseFloat(match[1].replace(',', '.')) : 1;
+        const rawUnit = match && match[2] ? match[2].toLowerCase() : '';
+        if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
+          quantity = Number((quantity / 1000).toFixed(3));
+        }
+
         const unitPrice = Number(prod.price) || 0;
         const subtotal = Math.round(unitPrice * quantity);
 
