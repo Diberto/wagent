@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
+COPY client/package*.json ./client/
 COPY .npmrc ./
 # Compilamos dependencias completas y módulos nativos en entorno con build tools
 RUN npm ci --omit=dev
@@ -37,9 +38,11 @@ RUN npm ci --omit=dev
 FROM node:20-slim AS runner
 WORKDIR /app
 
-# Instalar dependencias esenciales de ejecución (ffmpeg, certs, timezone)
+# Instalar dependencias esenciales de ejecución (ffmpeg, wget, curl, certs, timezone)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    wget \
+    curl \
     ca-certificates \
     tzdata \
     && rm -rf /var/lib/apt/lists/*

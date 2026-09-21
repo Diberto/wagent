@@ -5118,26 +5118,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   // =========================================================================
   // --- 13. NEURAL MEMORY & COGNITIVE MENTAL MAP ENDPOINTS ---
   // =========================================================================
-  router.get('/neural-memory/map', (req, res) => {
-    try {
-      const mentalMap = NeuralMemoryService.getSystemMentalMap();
-      res.json(mentalMap);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  router.get('/neural-memory/chat/:chatId', (req, res) => {
-    try {
-      const { chatId } = req.params;
-      const conversationMap = NeuralMemoryService.getConversationNeuralMap(chatId);
-      if (!conversationMap) return res.status(404).json({ error: 'Conversación no encontrada' });
-      res.json(conversationMap);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   router.get('/neural-memory/context/:jid?', (req, res) => {
     try {
       const jid = req.params.jid || null;
