@@ -1956,8 +1956,11 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
 
   for (const item of activeItemsMap.values()) {
     const { prod, quantity, isUnitMode, unitCount } = item;
-    const dbProd = (catalog || []).find(p => (p.name || '').toLowerCase() === prod.name.toLowerCase());
-    const unitPrice = dbProd ? Number(dbProd.price) : prod.price;
+    const dbProd = (catalog || []).find(p => (p.name || '').toLowerCase() === (prod.name || '').toLowerCase());
+    const unitPrice = dbProd ? Number(dbProd.price) : (Number(prod.price) || 0);
+    if (unitPrice <= 0 || !prod.name || prod.name.length < 3 || /[¿\?]|cu[aá]ntos|gustar[ií]a|opci[oó]n|men[uú]/i.test(prod.name)) {
+      continue;
+    }
     const sub = Math.round(unitPrice * quantity);
 
     if (prod.unit === 'kg' && isUnitMode && unitCount > 0) {
@@ -2971,37 +2974,41 @@ REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi ped
       }
 
       // Si es un comando estrictamente atómico (ej: solo un dígito o palabra clave de confirmación/cancelación directa)
-      const isPureAtomicAction = /^(?:1|2|3|4|5|6|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim());
+      const isPureAtomicAction = /^(?:1|2|3|4|5|6|7|8|9|10|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|s[ií]|no|confirmar|confirmo|cancela|cancelar|ya pagu[eé]|ya me lleg[oó]|ac[aá] est[aá] el comprobante)$/i.test(incomingText.trim()) ||
+        /^(?:opci[oó]n|la|el)\s*[1-8]$/i.test(incomingText.trim());
 
-      let effectiveProvider = settings.aiProvider || 'system_default';
-      if (effectiveProvider === 'system_default' || effectiveProvider === 'inherited') {
-        effectiveProvider = db.getSettings()?.aiProvider || 'gemini';
-      }
-      let effectiveModel = settings.aiModel || 'default';
-      if (effectiveModel === 'default' || effectiveModel === 'inherited') {
-        effectiveModel = db.getSettings()?.aiModel || getDefaultModelForProvider(effectiveProvider);
-      }
-      const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
-      const effectiveMaxTokens = settings.aiMaxTokens || 2048;
-
-
-      const combinedSystemPrompt = `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}`;
-
-      const llmResponse = await this.callLLMGeneric({
-        provider: effectiveProvider,
-        model: effectiveModel,
-        systemPrompt: combinedSystemPrompt,
-        prompt: incomingText,
-        history,
-        temperature: effectiveTemp,
-        maxTokens: effectiveMaxTokens,
-        settings
-      });
-
-      if (llmResponse && llmResponse.trim()) {
-        replyText = llmResponse.trim();
-      } else {
+      if (isPureAtomicAction) {
         replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+      } else {
+        let effectiveProvider = settings.aiProvider || 'system_default';
+        if (effectiveProvider === 'system_default' || effectiveProvider === 'inherited') {
+          effectiveProvider = db.getSettings()?.aiProvider || 'gemini';
+        }
+        let effectiveModel = settings.aiModel || 'default';
+        if (effectiveModel === 'default' || effectiveModel === 'inherited') {
+          effectiveModel = db.getSettings()?.aiModel || getDefaultModelForProvider(effectiveProvider);
+        }
+        const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
+        const effectiveMaxTokens = settings.aiMaxTokens || 2048;
+
+        const combinedSystemPrompt = `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}`;
+
+        const llmResponse = await this.callLLMGeneric({
+          provider: effectiveProvider,
+          model: effectiveModel,
+          systemPrompt: combinedSystemPrompt,
+          prompt: incomingText,
+          history,
+          temperature: effectiveTemp,
+          maxTokens: effectiveMaxTokens,
+          settings
+        });
+
+        if (llmResponse && llmResponse.trim()) {
+          replyText = llmResponse.trim();
+        } else {
+          replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+        }
       }
     } catch (error) {
       console.error('Error generando respuesta con IA:', error);
@@ -3166,13 +3173,18 @@ REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi ped
     const wasActiveOrderHelpOffered = !wasDataConfirmOffered && (
       /Tu pedido \*\*#ORD-.* ya está confirmado|Opciones:\s*\n?1️⃣\s*Modificar algún dato o cortes|¿Precisás algo de tu pedido\?|Tenés un pedido activo en curso|¿Querés consultar el estado \/ modificarlo/i.test(lastAgentMessage)
     );
-    const wasAsadoProposalOffered = /(?:1️⃣|1\.\s+[*_]*Parrilla|[*_]*1\.\s+|[*_]*Opci[oó]n\s+1|Parrilla Cl[aá]sica|Parrilla Completa|Cortes Especiales|[*_]*Te\s+arm[eé]\s+3\s+opciones|[*_]*Te\s+propongo\s+3\s+platazos|¿Cu[aá]l de estas opciones|¿Con cu[aá]l opci[oó]n|Opción Clásica|Opción Combo|Opción Parrillera)/i.test(lastAgentMessage);
+    const isOffersCutsMenuOffered = /OFERTAS Y CORTES|OFERTAS Y COMBOS|cortes estrella del día|mejores promos/i.test(lastAgentMessage);
+    const wasAsadoProposalOffered = !isOffersCutsMenuOffered && (
+      /(?:1\.\s+[*_]*Parrilla|[*_]*Opci[oó]n\s+1|Parrilla Cl[aá]sica|Parrilla Completa|Cortes Especiales|[*_]*Te\s+arm[eé]\s+3\s+opciones|[*_]*Te\s+propongo\s+3\s+platazos|¿Cu[aá]l de estas opciones|¿Con cu[aá]l opci[oó]n|Opción Clásica|Opción Combo|Opción Parrillera|propuestas bien cordobesas)/i.test(lastAgentMessage) ||
+      (/(?:1️⃣.*(?:parrilla|opci[oó]n|costilla|vacio|vacío|asado))/i.test(lastAgentMessage) && /(?:2️⃣.*(?:parrilla|opci[oó]n|vacio|vacío|costilla))/i.test(lastAgentMessage))
+    );
     const wasSubstitutionOffered = /no tenemos .* pero te podemos ofrecer|en su reemplazo\?/i.test(lastAgentMessage);
     const wasQuantityPrompt = /¿Qué cantidad|¿Cuántos kilos|¿Cuántas unidades|¿Qué cantidad te preparamos|¿Cuántas bolsas|¿Cuántas botellas|¿Qué cantidad de combos|Por Unidades:.*Por Kilos/i.test(lastAgentMessage);
     const wasPaymentMethodOffered = /(?:c[oó]mo prefer[ií]s abonar|1️⃣\s*\*?Efectivo|2️⃣\s*\*?Transferencia|3️⃣\s*\*?Mercado Pago|Paso 4 de 4|Decime c[oó]mo prefer[ií]s abonar)/i.test(lastAgentMessage);
     const wasReadyToDispatchQuestion = /(?:lo dejamos listo para despachar|lo dejamos listo|dejamos listo para despachar|¿Precisás realizar algún otro cambio)/i.test(lastAgentMessage);
-    const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasQuantityPrompt && !wasPaymentMethodOffered && (/1️⃣|2️⃣|1\..*Combo|OFERTAS Y CORTES|cortes estrella del día|mejores promos/i.test(lastAgentMessage)) &&
-      !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered;
+    const wasMenuOffered = !wasAsadoProposalOffered && !wasSubstitutionOffered && !wasQuantityPrompt && !wasPaymentMethodOffered &&
+      (isOffersCutsMenuOffered || (/1️⃣|2️⃣|1\..*Combo/i.test(lastAgentMessage))) &&
+      !wasDataConfirmOffered && !wasBranchMenuOffered && !wasModMenuOffered && !wasDeliveryTypeOffered && !wasInTransitChoiceOffered && !wasActiveOrderHelpOffered && !wasWelcomeMenuOffered;
 
     // 0.00000 ACLARACIÓN DE EQUIVOCACIÓN O DESACUERDO DEL CLIENTE ("pero yo no te pedí eso", "no pedí nada", etc.)
     const isBotCorrectionOrMisunderstanding = /(?:yo\s+no\s+(?:te\s+)?ped[ií]|no\s+(?:te\s+)?ped[ií]\s+eso|no\s+es\s+lo\s+que\s+ped[ií]|no\s+te\s+ped[ií]\s+nada|te\s+equivocaste|no\s+dije\s+eso|yo\s+no\s+dije|no\s+quiero\s+eso|no\s+te\s+encargu[eé]|no\s+compr[eé]\s+nada|no\s+ped[ií]\s+nada|no\s+era\s+eso|pero\s+yo\s+no|yo\s+no\s+pedi)/i.test(t);
@@ -3230,7 +3242,8 @@ REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi ped
     }
 
     // 0.00007 CONSULTAS DIRECTAS DE OFERTAS, COMBOS Y CARTELERA
-    if (/(?:ofertas?|promos?|promociones?|lista\s+de\s+ofertas?|qu[eé]\s+ofertas?\s+hay|qu[eé]\s+promos?\s+ten[eé]s|cartelera|pizarra|combos?\s+parrilleros?|combos?)/i.test(t) && !wasBranchMenuOffered && !wasModMenuOffered) {
+    const isOffersGeneralQuery = /(?:(?:qu[eé]|ver|consultar|mostrar|lista\s+de|ten[eé]s)\s+(?:las\s+|los\s+|alg[uú]n\s+|algunas?\s+)?(?:ofertas?|promos?|promociones?|cartelera|pizarra|combos?)|^(?:ofertas?|promos?|promociones?|cartelera|pizarra|combos?\s+parrilleros?|combos)$)/i.test(t);
+    if (isOffersGeneralQuery && !wasBranchMenuOffered && !wasModMenuOffered && !wasQuantityPrompt) {
       const catalogToOffer = getFeaturedWhatsAppOffers(products);
       const formattedCatalog = formatNumberedCatalog(catalogToOffer);
       return `🔥 *OFERTAS Y COMBOS DESTACADOS EN REPÚBLICA DE LA CARNE:* 🥩\n\n` +
@@ -3512,8 +3525,11 @@ REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi ped
     }
 
     // 0.0002 RESPUESTAS A PROPUESTAS DE ASADO / MENÚS RECOMENDADOS (Opción 1, 2 o 3)
-    const isExplicitOptionChoiceEarly = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-3]|uno|dos|tres)\b|^(?:opci[oó]n\s*)?([1-3]|1️⃣|2️⃣|3️⃣)\b/i.test(t);
-    if (wasAsadoProposalOffered || isExplicitOptionChoiceEarly) {
+    const isExplicitOptionChoiceEarly = !wasMenuOffered && (
+      /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-3]|uno|dos|tres)\b/i.test(t) ||
+      (wasAsadoProposalOffered && /^(?:opci[oó]n\s*)?([1-3]|1️⃣|2️⃣|3️⃣)\b/i.test(t))
+    );
+    if ((wasAsadoProposalOffered || isExplicitOptionChoiceEarly) && !wasMenuOffered) {
       let selectedOptNum = null;
       let modificationText = '';
 
@@ -4278,7 +4294,7 @@ REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi ped
     }
 
     // 0.051 MODIFICACIÓN DIRECTA DE CORTES EN PEDIDO ACTIVO (Sumar, reemplazar o quitar)
-    const isOptionsOfferedInPrevGlobal = /1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|Mirá las opciones|Te armé 3 opciones|¿Con cuál opción/i.test(lastAgentMessage?.content || '');
+    const isOptionsOfferedInPrevGlobal = /1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|\[PLU \d+\]|OFERTAS Y CORTES|cortes estrella|mejores promos|Mirá las opciones|Te armé 3 opciones|¿Con cuál opción/i.test(lastAgentMessage || '');
     const isOptionSelectionDirect = /(?:quiero\s+|dame\s+|vamos\s+con\s+|me\s+gusta\s+|elijo\s+|pasame\s+|anotame\s+|preparame\s+)?(?:la\s+|el\s+)?opci[oó]n\s*([1-9]|1[0-9]|20)\b|^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟)$/i.test(t);
 
     if (currentActiveOrder && ['pending', 'preparing'].includes(currentActiveOrder.status) && !(isOptionSelectionDirect && isOptionsOfferedInPrevGlobal)) {

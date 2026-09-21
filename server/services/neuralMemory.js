@@ -463,7 +463,7 @@ ${(() => {
 - Preferencia de Cocción: ${clientPreferences.cookingPreference || 'Parrilla'}
 ${learnedNotes.length > 0 ? `- Notas de Memoria Aprendida:\n  ${learnedNotes.map(n => `• ${n}`).join('\n  ')}` : ''}
 - Historial: ${activeOrders.length} pedidos previos | Total comprado: $${(activeLead.totalSpent || 0).toLocaleString('es-AR')}
-${linkedSystemUser ? `- 🔗 Usuario del Sistema Vinculado: ${linkedSystemUser.name} (@${linkedSystemUser.username}, Rol: ${linkedSystemUser.role.toUpperCase()})` : '- Usuario del Sistema: No vinculado'}
+${linkedSystemUser ? `- 🔗 Usuario del Sistema Vinculado: ${linkedSystemUser.name} (@${linkedSystemUser.username || linkedSystemUser.name}, Rol: ${(linkedSystemUser.role || linkedSystemUser.userType || 'CLIENTE').toUpperCase()})` : '- Usuario del Sistema: No vinculado'}
 ${latestOrder ? `- 📦 Último Pedido Activo: #${latestOrder.id} (${latestOrder.status}) por $${(latestOrder.totalAmount || 0).toLocaleString('es-AR')} | Items: ${(latestOrder.items || []).join(', ')}` : ''}
 
 🧠 LECCIONES Y APRENDIZAJES ACTIVOS DEL SISTEMA (AUTO-MEJORA CONTINUA):
