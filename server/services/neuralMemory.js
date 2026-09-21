@@ -210,10 +210,19 @@ export class NeuralMemoryService {
           linkedLeadId: u.linkedLeadId
         }
       });
-      edges.push({ from: `role_${u.role}`, to: uId, label: 'tiene_rol', weight: 0.9 });
+      const userRole = u.role || 'customer';
+      const roleNodeId = `role_${userRole}`;
+      if (roles.some(r => r.id === userRole)) {
+        edges.push({ from: roleNodeId, to: uId, label: 'tiene_rol', weight: 0.9 });
+      } else {
+        edges.push({ from: 'cluster_users_rbac', to: uId, label: 'usuario_sistema', weight: 0.8 });
+      }
 
       if (u.branchId) {
-        edges.push({ from: uId, to: u.branchId, label: 'asignado_a_sucursal', weight: 0.8 });
+        const branchExists = activeBranches.some(b => b.id === u.branchId);
+        if (branchExists) {
+          edges.push({ from: uId, to: u.branchId, label: 'asignado_a_sucursal', weight: 0.8 });
+        }
       }
     });
 
@@ -255,6 +264,22 @@ export class NeuralMemoryService {
       summary: 'Orquestación de WhatsApp Baileys, ElevenLabs Conversational Voice Agent y Gemini/OpenAI.'
     });
     edges.push({ from: 'node_brand', to: 'cluster_ai_voice', label: 'inteligencia_artificial', weight: 1.0 });
+
+    nodes.push({
+      id: 'node_carlos_ia',
+      label: 'Carlos — Asador Experto IA',
+      category: 'ai_voice',
+      type: 'leaf',
+      icon: '🥩',
+      summary: `Agente Comercial Principal de WhatsApp. Modelo: ${settings.aiModel || 'gemini-2.0-flash'}`,
+      details: {
+        role: 'Asesor Comercial y Parrillero',
+        provider: settings.aiProvider || 'gemini',
+        model: settings.aiModel || 'gemini-2.0-flash',
+        personality: 'Cálido, experto cordobés, preciso y enfocado al cierre de ventas'
+      }
+    });
+    edges.push({ from: 'cluster_ai_voice', to: 'node_carlos_ia', label: 'agente_ventas', weight: 1.0 });
 
     nodes.push({
       id: 'node_elevenlabs_agent',
@@ -524,13 +549,34 @@ ${learnedInsights.length > 0
       learnedData.cookingPreference = 'Olla / Guisos';
     }
 
-    // 5. Aprendizaje de sucursal de preferencia
-    this.OFFICIAL_BRANCHES.forEach(b => {
-      if (t.includes(b.name.toLowerCase()) || (b.address && t.includes(b.address.toLowerCase().split(' ')[0]))) {
-        learnedData.preferredBranch = b.name;
-        learnedData.newNote = `Sucursal habitual de retiro: ${b.name}`;
+    // 5. Aprendizaje de sucursal de preferencia (Palabras clave y zonas)
+    const branchKeywords = [
+      { key: /urca|roque funes/i, name: 'URCA CENTRAL' },
+      { key: /tejeda|pidal/i, name: 'URCA 2 – ALTO TEJEDA' },
+      { key: /intercountry|corteza|alamos|álamos/i, name: 'INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA' },
+      { key: /duarte quiros|duarte quirós|palmas/i, name: 'DUARTE QUIRÓS' },
+      { key: /villa allende|figueroa alcorta/i, name: 'VILLA ALLENDE – MERCADITO DE LA VILLA' },
+      { key: /san isidro|luchesse|luchese/i, name: 'COUNTRY SAN ISIDRO – ALTO TEJEDA (Nueva)' }
+    ];
+
+    let branchMatched = false;
+    for (const bk of branchKeywords) {
+      if (bk.key.test(t)) {
+        learnedData.preferredBranch = bk.name;
+        learnedData.newNote = `Sucursal habitual de retiro: ${bk.name}`;
+        branchMatched = true;
+        break;
       }
-    });
+    }
+
+    if (!branchMatched) {
+      this.OFFICIAL_BRANCHES.forEach(b => {
+        if (t.includes(b.name.toLowerCase()) || (b.address && t.includes(b.address.toLowerCase().split(' ')[0]))) {
+          learnedData.preferredBranch = b.name;
+          learnedData.newNote = `Sucursal habitual de retiro: ${b.name}`;
+        }
+      });
+    }
 
     // Persistir aprendizajes en la ficha del lead
     if (Object.keys(learnedData).length > 0 && db.updateLeadLearnedMemory) {
@@ -575,20 +621,44 @@ ${learnedInsights.length > 0
    * Búsqueda asociativa en la Red Neuronal (Synaptic Query)
    */
   static searchSynapticContext(query) {
-    const q = (query || '').toLowerCase().trim();
-    if (!q) return [];
+    const rawQ = (query || '').toLowerCase().trim();
+    if (!rawQ) return [];
+
+    const normalize = str => (str || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const qNorm = normalize(rawQ);
+    const qCompact = qNorm.replace(/[\s\-_]/g, '');
+    const tokens = qNorm.split(/\s+/).filter(t => t.length > 2);
 
     const map = this.getSystemMentalMap();
     const matches = [];
 
     map.nodes.forEach(node => {
       let score = 0;
-      const label = (node.label || '').toLowerCase();
-      const summary = (node.summary || '').toLowerCase();
+      const label = normalize(node.label || '');
+      const summary = normalize(node.summary || '');
+      const category = normalize(node.category || '');
+      const detailsStr = node.details ? normalize(JSON.stringify(node.details)) : '';
+      const combined = `${label} ${summary} ${category} ${detailsStr}`;
+      const combinedCompact = combined.replace(/[\s\-_]/g, '');
 
-      if (label.includes(q)) score += 10;
-      if (summary.includes(q)) score += 5;
-      if (node.details && JSON.stringify(node.details).toLowerCase().includes(q)) score += 3;
+      // Coincidencia exacta o contenida directa
+      if (label.includes(qNorm)) score += 20;
+      if (summary.includes(qNorm)) score += 10;
+      if (category.includes(qNorm)) score += 8;
+
+      // Coincidencia compacta (ej: 'mercadopago' encuentra 'mercado pago')
+      if (qCompact.length >= 4 && combinedCompact.includes(qCompact)) {
+        score += 15;
+      }
+
+      // Coincidencias por tokens o raíces léxicas (ej: 'asadazo' encuentra 'asado', 'asador')
+      tokens.forEach(tok => {
+        const stem = tok.slice(0, 4);
+        if (label.includes(tok)) score += 8;
+        else if (stem.length >= 4 && label.includes(stem)) score += 5;
+        if (summary.includes(tok)) score += 4;
+        else if (stem.length >= 4 && summary.includes(stem)) score += 3;
+      });
 
       if (score > 0) {
         matches.push({ node, score });
@@ -755,6 +825,13 @@ ${learnedInsights.length > 0
       synapses.push({ from: clientNodeId, to: branchNodeId, strength: 0.82, label: 'Sucursal de referencia' });
     }
 
+    const edges = synapses.map(s => ({
+      from: s.from,
+      to: s.to,
+      label: s.label,
+      weight: s.strength || 0.85
+    }));
+
     return {
       chatId,
       lead,
@@ -763,9 +840,11 @@ ${learnedInsights.length > 0
       sentiment,
       nodes,
       synapses,
+      edges,
       metrics: {
         totalNodes: nodes.length,
         totalSynapses: synapses.length,
+        totalEdges: edges.length,
         memoryCoherence: '99.2%',
         realTimeUpdated: new Date().toISOString()
       }

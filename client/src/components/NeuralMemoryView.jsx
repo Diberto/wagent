@@ -254,7 +254,7 @@ export default function NeuralMemoryView({ socket }) {
       const width = canvas.width;
       const height = canvas.height;
       const nodes = nodesPhysicsRef.current;
-      const edges = mapData?.edges || [];
+      const edges = mapData?.edges || mapData?.synapses || [];
 
       if (nodes.length > 0) {
         for (let i = 0; i < nodes.length; i++) {
