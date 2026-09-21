@@ -131,6 +131,39 @@ export class AuditLoggerService {
   }
 
   /**
+   * Compatibility method for recording events with flexible schema / severity
+   */
+  recordEvent({
+    action = 'event',
+    category = 'system',
+    details = null,
+    severity = 'info',
+    level = null,
+    title = '',
+    metadata = {}
+  } = {}) {
+    const sevMap = {
+      low: 'info',
+      medium: 'warn',
+      high: 'error',
+      critical: 'error',
+      info: 'info',
+      warn: 'warn',
+      error: 'error',
+      success: 'success'
+    };
+    const normLevel = level || sevMap[String(severity).toLowerCase()] || 'info';
+    return this.log({
+      category: String(category).toLowerCase(),
+      level: normLevel,
+      action,
+      title: title || action,
+      details,
+      metadata
+    });
+  }
+
+  /**
    * Query logs with filtering and pagination
    */
   getLogs({
