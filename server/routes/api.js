@@ -34,7 +34,6 @@ import { sqliteStorage } from '../services/sqliteStorage.js';
 import { DbMigrationService } from '../services/dbMigrationService.js';
 import { auditLogger } from '../services/auditLogger.js';
 import { UserAuthService } from '../services/userAuthService.js';
-import { OfflineFlowService } from '../services/offlineFlowService.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -4947,7 +4946,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   router.get('/offline-flow', (req, res) => {
     try {
       const flowConfig = OfflineFlowService.getConfig();
-      res.json({ success: true, flow: flowConfig });
+      res.json({ success: true, config: flowConfig, flow: flowConfig });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -4957,7 +4956,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     try {
       const updated = OfflineFlowService.updateConfig(req.body);
       io.emit('offlineFlow:update', updated);
-      res.json({ success: true, flow: updated });
+      res.json({ success: true, config: updated, flow: updated });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -4967,7 +4966,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     try {
       const reset = OfflineFlowService.resetConfig();
       io.emit('offlineFlow:update', reset);
-      res.json({ success: true, flow: reset });
+      res.json({ success: true, config: reset, flow: reset });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -4975,14 +4974,16 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   router.post('/offline-flow/simulate', async (req, res) => {
     try {
-      const { message, customerName = 'Cliente', session = null } = req.body;
+      const { message, customerName = 'Cliente', customerPhone = '5493510000000', session = null, state = null } = req.body;
+      const simSession = session || state || { step: 'idle', cart: [], deliveryType: null, address: '', branchId: null, paymentMethod: null };
+      const jid = `${String(customerPhone).replace(/\D/g, '') || '5493510000000'}@s.whatsapp.net`;
       const fakeLead = {
-        id: 'sim-offline-jid',
-        jid: 'sim-offline-jid',
+        id: jid,
+        jid: jid,
         name: customerName,
         pushName: customerName,
-        phone: '+54 9 351 123-4567',
-        offlineSession: session || { step: 'idle', cart: [] }
+        phone: customerPhone,
+        offlineSession: simSession
       };
 
       const result = await OfflineFlowService.handleMessage({
@@ -4993,9 +4994,11 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
       res.json({
         success: true,
-        reply: result.text,
-        session: result.session || fakeLead.offlineSession,
-        createdOrder: result.createdOrder || null
+        reply: result?.text || '',
+        session: result?.session || fakeLead.offlineSession,
+        nextState: result?.session || fakeLead.offlineSession,
+        createdOrder: result?.createdOrder || null,
+        orderCreated: result?.createdOrder || null
       });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
@@ -5717,59 +5720,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       return res.json({ success: true, lead: updated || lead });
     }
     res.json({ success: true, lead });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // RUTAS DE FLUJO OFFLINE / AUTOMATIZACIÓN SIN IA
-  // ─────────────────────────────────────────────────────────────────────────────
-  router.get('/offline-flow', (req, res) => {
-    try {
-      const config = OfflineFlowService.getConfig();
-      res.json({ success: true, config });
-    } catch (err) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  router.put('/offline-flow', (req, res) => {
-    try {
-      const updated = OfflineFlowService.updateConfig(req.body);
-      res.json({ success: true, config: updated });
-    } catch (err) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  router.post('/offline-flow/reset', (req, res) => {
-    try {
-      const reset = OfflineFlowService.resetConfig();
-      res.json({ success: true, config: reset });
-    } catch (err) {
-      res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  router.post('/offline-flow/simulate', async (req, res) => {
-    try {
-      const { message, customerPhone = '5493510000000', state } = req.body;
-      const jid = `${customerPhone.replace(/\D/g, '')}@s.whatsapp.net`;
-      const simulatedLead = {
-        id: jid,
-        jid: jid,
-        phone: customerPhone,
-        pushName: 'Cliente Simulado',
-        offlineSession: state || { step: 'idle', cart: [], deliveryType: null, address: '', branchId: null, paymentMethod: null }
-      };
-      const result = await OfflineFlowService.handleMessage(message, jid, simulatedLead);
-      res.json({
-        success: true,
-        reply: result?.text || '',
-        nextState: result?.session || null,
-        orderCreated: result?.createdOrder || null
-      });
-    } catch (err) {
-      res.status(500).json({ success: false, error: err.message });
-    }
   });
 
   return router;
