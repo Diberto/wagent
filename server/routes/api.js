@@ -4218,8 +4218,27 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   router.post('/system/update-apply', async (req, res) => {
     try {
-      const result = await UpdateService.applyUpdate();
+      const result = await UpdateService.applyUpdate({ trigger: 'web-panel' });
       res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Webhook para despliegue instantáneo automático desde GitHub
+  router.all('/system/webhook-deploy', async (req, res) => {
+    try {
+      const event = req.headers['x-github-event'] || 'push';
+      console.log(`📡 [Webhook Deploy] Disparador recibido desde GitHub (Evento: ${event})...`);
+      
+      res.json({
+        success: true,
+        message: 'Despliegue automático iniciado en segundo plano. El sistema se sincronizará y compilará.'
+      });
+
+      UpdateService.applyUpdate({ trigger: 'github-webhook' }).catch(err => {
+        console.error('Error procesando despliegue de webhook:', err);
+      });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
