@@ -50,6 +50,27 @@ function extractTextMessage(content) {
 }
 
 /**
+ * Valida rigurosamente si un archivo creds.json contiene una sesión autenticada y registrada en Baileys
+ */
+export function isCredsValid(credsPath) {
+  try {
+    if (!fs.existsSync(credsPath)) return false;
+    const stat = fs.statSync(credsPath);
+    if (stat.size <= 50) return false;
+    const raw = fs.readFileSync(credsPath, 'utf8');
+    const content = JSON.parse(raw);
+    // Para que una sesión sea válida, debe estar explícitamente registrada (no registered: false)
+    // y poseer identificadores de cuenta y usuario (me.id)
+    if (!content || content.registered === false || !content.me || !content.me.id) {
+      return false;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Servicio Central de Baileys WhatsApp con Manejo Multi-Sesión y Respaldo Atómico
  */
 export class WhatsAppService {
@@ -66,14 +87,17 @@ export class WhatsAppService {
     this.isInitializing = false;
     this.lidToPhoneMap = new Map();
     this.phoneToLidMap = new Map();
+    this.lastConnectedAt = 0;
+    this.rapidDisconnectCount = 0;
   }
 
   /**
-   * Respalda las credenciales de Baileys ÚNICAMENTE cuando la sesión está verificada y conectada
+   * Respalda las credenciales de Baileys ÚNICAMENTE cuando la sesión está verificada, conectada y válida
    */
   backupAuthFiles() {
     try {
-      if (!this.sock?.user || this.status !== 'connected') {
+      const credsActive = path.join(this.authDir, 'creds.json');
+      if (!this.sock?.user || this.status !== 'connected' || !isCredsValid(credsActive)) {
         return;
       }
       const backupDir = path.join(CONFIG.DATA_DIR, 'backups', `auth_backup_${this.sessionId}`);
@@ -102,8 +126,8 @@ export class WhatsAppService {
       const credsActive = path.join(this.authDir, 'creds.json');
       const credsBackup = path.join(backupDir, 'creds.json');
 
-      const isCredsActiveValid = fs.existsSync(credsActive) && fs.statSync(credsActive).size > 20;
-      const isCredsBackupValid = fs.existsSync(credsBackup) && fs.statSync(credsBackup).size > 20;
+      const isCredsActiveValid = isCredsValid(credsActive);
+      const isCredsBackupValid = isCredsValid(credsBackup);
 
       if (!isCredsActiveValid && isCredsBackupValid) {
         console.log(`🔄 Restaurando credenciales de WhatsApp [${this.sessionId}] desde backup seguro...`);
@@ -150,6 +174,22 @@ export class WhatsAppService {
           console.log(`🧹 Backup de sesión [${this.sessionId}] purgado de ${backupDir}`);
         }
       }
+
+      // Si es la sesión default o admin central, limpiar también directorios legados para evitar resurrección de sesiones inválidas
+      if (this.sessionId === 'default' || this.sessionId === 'usr-central-admin') {
+        const legacyDirs = [
+          path.join(CONFIG.DATA_DIR, 'auth_info_baileys_usr-central-admin'),
+          path.join(CONFIG.DATA_DIR, 'backups', 'auth_backup_usr-central-admin')
+        ];
+        for (const lDir of legacyDirs) {
+          if (fs.existsSync(lDir)) {
+            const lFiles = fs.readdirSync(lDir);
+            for (const file of lFiles) {
+              try { fs.unlinkSync(path.join(lDir, file)); } catch (e) {}
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error(`Error purgando authDir de sesión [${this.sessionId}]:`, err);
     }
@@ -163,6 +203,7 @@ export class WhatsAppService {
       if (resetAuth) {
         await this.clearAuthFiles({ clearBackup: true });
         this.reconnectAttempts = 0;
+        this.rapidDisconnectCount = 0;
       }
 
       if (this.sock) {
@@ -180,9 +221,18 @@ export class WhatsAppService {
         fs.mkdirSync(this.authDir, { recursive: true });
       }
 
-      // Si no es un reseteo explícito y faltan las credenciales activas, intentar restaurar backup
+      // Si no es un reseteo explícito y faltan las credenciales activas, intentar restaurar backup válido
       if (!resetAuth) {
         this.restoreAuthFromBackup();
+      }
+
+      // Validar si las credenciales en authDir están corruptas o sin registrar (ej: registered: false)
+      const credsActive = path.join(this.authDir, 'creds.json');
+      if (fs.existsSync(credsActive) && !isCredsValid(credsActive)) {
+        console.warn(`⚠️ [${this.sessionId}] Credenciales detectadas en ${this.authDir} son inválidas o incompletas (registered: false o corruptas). Purgando para generar nuevo QR limpio...`);
+        await this.clearAuthFiles({ clearBackup: true });
+        this.reconnectAttempts = 0;
+        this.rapidDisconnectCount = 0;
       }
 
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
@@ -212,7 +262,8 @@ export class WhatsAppService {
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
         keepAliveIntervalMs: 30000,
-        retryRequestDelayMs: 2500
+        retryRequestDelayMs: 2500,
+        getMessage: async () => undefined
       });
 
       // Guardar credenciales y respaldar únicamente si la sesión está conectada
@@ -231,6 +282,7 @@ export class WhatsAppService {
           this.status = 'qr_ready';
           this.qrCode = qr;
           this.reconnectAttempts = 0;
+          this.rapidDisconnectCount = 0;
           try {
             this.qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
             this.emitQR();
@@ -255,7 +307,9 @@ export class WhatsAppService {
                              statusCode === DisconnectReason.multideviceMismatch ||
                              statusCode === 411;
 
-          console.log(`Conexión de WhatsApp cerrada [${this.sessionId}]. Motivo: ${statusCode} (${errorMsg}). LoggedOut: ${isLoggedOut}`);
+          const isReplaced = statusCode === DisconnectReason.connectionReplaced || statusCode === 440;
+
+          console.log(`Conexión de WhatsApp cerrada [${this.sessionId}]. Motivo: ${statusCode} (${errorMsg}). LoggedOut: ${isLoggedOut}, Replaced: ${isReplaced}`);
 
           this.status = 'disconnected';
           this.qrCode = null;
@@ -263,11 +317,28 @@ export class WhatsAppService {
           this.user = null;
           this.emitStatus();
 
-          // Si la sesión fue revocada explícitamente por WhatsApp (401, loggedOut, badSession), purgar y generar QR limpio
-          if (isLoggedOut) {
-            console.log(`⚠️ Sesión [${this.sessionId}] cerrada definitivamente por WhatsApp (${statusCode}). Purgando credenciales y backup para emitir nuevo QR...`);
-            await this.clearAuthFiles({ clearBackup: true });
+          // 1. Conflicto por otra instancia abierta en simultáneo (440)
+          if (isReplaced) {
+            console.warn(`⚠️ [${this.sessionId}] Sesión reemplazada (440): Se detectó otra conexión activa con esta misma cuenta de WhatsApp. Pausando reconexión automática para evitar desconexiones intermitentes.`);
             this.reconnectAttempts = 0;
+            this.rapidDisconnectCount = 0;
+            return;
+          }
+
+          // 2. Detección de bucle de desconexión intermitente rápida (Flapping Circuit Breaker)
+          const sessionDurationMs = this.lastConnectedAt ? (Date.now() - this.lastConnectedAt) : 0;
+          if (this.lastConnectedAt && sessionDurationMs < 8000) {
+            this.rapidDisconnectCount = (this.rapidDisconnectCount || 0) + 1;
+            console.warn(`⚠️ [${this.sessionId}] Desconexión rápida detectada (${this.rapidDisconnectCount}/3) tras solo ${Math.round(sessionDurationMs / 1000)}s.`);
+          } else if (sessionDurationMs > 30000) {
+            this.rapidDisconnectCount = 0;
+          }
+
+          if (this.rapidDisconnectCount >= 3) {
+            console.error(`🚨 [${this.sessionId}] Detectado bucle intermitente continuo (flapping). Las credenciales locales son rechazadas por WhatsApp. Purgando credenciales para forzar nuevo código QR limpio...`);
+            this.rapidDisconnectCount = 0;
+            this.reconnectAttempts = 0;
+            await this.clearAuthFiles({ clearBackup: true });
             setTimeout(() => {
               this.isInitializing = false;
               this.initialize({ resetAuth: true });
@@ -275,9 +346,33 @@ export class WhatsAppService {
             return;
           }
 
-          // Reconexión estándar por caída transitoria de socket (ej: 428, 408, 515, 500, stream conflict)
-          // NUNCA purgar credenciales guardadas por reintentos de red temporales
+          // 3. Sesión revocada explícitamente por WhatsApp (401, loggedOut, badSession)
+          if (isLoggedOut) {
+            console.log(`⚠️ Sesión [${this.sessionId}] cerrada definitivamente por WhatsApp (${statusCode}). Purgando credenciales y backup para emitir nuevo QR...`);
+            await this.clearAuthFiles({ clearBackup: true });
+            this.reconnectAttempts = 0;
+            this.rapidDisconnectCount = 0;
+            setTimeout(() => {
+              this.isInitializing = false;
+              this.initialize({ resetAuth: true });
+            }, 2500);
+            return;
+          }
+
+          // 4. Reconexión estándar por caída transitoria de socket con límite de reintentos
           this.reconnectAttempts++;
+          if (this.reconnectAttempts > 6) {
+            console.warn(`⚠️ [${this.sessionId}] Superado límite máximo de reconexiones automáticas (${this.reconnectAttempts}). Purgando sesión y solicitando nuevo código QR...`);
+            this.reconnectAttempts = 0;
+            this.rapidDisconnectCount = 0;
+            await this.clearAuthFiles({ clearBackup: true });
+            setTimeout(() => {
+              this.isInitializing = false;
+              this.initialize({ resetAuth: true });
+            }, 2500);
+            return;
+          }
+
           const delayMs = Math.min(30000, Math.round(3000 * Math.pow(1.25, Math.min(this.reconnectAttempts, 8))));
           console.log(`Reintentando conexión automática (${this.reconnectAttempts}) en ${Math.round(delayMs / 1000)}s...`);
           setTimeout(() => {
@@ -290,6 +385,8 @@ export class WhatsAppService {
           this.qrCode = null;
           this.qrDataUrl = null;
           this.reconnectAttempts = 0;
+          this.rapidDisconnectCount = 0;
+          this.lastConnectedAt = Date.now();
           this.user = this.sock.user;
           this.emitStatus();
           // Asegurar respaldo de credenciales válidas y activas
@@ -1530,11 +1627,11 @@ export class WhatsAppManager {
       const legacyCreds = path.join(legacyDir, 'creds.json');
       const targetCreds = path.join(targetDir, 'creds.json');
 
-      const hasLegacyCreds = fs.existsSync(legacyCreds) && fs.statSync(legacyCreds).size > 20;
-      const hasTargetCreds = fs.existsSync(targetCreds) && fs.statSync(targetCreds).size > 20;
+      const hasLegacyCreds = isCredsValid(legacyCreds);
+      const hasTargetCreds = isCredsValid(targetCreds);
 
       if (hasLegacyCreds && !hasTargetCreds) {
-        console.log('🔄 [WhatsAppManager] Migrando credenciales activas desde usr-central-admin a la sesión principal auth_info_baileys...');
+        console.log('🔄 [WhatsAppManager] Migrando credenciales activas válidas desde usr-central-admin a la sesión principal auth_info_baileys...');
         if (!fs.existsSync(targetDir)) {
           fs.mkdirSync(targetDir, { recursive: true });
         }
@@ -1685,16 +1782,12 @@ export class WhatsAppManager {
               continue;
             }
             const credsFile = path.join(CONFIG.DATA_DIR, entry, 'creds.json');
-            if (fs.existsSync(credsFile)) {
-              try {
-                if (fs.statSync(credsFile).size > 20) {
-                  console.log(`📱 Inicializando sesión de WhatsApp guardada para operador [${userId}]...`);
-                  const session = this.getSession(userId);
-                  session.initialize().catch(err => {
-                    console.warn(`Aviso inicializando sesión de operador [${userId}]:`, err.message);
-                  });
-                }
-              } catch (_) {}
+            if (isCredsValid(credsFile)) {
+              console.log(`📱 Inicializando sesión de WhatsApp guardada para operador [${userId}]...`);
+              const session = this.getSession(userId);
+              session.initialize().catch(err => {
+                console.warn(`Aviso inicializando sesión de operador [${userId}]:`, err.message);
+              });
             }
           }
         }
