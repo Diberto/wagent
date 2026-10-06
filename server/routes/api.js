@@ -4244,6 +4244,15 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
+  // Reinicio suave del servidor (PM2 auto-reinicia de inmediato)
+  router.post('/system/restart', (req, res) => {
+    res.json({ success: true, message: 'Reiniciando servidor de forma segura...' });
+    setTimeout(() => {
+      console.log('🔄 Reiniciando proceso a solicitud del panel de control...');
+      process.exit(0);
+    }, 1000);
+  });
+
   // --- 9. Backup & Restore System ---
   // Listar respaldos
   router.get('/backups', (req, res) => {
