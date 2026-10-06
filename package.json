@@ -20,6 +20,7 @@
     "pm2:restart": "pm2 restart ecosystem.config.cjs",
     "pm2:logs": "pm2 logs wagent-crm",
     "deploy": "bash scripts/deploy.sh",
+    "deploy:notify": "node scripts/trigger-deploy.js",
     "setup:nginx": "sudo bash scripts/setup-nginx.sh",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
