@@ -32,6 +32,7 @@ import DatabaseView from './components/DatabaseView';
 import LogsView from './components/LogsView';
 import SuiteNavigation from './components/SuiteNavigation';
 import CustomerPortalModal from './components/CustomerPortalModal';
+import LoginView from './components/LoginView';
 import { playNotificationChime, playOrderChime, playMessagePing } from './utils/soundEffects';
 
 const socket = io();
@@ -67,7 +68,27 @@ export default function App() {
 
   // Users & RBAC Session State
   const [allUsers, setAllUsers] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('wagent_user');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+      // Si el visitante entra directo a la tienda pública /tienda, permitir acceso de cliente
+      if (window.location.pathname.startsWith('/tienda')) {
+        return {
+          id: 'usr-cliente-publico',
+          name: 'Cliente Online',
+          username: 'cliente',
+          role: 'cliente',
+          roles: ['cliente'],
+          tabs: ['storefront'],
+          permissions: { canViewStore: true, canOrderWhatsApp: true }
+        };
+      }
+    }
+    return null;
+  });
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isDockVisible, setIsDockVisible] = useState(() => {
     return localStorage.getItem('wagent_suite_dock_collapsed') !== 'true';
@@ -139,20 +160,47 @@ export default function App() {
           if (savedUserJson) {
             try {
               const savedUser = JSON.parse(savedUserJson);
-              const found = usersList.find(u => u.id === savedUser.id);
+              const found = usersList.find(u => u.id === savedUser.id || u.username?.toLowerCase() === savedUser.username?.toLowerCase());
               if (found) {
                 setCurrentUser(found);
-                return;
+              } else if (savedUser.role === 'cliente') {
+                setCurrentUser(savedUser);
               }
             } catch (e) {}
-          }
-          if (usersList.length > 0 && !currentUser) {
-            const adminUser = usersList.find(u => u.role === 'admin') || usersList[0];
-            setCurrentUser(adminUser);
           }
         }
       })
       .catch(err => console.error('Error cargando usuarios:', err));
+  };
+
+  // RBAC Route Guard: Forzar reglas estrictas por rol
+  useEffect(() => {
+    if (currentUser) {
+      // El rol cliente única y exclusivamente puede ver la tienda online y hacer pedidos
+      if (currentUser.role === 'cliente') {
+        if (currentTab !== 'storefront') {
+          setCurrentTab('storefront');
+          if (typeof window !== 'undefined') {
+            window.history.pushState({}, '', '/tienda');
+          }
+        }
+      } else if (currentUser.role !== 'admin' && Array.isArray(currentUser.tabs) && currentUser.tabs.length > 0) {
+        // Operadores con pestañas personalizadas: Si intentan entrar a pestaña no permitida, redirigir
+        if (!currentUser.tabs.includes(currentTab)) {
+          setCurrentTab(currentUser.tabs[0]);
+        }
+      }
+    }
+  }, [currentUser, currentTab]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('wagent_user');
+    localStorage.removeItem('wagent_session');
+    setCurrentUser(null);
+    setCurrentTab('inbox');
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/');
+    }
   };
 
   const handleToggleGlobalAi = async () => {
@@ -559,6 +607,30 @@ export default function App() {
   const totalUnreadCount = leads.reduce((sum, l) => sum + (l.unreadCount || 0), 0);
   const isPosStandalone = typeof window !== 'undefined' && window.location.pathname.startsWith('/pos');
 
+  // Si no hay usuario autenticado en la sesión, mostrar pantalla de inicio de sesión
+  if (!currentUser) {
+    return (
+      <LoginView
+        onLoginSuccess={(user, token) => {
+          setCurrentUser(user);
+          if (user.role === 'cliente') {
+            setCurrentTab('storefront');
+            if (typeof window !== 'undefined') window.history.pushState({}, '', '/tienda');
+          } else if (user.role !== 'admin' && Array.isArray(user.tabs) && user.tabs.length > 0) {
+            if (!user.tabs.includes(currentTab)) {
+              setCurrentTab(user.tabs[0]);
+            }
+          }
+        }}
+        onGuestClientAccess={(clientUser) => {
+          setCurrentUser(clientUser);
+          setCurrentTab('storefront');
+          if (typeof window !== 'undefined') window.history.pushState({}, '', '/tienda');
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen bg-[#0b141a] text-slate-100 overflow-hidden select-none">
       
@@ -592,6 +664,7 @@ export default function App() {
             setCurrentUser(user);
             localStorage.setItem('wagent_user', JSON.stringify(user));
           }}
+          onLogout={handleLogout}
           isMobileDrawerOpen={isMobileDrawerOpen}
           setIsMobileDrawerOpen={setIsMobileDrawerOpen}
           notifications={notifications}
@@ -627,10 +700,14 @@ export default function App() {
       <main className="flex-1 overflow-hidden">
         {currentTab === 'storefront' && (
           <div className="h-full overflow-y-auto custom-scrollbar">
-            <StorefrontView onBackToAdmin={() => {
-              setCurrentTab('inbox');
-              window.history.pushState({}, '', '/');
-            }} />
+            <StorefrontView 
+              currentUser={currentUser}
+              onLogout={handleLogout}
+              onBackToAdmin={currentUser?.role === 'admin' ? () => {
+                setCurrentTab('inbox');
+                window.history.pushState({}, '', '/');
+              } : null} 
+            />
           </div>
         )}
 

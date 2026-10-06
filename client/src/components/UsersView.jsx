@@ -49,19 +49,31 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
   const [showPin, setShowPin] = useState(false);
 
   const availableTabsList = [
-    { id: 'inbox', label: 'Mensajes & Audios WhatsApp' },
-    { id: 'pos', label: 'POS Mostrador (Punto de Venta)' },
-    { id: 'orders', label: 'Gestión de Pedidos' },
-    { id: 'drivers', label: 'Repartidores & Delivery' },
-    { id: 'customers', label: 'Dossier de Clientes' },
-    { id: 'branches', label: 'Sucursales de Carne' },
-    { id: 'catalog', label: 'Catálogo de Cortes & Precios' },
-    { id: 'kanban', label: 'Embudo de Ventas (Kanban)' },
-    { id: 'callcenter', label: 'Llamadas Telefónicas IA' },
-    { id: 'knowledge', label: 'Base de Conocimiento (RAG)' },
-    { id: 'analytics', label: 'Métricas & Estadísticas' },
-    { id: 'users', label: 'Área de Usuarios & Permisos' },
-    { id: 'settings', label: 'Configuración del Sistema' }
+    { id: 'storefront', label: '🛍️ Tienda Online & Pedidos WhatsApp' },
+    { id: 'inbox', label: '💬 Mensajes & Audios WhatsApp' },
+    { id: 'pos', label: '💳 POS Mostrador (Punto de Venta)' },
+    { id: 'orders', label: '📦 Gestión de Pedidos & KDS' },
+    { id: 'drivers', label: '🛵 Repartidores & Delivery' },
+    { id: 'customers', label: '👥 Dossier de Clientes' },
+    { id: 'branches', label: '🏪 Sucursales de Carne' },
+    { id: 'catalog', label: '🥩 Catálogo de Cortes & Precios' },
+    { id: 'coupons', label: '🏷️ Cupones de Descuento' },
+    { id: 'kanban', label: '📊 Embudo de Ventas (Kanban)' },
+    { id: 'callcenter', label: '📞 Llamadas Telefónicas IA' },
+    { id: 'knowledge', label: '📚 Base de Conocimiento (RAG)' },
+    { id: 'analytics', label: '📈 Métricas & Estadísticas' },
+    { id: 'users', label: '🛡️ Área de Usuarios & Permisos' },
+    { id: 'settings', label: '⚙️ Configuración del Sistema' },
+    { id: 'automations', label: '⚡ Automatizaciones & Modo Offline' },
+    { id: 'campaigns', label: '📢 Difusiones & Campañas Masivas' },
+    { id: 'neural-memory', label: '🧠 Red Neuronal & Grafo Cognitivo' },
+    { id: 'agents', label: '🤖 Agentes IA Personalizados' },
+    { id: 'multi-agent', label: '👥 Team Multi-Agente Ops' },
+    { id: 'woo', label: '🌐 Sincronización WooCommerce' },
+    { id: 'recipes', label: '👨‍🍳 Recetas Tradicionales' },
+    { id: 'system-health', label: '🩺 Diagnóstico & Monitoreo' },
+    { id: 'database', label: '💾 Base de Datos & Respaldos' },
+    { id: 'system-logs', label: '📜 Auditoría & Logs del Sistema' }
   ];
 
   const actionPermissionsList = [
@@ -196,6 +208,7 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         branches: [],
         driverId: '',
         pin: '1234',
+        password: '1234',
         status: 'active',
         tabs: [...(defaultRole.tabs || [])],
         permissions: { ...(defaultRole.permissions || {}) },
@@ -237,9 +250,10 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
         branchId: userBranches[0] || '',
         branches: userBranches,
         driverId: user.driverId || '',
-        pin: user.pin || '1234',
+        pin: user.pin || user.password || '1234',
+        password: user.password || user.pin || '1234',
         status: user.status || 'active',
-        tabs: [...(user.tabs || [])],
+        tabs: user.role === 'cliente' ? ['storefront'] : [...(user.tabs || [])],
         permissions: { ...(user.permissions || {}) },
         aiController: user.aiController || {
           provider: 'gemini',
@@ -255,22 +269,38 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
 
   const handleRoleChangeInModal = (newRoleId) => {
     const roleDef = roles.find(r => r.id === newRoleId);
-    if (roleDef) {
-      setUserModal(prev => ({
-        ...prev,
-        data: {
-          ...prev.data,
-          role: newRoleId,
-          tabs: [...(roleDef.tabs || [])],
-          permissions: { ...(roleDef.permissions || {}) }
-        }
-      }));
-    } else {
-      setUserModal(prev => ({
-        ...prev,
-        data: { ...prev.data, role: newRoleId }
-      }));
+    let defaultTabs = [];
+    let defaultPerms = {};
+
+    if (newRoleId === 'cliente') {
+      defaultTabs = ['storefront'];
+      defaultPerms = { canViewStore: true, canOrderWhatsApp: true };
+    } else if (newRoleId === 'admin') {
+      defaultTabs = availableTabsList.map(t => t.id);
+      defaultPerms = {
+        canEditSettings: true,
+        canManageUsers: true,
+        canDeleteOrders: true,
+        canManageBranches: true,
+        canManageDrivers: true,
+        canManageProducts: true,
+        canViewFinancials: true,
+        canToggleAi: true
+      };
+    } else if (roleDef) {
+      defaultTabs = [...(roleDef.tabs || [])];
+      defaultPerms = { ...(roleDef.permissions || {}) };
     }
+
+    setUserModal(prev => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        role: newRoleId,
+        tabs: defaultTabs,
+        permissions: defaultPerms
+      }
+    }));
   };
 
   const handleToggleTabPermission = (tabId) => {
@@ -310,10 +340,30 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
       const url = isCreate ? '/api/users' : `/api/users/${userModal.data.id}`;
       const method = isCreate ? 'POST' : 'PUT';
 
+      const payload = {
+        ...userModal.data,
+        password: userModal.data.password || userModal.data.pin || '1234',
+        pin: userModal.data.pin || userModal.data.password || '1234'
+      };
+
+      // Si es rol cliente, forzar únicamente acceso a tienda online
+      if (payload.role === 'cliente') {
+        payload.tabs = ['storefront'];
+      }
+
+      // Si es el admin general 'republica', asegurar rol admin y acceso total
+      if (payload.username === 'republica' || payload.id === 'usr-admin-republica') {
+        payload.role = 'admin';
+        payload.status = 'active';
+        if (!payload.tabs || payload.tabs.length < availableTabsList.length) {
+          payload.tabs = availableTabsList.map(t => t.id);
+        }
+      }
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userModal.data)
+        body: JSON.stringify(payload)
       });
 
       const saved = await res.json();
@@ -985,28 +1035,55 @@ export default function UsersView({ socket, currentUser, onSwitchUser }) {
                 </div>
               )}
 
-              {/* PIN / Clave */}
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">PIN / Clave de Acceso:</label>
-                <div className="relative">
+              {/* Contraseña de Login y PIN de Acceso */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-[#111b21] rounded-2xl border border-slate-800">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1 text-xs">
+                    🔑 Contraseña de Login (Acceso al Sistema):
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPin ? "text" : "password"}
+                      placeholder="Ej: R3publ1c4B0t"
+                      value={userModal.data.password ?? userModal.data.pin ?? ''}
+                      onChange={(e) => setUserModal({
+                        ...userModal,
+                        data: { 
+                          ...userModal.data, 
+                          password: e.target.value,
+                          pin: e.target.value
+                        }
+                      })}
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white font-mono focus:outline-none focus:border-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPin(!showPin)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      tabIndex={-1}
+                    >
+                      {showPin ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Clave requerida para iniciar sesión</p>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1 text-xs">
+                    🔢 PIN Rápido (POS & Cambio de Operador):
+                  </label>
                   <input
-                    type={showPin ? "text" : "password"}
-                    maxLength={12}
+                    type="text"
+                    maxLength={10}
                     placeholder="1234"
-                    value={userModal.data.pin}
+                    value={userModal.data.pin ?? ''}
                     onChange={(e) => setUserModal({
                       ...userModal,
                       data: { ...userModal.data, pin: e.target.value }
                     })}
-                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white font-mono tracking-widest focus:outline-none focus:border-purple-500"
+                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-slate-700 text-white font-mono tracking-widest focus:outline-none focus:border-purple-500"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPin(!showPin)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                  >
-                    {showPin ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Código numérico para terminales rápidas</p>
                 </div>
               </div>
 

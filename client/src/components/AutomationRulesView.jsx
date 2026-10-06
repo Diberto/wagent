@@ -30,12 +30,13 @@ import {
   ChevronRight
 } from 'lucide-react';
 import BroadcastCampaignsView from './BroadcastCampaignsView';
+import OfflineFlowConfigView from './OfflineFlowConfigView';
 
 export default function AutomationRulesView({ socket }) {
   const [automations, setAutomations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [saveFeedback, setSaveFeedback] = useState(null);
-  const [viewMode, setViewMode] = useState('flow'); // 'flow' | 'rules' | 'broadcast'
+  const [viewMode, setViewMode] = useState('flow'); // 'flow' | 'rules' | 'broadcast' | 'offline'
   const [activeTab, setActiveTab] = useState('all');
   
   // Simulador de Flujo en Vivo
@@ -304,6 +305,15 @@ export default function AutomationRulesView({ socket }) {
               <span>Reglas & Switches</span>
             </button>
             <button
+              onClick={() => setViewMode('offline')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                viewMode === 'offline' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Bot size={14} />
+              <span>Flujo Offline (Sin IA)</span>
+            </button>
+            <button
               onClick={() => setViewMode('broadcast')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                 viewMode === 'broadcast' ? 'bg-emerald-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
@@ -334,6 +344,8 @@ export default function AutomationRulesView({ socket }) {
 
       {viewMode === 'broadcast' ? (
         <BroadcastCampaignsView socket={socket} />
+      ) : viewMode === 'offline' ? (
+        <OfflineFlowConfigView socket={socket} />
       ) : viewMode === 'flow' ? (
         /* VISTA DIAGRAMA DE FLUJO INTERACTIVO DE CONVERSACIÓN & VENTA */
         <div className="space-y-6">

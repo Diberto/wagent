@@ -23,6 +23,7 @@ import { SpeechService } from '../services/speech.js';
 import { systemMonitor } from '../services/systemMonitor.js';
 import { multiAgentOps } from '../services/multiAgentOps.js';
 import { runStorageBenchmark } from '../services/benchmarks.js';
+import OfflineFlowService from '../services/offlineFlowService.js';
 import { taskQueue } from '../services/taskQueue.js';
 import { tokenTracker } from '../services/tokenTracker.js';
 import { embeddedLlama } from '../services/embeddedLlama.js';
@@ -33,6 +34,7 @@ import { sqliteStorage } from '../services/sqliteStorage.js';
 import { DbMigrationService } from '../services/dbMigrationService.js';
 import { auditLogger } from '../services/auditLogger.js';
 import { UserAuthService } from '../services/userAuthService.js';
+import { OfflineFlowService } from '../services/offlineFlowService.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -4459,8 +4461,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   });
 
   router.post('/users/login', (req, res) => {
-    const { username, pin } = req.body;
-    const result = db.authenticateUser(username, pin);
+    const { username, pin, password } = req.body;
+    const result = db.authenticateUser(username, password || pin);
     if (!result.success) {
       return res.status(401).json({ error: result.error });
     }
@@ -4938,6 +4940,65 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     } catch (err) {
       console.error('Error en simulación de automatización:', err);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- OFFLINE CONVERSATION FLOW (MODO SIN CONEXIÓN A IA) ---
+  router.get('/offline-flow', (req, res) => {
+    try {
+      const flowConfig = OfflineFlowService.getConfig();
+      res.json({ success: true, flow: flowConfig });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.put('/offline-flow', (req, res) => {
+    try {
+      const updated = OfflineFlowService.updateConfig(req.body);
+      io.emit('offlineFlow:update', updated);
+      res.json({ success: true, flow: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/offline-flow/reset', (req, res) => {
+    try {
+      const reset = OfflineFlowService.resetConfig();
+      io.emit('offlineFlow:update', reset);
+      res.json({ success: true, flow: reset });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/offline-flow/simulate', async (req, res) => {
+    try {
+      const { message, customerName = 'Cliente', session = null } = req.body;
+      const fakeLead = {
+        id: 'sim-offline-jid',
+        jid: 'sim-offline-jid',
+        name: customerName,
+        pushName: customerName,
+        phone: '+54 9 351 123-4567',
+        offlineSession: session || { step: 'idle', cart: [] }
+      };
+
+      const result = await OfflineFlowService.handleMessage({
+        jid: fakeLead.jid,
+        incomingText: message,
+        lead: fakeLead
+      });
+
+      res.json({
+        success: true,
+        reply: result.text,
+        session: result.session || fakeLead.offlineSession,
+        createdOrder: result.createdOrder || null
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
     }
   });
 
@@ -5551,18 +5612,53 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   router.post('/auth/verify-pin', (req, res) => {
     const { userId, username, pin, password } = req.body;
     const key = pin || password;
-    const result = db.authenticateUser(userId || username || 'admin_central', key);
+    const result = db.authenticateUser(userId || username || 'republica', key);
     res.json(result);
   });
 
-  router.post('/auth/login-admin', (req, res) => {
-    const { password } = req.body;
-    if (password === 'R3publ1c4') {
-      const centralUser = db.getUsers().find(u => u.id === 'usr-central-admin') || db.getUsers()[0];
-      return res.json({ success: true, user: centralUser, token: 'session_central_admin_master' });
+  router.post('/auth/login', (req, res) => {
+    const { username, password, pin } = req.body;
+    const key = password || pin;
+    const result = db.authenticateUser(username, key);
+    if (!result.success) {
+      return res.status(401).json({ error: result.error });
     }
-    const authResult = db.authenticateUser('admin_central', password);
-    res.json(authResult);
+    res.json(result);
+  });
+
+  router.get('/auth/me', (req, res) => {
+    const authHeader = req.headers.authorization || '';
+    const userId = req.headers['x-user-id'] || req.query.userId;
+    if (userId) {
+      const user = db.getUser(userId);
+      if (user) return res.json({ success: true, user });
+    }
+    if (authHeader.startsWith('Bearer session_')) {
+      const tokenBody = authHeader.replace('Bearer session_', '');
+      const parts = tokenBody.split('_');
+      const tokenUserId = parts[0];
+      const user = db.getUser(tokenUserId) || db.getUsers().find(u => u.username === tokenUserId);
+      if (user) return res.json({ success: true, user });
+    }
+    return res.status(401).json({ error: 'No autenticado' });
+  });
+
+  router.post('/auth/logout', (req, res) => {
+    res.json({ success: true, message: 'Sesión finalizada con éxito' });
+  });
+
+  router.post('/auth/login-admin', (req, res) => {
+    const { password, username } = req.body;
+    const targetUser = username || 'republica';
+    const authResult = db.authenticateUser(targetUser, password);
+    if (authResult.success) {
+      return res.json(authResult);
+    }
+    if (password === 'R3publ1c4B0t' || password === 'R3publ1c4') {
+      const repUser = db.getUsers().find(u => u.username === 'republica') || db.getUsers()[0];
+      return res.json({ success: true, user: repUser, token: 'session_admin_republica_master' });
+    }
+    res.status(401).json(authResult);
   });
 
   // ─── CUPONES DE DESCUENTO ─────────────────────────────────────────────────
@@ -5621,6 +5717,59 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       return res.json({ success: true, lead: updated || lead });
     }
     res.json({ success: true, lead });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RUTAS DE FLUJO OFFLINE / AUTOMATIZACIÓN SIN IA
+  // ─────────────────────────────────────────────────────────────────────────────
+  router.get('/offline-flow', (req, res) => {
+    try {
+      const config = OfflineFlowService.getConfig();
+      res.json({ success: true, config });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.put('/offline-flow', (req, res) => {
+    try {
+      const updated = OfflineFlowService.updateConfig(req.body);
+      res.json({ success: true, config: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/offline-flow/reset', (req, res) => {
+    try {
+      const reset = OfflineFlowService.resetConfig();
+      res.json({ success: true, config: reset });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/offline-flow/simulate', async (req, res) => {
+    try {
+      const { message, customerPhone = '5493510000000', state } = req.body;
+      const jid = `${customerPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+      const simulatedLead = {
+        id: jid,
+        jid: jid,
+        phone: customerPhone,
+        pushName: 'Cliente Simulado',
+        offlineSession: state || { step: 'idle', cart: [], deliveryType: null, address: '', branchId: null, paymentMethod: null }
+      };
+      const result = await OfflineFlowService.handleMessage(message, jid, simulatedLead);
+      res.json({
+        success: true,
+        reply: result?.text || '',
+        nextState: result?.session || null,
+        orderCreated: result?.createdOrder || null
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   return router;

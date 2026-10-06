@@ -110,8 +110,25 @@ export default function SuiteNavigation({
     { id: 'system-health', label: 'Diagnóstico & Salud', icon: ShieldCheck }
   ];
 
+  // Los clientes no visualizan la barra administrativa de la Suite
+  if (currentUser?.role === 'cliente') {
+    return null;
+  }
+
+  const userAllowedTabs = currentUser?.role === 'admin'
+    ? null
+    : (Array.isArray(currentUser?.tabs) ? currentUser.tabs : []);
+
+  const visiblePrimaryApps = userAllowedTabs
+    ? primaryApps.filter(a => userAllowedTabs.includes(a.id))
+    : primaryApps;
+
+  const visibleSecondaryApps = userAllowedTabs
+    ? secondaryApps.filter(a => userAllowedTabs.includes(a.id))
+    : secondaryApps;
+
   const isAiAgent = currentUser?.userType === 'ai_agent' || currentUser?.isAIAgent;
-  const currentApp = primaryApps.find(a => a.id === currentTab) || secondaryApps.find(a => a.id === currentTab);
+  const currentApp = visiblePrimaryApps.find(a => a.id === currentTab) || visibleSecondaryApps.find(a => a.id === currentTab);
 
   return (
     <>
@@ -161,7 +178,7 @@ export default function SuiteNavigation({
 
           {/* Primary Navigation Buttons */}
           <div className="flex items-center gap-1">
-            {primaryApps.map((app) => {
+            {visiblePrimaryApps.map((app) => {
               const Icon = app.icon;
               const isActive = currentTab === app.id;
               return (
@@ -190,58 +207,62 @@ export default function SuiteNavigation({
             })}
           </div>
 
-          <div className="h-6 w-[1px] bg-slate-700/80 mx-1" />
+          {visibleSecondaryApps.length > 0 && (
+            <>
+              <div className="h-6 w-[1px] bg-slate-700/80 mx-1" />
 
-          {/* Botón Apps Extra / Más Módulos */}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setIsExpandedMenuOpen(!isExpandedMenuOpen);
-                setIsThemePickerOpen(false);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-medium transition ${
-                isExpandedMenuOpen ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-              }`}
-              title="Más herramientas y módulos"
-            >
-              <Grid size={16} />
-              <span>Módulos</span>
-              {isExpandedMenuOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </button>
+              {/* Botón Apps Extra / Más Módulos */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setIsExpandedMenuOpen(!isExpandedMenuOpen);
+                    setIsThemePickerOpen(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-medium transition ${
+                    isExpandedMenuOpen ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                  }`}
+                  title="Más herramientas y módulos"
+                >
+                  <Grid size={16} />
+                  <span>Módulos</span>
+                  {isExpandedMenuOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                </button>
 
-            {/* Menú Popover Empaquetado */}
-            {isExpandedMenuOpen && (
-              <div className="absolute bottom-14 right-0 w-72 bg-[#182229] border border-slate-700 rounded-3xl p-3 shadow-2xl backdrop-blur-xl animate-fade-in z-50">
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 mb-1 border-b border-slate-800 flex items-center justify-between">
-                  <span>Herramientas Adicionales</span>
-                  <span className="text-[10px] text-red-400 font-mono">10 Apps</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5 max-h-80 overflow-y-auto custom-scrollbar p-1">
-                  {secondaryApps.map((subApp) => {
-                    const SubIcon = subApp.icon;
-                    const isCurrent = currentTab === subApp.id;
-                    return (
-                      <button
-                        key={subApp.id}
-                        onClick={() => {
-                          setCurrentTab(subApp.id);
-                          setIsExpandedMenuOpen(false);
-                        }}
-                        className={`flex items-center gap-2 p-2 rounded-xl text-left text-xs transition ${
-                          isCurrent 
-                            ? 'bg-red-600/30 text-red-300 font-bold border border-red-500/40' 
-                            : 'text-slate-300 hover:text-white hover:bg-slate-800'
-                        }`}
-                      >
-                        <SubIcon size={15} className="shrink-0 text-slate-400" />
-                        <span className="truncate">{subApp.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Menú Popover Empaquetado */}
+                {isExpandedMenuOpen && (
+                  <div className="absolute bottom-14 right-0 w-72 bg-[#182229] border border-slate-700 rounded-3xl p-3 shadow-2xl backdrop-blur-xl animate-fade-in z-50">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2.5 py-1 mb-1 border-b border-slate-800 flex items-center justify-between">
+                      <span>Herramientas Adicionales</span>
+                      <span className="text-[10px] text-red-400 font-mono">{visibleSecondaryApps.length} Apps</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 max-h-80 overflow-y-auto custom-scrollbar p-1">
+                      {visibleSecondaryApps.map((subApp) => {
+                        const SubIcon = subApp.icon;
+                        const isCurrent = currentTab === subApp.id;
+                        return (
+                          <button
+                            key={subApp.id}
+                            onClick={() => {
+                              setCurrentTab(subApp.id);
+                              setIsExpandedMenuOpen(false);
+                            }}
+                            className={`flex items-center gap-2 p-2 rounded-xl text-left text-xs transition ${
+                              isCurrent 
+                                ? 'bg-red-600/30 text-red-300 font-bold border border-red-500/40' 
+                                : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                            }`}
+                          >
+                            <SubIcon size={15} className="shrink-0 text-slate-400" />
+                            <span className="truncate">{subApp.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
 
           {/* Botón Selector de Temas / Personalización */}
           <div className="relative">

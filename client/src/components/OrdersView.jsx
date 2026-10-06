@@ -115,14 +115,62 @@ export const parseOrderItems = (order) => {
     return '🥩';
   };
 
+  // 1. Si existen productos estructurados en order.products con al menos 1 elemento,
+  // ESTE ES LA FUENTE DE VERDAD. No mezclar con order.items para no duplicar filas.
+  if (Array.isArray(order.products) && order.products.length > 0) {
+    return order.products.map((p, idx) => {
+      const qty = Number(p.quantity) || 1;
+      const unit = p.unit || 'kg';
+      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
+      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
+        ? rawName 
+        : (p.product || `Corte Seleccionado ${idx + 1}`);
+      const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
+      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
+      return {
+        id: p.id || `prod-${idx}`,
+        name,
+        quantity: qty,
+        unit,
+        price: unitPrice,
+        total: lineSubtotal > 0 ? lineSubtotal : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.products.length)),
+        icon: p.icon || getIcon(name)
+      };
+    });
+  }
+
+  // 2. Si order.items es un array de objetos estructurados
+  if (Array.isArray(order.items) && order.items.length > 0 && typeof order.items[0] === 'object' && order.items[0] !== null) {
+    return order.items.map((item, idx) => {
+      const qty = Number(item.quantity || item.qty || 1);
+      const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
+      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte Seleccionado ${idx + 1}`;
+      const sub = Number(item.subtotal || item.total || 0) || (Number(item.unitPrice || item.price || 0) * qty);
+      return {
+        id: item.id || `item-${idx}`,
+        name,
+        quantity: qty,
+        unit: item.unit || 'kg',
+        price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
+        total: sub > 0 ? sub : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.items.length)),
+        icon: item.icon || getIcon(name)
+      };
+    });
+  }
+
+  // Helper para parsear una sola línea de texto sin destruir números de cantidades
   const parseSingleTextItem = (itemStr, idx, totalAmount, count) => {
-    let cleanStr = String(itemStr).replace(/^[•\-\*\d\.\)\s]+/, '').trim();
+    // Quitar únicamente viñetas (•, -, *, +, etc.) o enumeraciones tipo "1. " o "1) "
+    let cleanStr = String(itemStr)
+      .replace(/^[\s•\-\*\+]+/, '')
+      .replace(/^\d+[\.\)\-]\s+/, '')
+      .trim();
     let qty = 1;
     let unit = 'un';
     let lineSubtotal = 0;
     let name = cleanStr;
 
-    // Detectar cantidad al inicio en gramos o kilos (ej: "250g de Chorizo", "500 grs", "0.25 kg", "2 kg")
+    // Detectar cantidad al inicio en gramos o kilos (ej: "250g de Chorizo", "500 grs", "0.25 kg", "2 kg", "2kg")
     const gramMatch = cleanStr.match(/^([0-9.,]+)\s*(?:g|gr|grs|gramos)\s+(?:de\s+)?/i);
     if (gramMatch) {
       const parsedGrams = parseFloat(gramMatch[1].replace(',', '.')) || 0;
@@ -141,7 +189,7 @@ export const parseOrderItems = (order) => {
       }
     }
 
-    // Detectar precio/subtotal: "— $39.999", "($39.999)", "$39.999" o "$39999"
+    // Detectar precio/subtotal al final: "— $39.999", "($39.999)", "$39.999" o "$39999"
     const priceMatch = name.match(/(?:—|\-|\()\s*\$?\s*([0-9.,]+)\s*\)?$/i);
     if (priceMatch) {
       lineSubtotal = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
@@ -164,65 +212,23 @@ export const parseOrderItems = (order) => {
     };
   };
 
-  // 1. Parsear productos estructurados si existen
-  let structuredList = [];
-  if (Array.isArray(order.products) && order.products.length > 0) {
-    structuredList = order.products.map((p, idx) => {
-      const qty = Number(p.quantity) || 1;
-      const unit = p.unit || 'kg';
-      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
-      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
-        ? rawName 
-        : (p.product || `Corte Seleccionado ${idx + 1}`);
-      const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
-      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
-      return {
-        id: p.id || `prod-${idx}`,
-        name,
-        quantity: qty,
-        unit,
-        price: unitPrice,
-        total: lineSubtotal > 0 ? lineSubtotal : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.products.length)),
-        icon: p.icon || getIcon(name)
-      };
-    });
-  }
-
-  // 2. Extraer líneas de texto de items
+  // 3. Si order.items es un string JSON o texto plano
   let rawTextLines = [];
   if (Array.isArray(order.items)) {
-    order.items.forEach(item => {
-      if (typeof item === 'object' && item !== null) {
-        const qty = Number(item.quantity || item.qty || 1);
-        const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
-        const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : 'Corte Seleccionado';
-        const sub = Number(item.subtotal || 0) || (Number(item.unitPrice || item.price || 0) * qty);
-        structuredList.push({
-          id: item.id || `oi-${Math.random()}`,
-          name,
-          quantity: qty,
-          unit: item.unit || 'kg',
-          price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
-          total: sub > 0 ? sub : Math.round((Number(order.totalAmount) || 0)),
-          icon: item.icon || getIcon(name)
-        });
-      } else if (typeof item === 'string' && item.trim()) {
-        rawTextLines.push(item.trim());
-      }
-    });
+    rawTextLines = order.items.filter(i => typeof i === 'string' && i.trim()).map(i => i.trim());
   } else if (typeof order.items === 'string' && order.items.trim()) {
     const trimmed = order.items.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       try {
         const parsed = JSON.parse(trimmed);
         const arr = Array.isArray(parsed) ? parsed : [parsed];
-        arr.forEach((p, idx) => {
+        return arr.map((p, idx) => {
           if (typeof p === 'object' && p !== null) {
             const qty = Number(p.quantity || p.qty || 1);
             const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.product || '');
             const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte ${idx + 1}`;
             const total = Number(p.subtotal || p.total || 0) || (Number(p.price || 0) * qty);
-            structuredList.push({
+            return {
               id: p.id || `pj-${idx}`,
               name,
               quantity: qty,
@@ -230,8 +236,9 @@ export const parseOrderItems = (order) => {
               price: Number(p.unitPrice || p.price || 0) || (qty > 0 ? Math.round(total / qty) : total),
               total: total > 0 ? total : Math.round((Number(order.totalAmount) || 0) / Math.max(1, arr.length)),
               icon: p.icon || getIcon(name)
-            });
+            };
           }
+          return parseSingleTextItem(p, idx, order.totalAmount, arr.length);
         });
       } catch (e) {
         rawTextLines = trimmed.split('\n').map(s => s.trim()).filter(Boolean);
@@ -241,31 +248,10 @@ export const parseOrderItems = (order) => {
     }
   }
 
-  // 3. Si hay líneas de texto de items, verificar si aportan cortes no incluidos en structuredList
   if (rawTextLines.length > 0) {
-    const parsedTextItems = rawTextLines.map((str, idx) =>
+    return rawTextLines.map((str, idx) =>
       parseSingleTextItem(str, idx, order.totalAmount, rawTextLines.length)
     );
-
-    if (structuredList.length === 0) {
-      return parsedTextItems;
-    }
-
-    // Si structuredList ya tiene items, incorporar aquellos de rawTextLines que no estén repetidos
-    for (const textItem of parsedTextItems) {
-      const cleanName = textItem.name.toLowerCase().trim();
-      const isDuplicate = structuredList.some(p => {
-        const pName = p.name.toLowerCase().trim();
-        return pName === cleanName || pName.includes(cleanName) || cleanName.includes(pName);
-      });
-      if (!isDuplicate) {
-        structuredList.push(textItem);
-      }
-    }
-  }
-
-  if (structuredList.length > 0) {
-    return structuredList;
   }
 
   return [{
@@ -1451,20 +1437,6 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       (order.address || '').toLowerCase().includes(search.toLowerCase()) ||
       (order.id || '').toLowerCase().includes(search.toLowerCase());
 
-    const isOrderArchived = Boolean(order.isArchived) || order.status === 'completed' || order.status === 'archived';
-    let matchesStatus = true;
-    if (statusFilter === 'all') {
-      matchesStatus = true;
-    } else if (statusFilter === 'active') {
-      matchesStatus = !isOrderArchived && order.status !== 'cancelled';
-    } else if (statusFilter === 'completed' || statusFilter === 'archived') {
-      matchesStatus = isOrderArchived;
-    } else if (statusFilter === 'ready') {
-      matchesStatus = (order.status === 'ready' || order.status === 'ready_for_pickup' || order.isPrepared) && !isOrderArchived;
-    } else {
-      matchesStatus = order.status === statusFilter;
-    }
-
     let ch = (order.channel || order.source || order.origin || '').toUpperCase();
     if (!ch) {
       if (order.notes?.includes('[POS') || order.origin === 'pos' || order.origin === 'POS') ch = 'POS';
@@ -1472,6 +1444,24 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       else ch = 'WHATSAPP';
     }
     const matchesChannel = channelFilter === 'all' || ch === channelFilter;
+
+    const isOrderArchived = Boolean(order.isArchived) || order.status === 'archived';
+    let matchesStatus = true;
+    if (statusFilter === 'all') {
+      matchesStatus = true;
+    } else if (statusFilter === 'active') {
+      if (channelFilter === 'POS' || ch === 'POS') {
+        matchesStatus = !order.isArchived && order.status !== 'archived' && order.status !== 'cancelled';
+      } else {
+        matchesStatus = !isOrderArchived && order.status !== 'completed' && order.status !== 'cancelled';
+      }
+    } else if (statusFilter === 'completed' || statusFilter === 'archived') {
+      matchesStatus = isOrderArchived || order.status === 'completed';
+    } else if (statusFilter === 'ready') {
+      matchesStatus = (order.status === 'ready' || order.status === 'ready_for_pickup' || order.isPrepared) && !isOrderArchived;
+    } else {
+      matchesStatus = order.status === statusFilter;
+    }
 
     return matchesSearch && matchesStatus && matchesChannel;
   });
@@ -1920,10 +1910,10 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                         <MapPin size={11} className="text-rose-400 shrink-0" />
                         <span className="truncate">{order.address || 'A convenir'}</span>
                       </div>
-                      {order.branchName && (
+                      {(order.branchName || order.branch) && (
                         <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5 truncate">
                           <Store size={10} className="shrink-0" />
-                          <span className="truncate">{order.branchName}</span>
+                          <span className="truncate">{order.branchName || order.branch}</span>
                         </div>
                       )}
                       {order.driverName && (
@@ -2132,7 +2122,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Store size={13} className="text-emerald-400 shrink-0" />
                   <select
-                    value={order.branchId || ''}
+                    value={order.branchId || branches.find(b => b.name === order.branchName || b.name === order.branch)?.id || ''}
                     onChange={(e) => handleQuickAssignBranch(order.id, e.target.value)}
                     className="w-full bg-transparent text-slate-200 font-semibold text-xs focus:outline-none cursor-pointer truncate appearance-none"
                     title="Cambiar sucursal asignada (clic para seleccionar)"

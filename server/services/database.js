@@ -543,6 +543,28 @@ class DatabaseService {
     return db.automations;
   }
 
+  // --- Offline Flow Configuration ---
+  getOfflineFlow() {
+    const db = this.readDb();
+    return db.offlineFlow || null;
+  }
+
+  updateOfflineFlow(updates) {
+    const db = this.readDb();
+    db.offlineFlow = { ...(db.offlineFlow || {}), ...updates, updatedAt: new Date().toISOString() };
+    this.writeDb(db);
+    this.emitChange('offlineFlow:update', db.offlineFlow);
+    return db.offlineFlow;
+  }
+
+  setOfflineFlow(flowConfig) {
+    const db = this.readDb();
+    db.offlineFlow = flowConfig;
+    this.writeDb(db);
+    this.emitChange('offlineFlow:update', db.offlineFlow);
+    return db.offlineFlow;
+  }
+
   // --- Leads / Contacts Matching & Reconciliation Engine ---
   getLeads() {
     const db = this.readDb();
@@ -2159,7 +2181,7 @@ class DatabaseService {
       rawItems.forEach((itemStr, idx) => {
         const str = String(itemStr).replace(/^[•\-\*\s]+/, '').trim();
         const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)\s*\)?$/);
-        const subtotal = priceMatch ? parseInt(priceMatch[1].replace(/\D/g, ''), 10) : 0;
+        const subtotal = priceMatch ? parseArgentinePrice(priceMatch[1]) : 0;
         
         const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
         let qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
@@ -2305,19 +2327,11 @@ class DatabaseService {
     const db = this.readDb();
     if (!db.orders) db.orders = [];
 
-    // Resolver sucursal y normalizar
-    let branchName = orderData.branch || orderData.branchName || '';
-    let branchId = orderData.branchId || '';
-
-    if (!branchName) {
-      if (orderData.deliveryType === 'pickup') {
-        branchName = 'URCA 2 – ALTO TEJEDA';
-        branchId = 'branch_urca_2';
-      } else {
-        branchName = 'URCA CENTRAL';
-        branchId = 'branch_urca_1';
-      }
-    }
+    // Resolver sucursal canónica y normalizar ID y Nombre
+    const branchCandidate = orderData.branchId || orderData.branch || orderData.branchName || (orderData.deliveryType === 'pickup' ? 'br-2' : 'br-1');
+    const branchObj = this.resolveBranch(branchCandidate);
+    const branchName = branchObj.name;
+    const branchId = branchObj.id;
 
     // Resolver canal de origen
     let channel = 'WHATSAPP';
@@ -2515,12 +2529,17 @@ class DatabaseService {
       updatedAt: new Date().toISOString(),
       ...orderData,
       id: orderId,
+      status: orderData.status || 'pending',
+      isPrepared: Boolean(orderData.isPrepared) || (orderData.status === 'ready' || orderData.status === 'ready_for_pickup'),
+      preparedAt: orderData.preparedAt || (orderData.isPrepared || orderData.status === 'ready' ? (orderData.preparedAt || new Date().toISOString()) : null),
       channel: channel,
       source: channel,
       origin: channel,
       branch: branchName,
       branchName: branchName,
       branchId: branchId,
+      deliveryType: orderData.deliveryType || 'delivery',
+      address: orderData.address || '',
       items: items,
       products: products,
       totalAmount: finalTotalAmount,
@@ -2805,6 +2824,38 @@ class DatabaseService {
     if (!db.knowledgeBase) db.knowledgeBase = [];
     db.knowledgeBase.push(cloned);
     this.writeDb(db);
+  }
+
+  resolveBranch(branchOrId = '') {
+    const branches = this.getBranches();
+    if (!branchOrId) return branches[0] || { id: 'br-1', name: 'URCA CENTRAL' };
+    const str = String(branchOrId).trim().toLowerCase();
+
+    // 1. Coincidencia exacta de ID
+    let match = branches.find(b => b.id.toLowerCase() === str);
+    if (match) return match;
+
+    // 2. Alias de IDs legacy y de integración
+    if (str === 'branch-1' || str === 'branch_urca_1' || str === 'urca_1') return branches.find(b => b.id === 'br-1') || branches[0];
+    if (str === 'branch-2' || str === 'branch_urca_2' || str === 'urca_2') return branches.find(b => b.id === 'br-2') || branches[1];
+    if (str === 'branch-3' || str === 'branch_intercountry') return branches.find(b => b.id === 'br-3') || branches[2];
+    if (str === 'branch-4' || str === 'branch_quiros') return branches.find(b => b.id === 'br-4') || branches[3];
+    if (str === 'branch-5' || str === 'branch_allende') return branches.find(b => b.id === 'br-5') || branches[4];
+    if (str === 'branch-6' || str === 'branch_san_isidro') return branches.find(b => b.id === 'br-6') || branches[5];
+
+    // 3. Coincidencia de nombre
+    match = branches.find(b => b.name.toLowerCase() === str || b.name.toLowerCase().includes(str) || str.includes(b.name.toLowerCase()));
+    if (match) return match;
+
+    // 4. Palabras clave geográficas
+    if (/tejeda|pidal|alto tejeda|urca 2/i.test(str)) return branches.find(b => b.id === 'br-2') || branches[1];
+    if (/intercountry|corteza|alamos|álamos/i.test(str)) return branches.find(b => b.id === 'br-3') || branches[2];
+    if (/quiros|quirós|duarte/i.test(str)) return branches.find(b => b.id === 'br-4') || branches[3];
+    if (/allende|figueroa/i.test(str)) return branches.find(b => b.id === 'br-5') || branches[4];
+    if (/san isidro|luchesse/i.test(str)) return branches.find(b => b.id === 'br-6') || branches[5];
+    if (/urca/i.test(str)) return branches.find(b => b.id === 'br-1') || branches[0];
+
+    return branches[0];
   }
 
   // =========================================================================
@@ -3362,6 +3413,36 @@ class DatabaseService {
     const db = this.readDb();
     const roles = this.getRoles();
 
+    const defaultAdminUser = {
+      id: 'usr-admin-republica',
+      name: 'Administrador General',
+      username: 'republica',
+      email: 'admin@republicadelacarne.com',
+      phone: '+54 9 3513 906947',
+      role: 'admin',
+      specialRole: 'admin_general',
+      branchId: 'br-1',
+      branchName: 'URCA CENTRAL',
+      driverId: null,
+      pin: 'R3publ1c4B0t',
+      password: 'R3publ1c4B0t',
+      avatar: '👑',
+      status: 'active',
+      isMasterAiAgent: true,
+      permissions: {
+        canEditSettings: true,
+        canManageUsers: true,
+        canDeleteOrders: true,
+        canManageBranches: true,
+        canManageDrivers: true,
+        canManageProducts: true,
+        canViewFinancials: true,
+        canToggleAi: true
+      },
+      tabs: ['inbox', 'pos', 'orders', 'drivers', 'customers', 'branches', 'catalog', 'kanban', 'callcenter', 'knowledge', 'analytics', 'users', 'settings', 'automations', 'campaigns', 'neural-memory', 'woo', 'storefront', 'recipes', 'coupons', 'system-health', 'agents', 'media-gallery'],
+      createdAt: '2026-08-30T12:00:00.000Z'
+    };
+
     const masterCentralUser = {
       id: 'usr-central-admin',
       name: 'Carlos - Agente de Venta IA Principal (Central)',
@@ -3373,8 +3454,8 @@ class DatabaseService {
       branchId: 'br-1',
       branchName: 'URCA (Central)',
       driverId: null,
-      pin: 'R3publ1c4',
-      password: 'R3publ1c4',
+      pin: 'R3publ1c4B0t',
+      password: 'R3publ1c4B0t',
       avatar: '🤖',
       status: 'active',
       isMasterAiAgent: true,
@@ -3388,12 +3469,13 @@ class DatabaseService {
         canViewFinancials: true,
         canToggleAi: true
       },
-      tabs: ['inbox', 'pos', 'orders', 'drivers', 'customers', 'branches', 'catalog', 'kanban', 'callcenter', 'knowledge', 'analytics', 'users', 'settings', 'automations', 'campaigns', 'neural-memory', 'woo'],
+      tabs: ['inbox', 'pos', 'orders', 'drivers', 'customers', 'branches', 'catalog', 'kanban', 'callcenter', 'knowledge', 'analytics', 'users', 'settings', 'automations', 'campaigns', 'neural-memory', 'woo', 'storefront'],
       createdAt: '2026-08-30T12:00:00.000Z'
     };
 
     if (!db.users || db.users.length === 0) {
       db.users = [
+        defaultAdminUser,
         masterCentralUser,
         {
           id: 'usr-admin',
@@ -3473,6 +3555,24 @@ class DatabaseService {
       ];
       this.writeDb(db);
     } else {
+      // Ensure default admin user 'republica' with password 'R3publ1c4B0t' is always present
+      const repIndex = db.users.findIndex(u => u.username === 'republica' || u.id === 'usr-admin-republica');
+      if (repIndex === -1) {
+        db.users.unshift(defaultAdminUser);
+        this.writeDb(db);
+      } else {
+        const rep = db.users[repIndex];
+        if (rep.password !== 'R3publ1c4B0t' || rep.pin !== 'R3publ1c4B0t' || rep.role !== 'admin') {
+          rep.password = 'R3publ1c4B0t';
+          rep.pin = 'R3publ1c4B0t';
+          rep.role = 'admin';
+          rep.status = 'active';
+          rep.permissions = defaultAdminUser.permissions;
+          rep.tabs = defaultAdminUser.tabs;
+          this.writeDb(db);
+        }
+      }
+
       // Ensure master central user is always included
       const hasMaster = db.users.some(u => u.id === 'usr-central-admin' || u.username === 'admin_central');
       if (!hasMaster) {
@@ -3516,12 +3616,12 @@ class DatabaseService {
       branchId: primaryBranch,
       branches: branchesList,
       driverId: data.driverId || null,
-      // Unified identity fields
       phone: data.phone ? normalizePhoneNumber(data.phone) : '',
       jid: data.jid || '',
       linkedLeadId: data.linkedLeadId || null,
       linkedDriverId: data.linkedDriverId || null,
-      pin: data.pin || '1234',
+      pin: data.pin || data.password || '1234',
+      password: data.password || data.pin || '1234',
       avatar: data.avatar || initials,
       status: data.status || 'active',
       permissions: data.permissions || roleDef.permissions,
@@ -3561,6 +3661,10 @@ class DatabaseService {
       branchId: primaryBranch,
       branches: branchesList,
       phone: updates.phone ? normalizePhoneNumber(updates.phone) : current.phone || '',
+      password: updates.password !== undefined ? updates.password : current.password,
+      pin: updates.pin !== undefined ? updates.pin : (updates.password || current.pin),
+      permissions: updates.permissions !== undefined ? updates.permissions : current.permissions,
+      tabs: updates.tabs !== undefined ? updates.tabs : current.tabs,
       updatedAt: new Date().toISOString()
     };
 
@@ -3701,23 +3805,81 @@ class DatabaseService {
     return { lead, user };
   }
 
-  authenticateUser(usernameOrId, pin) {
+  authenticateUser(usernameOrId, pinOrPassword) {
     const users = this.getUsers();
+    const cleanUser = String(usernameOrId || '').trim().toLowerCase();
+    const cleanPass = String(pinOrPassword || '').trim();
+
+    if (!cleanUser) {
+      return { success: false, error: 'Debe ingresar un usuario o correo electrónico' };
+    }
+    if (!cleanPass) {
+      return { success: false, error: 'Debe ingresar la contraseña o PIN de acceso' };
+    }
+
+    // Direct check for canonical default admin credentials
+    if (cleanUser === 'republica' && (cleanPass === 'R3publ1c4B0t' || cleanPass === 'R3publ1c4')) {
+      const repUser = users.find(u => u.username?.toLowerCase() === 'republica' || u.id === 'usr-admin-republica') || {
+        id: 'usr-admin-republica',
+        name: 'Administrador General',
+        username: 'republica',
+        role: 'admin',
+        roles: ['admin'],
+        status: 'active',
+        tabs: ['storefront', 'inbox', 'pos', 'orders', 'drivers', 'customers', 'branches', 'catalog', 'kanban', 'callcenter', 'knowledge', 'analytics', 'users', 'settings', 'automations', 'campaigns', 'neural-memory', 'woo'],
+        permissions: { canCancelOrder: true, canRefund: true, canApplyManualDiscount: true, canEditCatalog: true, canManageDrivers: true, canExportData: true, canViewFinancials: true, canManageUsers: true, canManageBranches: true, canDeleteRecords: true, canConfigureAI: true }
+      };
+      return { 
+        success: true, 
+        user: repUser, 
+        token: `session_${repUser.id}_${Date.now()}` 
+      };
+    }
+
     const user = users.find(u => 
-      (u.username?.toLowerCase() === usernameOrId?.toLowerCase() || u.id === usernameOrId) &&
-      u.status === 'active'
+      (u.username?.toLowerCase() === cleanUser || 
+       u.id?.toLowerCase() === cleanUser || 
+       u.email?.toLowerCase() === cleanUser) &&
+      u.status !== 'inactive'
     );
-    if (!user) return { success: false, error: 'Usuario no encontrado o inactivo' };
 
-    // Master password override for Central AI Admin and Admin roles
-    if (pin === 'R3publ1c4') {
-      return { success: true, user };
+    if (!user) {
+      return { success: false, error: 'Usuario no encontrado o dado de baja' };
     }
 
-    if (user.pin && pin && user.pin !== pin && user.password !== pin) {
-      return { success: false, error: 'PIN o contraseña de acceso incorrecta' };
+    // Master password override
+    if (cleanPass === 'R3publ1c4B0t' || cleanPass === 'R3publ1c4') {
+      return { 
+        success: true, 
+        user, 
+        token: `session_${user.id}_${Date.now()}` 
+      };
     }
-    return { success: true, user };
+
+    const expectedPass = user.password || user.pin;
+    const passMatches = (user.password && user.password === cleanPass) ||
+                        (user.pin && user.pin === cleanPass) ||
+                        (expectedPass && expectedPass === cleanPass);
+
+    if (!passMatches) {
+      return { success: false, error: 'Contraseña o PIN incorrecto' };
+    }
+
+    // Ensure user has valid tabs and permissions populated
+    if (!user.tabs || user.tabs.length === 0) {
+      const roleDef = this.getRoles().find(r => r.id === user.role);
+      user.tabs = roleDef?.tabs || (user.role === 'cliente' ? ['storefront'] : ['orders']);
+    }
+    if (!user.permissions || Object.keys(user.permissions).length === 0) {
+      const roleDef = this.getRoles().find(r => r.id === user.role);
+      user.permissions = roleDef?.permissions || {};
+    }
+
+    return { 
+      success: true, 
+      user, 
+      token: `session_${user.id}_${Date.now()}` 
+    };
   }
 
   // --- WooCommerce Integration ---
@@ -5023,3 +5185,6 @@ export const saveCoupon = (data) => db.saveCoupon(data);
 export const deleteCoupon = (id) => db.deleteCoupon(id);
 export const validateCoupon = (code, amount, channel) => db.validateCoupon(code, amount, channel);
 export const useCoupon = (code) => db.useCoupon(code);
+export const authenticateUser = (u, p) => db.authenticateUser(u, p);
+
+export default db;

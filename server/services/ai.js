@@ -11,6 +11,7 @@ import { OrderFilterEngine } from './orderFilterEngine.js';
 import { tokenTracker } from './tokenTracker.js';
 import { embeddedLlama } from './embeddedLlama.js';
 import { OrderSyncEngine } from './orderSyncEngine.js';
+import { OfflineFlowService } from './offlineFlowService.js';
 import { 
   getVariedGreeting, 
   getContextualGreeting,
@@ -2822,7 +2823,19 @@ Whenever the user asks about the current time, date, products count, orders, or 
     const products = db.getProducts();
 
     // =========================================================================
-    // 0. DETECCIÓN Y PROCESAMIENTO DE COMANDOS /godmode Y MODO LIBRE DE IA
+    // 0. VERIFICACIÓN DE MODO OFFLINE FORZADO (Configuración de flujo sin IA)
+    // =========================================================================
+    const offlineFlowConfig = db.getOfflineFlow();
+    if (offlineFlowConfig && offlineFlowConfig.enabled && offlineFlowConfig.forceOfflineMode) {
+      const offlineResult = await OfflineFlowService.handleMessage({ jid, incomingText, lead });
+      return {
+        text: offlineResult.text,
+        shouldSendAudio: false
+      };
+    }
+
+    // =========================================================================
+    // 0.1 DETECCIÓN Y PROCESAMIENTO DE COMANDOS /godmode Y MODO LIBRE DE IA
     // =========================================================================
     const trimmedInput = (incomingText || '').trim();
     const isGodModeCommand = /^\/godmode(?:\s+.*)?$/i.test(trimmedInput);
@@ -3007,12 +3020,28 @@ REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi ped
         if (llmResponse && llmResponse.trim()) {
           replyText = llmResponse.trim();
         } else {
-          replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+          const offlineConfig = db.getOfflineFlow();
+          if (offlineConfig && offlineConfig.enabled && offlineConfig.autoFallbackOnAiFailure !== false) {
+            const offlineResult = await OfflineFlowService.handleMessage({ jid, incomingText, lead });
+            replyText = offlineResult.text;
+          } else {
+            replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+          }
         }
       }
     } catch (error) {
       console.error('Error generando respuesta con IA:', error);
-      replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+      const offlineConfig = db.getOfflineFlow();
+      if (offlineConfig && offlineConfig.enabled && offlineConfig.autoFallbackOnAiFailure !== false) {
+        try {
+          const offlineResult = await OfflineFlowService.handleMessage({ jid, incomingText, lead });
+          replyText = offlineResult.text;
+        } catch (offErr) {
+          replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+        }
+      } else {
+        replyText = await this.generateDynamicReply(incomingText, lead, knowledgeBase, settings, history);
+      }
     }
 
     let suggestedStage = null;

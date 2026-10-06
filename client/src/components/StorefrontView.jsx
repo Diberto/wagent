@@ -119,7 +119,7 @@ function getUnitsPerKg(name = '') {
   return 4;
 }
 
-export default function StorefrontView({ onBackToAdmin = null }) {
+export default function StorefrontView({ onBackToAdmin = null, currentUser = null, onLogout = null }) {
   const [activeTab, setActiveTab] = useState('catalog'); // 'catalog' | 'tracking'
   const [products, setProducts] = useState([]);
   const [branches, setBranches] = useState(DEFAULT_BRANCHES);
@@ -848,6 +848,26 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                 <User size={13} />
                 <span>Mi Cuenta</span>
               </button>
+              {onBackToAdmin && currentUser?.role === 'admin' && (
+                <button
+                  onClick={onBackToAdmin}
+                  className="px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 bg-red-600/25 hover:bg-red-600/35 text-red-200 border border-red-500/40 font-bold"
+                  title="Volver al Panel de Administración"
+                >
+                  <ShieldCheck size={13} className="text-red-400" />
+                  <span>Panel Admin</span>
+                </button>
+              )}
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 font-semibold"
+                  title="Cerrar Sesión"
+                >
+                  <ArrowRight size={13} />
+                  <span>Salir</span>
+                </button>
+              )}
             </nav>
 
             {/* Botón Carrito Apple Glass */}
@@ -904,6 +924,16 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
             <User size={12} />
             <span>Mi Cuenta</span>
           </button>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="py-2.5 px-3 text-center border-b-2 border-transparent text-slate-400 hover:text-rose-400 font-semibold hover:bg-white/[0.04] flex items-center justify-center gap-1 text-[11px]"
+              title="Cerrar Sesión"
+            >
+              <ArrowRight size={11} />
+              <span>Salir</span>
+            </button>
+          )}
         </nav>
       </header>
 

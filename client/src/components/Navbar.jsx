@@ -35,7 +35,8 @@ import {
   Database,
   Terminal,
   Eye,
-  EyeOff
+  EyeOff,
+  LogOut
 } from 'lucide-react';
 
 
@@ -53,6 +54,7 @@ export default function Navbar({
   currentUser,
   allUsers = [],
   onSwitchUser,
+  onLogout,
   isMobileDrawerOpen,
   setIsMobileDrawerOpen,
   notifications = [],
@@ -147,9 +149,26 @@ export default function Navbar({
     }
   };
 
+  const isClientRole = currentUser?.role === 'cliente';
+
+  const userAllowedTabs = currentUser?.role === 'admin'
+    ? null
+    : (Array.isArray(currentUser?.tabs) ? currentUser.tabs : (isClientRole ? ['storefront'] : []));
+
+  const visiblePrimaryTabs = userAllowedTabs
+    ? primaryTabs.filter(t => userAllowedTabs.includes(t.id))
+    : primaryTabs;
+
+  const visibleNavGroups = userAllowedTabs
+    ? navGroups.map(g => ({
+        ...g,
+        items: g.items.filter(it => userAllowedTabs.includes(it.id))
+      })).filter(g => g.items.length > 0)
+    : navGroups;
+
   const allItemsForDrawer = [
-    ...primaryTabs.map(t => ({ ...t, desc: 'Acceso directo principal' })),
-    ...navGroups.flatMap(g => g.items)
+    ...visiblePrimaryTabs.map(t => ({ ...t, desc: 'Acceso directo principal' })),
+    ...visibleNavGroups.flatMap(g => g.items)
   ];
 
   const filteredDrawerItems = allItemsForDrawer.filter(item => 
@@ -163,21 +182,23 @@ export default function Navbar({
       
       {/* 1. Izquierda: Logo & Botón Menú Lateral */}
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={() => setIsMobileDrawerOpen(!isMobileDrawerOpen)}
-          className={`p-2 rounded-xl border transition-all ${
-            isMobileDrawerOpen
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-              : 'bg-[#182229] hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/60'
-          }`}
-          title="Abrir Menú de Secciones y Búsqueda Rápida"
-        >
-          {isMobileDrawerOpen ? <X size={19} /> : <Menu size={19} />}
-        </button>
+        {!isClientRole && (
+          <button
+            onClick={() => setIsMobileDrawerOpen(!isMobileDrawerOpen)}
+            className={`p-2 rounded-xl border transition-all ${
+              isMobileDrawerOpen
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                : 'bg-[#182229] hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/60'
+            }`}
+            title="Abrir Menú de Secciones y Búsqueda Rápida"
+          >
+            {isMobileDrawerOpen ? <X size={19} /> : <Menu size={19} />}
+          </button>
+        )}
 
         <div 
           className="flex items-center gap-2.5 cursor-pointer group" 
-          onClick={() => setCurrentTab('inbox')}
+          onClick={() => setCurrentTab(isClientRole ? 'storefront' : 'inbox')}
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-500 to-emerald-400 p-[1.5px] shadow-lg shadow-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
             <div className="w-full h-full bg-[#0b141a] rounded-[10px] flex items-center justify-center text-lg">
@@ -188,7 +209,7 @@ export default function Navbar({
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-sm sm:text-base tracking-tight text-white group-hover:text-emerald-400 transition-colors">WAgent</span>
               <span className="text-[9px] uppercase font-black tracking-wider px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                CRM
+                {isClientRole ? 'TIENDA' : 'CRM'}
               </span>
             </div>
             <span className="text-[10px] font-medium text-slate-400 block -mt-0.5 truncate max-w-[130px]">República de la Carne</span>
@@ -196,51 +217,54 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* 2. Centro: Segmented Controller Ergonómico (Sin sobrecarga ni duplicados) */}
-      <nav className="hidden lg:flex items-center gap-1 bg-[#182229] p-1 rounded-2xl border border-slate-800/90 shadow-inner">
-        
-        {/* Pestañas primarias */}
-        {primaryTabs.map(tab => {
-          const Icon = tab.icon;
-          const isActive = currentTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setCurrentTab(tab.id);
-                setActiveDropdown(null);
-              }}
-              className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
-                isActive
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-black'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-              }`}
-            >
-              <Icon size={14} className={isActive ? 'text-slate-950' : 'text-emerald-400'} />
-              <span>{tab.label}</span>
-              {tab.badge > 0 && (
-                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black animate-pulse ${
-                  isActive ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500 text-slate-950'
-                }`}>
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-
-        <div className="w-[1px] h-4 bg-slate-700/60 mx-1 shrink-0" />
-
-        {/* Dropdowns secundarios limpios */}
-        {navGroups.map(group => {
-          const isGroupActive = group.items.some(it => it.id === currentTab);
-          const isOpen = activeDropdown === group.id;
-          const GroupIcon = group.icon;
-
-          return (
-            <div key={group.id} className="relative">
+      {/* 2. Centro: Segmented Controller Ergonómico (Solo personal / admin con permisos) */}
+      {!isClientRole && (visiblePrimaryTabs.length > 0 || visibleNavGroups.length > 0) ? (
+        <nav className="hidden lg:flex items-center gap-1 bg-[#182229] p-1 rounded-2xl border border-slate-800/90 shadow-inner">
+          
+          {/* Pestañas primarias */}
+          {visiblePrimaryTabs.map(tab => {
+            const Icon = tab.icon;
+            const isActive = currentTab === tab.id;
+            return (
               <button
-                onClick={() => setActiveDropdown(isOpen ? null : group.id)}
+                key={tab.id}
+                onClick={() => {
+                  setCurrentTab(tab.id);
+                  setActiveDropdown(null);
+                }}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap active:scale-95 ${
+                  isActive
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 font-black'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                }`}
+              >
+                <Icon size={14} className={isActive ? 'text-slate-950' : 'text-emerald-400'} />
+                <span>{tab.label}</span>
+                {tab.badge > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black animate-pulse ${
+                    isActive ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500 text-slate-950'
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {visiblePrimaryTabs.length > 0 && visibleNavGroups.length > 0 && (
+            <div className="w-[1px] h-4 bg-slate-700/60 mx-1 shrink-0" />
+          )}
+
+          {/* Dropdowns secundarios limpios */}
+          {visibleNavGroups.map(group => {
+            const isGroupActive = group.items.some(it => it.id === currentTab);
+            const isOpen = activeDropdown === group.id;
+            const GroupIcon = group.icon;
+
+            return (
+              <div key={group.id} className="relative">
+                <button
+                  onClick={() => setActiveDropdown(isOpen ? null : group.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                   isGroupActive
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
@@ -302,6 +326,7 @@ export default function Navbar({
           );
         })}
       </nav>
+    ) : null}
 
       {/* 3. Derecha: Barra de Control y Estados en Vivo */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -508,7 +533,7 @@ export default function Navbar({
                 })}
               </div>
 
-              <div className="pt-2 border-t border-slate-800">
+              <div className="pt-2 border-t border-slate-800 space-y-1.5">
                 <button
                   onClick={() => {
                     setIsUserSwitcherOpen(false);
@@ -519,6 +544,18 @@ export default function Navbar({
                   <UserCheck size={14} />
                   <span>Mi Perfil & Datos (7/7)</span>
                 </button>
+                {onLogout && (
+                  <button
+                    onClick={() => {
+                      setIsUserSwitcherOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold flex items-center justify-center gap-2 transition"
+                  >
+                    <LogOut size={14} />
+                    <span>Cerrar Sesión</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -598,27 +635,42 @@ export default function Navbar({
             </div>
 
             {/* Pie del Drawer con accesos rápidos */}
-            <div className="pt-3 mt-2 border-t border-slate-800 flex items-center justify-between gap-2">
-              <button
-                onClick={() => {
-                  onOpenSettings();
-                  setIsMobileDrawerOpen(false);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-[#182229] hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-200 border border-slate-700/80 transition"
-              >
-                <Settings size={14} />
-                <span>Ajustes</span>
-              </button>
-              <button
-                onClick={() => {
-                  onOpenQR();
-                  setIsMobileDrawerOpen(false);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 rounded-xl text-xs font-bold border border-emerald-500/40 transition"
-              >
-                <QrCode size={14} />
-                <span>WhatsApp</span>
-              </button>
+            <div className="pt-3 mt-2 border-t border-slate-800 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={() => {
+                    onOpenSettings();
+                    setIsMobileDrawerOpen(false);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-[#182229] hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-200 border border-slate-700/80 transition"
+                >
+                  <Settings size={14} />
+                  <span>Ajustes</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onOpenQR();
+                    setIsMobileDrawerOpen(false);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 rounded-xl text-xs font-bold border border-emerald-500/40 transition"
+                >
+                  <QrCode size={14} />
+                  <span>WhatsApp</span>
+                </button>
+              </div>
+
+              {onLogout && (
+                <button
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-rose-950/20 hover:bg-rose-900/40 text-rose-300 rounded-xl text-xs font-bold border border-rose-500/30 transition"
+                >
+                  <LogOut size={14} />
+                  <span>Cerrar Sesión</span>
+                </button>
+              )}
             </div>
           </div>
           
