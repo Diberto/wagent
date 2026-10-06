@@ -35,7 +35,15 @@ import CustomerPortalModal from './components/CustomerPortalModal';
 import LoginView from './components/LoginView';
 import { playNotificationChime, playOrderChime, playMessagePing } from './utils/soundEffects';
 
-const socket = io();
+const socket = io({
+  path: '/socket.io',
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  timeout: 20000
+});
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState(() => {

@@ -1619,17 +1619,12 @@ export class WhatsAppManager {
     console.log('🔄 [WhatsAppManager] Escaneando y conectando sesiones de WhatsApp guardadas...');
     
     // 1. Sesión Maestra Principal ('default' / central business line)
-    const primaryCreds = path.join(CONFIG.AUTH_DIR, 'creds.json');
-    if (fs.existsSync(primaryCreds)) {
-      try {
-        if (fs.statSync(primaryCreds).size > 20) {
-          console.log('📱 Inicializando sesión WhatsApp principal [default]...');
-          this.primarySession.initialize().catch(err => {
-            console.warn('Aviso inicializando sesión default:', err.message);
-          });
-        }
-      } catch (_) {}
-    }
+    // Siempre se inicializa: si tiene credenciales se reconecta automáticamente;
+    // si no tiene credenciales, genera el código QR para que el operador lo vincule de inmediato.
+    console.log('📱 Inicializando sesión WhatsApp principal [default]...');
+    this.primarySession.initialize().catch(err => {
+      console.warn('Aviso inicializando sesión default:', err.message);
+    });
 
     // 2. Sesiones de Operadores independientes en DATA_DIR (omitiendo alias del admin central para evitar conflictos)
     try {

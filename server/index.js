@@ -48,6 +48,8 @@ const io = new SocketIOServer(server, {
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
   },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
   pingTimeout: 60000,
   pingInterval: 25000
 });

@@ -12,23 +12,13 @@ class SoundEffects {
     if (typeof window !== 'undefined') {
       const unlock = () => {
         this.userInteracted = true;
-        try {
-          if (!this.ctx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) {
-              this.ctx = new AudioCtx();
-            }
-          }
-          if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume().catch(() => {});
-          }
-        } catch (_) {}
-
         window.removeEventListener('pointerdown', unlock);
         window.removeEventListener('keydown', unlock);
         window.removeEventListener('touchstart', unlock);
+        window.removeEventListener('click', unlock);
       };
 
+      window.addEventListener('click', unlock, { once: true, passive: true });
       window.addEventListener('pointerdown', unlock, { once: true, passive: true });
       window.addEventListener('keydown', unlock, { once: true, passive: true });
       window.addEventListener('touchstart', unlock, { once: true, passive: true });
@@ -53,7 +43,7 @@ class SoundEffects {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
-    return (this.ctx && this.ctx.state === 'running') ? this.ctx : null;
+    return this.ctx;
   }
 
   /**
