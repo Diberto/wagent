@@ -352,6 +352,8 @@ export default function Navbar({
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
             whatsappStatus === 'connected'
               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+              : whatsappStatus === 'connecting'
+              ? 'bg-blue-500/15 text-blue-400 border-blue-500/40 hover:bg-blue-500/25 animate-pulse'
               : whatsappStatus === 'qr_ready'
               ? 'bg-amber-500/15 text-amber-400 border-amber-500/40 hover:bg-amber-500/25 animate-pulse'
               : 'bg-rose-500/15 text-rose-400 border-rose-500/40 hover:bg-rose-500/25'
@@ -360,10 +362,22 @@ export default function Navbar({
         >
           <QrCode size={14} />
           <span className="hidden md:inline">
-            {whatsappStatus === 'connected' ? 'WhatsApp' : whatsappStatus === 'qr_ready' ? 'Escanear QR' : 'Conectar'}
+            {whatsappStatus === 'connected'
+              ? 'WhatsApp'
+              : whatsappStatus === 'connecting'
+              ? 'Vinculando...'
+              : whatsappStatus === 'qr_ready'
+              ? 'Escanear QR'
+              : 'Conectar'}
           </span>
           <span className={`w-2 h-2 rounded-full ${
-            whatsappStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : whatsappStatus === 'qr_ready' ? 'bg-amber-400' : 'bg-rose-400'
+            whatsappStatus === 'connected'
+              ? 'bg-emerald-400 animate-pulse'
+              : whatsappStatus === 'connecting'
+              ? 'bg-blue-400 animate-pulse'
+              : whatsappStatus === 'qr_ready'
+              ? 'bg-amber-400'
+              : 'bg-rose-400'
           }`} />
         </button>
 

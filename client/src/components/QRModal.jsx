@@ -66,11 +66,18 @@ export default function QRModal({
   useEffect(() => {
     if (!socket) return;
 
+    const matchesSelected = (targetSession) => {
+      if (!targetSession) return false;
+      return targetSession === selectedUserId ||
+        (selectedUserId === 'default' && (targetSession === 'default' || targetSession === 'usr-central-admin' || targetSession === 'usr-admin-republica')) ||
+        (targetSession === 'default' && (selectedUserId === 'usr-central-admin' || selectedUserId === 'usr-admin-republica'));
+    };
+
     const handleStatusUpdate = (data) => {
       if (!data) return;
       const targetSession = data.sessionId || data.userId || 'default';
       setOperatorSessions(prev => ({ ...prev, [targetSession]: data }));
-      if (targetSession === selectedUserId) {
+      if (matchesSelected(targetSession)) {
         setActiveSessionStatus(data);
         setIsLoadingSession(false);
       }
@@ -79,7 +86,7 @@ export default function QRModal({
     const handleQrUpdate = (data) => {
       if (!data) return;
       const targetSession = data.sessionId || data.userId || 'default';
-      if (targetSession === selectedUserId) {
+      if (matchesSelected(targetSession)) {
         setActiveSessionStatus(prev => ({
           ...prev,
           status: 'qr_ready',
@@ -318,14 +325,22 @@ export default function QRModal({
               </div>
 
               <div className="flex items-center gap-2">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
                   currentStatus === 'connected'
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                    : currentStatus === 'connecting'
+                    ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 animate-pulse'
                     : currentStatus === 'qr_ready'
-                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
                     : 'bg-slate-800 text-slate-400 border-slate-700'
                 }`}>
-                  {currentStatus === 'connected' ? '● CONECTADO' : currentStatus === 'qr_ready' ? 'ESPERANDO QR' : 'DESCONECTADO'}
+                  {currentStatus === 'connected'
+                    ? '● CONECTADO'
+                    : currentStatus === 'connecting'
+                    ? '🔄 VINCULANDO CELULAR...'
+                    : currentStatus === 'qr_ready'
+                    ? '📲 LISTO PARA ESCANEAR'
+                    : 'DESCONECTADO'}
                 </span>
               </div>
             </div>
@@ -373,14 +388,41 @@ export default function QRModal({
                     </button>
                   </div>
                 </div>
+              ) : currentStatus === 'connecting' ? (
+                <div className="py-10 text-center text-xs text-slate-300 space-y-3 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center ring-8 ring-blue-500/10 animate-pulse">
+                    <RefreshCw size={30} className="animate-spin text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white mb-1">Vinculando WhatsApp...</h3>
+                    <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+                      El teléfono reconoció el código. Estableciendo enlace seguro y sincronizando sesión...
+                    </p>
+                  </div>
+                </div>
               ) : currentQr ? (
                 <div className="flex flex-col items-center w-full max-w-md">
+                  {/* Status Helper */}
+                  <div className="text-center mb-2.5">
+                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold mb-1">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      Código QR Listo — Escanéalo Ahora
+                    </span>
+                    <p className="text-[11px] text-slate-400">
+                      Apunta la cámara de WhatsApp de tu teléfono a este código
+                    </p>
+                  </div>
+
                   {/* QR Container */}
-                  <div className="relative p-3 bg-white rounded-2xl shadow-xl border-4 border-emerald-500/40 mb-3 group">
+                  <div className="relative p-3.5 bg-white rounded-3xl shadow-2xl border-4 border-emerald-500/50 mb-3 group flex items-center justify-center">
                     <img
                       src={currentQr}
                       alt="WhatsApp QR Code"
-                      className="w-48 h-48 object-contain rounded-lg"
+                      className="w-64 h-64 sm:w-72 sm:h-72 object-contain rounded-xl select-none"
+                      style={{ imageRendering: 'pixelated' }}
                     />
                   </div>
 
@@ -388,7 +430,7 @@ export default function QRModal({
                   <div className="flex items-center gap-2 mb-3">
                     <button
                       onClick={handleResetSelected}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#182229] hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#182229] hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition active:scale-95"
                     >
                       <RefreshCw size={13} />
                       <span>Forzar Nuevo QR Limpio</span>
@@ -396,7 +438,7 @@ export default function QRModal({
                   </div>
 
                   {/* Instructions */}
-                  <div className="w-full bg-[#182229] border border-slate-800 rounded-2xl p-3 text-xs text-slate-300 space-y-1.5">
+                  <div className="w-full bg-[#182229] border border-slate-800 rounded-2xl p-3.5 text-xs text-slate-300 space-y-1.5">
                     <div className="font-semibold text-emerald-400 flex items-center gap-1.5 mb-0.5">
                       <Smartphone size={13} /> Pasos para escanear en tu celular:
                     </div>
@@ -437,8 +479,24 @@ export default function QRModal({
             {/* Footer */}
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
               <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${currentStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                <span className="capitalize">{currentStatus === 'connected' ? 'Línea activa' : currentStatus === 'qr_ready' ? 'Esperando escaneo' : 'Desconectado'}</span>
+                <span className={`w-2 h-2 rounded-full ${
+                  currentStatus === 'connected'
+                    ? 'bg-emerald-400 animate-pulse'
+                    : currentStatus === 'connecting'
+                    ? 'bg-blue-400 animate-pulse'
+                    : currentStatus === 'qr_ready'
+                    ? 'bg-emerald-400'
+                    : 'bg-slate-500'
+                }`} />
+                <span>
+                  {currentStatus === 'connected'
+                    ? 'Línea activa'
+                    : currentStatus === 'connecting'
+                    ? 'Vinculando con WhatsApp...'
+                    : currentStatus === 'qr_ready'
+                    ? 'Listo para escanear en tu celular'
+                    : 'Desconectado'}
+                </span>
               </div>
               <button
                 onClick={handleResetSelected}

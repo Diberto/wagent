@@ -59,9 +59,14 @@ export function isCredsValid(credsPath) {
     if (stat.size <= 50) return false;
     const raw = fs.readFileSync(credsPath, 'utf8');
     const content = JSON.parse(raw);
-    // Para que una sesión sea válida, debe estar explícitamente registrada (no registered: false)
-    // y poseer identificadores de cuenta y usuario (me.id)
-    if (!content || content.registered === false || !content.me || !content.me.id) {
+    if (!content) return false;
+    // Si el archivo fue escrito en los últimos 2 minutos, puede estar en proceso activo de vinculación
+    const isFresh = (Date.now() - stat.mtimeMs) < 120000;
+    if (isFresh) {
+      return true;
+    }
+    // Para credenciales guardadas en disco que no son frescas, debe estar completada la registración
+    if (content.registered === false || !content.me || !content.me.id) {
       return false;
     }
     return true;
@@ -256,7 +261,7 @@ export class WhatsAppService {
         logger,
         printQRInTerminal: false,
         auth: state,
-        browser: Browsers.ubuntu('Chrome'),
+        browser: Browsers.windows('Desktop'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: true,
         connectTimeoutMs: 60000,
@@ -276,7 +281,7 @@ export class WhatsAppService {
 
       // Eventos de conexión y QR
       this.sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        const { connection, lastDisconnect, qr, isNewLogin } = update;
 
         if (qr) {
           this.status = 'qr_ready';
@@ -284,7 +289,7 @@ export class WhatsAppService {
           this.reconnectAttempts = 0;
           this.rapidDisconnectCount = 0;
           try {
-            this.qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
+            this.qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 10 });
             this.emitQR();
             this.emitStatus();
             console.log(`📌 [${this.sessionId}] Nuevo Código QR generado para vinculación.`);
@@ -293,17 +298,45 @@ export class WhatsAppService {
           }
         }
 
+        // Si el teléfono escanea el QR y la vinculación comienza con éxito
+        if (isNewLogin) {
+          console.log(`🎉 [${this.sessionId}] ¡Código QR escaneado y reconocido por el teléfono! Finalizando emparejamiento...`);
+          this.status = 'connecting';
+          this.qrCode = null;
+          this.qrDataUrl = null;
+          this.emitStatus();
+        }
+
+        if (connection === 'connecting') {
+          if (this.status !== 'qr_ready') {
+            this.status = 'connecting';
+            this.emitStatus();
+          }
+        }
+
         if (connection === 'close') {
           const err = lastDisconnect?.error;
           const statusCode = err?.output?.statusCode || (err instanceof Boom ? err.output?.statusCode : undefined) || err?.statusCode;
           const errorMsg = err?.output?.payload?.message || err?.message || String(err || 'Desconexión desconocida');
 
+          const isRestartRequired = statusCode === DisconnectReason.restartRequired || statusCode === 515;
+
+          // Si es reinicio requerido (515) tras escanear el QR para completar el emparejamiento:
+          if (isRestartRequired) {
+            console.log(`🔄 [${this.sessionId}] Reinicio requerido por WhatsApp (515) para completar vinculación de sesión. Reconectando de inmediato...`);
+            this.status = 'connecting';
+            this.emitStatus();
+            setTimeout(() => {
+              this.isInitializing = false;
+              this.initialize();
+            }, 300);
+            return;
+          }
+
           const isLoggedOut = statusCode === DisconnectReason.loggedOut || 
                              statusCode === 401 || 
-                             statusCode === DisconnectReason.badSession || 
                              statusCode === DisconnectReason.forbidden ||
                              statusCode === 403 ||
-                             statusCode === 405 ||
                              statusCode === DisconnectReason.multideviceMismatch ||
                              statusCode === 411;
 
@@ -346,7 +379,7 @@ export class WhatsAppService {
             return;
           }
 
-          // 3. Sesión revocada explícitamente por WhatsApp (401, loggedOut, badSession)
+          // 3. Sesión revocada explícitamente por WhatsApp (401, loggedOut)
           if (isLoggedOut) {
             console.log(`⚠️ Sesión [${this.sessionId}] cerrada definitivamente por WhatsApp (${statusCode}). Purgando credenciales y backup para emitir nuevo QR...`);
             await this.clearAuthFiles({ clearBackup: true });
@@ -1659,7 +1692,7 @@ export class WhatsAppManager {
   getSession(userId = 'default') {
     const id = userId || 'default';
     // Unificar alias del administrador central con la sesión principal maestra
-    if (id === 'default' || id === 'usr-central-admin' || id === 'admin_central' || id === 'usr-admin') {
+    if (id === 'default' || id === 'usr-central-admin' || id === 'admin_central' || id === 'usr-admin' || id === 'usr-admin-republica') {
       return this.primarySession;
     }
     if (!this.sessions.has(id)) {
@@ -1691,7 +1724,7 @@ export class WhatsAppManager {
 
   getStatus(userId = 'default') {
     const id = userId || 'default';
-    if (id === 'default' || id === 'usr-central-admin' || id === 'admin_central' || id === 'usr-admin') {
+    if (id === 'default' || id === 'usr-central-admin' || id === 'admin_central' || id === 'usr-admin' || id === 'usr-admin-republica') {
       return this.primarySession.getStatus();
     }
     const session = this.getSession(id);
@@ -1731,7 +1764,7 @@ export class WhatsAppManager {
    */
   getActiveConnectedSession(preferredUserId = null) {
     // Si el usuario preferido es el admin central o default, usar la sesión primaria
-    if (!preferredUserId || preferredUserId === 'default' || preferredUserId === 'usr-central-admin' || preferredUserId === 'admin_central') {
+    if (!preferredUserId || preferredUserId === 'default' || preferredUserId === 'usr-central-admin' || preferredUserId === 'admin_central' || preferredUserId === 'usr-admin' || preferredUserId === 'usr-admin-republica') {
       if (this.primarySession && this.primarySession.status === 'connected') {
         return this.primarySession;
       }
@@ -1778,7 +1811,7 @@ export class WhatsAppManager {
           if (entry.startsWith('auth_info_baileys_')) {
             const userId = entry.replace('auth_info_baileys_', '');
             // Omitir carpetas del admin central para no duplicar el socket con la cuenta principal
-            if (userId === 'usr-central-admin' || userId === 'admin_central' || userId === 'usr-admin') {
+            if (userId === 'usr-central-admin' || userId === 'admin_central' || userId === 'usr-admin' || userId === 'usr-admin-republica') {
               continue;
             }
             const credsFile = path.join(CONFIG.DATA_DIR, entry, 'creds.json');
