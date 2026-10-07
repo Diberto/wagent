@@ -114,7 +114,8 @@ export class OrderSyncEngine {
       // Si el mensaje del agente está presentando múltiples alternativas de menú/propuesta
       // (ej: Opción 1 y Opción 2) y el usuario aún no eligió ninguna opción,
       // registrar la etapa como 'proposal' y NO crear un pedido activo preliminar que sume todas las alternativas.
-      const hasMultipleOptionProposals = /(?:1️⃣|\bopci[oó]n\s*1\b)/i.test(replyMsg) && /(?:2️⃣|\bopci[oó]n\s*2\b)/i.test(replyMsg);
+      const hasMultipleOptionProposals = /(?:(?:\bopci[oó]n|\bpropuesta|alternativa)\s*1\b|1️⃣\s*\*?(?:opci[oó]n|propuesta|combo\s*1))/i.test(replyMsg) &&
+        /(?:(?:\bopci[oó]n|\bpropuesta|alternativa)\s*2\b|2️⃣\s*\*?(?:opci[oó]n|propuesta|combo\s*2))/i.test(replyMsg);
       const isOptionSelection = /^(?:opci[oó]n\s*)?[1-9]$/i.test(userMsg.trim()) ||
         /(?:me\s+gusta|elijo|vamos con|anotame|pasame|mandame)\s+(?:la|el)?\s*(?:opci[oó]n)?\s*[1-9]\b/i.test(userMsg) ||
         /\b(?:la|el)\s+(?:opci[oó]n\s*)?[1-9]\b/i.test(userMsg) ||
@@ -339,6 +340,15 @@ export class OrderSyncEngine {
 
     if (!replyMsg) return { items, products, total };
 
+    // 0. Si el mensaje es una guía explicativa, consulta exploratoria o ejemplo genérico de asesoramiento
+    // (ej: "Asesoramiento experto para tu asado...", "¿Para cuántas personas es tu comida?", "Ejemplo para 6 personas:")
+    // y NO contiene un resumen/detalle definitivo acordado, NO extraer items.
+    const isAdvisoryOrExploratoryPrompt = /(?:¿para cu[aá]ntas personas|para cu[aá]ntas personas es|contame:?\s*\*?¿para cu[aá]ntas|ejemplo para \d+ personas|asesoramiento experto|por d[oó]nde arrancamos|opciones r[aá]pidas|consultar nuestras \d+ sucursales|¿de qu[eé] corte te gustar[ií]a)/i.test(replyMsg);
+    const hasAuthoritativeOrderSummary = /(?:(?:📋|📝|📦|🛒)?\s*\*?\s*(?:Detalle|Resumen)\s+(?:de\s+tu\s+pedido|del\s+pedido|de\s+tu\s+compra|definitivo)|dejamos anotada tu elecci[oó]n|confirmamos estos datos)/i.test(replyMsg);
+    if (isAdvisoryOrExploratoryPrompt && !hasAuthoritativeOrderSummary) {
+      return { items, products, total };
+    }
+
     // 1. Aislamiento de la sección autoritativa de detalle si existe
     let relevantText = replyMsg;
     const detailHeaderMatch = replyMsg.match(/(?:(?:📋|📝|📦|🛒|🍽️|✨|👉)?\s*\*?\s*(?:Detalle|Resumen)[^\n:]*?(?:pedido|propuesta|orden)[^*:\n]*\*?[:\s]*)/iu);
@@ -353,8 +363,8 @@ export class OrderSyncEngine {
       const line = rawLine.trim();
       if (!line) continue;
 
-      // Descartar encabezados, títulos de opciones o preguntas de checkout
-      if (/(?:opci[oó]n\s*\d|propuesta\s*\d|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|direcci[oó]n|medio de pago|forma de pago|efectivo|transferencia|mercado pago|alias:)/i.test(line)) {
+      // Descartar encabezados, títulos de opciones, preguntas de checkout o llamadas a la acción
+      if (/(?:¿te gustar[ií]a|te gustar[ií]a que|te lo preparamos|para entrega a domicilio|retiro por sucursal|opci[oó]n\s*\d|propuesta\s*\d|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|direcci[oó]n|medio de pago|forma de pago|efectivo|transferencia|mercado pago|alias:|distribuci[oó]n parrillera|la previa|achuras|el plato fuerte|acompañamiento|acompanamiento|c[aá]lculo cl[aá]sico|calculo clasico|asesoramiento|ejemplo para)/i.test(line)) {
         continue;
       }
 
@@ -363,10 +373,16 @@ export class OrderSyncEngine {
       const isProductEmoji = /^(?:🥩|🍖|🔥|🌭|🥓|🍗|🍔|📦|🍷|⭐|👉)\s+/u.test(line);
       if (!isBulletOrNum && !isProductEmoji) continue;
 
+      // Quitar viñetas y emojis al inicio
       let clean = line
         .replace(/^[\s•*\-+]+/, '')
-        .replace(/^\d+[\.\)]\s*/, '')
         .replace(/^(?:🥩|🍖|🔥|🌭|🥓|🍗|🍔|📦|🍷|⭐|👉|📋|📝|🛒|🍽️|💰|💵)\s*/u, '')
+        .replace(/^[\s•*\-+]+/, '');
+
+      // Solo quitar numeración de lista ("1) ", "1. ") si es un número de lista y NO un decimal de peso (ej: "1.5 kg", "0.8 kg")
+      clean = clean
+        .replace(/^\d+\)\s*/, '')
+        .replace(/^\d+\.\s+(?!\d)/, '')
         .trim();
 
       if (!clean) continue;
@@ -388,10 +404,22 @@ export class OrderSyncEngine {
         cleanLower.includes('detalle de tu pedido') ||
         cleanLower.includes('resumen de tu pedido') ||
         cleanLower.includes('te agrego al pedido') ||
+        cleanLower.includes('asesoramiento') ||
+        cleanLower.includes('ejemplo para') ||
+        cleanLower.includes('distribución parrillera') ||
+        cleanLower.includes('distribucion parrillera') ||
+        cleanLower.includes('la previa') ||
+        cleanLower.includes('el plato fuerte') ||
+        cleanLower.includes('acompañamiento') ||
+        cleanLower.includes('acompanamiento') ||
+        cleanLower.includes('cálculo clásico') ||
+        cleanLower.includes('calculo clasico') ||
+        cleanLower.includes('para comer abundante') ||
         /^(?:total|total estimado|total acumulado|subtotal|precio total|importe total|saldo)\b/iu.test(clean) ||
         /^(?:sena|seña)\s+de\s+pedidos/i.test(clean) ||
         /^(?:para que|av[ií]seme|recordamos|c[oó]mo seguimos|cómo seguimos|qué te parece|avisame|paso final|coordinar|el pago|ya le reserv|excelente|de diez|de una|joya|gracias)/i.test(clean) ||
-        /^(?:1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|[1-9]\))\s*(?:coordinar|elegir|sumar|env[ií]o|retiro|domicilio|sucursal|efectivo|transferencia|mercado)/i.test(clean)
+        /^(?:1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|[1-9]\))\s*(?:coordinar|elegir|sumar|env[ií]o|retiro|domicilio|sucursal|efectivo|transferencia|mercado)/i.test(clean) ||
+        /(?:¿te gustar[ií]a|te gustar[ií]a que|preparamos este combo|para entrega|retiro por sucursal)/i.test(clean)
       ) {
         continue;
       }
@@ -492,12 +520,23 @@ export class OrderSyncEngine {
 
       if (!nameCandidate || nameCandidate.length < 2) continue;
       if (/^(?:total|total estimado|total acumulado)/i.test(nameCandidate)) continue;
+      if (/^(?:asesoramiento|ejemplo|distribuci|la previa|plato fuerte|acompañamiento|acompanamiento|c[aá]lculo|calculo|para comer|propuesta)/i.test(nameCandidate)) continue;
 
       // Vincular con catálogo real de la carnicería
       const catalogProduct = this.matchCatalogProduct(nameCandidate, catalog, plu);
       const catalogPrice = catalogProduct ? Number(catalogProduct.price) : 0;
       const effectiveUnitPrice = unitPrice > 0 ? unitPrice : catalogPrice;
       let effectiveUnit = catalogProduct?.unit || unit;
+
+      // Si no hubo coincidencia en el catálogo:
+      // Solo permitir producto sintético si se trata de un corte o producto plausible de carnicería/almacén
+      // NUNCA crear productos para textos conversacionales, sugerencias o títulos.
+      if (!catalogProduct) {
+        const isPlausibleFoodOrSupply = /(?:carne|vacio|vacío|asado|costilla|costillar|tira|tapa|matambre|peceto|colita|lomo|bife|cuadril|nalga|bola|paleta|aguja|arañita|entraña|chori|morcilla|molida|milanesa|pollo|pata|pechuga|cerdo|bondiola|pechito|solomillo|matambrito|carb[oó]n|le[ñn]a|vino|pan|combo)/i.test(nameCandidate);
+        if (!isPlausibleFoodOrSupply || /persona|asesor|ejemplo|recomiend|distribuci|propuesta|gu[ií]a|te gustar|combo para/i.test(nameCandidate)) {
+          continue;
+        }
+      }
 
       let finalQty = qty;
       if (isUnitMode && catalogProduct && catalogProduct.unit === 'kg') {
@@ -564,6 +603,11 @@ export class OrderSyncEngine {
     if (!Array.isArray(catalog) || catalog.length === 0 || !name) return null;
 
     const clean = name.toLowerCase().trim();
+    // Descartar frases de asesoramiento, ejemplos, títulos de menú o llamadas a la acción
+    if (/(?:asesoramiento|ejemplo|distribuci|propuesta|c[aá]lculo|calculo|para comer|la previa|plato fuerte|acompañamiento|acompanamiento|te gustar[ií]a|para entrega|retiro por)/i.test(clean)) {
+      return null;
+    }
+
     // Prohibir match accidental con "SENA DE PEDIDOS" salvo que el cliente explícitamente mencione seña
     const safeCatalog = (!clean.includes('seña') && !clean.includes('sena'))
       ? catalog.filter(p => !/^(?:sena|seña)\s+de\s+pedidos$/i.test(p.name))
@@ -575,33 +619,55 @@ export class OrderSyncEngine {
       if (byPlu) return byPlu;
     }
 
-    // 2. Coincidencia exacta
-    let found = safeCatalog.find(p => (p.name || '').toLowerCase().trim() === clean);
+    // 2. Coincidencia exacta (con y sin acentos)
+    const normalizeClean = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    let found = safeCatalog.find(p => {
+      const pClean = (p.name || '').toLowerCase().trim();
+      const pNorm = pClean.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      return (pClean === clean || pNorm === normalizeClean) && Number(p.price) > 0;
+    }) || safeCatalog.find(p => (p.name || '').toLowerCase().trim() === clean);
     if (found) return found;
 
-    // 3. Reglas semánticas específicas para insumos y cortes comunes de carnicería
+    // 3. Reglas semánticas prioritarias para insumos y cortes comunes de carnicería
     if (/\bcarb[oó]n\b/i.test(clean)) {
       const has4 = clean.includes('4');
       const has3 = clean.includes('3');
       const has5 = clean.includes('5');
-      const match = catalog.find(p => /\bcarb[oó]n\b/i.test(p.name) && (has4 ? p.name.includes('4') : has3 ? p.name.includes('3') : has5 ? p.name.includes('5') : true) && Number(p.price) > 0);
+      const match = safeCatalog.find(p => /\bcarb[oó]n\b/i.test(p.name) && (has4 ? p.name.includes('4') : has3 ? p.name.includes('3') : has5 ? p.name.includes('5') : true) && Number(p.price) > 0);
       if (match) return match;
     }
 
+    // Vacío vacuno (evitar 'costilla envasada al vacio' cuando se pide vacio)
+    if (/\bvac[ií]o\b/i.test(clean) && !/\bcerdo\b/i.test(clean)) {
+      const vacioMatch = safeCatalog.find(p => /^(?:vacio|vacío)$/i.test(p.name.trim()) && Number(p.price) > 0);
+      if (vacioMatch) return vacioMatch;
+    }
+
+    // Costillar / Asado de Tira
+    if (/\b(?:costillar|asado\s+de\s+tira|tira\s+de\s+asado)\b/i.test(clean)) {
+      const tiraMatch = safeCatalog.find(p => /(?:asado\s+de\s+tira|costilla|tira)/i.test(p.name) && !/cerdo|envasada/i.test(p.name) && Number(p.price) > 0);
+      if (tiraMatch) return tiraMatch;
+    }
+
     if (/\bcostilla\b/i.test(clean)) {
-      const match = catalog.find(p => /\bcostilla\b/i.test(p.name) && !/cerdo/i.test(p.name) && Number(p.price) > 0);
+      const match = safeCatalog.find(p => /\bcostilla\b/i.test(p.name) && !/cerdo|envasada/i.test(p.name) && Number(p.price) > 0);
       if (match) return match;
     }
 
     if (/\bchorizo.*criollo/i.test(clean)) {
-      const match = catalog.find(p => /\bchorizo.*criollo/i.test(p.name));
+      const match = safeCatalog.find(p => /\bchorizo.*criollo/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bchorizo.*criollo/i.test(p.name));
+      if (match) return match;
+    }
+
+    if (/\bmorcilla/i.test(clean)) {
+      const match = safeCatalog.find(p => /\bmorcilla/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bmorcilla/i.test(p.name));
       if (match) return match;
     }
 
     // Coincidencia sin notas entre paréntesis (ej: "Matambrito de Cerdo (Entrecot)" -> "Matambrito de Cerdo")
     const withoutParens = clean.replace(/\([^)]*\)/g, '').trim();
     if (withoutParens && withoutParens !== clean) {
-      found = catalog.find(p => (p.name || '').toLowerCase().trim() === withoutParens);
+      found = safeCatalog.find(p => (p.name || '').toLowerCase().trim() === withoutParens && Number(p.price) > 0);
       if (found) return found;
     }
 
@@ -660,7 +726,10 @@ export class OrderSyncEngine {
 
       const primaryScore = matches / Math.max(targetWords.length, 1);
       const secondaryScore = (secondaryMatches * 0.4) / Math.max(parensWords.length || 1, 1);
-      const totalScore = primaryScore + secondaryScore + (hasMeatTypeBonus ? 0.25 : 0);
+      const precision = matches / Math.max(prodWords.length, 1);
+      const pricedBonus = Number(prod.price) > 0 ? 0.3 : 0;
+
+      const totalScore = (primaryScore * 0.6) + (precision * 0.3) + secondaryScore + (hasMeatTypeBonus ? 0.15 : 0) + pricedBonus;
 
       if (totalScore > bestScore && totalScore >= 0.5) {
         bestScore = totalScore;

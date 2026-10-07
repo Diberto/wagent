@@ -849,6 +849,11 @@ export function extractCleanAddress(rawText) {
   a = a.replace(/^(?:quiero|mandame|enviame|traeme|armame)?\s*(?:un\s*)?(?:combo\s*)?(?:para|\ba\b)?\s*/gi, '');
   a = a.replace(/^(?:a\s+mi\s+domicilio|al\s+domicilio|para\s+env[ií]o|para\s+envio),?\s*/gi, '');
 
+  // 3.1 Quitar confirmaciones o prefijos conversacionales de delivery
+  a = a.replace(/^(?:as[ií],?\s*)?(?:dale,?\s*|perfecto,?\s*|joya,?\s*|genial,?\s*|bueno,?\s*)?(?:hacelo|mandalo|mand[aá]melo|envi[aá]melo|envialo|env[ií]o|entrega)?\s*(?:a|para|en)\s+(?:mi\s+)?(?:domicilio|casa|depto|departamento)?\s*(?:en|a)?\s*[:=;\-–—]?\s*/gi, '');
+  a = a.replace(/^(?:mi\s+casa|en\s+mi\s+casa|a\s+mi\s+casa|para\s+mi\s+casa|mi\s+domicilio|en\s+mi\s+domicilio|para\s+mi\s+domicilio),?\s*/gi, '');
+  a = a.replace(/^(?:en|a|para)\s+/gi, '');
+
   // 4. Quitar datos del cliente o notas de pago que vengan al final
   a = a.replace(/[,.]?\s*(?:a\s+nombre\s+de|nombre:?|soy|para)\s+[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/gi, '');
   a = a.replace(/[,.]?\s*(?:abono|pago|pagar|abonar)\s+(?:con|en|por)\s+.*$/gi, '');
@@ -4192,15 +4197,140 @@ REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi ped
     }
 
     const isDeliveryIntentExplicit = /^(?:delivery|envio|envío|a domicilio|a mi casa|a mi domicilio|lo quiero a mi domicilio|quiero que lo envien a mi domicilio|lo envian a mi domicilio|mandamelo|mandámelo|enviámelo|enviamelo|traemelo|traémelo)$/i.test(t.trim()) ||
-      /(?:lo\s+quiero\s+a\s+mi\s+domicilio|quiero\s+que\s+lo\s+envien\s+a\s+mi\s+domicilio|a\s+mi\s+domicilio|por\s+delivery|con\s+env[ií]o|para\s+env[ií]o)/i.test(t.trim()) ||
+      /(?:lo\s+quiero\s+a\s+mi\s+domicilio|quiero\s+que\s+lo\s+envien\s+a\s+mi\s+domicilio|a\s+mi\s+domicilio|para\s+mi\s+domicilio|para\s+mi\s+casa|por\s+delivery|con\s+env[ií]o|para\s+env[ií]o)/i.test(t.trim()) ||
       (wasDeliveryTypeOffered && /^(?:1|1️⃣|uno|el 1|la 1|opci[oó]n 1|envio|envío|domicilio|delivery)$/i.test(t.trim()));
 
     if (isDeliveryIntentExplicit) {
-      if (currentActiveOrder) db.updateOrder(currentActiveOrder.id, { deliveryType: 'delivery', branch: '' });
-      if (lead.jid || lead.id) db.updateLead(lead.jid || lead.id, { deliveryType: 'delivery' });
+      let candidateAddr = extractCleanAddress(rawText);
+      if (!candidateAddr && lead.address && lead.address.length >= 4 && !isGarbageAddress(lead.address)) {
+        candidateAddr = lead.address;
+      }
+      if (!candidateAddr && currentActiveOrder?.address && currentActiveOrder.address.length >= 4 && !isGarbageAddress(currentActiveOrder.address)) {
+        candidateAddr = currentActiveOrder.address;
+      }
 
-      if (lead.address && lead.address.length >= 4 && !isGarbageAddress(lead.address)) {
-        return `¡Excelente ${clientName}! 🛵 Coordinamos con envío a domicilio a tu dirección registrada:\n📍 **${lead.address}**\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n👉 Respondé *1*, *2* o *3*. 🥩`;
+      if (candidateAddr) {
+        if (lead.jid || lead.id) db.updateLead(lead.jid || lead.id, { address: candidateAddr, deliveryType: 'delivery' });
+        lead.address = candidateAddr;
+        lead.deliveryType = 'delivery';
+        if (currentActiveOrder) {
+          db.updateOrder(currentActiveOrder.id, { address: candidateAddr, deliveryType: 'delivery', branch: '' });
+          currentActiveOrder.address = candidateAddr;
+          currentActiveOrder.deliveryType = 'delivery';
+          currentActiveOrder.branch = '';
+        }
+      } else {
+        if (currentActiveOrder) db.updateOrder(currentActiveOrder.id, { deliveryType: 'delivery', branch: '' });
+        if (lead.jid || lead.id) db.updateLead(lead.jid || lead.id, { deliveryType: 'delivery' });
+      }
+
+      // Si el cliente además especificó medio de pago en el mismo mensaje (ej: "abono en efectivo", "pago con transferencia")
+      const isCashPayment = /(?:efectivo|cash|contraentrega|al recibir|en mano|al repartidor)/i.test(t);
+      const isTransferPayment = /(?:transferencia|alias|transferir|cbu|cvu)/i.test(t);
+      const isMpPayment = /(?:mercado\s*pago|mp|link\s*de\s*pago)/i.test(t);
+
+      if (candidateAddr && (isCashPayment || isTransferPayment || isMpPayment)) {
+        let targetOrder = currentActiveOrder || db.getActiveOrdersByJid(lead.jid || lead.id)[0] || db.getLatestOrderByJid(lead.jid || lead.id);
+        const { items: historyItems, total: historyTotal, products: historyProducts } = extractItemsFromHistoryAndText(history, '', products, lead);
+        const itemsToUse = (targetOrder && targetOrder.items?.length > 0) ? targetOrder.items : (historyItems.length > 0 ? historyItems : ['• Combo Asado Parrillero Especial']);
+        const prodsToUse = (targetOrder && targetOrder.products?.length > 0) ? targetOrder.products : (historyProducts || []);
+        const amount = (targetOrder && targetOrder.totalAmount > 0) ? targetOrder.totalAmount : (historyTotal > 0 ? historyTotal : 39999);
+
+        const deliveryCalc = db.calculateDeliverySlotAndCost({
+          orderDate: new Date(),
+          deliveryType: 'delivery',
+          subtotal: amount
+        });
+
+        if (!targetOrder) {
+          targetOrder = db.createOrder({
+            jid: lead.jid || lead.id,
+            phone: lead.phone || '',
+            customerName: clientName,
+            address: candidateAddr,
+            deliveryType: 'delivery',
+            items: itemsToUse,
+            products: prodsToUse,
+            totalAmount: amount,
+            paymentMethod: isCashPayment ? 'Efectivo al repartidor' : (isTransferPayment ? 'Transferencia Bancaria' : 'Mercado Pago'),
+            status: isCashPayment ? 'preparing' : 'pending',
+            deliverySlot: deliveryCalc.suggestedSlotId,
+            deliverySlotName: deliveryCalc.suggestedSlotName,
+            estimatedDelivery: deliveryCalc.estimatedDeliveryLabel,
+            shippingCost: deliveryCalc.shippingCost,
+            isFreeShipping: deliveryCalc.isFreeShipping
+          });
+        }
+
+        const orderId = targetOrder ? targetOrder.id : `ORD-${Date.now().toString().slice(-4)}`;
+        const itemsStr = Array.isArray(itemsToUse) ? itemsToUse.join('\n') : itemsToUse;
+
+        if (isCashPayment) {
+          db.updateOrder(targetOrder.id, {
+            address: candidateAddr,
+            deliveryType: 'delivery',
+            branch: '',
+            paymentMethod: 'Efectivo al repartidor',
+            status: 'preparing',
+            items: itemsToUse,
+            products: prodsToUse,
+            totalAmount: amount,
+            deliverySlot: deliveryCalc.suggestedSlotId,
+            deliverySlotName: deliveryCalc.suggestedSlotName,
+            estimatedDelivery: deliveryCalc.estimatedDeliveryLabel,
+            shippingCost: deliveryCalc.shippingCost,
+            isFreeShipping: deliveryCalc.isFreeShipping
+          });
+          return `¡Excelente ${clientName}! 🥩💵 Confirmamos tu pedido **#${orderId}** con entrega a domicilio:\n\n` +
+            `📍 *Destino:* **${candidateAddr}**\n` +
+            `🛵 *Entrega programada:* **${deliveryCalc.estimatedDeliveryLabel}**.\n\n` +
+            `📋 *Detalle del pedido:*\n${itemsStr}\n\n` +
+            `💰 *Total a abonar:* **$${Number(amount).toLocaleString('es-AR')}** (abonás en efectivo directo al repartidor al recibir).\n\n` +
+            `¡Tus cortes ya están en marcha en carnicería para que lleguen impecables! 🙌 [[STAGE:closed_won]]`;
+        }
+
+        if (isTransferPayment) {
+          db.updateOrder(targetOrder.id, {
+            address: candidateAddr,
+            deliveryType: 'delivery',
+            branch: '',
+            paymentMethod: 'Transferencia Bancaria',
+            status: 'pending',
+            items: itemsToUse,
+            products: prodsToUse,
+            totalAmount: amount,
+            deliverySlot: deliveryCalc.suggestedSlotId,
+            deliverySlotName: deliveryCalc.suggestedSlotName,
+            estimatedDelivery: deliveryCalc.estimatedDeliveryLabel,
+            shippingCost: deliveryCalc.shippingCost,
+            isFreeShipping: deliveryCalc.isFreeShipping
+          });
+          return `¡Excelente ${clientName}! 🥩📲 Agendamos tu pedido **#${orderId}** con entrega en **${candidateAddr}** (${deliveryCalc.estimatedDeliveryLabel}):\n\n` +
+            `📋 *Detalle del pedido:*\n${itemsStr}\n\n` +
+            `💳 *Datos para Transferencia:*\n` +
+            `• *Alias:* \`republica.carne.mp\`\n` +
+            `• *Titular:* República de la Carne\n` +
+            `• *Total:* **$${Number(amount).toLocaleString('es-AR')}**\n\n` +
+            `👉 Por favor envianos el comprobante por acá y despachamos tu pedido. 🙌 [[STAGE:confirming_data]]`;
+        }
+
+        if (isMpPayment) {
+          let mpLink = targetOrder?.paymentLink || '';
+          if (!mpLink && targetOrder) {
+            try {
+              const pref = await mercadoPagoService.createPaymentPreference(targetOrder);
+              mpLink = pref.checkoutUrl;
+            } catch (e) {}
+          }
+          return `¡Excelente ${clientName}! 🥩💳 Agendamos tu pedido **#${orderId}** hacia **${candidateAddr}** (Total: **$${Number(amount).toLocaleString('es-AR')}**):\n\n` +
+            `📋 *Detalle del pedido:*\n${itemsStr}\n\n` +
+            `🔗 *Link de pago seguro:* ${mpLink || 'https://mpago.la/republica-de-la-carne'}\n\n` +
+            `En cuanto se acredite, el repartidor sale hacia tu domicilio. 🙌 [[STAGE:confirming_data]]`;
+        }
+      }
+
+      if (candidateAddr) {
+        return `¡Excelente ${clientName}! 🛵 Coordinamos con envío a domicilio a tu dirección:\n📍 **${candidateAddr}**\n\n💳 *¿Cómo preferís abonar?*\n1️⃣ *Efectivo* al repartidor\n2️⃣ *Transferencia* (Alias: \`republica.carne.mp\`)\n3️⃣ *Mercado Pago* (Link directo con tarjetas / dinero en cuenta)\n\n👉 Respondé *1*, *2* o *3*. 🥩`;
       }
       return `¡Excelente ${clientName}! 🛵 Coordinamos con envío a domicilio en el día.\n\n📍 Por favor pasame tu **Calle, Número/Altura y Barrio** para el repartidor. 🙌`;
     }
