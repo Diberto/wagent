@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import { MessageSquare, Calculator, PackageCheck, Bike, Menu } from 'lucide-react';
+import { MessageSquare, Calculator, PackageCheck, Bike, Menu, Bell, QrCode } from 'lucide-react';
+import SidebarNav from './components/SidebarNav';
+import AdminHubView from './components/AdminHubView';
 import Navbar from './components/Navbar';
 import ChatInbox from './components/ChatInbox';
 import KanbanPipeline from './components/KanbanPipeline';
@@ -640,11 +642,11 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#0b141a] text-slate-100 overflow-hidden select-none">
+    <div className="flex h-screen bg-[#0b141a] text-slate-100 overflow-hidden select-none">
       
-      {/* Top Navbar (Solo visible en vistas de Administración / Operador, NO en la Tienda Web del Cliente ni en el POS Autónomo /pos) */}
+      {/* Sidebar Navigation Lateral (Visible en todas las vistas de operador/admin excepto tienda pública y POS autónomo) */}
       {currentTab !== 'storefront' && !isPosStandalone && (
-        <Navbar
+        <SidebarNav
           currentTab={currentTab}
           setCurrentTab={(tab) => {
             if (tab === 'storefront') {
@@ -660,52 +662,60 @@ export default function App() {
           }}
           whatsappStatus={whatsappStatus}
           onOpenQR={() => setIsQRModalOpen(true)}
-          onOpenSettings={() => setIsSettingsModalOpen(true)}
-          onOpenCallModal={() => handleOpenCallModal(null)}
-          onOpenMediaGallery={() => setIsMediaGalleryOpen(true)}
           globalAiEnabled={globalAiEnabled}
           onToggleGlobalAi={handleToggleGlobalAi}
           unreadCount={totalUnreadCount}
           currentUser={currentUser}
-          allUsers={allUsers}
-          onSwitchUser={(user) => {
-            setCurrentUser(user);
-            localStorage.setItem('wagent_user', JSON.stringify(user));
-          }}
           onLogout={handleLogout}
+          onOpenMediaGallery={() => setIsMediaGalleryOpen(true)}
           isMobileDrawerOpen={isMobileDrawerOpen}
           setIsMobileDrawerOpen={setIsMobileDrawerOpen}
           notifications={notifications}
-          onMarkAllNotificationsRead={() => {
-            setNotifications(prev => {
-              const updated = prev.map(n => ({ ...n, read: true }));
-              try { localStorage.setItem('wagent_notifications', JSON.stringify(updated)); } catch (e) {}
-              return updated;
-            });
-          }}
-          onClearNotifications={() => {
-            setNotifications([]);
-            try { localStorage.removeItem('wagent_notifications'); } catch (e) {}
-          }}
-          onSelectNotification={(notif) => {
-            if (notif.tab) setCurrentTab(notif.tab);
-            if (notif.jid && leads.length > 0) {
-              const targetLead = leads.find(l => l.jid === notif.jid);
-              if (targetLead) setSelectedLead(targetLead);
-            }
-          }}
-          onOpenCustomerPortal={() => setIsCustomerPortalOpen(true)}
-          isDockVisible={isDockVisible}
-          onToggleDock={() => {
-            const next = !isDockVisible;
-            setIsDockVisible(next);
-            localStorage.setItem('wagent_suite_dock_collapsed', String(!next));
-          }}
         />
       )}
 
-      {/* Main View Area */}
-      <main className="flex-1 overflow-hidden">
+      {/* Main Content Area con Header Móvil */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+
+        {/* Header Superior Móvil (Solo visible en pantallas < md en panel admin) */}
+        {currentTab !== 'storefront' && !isPosStandalone && (
+          <header className="md:hidden h-14 bg-[#111b21] border-b border-[#202c33] flex items-center justify-between px-3 shrink-0 z-20">
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => setIsMobileDrawerOpen(true)}
+                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#202c33]"
+              >
+                <Menu size={20} />
+              </button>
+              <span className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                <span>🥩</span> República Carne
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsQRModalOpen(true)}
+                className={`p-1.5 rounded-lg border ${
+                  whatsappStatus === 'connected' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                }`}
+                title="Estado de WhatsApp"
+              >
+                <QrCode size={16} />
+              </button>
+              
+              <button
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#202c33]"
+                title="Configuración rápida"
+              >
+                <Settings size={18} />
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Main View Area */}
+        <main className="flex-1 overflow-hidden">
         {currentTab === 'storefront' && (
           <div className="h-full overflow-y-auto custom-scrollbar">
             <StorefrontView 
@@ -874,6 +884,19 @@ export default function App() {
         {currentTab === 'system-logs' && (
           <LogsView socket={socket} />
         )}
+
+        {currentTab === 'admin' && (
+          <AdminHubView
+            socket={socket}
+            currentUser={currentUser}
+            onSwitchUser={(user) => {
+              setCurrentUser(user);
+              localStorage.setItem('wagent_user', JSON.stringify(user));
+            }}
+            whatsappStatus={whatsappStatus}
+            onOpenQR={() => setIsQRModalOpen(true)}
+          />
+        )}
       </main>
 
       {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet screens < lg solo en panel Admin) */}
@@ -928,6 +951,8 @@ export default function App() {
           </button>
         </div>
       )}
+
+      </div>
 
       {/* QR Code Modal (Multi-Operator WhatsApp) */}
       <QRModal
@@ -1009,19 +1034,7 @@ export default function App() {
         ))}
       </div>
 
-      {/* Suite Navigation Dock (Desktop floating dock + mobile theme switcher & quick profile) */}
-      {currentTab !== 'storefront' && !isPosStandalone && (
-        <SuiteNavigation
-          currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
-          currentUser={currentUser}
-          onOpenCustomerPortal={() => setIsCustomerPortalOpen(true)}
-          onOpenSettings={() => setIsSettingsModalOpen(true)}
-          notificationsCount={notifications.filter(n => !n.read).length}
-          isDockVisible={isDockVisible}
-          setIsDockVisible={setIsDockVisible}
-        />
-      )}
+
 
       {/* Universal Customer & User Portal Modal */}
       <CustomerPortalModal

@@ -602,7 +602,9 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       socket.on('orders:sync', (allOrders) => {
         if (Array.isArray(allOrders) && allOrders.length > 0) {
           setOrders(prev => {
-            if (prev.length === allOrders.length && JSON.stringify(prev) === JSON.stringify(allOrders)) return prev;
+            if (prev.length === allOrders.length && prev[0]?.id === allOrders[0]?.id && prev[0]?.updatedAt === allOrders[0]?.updatedAt) {
+              return prev;
+            }
             return allOrders;
           });
         }

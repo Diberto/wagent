@@ -100,6 +100,13 @@ export class AutomationEngine {
   }
 
   getRules() {
+    if (typeof this.db.getAutomations === 'function') {
+      const list = this.db.getAutomations();
+      if (Array.isArray(list) && list.length > 0) return list;
+      if (typeof this.db.setAutomations === 'function') {
+        return this.db.setAutomations(DEFAULT_AUTOMATIONS);
+      }
+    }
     const dbData = this.db.readDb();
     if (!dbData.automations || dbData.automations.length === 0) {
       dbData.automations = DEFAULT_AUTOMATIONS;
@@ -114,6 +121,9 @@ export class AutomationEngine {
   }
 
   updateRule(id, updates) {
+    if (typeof this.db.updateAutomation === 'function') {
+      return this.db.updateAutomation(id, updates);
+    }
     const dbData = this.db.readDb();
     if (!dbData.automations) dbData.automations = DEFAULT_AUTOMATIONS;
     const index = dbData.automations.findIndex(r => r.id === id);
@@ -134,6 +144,9 @@ export class AutomationEngine {
   }
 
   resetDefaults() {
+    if (typeof this.db.setAutomations === 'function') {
+      return this.db.setAutomations(DEFAULT_AUTOMATIONS);
+    }
     const dbData = this.db.readDb();
     dbData.automations = DEFAULT_AUTOMATIONS;
     this.db.writeDb(dbData);

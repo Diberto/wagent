@@ -2194,7 +2194,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     const updated = db.updateOrder(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
     io.emit('order:update', updated);
-    io.emit('orders:sync', db.getOrders());
     res.json(updated);
   });
 
@@ -2202,7 +2201,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     const updated = db.updateOrder(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
     io.emit('order:update', updated);
-    io.emit('orders:sync', db.getOrders());
     res.json(updated);
   });
 
@@ -2255,7 +2253,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
 
     io.emit('order:update', updated);
-    io.emit('orders:sync', db.getOrders());
 
     auditLogger.info(
       'orders',
@@ -2313,7 +2310,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     const updated = db.setOrderPrepared(req.params.id, targetPrepared, preparedBy);
     
     io.emit('order:update', updated);
-    io.emit('orders:sync', db.getOrders());
     res.json(updated);
   });
 
@@ -2326,7 +2322,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     const updated = db.archiveOrder(req.params.id, targetArchived);
 
     io.emit('order:update', updated);
-    io.emit('orders:sync', db.getOrders());
     res.json(updated);
   });
 
@@ -2334,7 +2329,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     const deleted = db.deleteOrder(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Pedido no encontrado' });
     io.emit('order:delete', req.params.id);
-    io.emit('orders:sync', db.getOrders());
     res.json({ success: true, id: req.params.id });
   });
 
@@ -3566,15 +3560,63 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
-  // --- 6. Settings & Voice Testing ---
+  // --- 6. Settings & Voice Testing con Enmascaramiento Seguro ---
+  const SENSITIVE_SETTINGS_KEYS = [
+    'geminiApiKey',
+    'openaiApiKey',
+    'nvidiaApiKey',
+    'customApiKey',
+    'elevenlabsApiKey',
+    'mercadopagoAccessToken',
+    'mercadopagoAccessTokenProduction',
+    'mercadopagoAccessTokenSandbox',
+    'mercadopagoWebhookSecret',
+    'wooConsumerKey',
+    'wooConsumerSecret',
+    'arcaPrivateKey'
+  ];
+
+  function maskSecret(val) {
+    if (!val || typeof val !== 'string') return val;
+    if (val.length <= 8) return '••••••••';
+    return val.slice(0, 4) + '••••••••' + val.slice(-4);
+  }
+
+  function maskSettings(rawSettings) {
+    if (!rawSettings || typeof rawSettings !== 'object') return rawSettings;
+    const masked = { ...rawSettings };
+    for (const key of SENSITIVE_SETTINGS_KEYS) {
+      if (masked[key]) {
+        masked[key] = maskSecret(masked[key]);
+      }
+    }
+    return masked;
+  }
+
+  function unmaskPayload(newPayload, existingSettings = {}) {
+    if (!newPayload || typeof newPayload !== 'object') return newPayload;
+    const clean = { ...newPayload };
+    for (const key of SENSITIVE_SETTINGS_KEYS) {
+      if (clean[key] !== undefined) {
+        const val = String(clean[key]).trim();
+        // Si el valor contiene viñetas de enmascaramiento, preservar el valor real preexistente
+        if (val.includes('••••') || val.includes('****')) {
+          clean[key] = existingSettings[key] || '';
+        }
+      }
+    }
+    return clean;
+  }
+
   router.get('/settings', (req, res) => {
     try {
-      const settings = db.getSettings();
+      const settings = db.getSettings() || {};
+      const masked = maskSettings(settings);
       const availableVoices = (typeof SpeechService !== 'undefined' && SpeechService.getAvailableVoices)
         ? SpeechService.getAvailableVoices()
         : [];
       res.json({
-        settings,
+        settings: masked,
         availableVoices
       });
     } catch (err) {
@@ -3585,9 +3627,12 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   router.put('/settings', (req, res) => {
     try {
-      const updated = db.updateSettings(req.body);
-      io.emit('settings:update', updated);
-      res.json(updated);
+      const current = db.getSettings() || {};
+      const sanitizedPayload = unmaskPayload(req.body, current);
+      const updated = db.updateSettings(sanitizedPayload);
+      const maskedResponse = maskSettings(updated);
+      io.emit('settings:update', maskedResponse);
+      res.json(maskedResponse);
     } catch (err) {
       console.error('Error en PUT /api/settings:', err);
       res.status(500).json({ error: err.message });

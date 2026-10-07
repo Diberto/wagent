@@ -16,6 +16,10 @@ export default function AudioPlayer({ audioUrl, duration = 0, isAgent = false })
     const audio = audioRef.current;
     if (!audio) return;
     setLoadError(false);
+    // Detener reproducción anterior al cambiar de audio
+    audio.pause();
+    setIsPlaying(false);
+    setCurrentTime(0);
 
     const handleLoadedMetadata = () => {
       if (audio.duration && !isNaN(audio.duration)) {
@@ -44,6 +48,8 @@ export default function AudioPlayer({ audioUrl, duration = 0, isAgent = false })
     audio.addEventListener('error', handleError);
 
     return () => {
+      audio.pause();
+      setIsPlaying(false);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
