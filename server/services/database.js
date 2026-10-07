@@ -305,6 +305,9 @@ class DatabaseService {
       storeConfig: {
         ...(CONFIG.DEFAULT_SETTINGS.storeConfig || {}),
         ...(rawSettings.storeConfig || {})
+      },
+      arcaConfig: {
+        ...(rawSettings.arcaConfig || {})
       }
     };
   }
@@ -325,6 +328,10 @@ class DatabaseService {
       storeConfig: {
         ...(current.storeConfig || {}),
         ...(newSettings.storeConfig || {})
+      },
+      arcaConfig: {
+        ...(current.arcaConfig || {}),
+        ...(newSettings.arcaConfig || {})
       }
     };
     db.settings = merged;

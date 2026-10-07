@@ -141,7 +141,7 @@ export default function AdminHubView({
       }
 
       const updated = await res.json();
-      setSettings(updated);
+      setSettings(updated.settings || updated);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3500);
     } catch (err) {
@@ -178,7 +178,7 @@ export default function AdminHubView({
   const handleCheckUpdates = async () => {
     setIsCheckingUpdate(true);
     try {
-      const res = await fetch('/api/system/updater-info');
+      const res = await fetch('/api/system/update-check');
       const data = await res.json();
       setUpdateInfo(data);
     } catch (err) {
@@ -192,7 +192,7 @@ export default function AdminHubView({
     if (!window.confirm('¿Deseas iniciar la actualización automática del sistema desde GitHub?')) return;
     setIsApplyingUpdate(true);
     try {
-      const res = await fetch('/api/system/apply-update', { method: 'POST' });
+      const res = await fetch('/api/system/update-apply', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setUpdateSuccess(true);

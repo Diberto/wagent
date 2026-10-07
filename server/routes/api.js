@@ -4270,6 +4270,25 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
+  // Alias compatibles para Centro de Control
+  router.get('/system/updater-info', async (req, res) => {
+    try {
+      const updateInfo = await UpdateService.checkUpdates();
+      res.json(updateInfo);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/system/apply-update', async (req, res) => {
+    try {
+      const result = await UpdateService.applyUpdate({ trigger: 'web-panel' });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Webhook para despliegue instantáneo automático desde GitHub
   router.all('/system/webhook-deploy', async (req, res) => {
     try {

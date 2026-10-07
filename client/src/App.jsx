@@ -153,8 +153,9 @@ export default function App() {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
-        if (data && typeof data.autoReplyEnabled === 'boolean') {
-          setGlobalAiEnabled(data.autoReplyEnabled);
+        const s = data?.settings || data;
+        if (s && typeof s.autoReplyEnabled === 'boolean') {
+          setGlobalAiEnabled(s.autoReplyEnabled);
         }
       })
       .catch(err => console.error('Error cargando settings:', err));
@@ -704,9 +705,9 @@ export default function App() {
               </button>
               
               <button
-                onClick={() => setIsSettingsModalOpen(true)}
+                onClick={() => setCurrentTab('admin')}
                 className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#202c33]"
-                title="Configuración rápida"
+                title="Centro de Control & Configuración"
               >
                 <Settings size={18} />
               </button>
