@@ -29,7 +29,8 @@ import {
   Menu,
   X,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Receipt
 } from 'lucide-react';
 
 export default function SidebarNav({
@@ -112,6 +113,11 @@ export default function SidebarNav({
           label: 'Admin & Configuración', 
           icon: Settings,
           highlight: true 
+        },
+        {
+          id: 'arca',
+          label: 'ARCA (AFIP) Facturación',
+          icon: Receipt
         }
       ]
     }

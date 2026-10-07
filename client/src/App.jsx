@@ -885,7 +885,7 @@ export default function App() {
           <LogsView socket={socket} />
         )}
 
-        {currentTab === 'admin' && (
+        {(currentTab === 'admin' || currentTab === 'arca') && (
           <AdminHubView
             socket={socket}
             currentUser={currentUser}
@@ -895,6 +895,7 @@ export default function App() {
             }}
             whatsappStatus={whatsappStatus}
             onOpenQR={() => setIsQRModalOpen(true)}
+            initialSection={currentTab === 'arca' ? 'arca' : 'general'}
           />
         )}
       </main>

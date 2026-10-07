@@ -26,7 +26,10 @@ import {
   Store,
   Clock,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Plus,
+  Trash2,
+  X
 } from 'lucide-react';
 import UsersView from './UsersView';
 import DatabaseView from './DatabaseView';
@@ -55,9 +58,23 @@ export default function AdminHubView({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  // Sync initialSection if changed from parent
+  useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
+
   // AI Connection Test
   const [isTestingAi, setIsTestingAi] = useState(false);
   const [aiTestResult, setAiTestResult] = useState(null);
+
+  // ARCA (AFIP) Facturación Electrónica & Multi-Razón Social
+  const [isTestingArca, setIsTestingArca] = useState(false);
+  const [arcaTestResult, setArcaTestResult] = useState(null);
+  const [fiscalProfiles, setFiscalProfiles] = useState([]);
+  const [editingProfile, setEditingProfile] = useState(null);
+  const [allBranches, setAllBranches] = useState([]);
 
   // GitHub Updater State
   const [updateInfo, setUpdateInfo] = useState(null);
@@ -68,7 +85,27 @@ export default function AdminHubView({
   // Cargar configuración inicial
   useEffect(() => {
     fetchSettings();
+    fetchFiscalProfiles();
   }, []);
+
+  useEffect(() => {
+    if (activeSection === 'arca') {
+      fetchFiscalProfiles();
+    }
+  }, [activeSection]);
+
+  const fetchFiscalProfiles = async () => {
+    try {
+      const [fpRes, brRes] = await Promise.all([
+        fetch('/api/fiscal-profiles').then(r => r.json()).catch(() => []),
+        fetch('/api/branches').then(r => r.json()).catch(() => [])
+      ]);
+      if (Array.isArray(fpRes)) setFiscalProfiles(fpRes);
+      if (Array.isArray(brRes)) setAllBranches(brRes);
+    } catch (e) {
+      console.error('Error fetching fiscal profiles:', e);
+    }
+  };
 
   const fetchSettings = async () => {
     setIsLoadingSettings(true);
@@ -167,12 +204,59 @@ export default function AdminHubView({
     }
   };
 
+  const handleTestArca = async (profileId = null) => {
+    setIsTestingArca(true);
+    setArcaTestResult(null);
+    try {
+      const url = profileId ? `/api/fiscal-profiles/${profileId}/test` : '/api/arca/test';
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+      setArcaTestResult(data);
+    } catch (err) {
+      setArcaTestResult({ success: false, message: `Error: ${err.message}` });
+    } finally {
+      setIsTestingArca(false);
+    }
+  };
+
+  const handleSaveFiscalProfile = async (profileData) => {
+    try {
+      const isEdit = profileData.id && fiscalProfiles.some(p => p.id === profileData.id);
+      const method = isEdit ? 'PUT' : 'POST';
+      const url = isEdit ? `/api/fiscal-profiles/${profileData.id}` : '/api/fiscal-profiles';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData)
+      });
+      if (res.ok) {
+        await fetchFiscalProfiles();
+        setEditingProfile(null);
+      }
+    } catch (e) {
+      console.error('Error guardando perfil fiscal:', e);
+    }
+  };
+
+  const handleDeleteFiscalProfile = async (profileId) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta Razón Social / Perfil Fiscal?')) return;
+    try {
+      const res = await fetch(`/api/fiscal-profiles/${profileId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setFiscalProfiles(prev => prev.filter(p => p.id !== profileId));
+      }
+    } catch (e) {
+      console.error('Error eliminando perfil fiscal:', e);
+    }
+  };
+
   // Secciones del Master Rail
   const sections = [
     { id: 'general', label: 'General & WhatsApp', icon: Settings, desc: 'Sesión Baileys, autopilot y datos del negocio' },
     { id: 'ai', label: 'Modelos IA & Prompts', icon: Bot, desc: 'Gemini, OpenAI, Llama local y personalidad' },
     { id: 'logistics', label: 'Logística & Despachos', icon: Bike, desc: 'Franjas horarias, costos y radios de envío' },
-    { id: 'payments', label: 'Mercado Pago & ARCA', icon: CreditCard, desc: 'Pasarelas de cobro y facturación electrónica' },
+    { id: 'payments', label: 'Mercado Pago', icon: CreditCard, desc: 'Pasarelas de cobro y Alias digital' },
+    { id: 'arca', label: 'ARCA (AFIP) Facturación', icon: Receipt, desc: 'Multi-Razón Social, CUITs, puntos de venta y WSFE' },
     { id: 'automations', label: 'Automatizaciones', icon: Zap, desc: 'Reglas inteligentes de pedidos y respuestas' },
     { id: 'woocommerce', label: 'WooCommerce Sync', icon: Globe, desc: 'Sincronización de catálogo y stock online' },
     { id: 'users', label: 'Usuarios & Accesos', icon: Users, desc: 'Operadores, roles RBAC y permisos' },
@@ -232,7 +316,7 @@ export default function AdminHubView({
         </div>
 
         {/* Global Save Button in Left Rail */}
-        {['general', 'ai', 'logistics', 'payments'].includes(activeSection) && (
+        {['general', 'ai', 'logistics', 'payments', 'arca'].includes(activeSection) && (
           <div className="p-3 border-t border-[#202c33] bg-[#0c1317]">
             <button
               onClick={handleSaveSettings}
@@ -603,6 +687,418 @@ export default function AdminHubView({
                   className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
                 />
               </div>
+            </div>
+
+            {/* Direct jump to ARCA */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/40 via-indigo-950/20 to-transparent border border-blue-500/20 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0">
+                  <Receipt size={18} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white">Facturación Electrónica ARCA (AFIP)</div>
+                  <div className="text-[11px] text-slate-400">Configura CUITs, puntos de venta, alícuotas y homologación WSFE</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSection('arca')}
+                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition"
+              >
+                <span>Ir a ARCA</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 5. ARCA (AFIP) FACTURACIÓN ELECTRÓNICA & MULTI-RAZÓN SOCIAL */}
+        {activeSection === 'arca' && (
+          <div className="p-6 max-w-4xl mx-auto space-y-6">
+            <div className="border-b border-[#202c33] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+                  ARCA (ex AFIP) Multi-Razón Social & Facturación
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold border border-blue-500/30">
+                    🇦🇷 RG 4291 / 4892
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Vinculación de CUITs, Razones Sociales, puntos de venta y web services WSFE para las 6 sucursales.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingProfile({
+                    id: '',
+                    name: '',
+                    razonSocial: '',
+                    nombreFantasia: '',
+                    cuit: '',
+                    condicionIva: 'Responsable Inscripto',
+                    iibb: '',
+                    inicioActividades: '',
+                    domicilioComercial: '',
+                    ptoVta: 1,
+                    defaultDocumentType: 'factura_b',
+                    mode: 'sandbox',
+                    branchIds: [],
+                    isDefault: fiscalProfiles.length === 0
+                  })}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-md transition"
+                >
+                  <Plus size={14} /> Nueva Razón Social
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTestArca()}
+                  disabled={isTestingArca}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md transition disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={isTestingArca ? 'animate-spin' : ''} />
+                  {isTestingArca ? 'Verificando...' : '⚡ Probar ARCA'}
+                </button>
+              </div>
+            </div>
+
+            {/* Status Test Result Alert */}
+            {arcaTestResult && (
+              <div className={`p-4 rounded-2xl border text-xs flex flex-col gap-2 ${
+                arcaTestResult.success
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}>
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  {arcaTestResult.success ? <CheckCircle2 size={18} className="text-emerald-400" /> : <AlertCircle size={18} className="text-rose-400" />}
+                  <span>{arcaTestResult.message || (arcaTestResult.success ? 'Conexión con ARCA exitosa' : 'Error conectando con ARCA')}</span>
+                </div>
+                {arcaTestResult.success && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-300 pt-2 border-t border-emerald-500/20">
+                    <div><span className="text-slate-400">WSAA:</span> <b>{arcaTestResult.wsaaStatus || 'OK'}</b></div>
+                    <div><span className="text-slate-400">WSFE:</span> <b>{arcaTestResult.wsfeStatus || 'OK'}</b></div>
+                    <div><span className="text-slate-400">Entorno:</span> <b>{arcaTestResult.isSandbox ? '🧪 Sandbox' : '🚀 Producción'}</b></div>
+                    <div><span className="text-slate-400">Método:</span> <b>{arcaTestResult.authMethod || 'Certificado'}</b></div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* LIST OF FISCAL PROFILES / RAZONES SOCIALES */}
+            <div className="p-5 rounded-2xl bg-[#111b21] border border-[#202c33] space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">Razones Sociales & CUITs Registrados</h3>
+                  <p className="text-[11px] text-slate-400">Cada sucursal facturará bajo su Razón Social y Punto de Venta asignado</p>
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                  {fiscalProfiles.length} {fiscalProfiles.length === 1 ? 'Perfil' : 'Perfiles'}
+                </span>
+              </div>
+
+              {fiscalProfiles.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-xs bg-[#182229] rounded-2xl border border-dashed border-[#2a3942]">
+                  <p className="font-semibold text-slate-300">No hay Razones Sociales configuradas aún</p>
+                  <p className="text-[11px] text-slate-500 mt-1">Haz clic en "Nueva Razón Social" para asociar un CUIT y punto de venta.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {fiscalProfiles.map(profile => {
+                    const assignedBranches = allBranches.filter(b => 
+                      b.fiscalProfileId === profile.id || (Array.isArray(profile.branchIds) && profile.branchIds.includes(b.id))
+                    );
+
+                    return (
+                      <div 
+                        key={profile.id}
+                        className="p-4 rounded-2xl bg-[#182229] border border-[#2a3942] space-y-3 transition hover:border-slate-600"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-extrabold text-white">{profile.razonSocial || profile.name}</span>
+                              {profile.nombreFantasia && (
+                                <span className="text-xs text-slate-400">({profile.nombreFantasia})</span>
+                              )}
+                              {profile.isDefault && (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                  ★ Predeterminada
+                                </span>
+                              )}
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                profile.mode === 'production'
+                                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                                  : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              }`}>
+                                {profile.mode === 'production' ? '🚀 Producción' : '🧪 Sandbox'}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-400 flex flex-wrap items-center gap-x-4 gap-y-1">
+                              <span>CUIT: <b className="text-white font-mono">{profile.cuit}</b></span>
+                              <span>Pto. Venta: <b className="text-emerald-400 font-mono">#{profile.ptoVta || 1}</b></span>
+                              <span>Condición: <b className="text-slate-300">{profile.condicionIva}</b></span>
+                              {profile.iibb && <span>IIBB: <b className="text-slate-300 font-mono">{profile.iibb}</b></span>}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleTestArca(profile.id)}
+                              className="px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-bold border border-blue-500/30 transition flex items-center gap-1"
+                              title="Probar conexión de esta Razón Social"
+                            >
+                              <span>⚡ Probar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProfile({ ...profile })}
+                              className="px-2.5 py-1.5 rounded-xl bg-[#202c33] hover:bg-[#2a3942] text-slate-200 text-xs font-bold border border-slate-700 transition"
+                              title="Editar datos fiscales"
+                            >
+                              Editar
+                            </button>
+                            {!profile.isDefault && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteFiscalProfile(profile.id)}
+                                className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition"
+                                title="Eliminar razón social"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Associated Branches Badges */}
+                        <div className="pt-2 border-t border-[#202c33] flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400 font-bold mr-1">Sucursales Asociadas:</span>
+                          {assignedBranches.length > 0 ? (
+                            assignedBranches.map(b => (
+                              <span key={b.id} className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-[#111b21] text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <Store size={10} /> {b.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-amber-400/80 italic">Todas las sucursales (o fallback general)</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* MODAL / FORMULARIO EDICIÓN DE RAZÓN SOCIAL */}
+            {editingProfile && (
+              <div className="p-5 rounded-2xl bg-[#111b21] border border-blue-500/40 space-y-4 animate-in zoom-in-95 shadow-xl">
+                <div className="flex items-center justify-between border-b border-[#202c33] pb-3">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Receipt size={16} className="text-blue-400" />
+                    {editingProfile.id ? 'Editar Razón Social Fiscal' : 'Nueva Razón Social / CUIT'}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setEditingProfile(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#202c33]"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Razón Social Legal:</label>
+                    <input
+                      type="text"
+                      value={editingProfile.razonSocial || ''}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, razonSocial: e.target.value })}
+                      placeholder="Ej: REPÚBLICA DE LA CARNE S.R.L."
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Nombre de Fantasía:</label>
+                    <input
+                      type="text"
+                      value={editingProfile.nombreFantasia || ''}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, nombreFantasia: e.target.value })}
+                      placeholder="Ej: República de la Carne - Urca"
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">CUIT Emisor (11 dígitos):</label>
+                    <input
+                      type="text"
+                      value={editingProfile.cuit || ''}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, cuit: e.target.value.replace(/\D/g, '') })}
+                      placeholder="30716892348"
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Punto de Venta (Pto Vta):</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="9999"
+                      value={editingProfile.ptoVta || 1}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, ptoVta: parseInt(e.target.value, 10) || 1 })}
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Condición frente al IVA:</label>
+                    <select
+                      value={editingProfile.condicionIva || 'Responsable Inscripto'}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, condicionIva: e.target.value })}
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="Responsable Inscripto">Responsable Inscripto</option>
+                      <option value="Monotributo">Monotributo</option>
+                      <option value="Exento">IVA Exento</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Entorno:</label>
+                    <select
+                      value={editingProfile.mode || 'sandbox'}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, mode: e.target.value })}
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="sandbox">🧪 Sandbox / Homologación (Pruebas)</option>
+                      <option value="production">🚀 Producción (Facturación Oficial)</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Domicilio Comercial:</label>
+                    <input
+                      type="text"
+                      value={editingProfile.domicilioComercial || ''}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, domicilioComercial: e.target.value })}
+                      placeholder="Av. José Roque Funes 1115, Barrio Urca, Córdoba"
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Ingresos Brutos (IIBB):</label>
+                    <input
+                      type="text"
+                      value={editingProfile.iibb || ''}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, iibb: e.target.value })}
+                      placeholder="901-283746-1"
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Inicio de Actividades:</label>
+                    <input
+                      type="text"
+                      value={editingProfile.inicioActividades || ''}
+                      onChange={(e) => setEditingProfile({ ...editingProfile, inicioActividades: e.target.value })}
+                      placeholder="01/03/2020"
+                      className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  {/* Selector de Sucursales Asociadas */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Sucursales que operan bajo esta Razón Social:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-[#182229] border border-[#2a3942] rounded-xl">
+                      {allBranches.map(b => {
+                        const isChecked = Array.isArray(editingProfile.branchIds) && editingProfile.branchIds.includes(b.id);
+                        return (
+                          <label key={b.id} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-white">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const currentIds = Array.isArray(editingProfile.branchIds) ? [...editingProfile.branchIds] : [];
+                                if (e.target.checked) {
+                                  if (!currentIds.includes(b.id)) currentIds.push(b.id);
+                                } else {
+                                  const filtered = currentIds.filter(id => id !== b.id);
+                                  setEditingProfile({ ...editingProfile, branchIds: filtered });
+                                  return;
+                                }
+                                setEditingProfile({ ...editingProfile, branchIds: currentIds });
+                              }}
+                              className="rounded text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="truncate">{b.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editingProfile.isDefault)}
+                        onChange={(e) => setEditingProfile({ ...editingProfile, isDefault: e.target.checked })}
+                        className="rounded text-blue-600"
+                      />
+                      <span>Establecer como Razón Social Predeterminada</span>
+                    </label>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProfile(null)}
+                        className="px-3.5 py-2 rounded-xl bg-[#202c33] hover:bg-[#2a3942] text-slate-300 text-xs font-semibold transition"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveFiscalProfile(editingProfile)}
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md transition"
+                      >
+                        Guardar Razón Social
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Automatización de Facturación al Cobrar */}
+            <div className="p-5 rounded-2xl bg-[#111b21] border border-[#202c33] flex items-center justify-between gap-4">
+              <div>
+                <div className="text-xs font-bold text-white">Facturación Automática al Cobrar</div>
+                <div className="text-[11px] text-slate-400">
+                  Genera y valida automáticamente el comprobante fiscal en ARCA al marcar un pedido como cobrado.
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings?.arcaConfig?.autoInvoicePaidOrders)}
+                  onChange={(e) => setSettings(prev => ({
+                    ...prev,
+                    arcaConfig: { ...(prev?.arcaConfig || {}), autoInvoicePaidOrders: e.target.checked }
+                  }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
             </div>
           </div>
         )}
