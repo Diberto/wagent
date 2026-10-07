@@ -195,7 +195,7 @@ export class OrderSyncEngine {
         if (activeOrder && ['pending', 'preparing', 'draft'].includes(activeOrder.status)) {
           const isExplicitResetOrReplace = /(?:solo quiero|quiero solo|un solo|una sola|nada mas|en vez de|cambia|cambiame|modifica|modificame|borra todo|borrá todo|empecemos de nuevo|arranquemos de nuevo)/i.test(userMsg);
           const isAdditionIntent = /(?:agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|mas|más|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2)/i.test(userMsg);
-          const hasAuthoritativeDetail = /(?:(?:📋|📝|📦|🛒|🍽️)?\s*\*?\s*(?:Detalle|Resumen)(?:\s+de)?(?:\s+tu|\s+del)?\s+pedido)/i.test(replyMsg);
+          const hasAuthoritativeDetail = /(?:(?:📋|📝|📦|🛒|🍽️|✨|👉)?\s*\*?\s*(?:Detalle|Resumen)[^\n:]*?(?:pedido|propuesta|orden))/iu.test(replyMsg);
 
           // Si el cliente está eligiendo una opción o el bot brindó el detalle autoritativo completo del pedido,
           // los productos extraídos del reply reemplazan completamente cualquier propuesta preliminar
@@ -341,10 +341,10 @@ export class OrderSyncEngine {
 
     // 1. Aislamiento de la sección autoritativa de detalle si existe
     let relevantText = replyMsg;
-    const detailHeaderMatch = replyMsg.match(/(?:(?:📋|📝|📦|🛒|🍽️)?\s*\*?\s*(?:Detalle|Resumen)(?:\s+de)?(?:\s+tu|\s+del)?\s+pedido[^*:\n]*\*?[:\s]*)/i);
+    const detailHeaderMatch = replyMsg.match(/(?:(?:📋|📝|📦|🛒|🍽️|✨|👉)?\s*\*?\s*(?:Detalle|Resumen)[^\n:]*?(?:pedido|propuesta|orden)[^*:\n]*\*?[:\s]*)/iu);
     if (detailHeaderMatch) {
       const afterHeader = replyMsg.slice(detailHeaderMatch.index + detailHeaderMatch[0].length);
-      const nextSectionMatch = afterHeader.match(/\n\s*(?:(?:\*|_|\(|\s)*(?:nota|aviso|aclaraci[oó]n|los precios de los cortes)|para que esto|para que|cómo seguimos|c[oó]mo seguimos|1[\.\)]\s*\*?direcci[oó]n|direcci[oó]n completa|medio de pago|forma de pago|el pago|¿a d[oó]nde|¿c[oó]mo prefiere|¿le hace falta)/i);
+      const nextSectionMatch = afterHeader.match(/\n\s*(?:(?:\*|_|\(|\s)*(?:nota|aviso|aclaraci[oó]n|los precios de los cortes|total|total estimado|total acumulado|saldo|¿estamos)|(?:💰|💵|💳)|para que esto|para que|cómo seguimos|c[oó]mo seguimos|1[\.\)]\s*\*?direcci[oó]n|direcci[oó]n completa|medio de pago|forma de pago|el pago|¿a d[oó]nde|¿c[oó]mo prefiere|¿le hace falta)/iu);
       relevantText = nextSectionMatch ? afterHeader.slice(0, nextSectionMatch.index) : afterHeader;
     }
 
@@ -358,14 +358,15 @@ export class OrderSyncEngine {
         continue;
       }
 
-      // Detectar si parece un item
-      const isBulletOrNum = /^[\s•*\-+]|^\d+[\.\)]\s*|^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉]\s*|^[0-9]+(?:[.,][0-9]+)?\s*(?:kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|bolsas?|botellas?|combos?|tiras?|bifes?)\b/i.test(line);
-      if (!isBulletOrNum) continue;
+      // Detectar si parece un item (con flag /u para evitar colisiones de surrogates UTF-16)
+      const isBulletOrNum = /^[\s•*\-+]|^\d+[\.\)]\s*|^[0-9]+(?:[.,][0-9]+)?\s*(?:kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|unidad\b|un\b|bolsas?|botellas?|combos?|tiras?|bifes?)\b/iu.test(line);
+      const isProductEmoji = /^(?:🥩|🍖|🔥|🌭|🥓|🍗|🍔|📦|🍷|⭐|👉)\s+/u.test(line);
+      if (!isBulletOrNum && !isProductEmoji) continue;
 
       let clean = line
         .replace(/^[\s•*\-+]+/, '')
         .replace(/^\d+[\.\)]\s*/, '')
-        .replace(/^[🥩🍖🔥🌭🥓🍗🍔📦🍷⭐👉📋📝🛒🍽️]\s*/, '')
+        .replace(/^(?:🥩|🍖|🔥|🌭|🥓|🍗|🍔|📦|🍷|⭐|👉|📋|📝|🛒|🍽️|💰|💵)\s*/u, '')
         .trim();
 
       if (!clean) continue;
@@ -383,7 +384,12 @@ export class OrderSyncEngine {
         cleanLower.includes('total informado es estimado') ||
         cleanLower.includes('leve variación') ||
         cleanLower.includes('leve variacion') ||
-        /^(?:total|total estimado|total acumulado|subtotal|precio total|importe total|saldo)\b/i.test(clean) ||
+        cleanLower.includes('detalle actualizado') ||
+        cleanLower.includes('detalle de tu pedido') ||
+        cleanLower.includes('resumen de tu pedido') ||
+        cleanLower.includes('te agrego al pedido') ||
+        /^(?:total|total estimado|total acumulado|subtotal|precio total|importe total|saldo)\b/iu.test(clean) ||
+        /^(?:sena|seña)\s+de\s+pedidos/i.test(clean) ||
         /^(?:para que|av[ií]seme|recordamos|c[oó]mo seguimos|cómo seguimos|qué te parece|avisame|paso final|coordinar|el pago|ya le reserv|excelente|de diez|de una|joya|gracias)/i.test(clean) ||
         /^(?:1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|[1-9]\))\s*(?:coordinar|elegir|sumar|env[ií]o|retiro|domicilio|sucursal|efectivo|transferencia|mercado)/i.test(clean)
       ) {
@@ -404,9 +410,9 @@ export class OrderSyncEngine {
         unitPrice = parseArgentinePrice(unitPriceMatch[1]);
       }
 
-      // Extraer subtotal directo: — *$40.499* o -> $40.499 o → *$40.498,50*
+      // Extraer subtotal directo: — *$40.499* o -> $40.499 o : *$11.250**
       let subtotal = 0;
-      const arrowMatch = clean.match(/(?:→|->|—|-)\s*\*?\$?\s*([\d\.,]+)\s*\*?(?!\s*\/\s*[a-zA-Z]+)\s*$/i);
+      const arrowMatch = clean.match(/(?:→|->|—|-|:)\s*\*?\$?\s*([\d\.,]+)\s*\*?\*?(?!\s*\/\s*[a-zA-Z]+)\s*$/i);
       if (arrowMatch) {
         subtotal = parseArgentinePrice(arrowMatch[1]);
       }
@@ -415,35 +421,37 @@ export class OrderSyncEngine {
       let itemBody = clean
         .replace(/\s*\([^)]*\[PLU[^)]*\)\s*/gi, '')
         .replace(/\s*\([^)]*\$\s*[\d\.,]+[^)]*\)\s*/gi, '')
-        .replace(/(?:→|->|—|-)\s*\*?\$?\s*[\d\.,]+.*$/gi, '')
+        .replace(/(?:→|->|—|-|:)\s*\*?\$?\s*[\d\.,]+.*$/gi, '')
         .replace(/[*_"]/g, '')
         .trim();
 
-      // Detección bidireccional de cantidad y nombre:
-      // Pattern 1: Nombre : Cantidad (ej: "Costilla: 1,2 kg (aprox.)", "Chorizos de Cerdo: 4 unidades")
-      // Pattern 2: Cantidad de Nombre (ej: "1,5 kg de COSTILLA", "4 chorizos de cerdo")
+      // Detección:
+      // Pattern 1: Cantidad de Nombre (ej: "1,5 kg de COSTILLA", "4 chorizos de cerdo", "1 unidad CARBON")
+      // Pattern 2: Nombre : Cantidad (ej: "Costilla: 1,2 kg (aprox.)", "Chorizos de Cerdo: 4 unidades")
       // Pattern 3: Separador guion o paréntesis (ej: "Costilla - 1,2 kg", "Costilla (1,2 kg)")
-      const colonMatch = itemBody.match(/^(.+?)\s*:\s*(\d+(?:[.,]\d+)?)\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\b\s*(.*)$/i);
-      const leadingQtyMatch = !colonMatch ? itemBody.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b)?\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?(.*)$/i) : null;
-      const separatorMatch = (!colonMatch && !leadingQtyMatch) ? itemBody.match(/^(.+?)\s*(?:-|–|—|\()\s*(\d+(?:[.,]\d+)?)\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\b\s*(?:.*)$/i) : null;
+      const leadingQtyMatch = itemBody.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b)?\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|unidad\b|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?(.*)$/i);
+      const colonMatch = !leadingQtyMatch ? itemBody.match(/^([^:\d\n]+?)\s*:\s*(\d+(?:[.,]\d+)?)\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|unidad\b|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\b\s*(.*)$/i) : null;
+      const separatorMatch = (!colonMatch && !leadingQtyMatch) ? itemBody.match(/^(.+?)\s*(?:-|–|—|\()\s*(\d+(?:[.,]\d+)?)\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|unidad\b|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\b\s*(?:.*)$/i) : null;
 
       let rawQty = 1;
       let rawUnit = '';
       let nameCandidate = itemBody;
 
-      if (colonMatch) {
-        nameCandidate = colonMatch[1].trim();
-        rawQty = parseFloat(colonMatch[2].replace(',', '.'));
-        rawUnit = (colonMatch[3] || '').toLowerCase();
-      } else if (leadingQtyMatch) {
+      if (leadingQtyMatch) {
         rawQty = parseFloat(leadingQtyMatch[1].replace(',', '.'));
         rawUnit = (leadingQtyMatch[2] || '').toLowerCase();
         nameCandidate = (leadingQtyMatch[3] || '').trim();
+      } else if (colonMatch) {
+        nameCandidate = colonMatch[1].trim();
+        rawQty = parseFloat(colonMatch[2].replace(',', '.'));
+        rawUnit = (colonMatch[3] || '').toLowerCase();
       } else if (separatorMatch) {
         nameCandidate = separatorMatch[1].trim();
         rawQty = parseFloat(separatorMatch[2].replace(',', '.'));
         rawUnit = (separatorMatch[3] || '').toLowerCase();
       }
+
+      nameCandidate = nameCandidate.replace(/[:—\-\$0-9.,]+$/, '').trim();
 
       let qty = rawQty || 1;
       let unit = 'kg';
@@ -455,7 +463,7 @@ export class OrderSyncEngine {
         unit = 'kg';
         isUnitMode = false;
         unitCount = 0;
-      } else if (/^(?:unidades?|un|u)$/i.test(rawUnit) || (!rawUnit && /^(?:chori|morcilla|costeleta|milanesa|hamburguesa)/i.test(nameCandidate))) {
+      } else if (/^(?:unidades?|unidad|un|u)$/i.test(rawUnit) || (!rawUnit && /^(?:chori|morcilla|costeleta|milanesa|hamburguesa)/i.test(nameCandidate))) {
         qty = rawQty;
         unit = 'un';
         isUnitMode = true;
@@ -555,16 +563,20 @@ export class OrderSyncEngine {
   static matchCatalogProduct(name, catalog, plu = '') {
     if (!Array.isArray(catalog) || catalog.length === 0 || !name) return null;
 
+    const clean = name.toLowerCase().trim();
+    // Prohibir match accidental con "SENA DE PEDIDOS" salvo que el cliente explícitamente mencione seña
+    const safeCatalog = (!clean.includes('seña') && !clean.includes('sena'))
+      ? catalog.filter(p => !/^(?:sena|seña)\s+de\s+pedidos$/i.test(p.name))
+      : catalog;
+
     // 1. PLU exacto si es válido
     if (plu && plu !== '0000' && plu !== '0') {
-      const byPlu = catalog.find(p => p.plu === plu);
+      const byPlu = safeCatalog.find(p => p.plu === plu);
       if (byPlu) return byPlu;
     }
 
-    const clean = name.toLowerCase().trim();
-
     // 2. Coincidencia exacta
-    let found = catalog.find(p => (p.name || '').toLowerCase().trim() === clean);
+    let found = safeCatalog.find(p => (p.name || '').toLowerCase().trim() === clean);
     if (found) return found;
 
     // 3. Reglas semánticas específicas para insumos y cortes comunes de carnicería

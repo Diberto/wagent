@@ -1921,11 +1921,14 @@ class DatabaseService {
     const allMasterProducts = db.products || DatabaseService.MASTER_PRODUCTS_SEED || [];
     let hadCorruptedProduct = false;
 
-    const isNoteOrDisclaimer = (rawName = '') => {
+    const isNoteOrDisclaimer = (rawName = '', p = null) => {
       const s = String(rawName).trim();
+      if (!s) return true;
       if (/^(?:\(|\[|\*)?\s*nota\b/i.test(s)) return true;
       if (/pesaje|balanza|precios de los cortes/i.test(s)) return true;
-      if (/total\s*(?:estimado|aproximado|pedido)?\s*:/i.test(s)) return true;
+      if (/(?:total|subtotal)\s*(?:estimado|aproximado|actualizado|pedido)?\s*:/i.test(s)) return true;
+      if (/(?:detalle|resumen)\s*(?:actualizado|final)?\s*(?:de)?\s*(?:tu|del)?\s*pedido/i.test(s)) return true;
+      if (/^(?:sena|seña)\s+de\s+pedidos/i.test(s) && (!p || Number(p.subtotal || p.price || 0) === 0)) return true;
       return false;
     };
 
@@ -1933,7 +1936,7 @@ class DatabaseService {
       const originalLen = o.products.length;
       o.products = o.products.filter(p => {
         const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || p.product || '');
-        return !isNoteOrDisclaimer(rawName);
+        return !isNoteOrDisclaimer(rawName, p);
       });
       if (o.products.length < originalLen) {
         hadCorruptedProduct = true;

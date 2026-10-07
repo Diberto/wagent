@@ -115,11 +115,14 @@ export const parseOrderItems = (order) => {
     return '🥩';
   };
 
-  const isNoteItem = (rawName = '') => {
+  const isNoteItem = (rawName = '', item = null) => {
     const s = String(rawName).trim();
+    if (!s) return true;
     if (/^(?:\(|\[|\*)?\s*nota\b/i.test(s)) return true;
     if (/pesaje|balanza|precios de los cortes/i.test(s)) return true;
-    if (/total\s*(?:estimado|aproximado|pedido)?\s*:/i.test(s)) return true;
+    if (/(?:total|subtotal)\s*(?:estimado|aproximado|actualizado|pedido)?\s*:/i.test(s)) return true;
+    if (/(?:detalle|resumen)\s*(?:actualizado|final)?\s*(?:de)?\s*(?:tu|del)?\s*pedido/i.test(s)) return true;
+    if (/^(?:sena|seña)\s+de\s+pedidos/i.test(s) && (!item || Number(item.subtotal || item.price || 0) === 0)) return true;
     return false;
   };
 
@@ -643,6 +646,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     let lastTime = Date.now();
 
     const handleKeyDown = (e) => {
+      if (!e || !e.key) return;
       const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
       const now = Date.now();
       const diff = now - lastTime;
@@ -656,7 +660,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         } else {
           buffer = '';
         }
-      } else if (e.key.length === 1) {
+      } else if (typeof e.key === 'string' && e.key.length === 1) {
         if (diff > 120 && !isInput) {
           buffer = e.key;
         } else {
