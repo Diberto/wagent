@@ -91,11 +91,11 @@ export const formatItemQuantity = (quantity, unit) => {
   const q = Number(quantity) || 0;
   const u = (unit || 'kg').toLowerCase();
   if (u === 'kg' || u === 'kilo' || u === 'kilos') {
-    if (q < 1 && q > 0) {
-      const grams = Math.round(q * 1000);
-      return `${grams} g (${q} kg)`;
-    }
-    return `${q} kg`;
+    const formatted = q % 1 !== 0 ? q.toString().replace('.', ',') : String(q);
+    return `${formatted} kg`;
+  }
+  if (u === 'un' || u === 'unidad' || u === 'unidades') {
+    return `${q} un`;
   }
   return `${q} ${u}`;
 };
@@ -115,99 +115,162 @@ export const parseOrderItems = (order) => {
     return '🥩';
   };
 
+  const isNoteItem = (rawName = '') => {
+    const s = String(rawName).trim();
+    if (/^(?:\(|\[|\*)?\s*nota\b/i.test(s)) return true;
+    if (/pesaje|balanza|precios de los cortes/i.test(s)) return true;
+    if (/total\s*(?:estimado|aproximado|pedido)?\s*:/i.test(s)) return true;
+    return false;
+  };
+
   // 1. Si existen productos estructurados en order.products con al menos 1 elemento,
   // ESTE ES LA FUENTE DE VERDAD. No mezclar con order.items para no duplicar filas.
   if (Array.isArray(order.products) && order.products.length > 0) {
-    return order.products.map((p, idx) => {
-      const qty = Number(p.quantity) || 1;
-      const unit = p.unit || 'kg';
-      const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
-      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
-        ? rawName 
-        : (p.product || `Corte Seleccionado ${idx + 1}`);
-      const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * qty) || 0;
-      const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
-      return {
-        id: p.id || `prod-${idx}`,
-        name,
-        quantity: qty,
-        unit,
-        price: unitPrice,
-        total: lineSubtotal > 0 ? lineSubtotal : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.products.length)),
-        icon: p.icon || getIcon(name)
-      };
-    });
+    return order.products
+      .filter(p => {
+        const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || p.product || '');
+        return !isNoteItem(rawName);
+      })
+      .map((p, idx) => {
+        const isUnit = !!(p.isUnitMode && p.unitCount > 0);
+        const qty = isUnit ? Number(p.unitCount) : (Number(p.quantity) || 1);
+        const unit = isUnit ? 'un' : (p.unit || 'kg');
+        const priceUnit = p.unit || 'kg';
+        const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
+        const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
+          ? rawName 
+          : (p.product || `Corte Seleccionado ${idx + 1}`);
+        const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * (Number(p.quantity) || qty)) || 0;
+        const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
+        return {
+          id: p.id || `prod-${idx}`,
+          name,
+          quantity: qty,
+          unit,
+          priceUnit,
+          price: unitPrice,
+          total: lineSubtotal,
+          icon: p.icon || getIcon(name)
+        };
+      });
   }
 
   // 2. Si order.items es un array de objetos estructurados
   if (Array.isArray(order.items) && order.items.length > 0 && typeof order.items[0] === 'object' && order.items[0] !== null) {
-    return order.items.map((item, idx) => {
-      const qty = Number(item.quantity || item.qty || 1);
-      const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
-      const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte Seleccionado ${idx + 1}`;
-      const sub = Number(item.subtotal || item.total || 0) || (Number(item.unitPrice || item.price || 0) * qty);
-      return {
-        id: item.id || `item-${idx}`,
-        name,
-        quantity: qty,
-        unit: item.unit || 'kg',
-        price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
-        total: sub > 0 ? sub : Math.round((Number(order.totalAmount) || 0) / Math.max(1, order.items.length)),
-        icon: item.icon || getIcon(name)
-      };
-    });
+    return order.items
+      .filter(item => {
+        const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
+        return !isNoteItem(rawName);
+      })
+      .map((item, idx) => {
+        const isUnit = !!(item.isUnitMode && item.unitCount > 0);
+        const qty = isUnit ? Number(item.unitCount) : Number(item.quantity || item.qty || 1);
+        const unit = isUnit ? 'un' : (item.unit || 'kg');
+        const priceUnit = item.unit || 'kg';
+        const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
+        const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte Seleccionado ${idx + 1}`;
+        const sub = Number(item.subtotal || item.total || 0) || (Number(item.unitPrice || item.price || 0) * (Number(item.quantity) || qty));
+        return {
+          id: item.id || `item-${idx}`,
+          name,
+          quantity: qty,
+          unit,
+          priceUnit,
+          price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
+          total: sub,
+          icon: item.icon || getIcon(name)
+        };
+      });
   }
 
   // Helper para parsear una sola línea de texto sin destruir números de cantidades
-  const parseSingleTextItem = (itemStr, idx, totalAmount, count) => {
-    // Quitar únicamente viñetas (•, -, *, +, etc.) o enumeraciones tipo "1. " o "1) "
+  const parseSingleTextItem = (itemStr, idx) => {
     let cleanStr = String(itemStr)
       .replace(/^[\s•\-\*\+]+/, '')
       .replace(/^\d+[\.\)\-]\s+/, '')
       .trim();
+
+    if (isNoteItem(cleanStr)) {
+      return null;
+    }
+
     let qty = 1;
-    let unit = 'un';
+    let unit = 'kg';
+    let priceUnit = 'kg';
     let lineSubtotal = 0;
+    let unitPrice = 0;
     let name = cleanStr;
 
-    // Detectar cantidad al inicio en gramos o kilos (ej: "250g de Chorizo", "500 grs", "0.25 kg", "2 kg", "2kg")
-    const gramMatch = cleanStr.match(/^([0-9.,]+)\s*(?:g|gr|grs|gramos)\s+(?:de\s+)?/i);
-    if (gramMatch) {
-      const parsedGrams = parseFloat(gramMatch[1].replace(',', '.')) || 0;
-      qty = Math.round((parsedGrams / 1000) * 1000) / 1000;
-      unit = 'kg';
-      name = cleanStr.slice(gramMatch[0].length).trim();
-    } else {
-      const initialQtyMatch = cleanStr.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|combos|bolsa|bolsas|botella|botellas|promo|un|unidad|unidades|piezas?)?\s+(?:de\s+)?/i);
-      if (initialQtyMatch) {
-        qty = parseFloat(initialQtyMatch[1].replace(',', '.')) || 1;
-        if (initialQtyMatch[2]) {
-          const u = initialQtyMatch[2].toLowerCase();
-          unit = (u.startsWith('k') ? 'kg' : (u.startsWith('comb') ? 'combo' : (u.startsWith('bols') ? 'bolsa' : (u.startsWith('bot') ? 'botella' : 'un'))));
+    // Detectar formato agente: "Nombre: Cantidad Unidad (aprox.) — $Precio/unidad o $Subtotal"
+    const colonMatch = cleanStr.match(/^[*_]*([^*_:\n]+)[*_]*\s*:\s*([0-9.,]+)\s*([a-zA-ZáéíóúÁÉÍÓÚ]+)?(?:\s*\([^)]*\))?(?:\s*(?:—|-)\s*\$?\s*([0-9.,]+)(?:\s*\/\s*([a-zA-ZáéíóúÁÉÍÓÚ]+))?)?/i);
+    if (colonMatch) {
+      name = colonMatch[1].trim();
+      qty = parseFloat(colonMatch[2].replace(',', '.')) || 1;
+      const rawU = (colonMatch[3] || 'kg').toLowerCase();
+      unit = (rawU.startsWith('k') ? 'kg' : (rawU.startsWith('un') ? 'un' : (rawU.startsWith('bols') ? 'bolsa' : (rawU.startsWith('bot') ? 'botella' : rawU))));
+      
+      const parsedP = colonMatch[4] ? parseFloat(colonMatch[4].replace(/\./g, '').replace(',', '.')) : 0;
+      const pUnit = colonMatch[5] ? colonMatch[5].toLowerCase() : '';
+
+      if (parsedP > 0) {
+        if (pUnit || rawU.startsWith('k')) {
+          unitPrice = parsedP;
+          priceUnit = pUnit ? (pUnit.startsWith('k') ? 'kg' : 'un') : unit;
+          if (unit === 'un' && priceUnit === 'kg') {
+            lineSubtotal = Math.round((qty / 8) * unitPrice);
+          } else {
+            lineSubtotal = Math.round(qty * unitPrice);
+          }
+        } else {
+          lineSubtotal = parsedP;
+          unitPrice = qty > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal;
         }
-        name = cleanStr.slice(initialQtyMatch[0].length).trim();
+      }
+    } else {
+      const gramMatch = cleanStr.match(/^([0-9.,]+)\s*(?:g|gr|grs|gramos)\s+(?:de\s+)?/i);
+      if (gramMatch) {
+        const parsedGrams = parseFloat(gramMatch[1].replace(',', '.')) || 0;
+        qty = Math.round((parsedGrams / 1000) * 1000) / 1000;
+        unit = 'kg';
+        name = cleanStr.slice(gramMatch[0].length).trim();
+      } else {
+        const initialQtyMatch = cleanStr.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|combo|combos|bolsa|bolsas|botella|botellas|promo|un|unidad|unidades|piezas?)?\s+(?:de\s+)?/i);
+        if (initialQtyMatch) {
+          qty = parseFloat(initialQtyMatch[1].replace(',', '.')) || 1;
+          if (initialQtyMatch[2]) {
+            const u = initialQtyMatch[2].toLowerCase();
+            unit = (u.startsWith('k') ? 'kg' : (u.startsWith('comb') ? 'combo' : (u.startsWith('bols') ? 'bolsa' : (u.startsWith('bot') ? 'botella' : 'un'))));
+          }
+          name = cleanStr.slice(initialQtyMatch[0].length).trim();
+        }
+      }
+
+      const priceEndMatch = name.match(/(?:—|\-|\()\s*\$?\s*([0-9.,]+)(?:\s*\/\s*([a-zA-ZáéíóúÁÉÍÓÚ]+))?\s*\)?$/i);
+      if (priceEndMatch) {
+        const pVal = parseFloat(priceEndMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
+        const pU = priceEndMatch[2] ? priceEndMatch[2].toLowerCase() : '';
+        name = name.replace(/(?:—|\-|\()\s*\$?\s*[0-9.,]+(?:\s*\/\s*[a-zA-ZáéíóúÁÉÍÓÚ]+)?\s*\)?$/i, '').trim();
+        if (pU) {
+          unitPrice = pVal;
+          priceUnit = pU.startsWith('k') ? 'kg' : 'un';
+          lineSubtotal = (unit === 'un' && priceUnit === 'kg') ? Math.round((qty / 8) * unitPrice) : Math.round(qty * unitPrice);
+        } else {
+          lineSubtotal = pVal;
+          unitPrice = (qty > 0 && lineSubtotal > 0) ? Math.round(lineSubtotal / qty) : lineSubtotal;
+        }
       }
     }
 
-    // Detectar precio/subtotal al final: "— $39.999", "($39.999)", "$39.999" o "$39999"
-    const priceMatch = name.match(/(?:—|\-|\()\s*\$?\s*([0-9.,]+)\s*\)?$/i);
-    if (priceMatch) {
-      lineSubtotal = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.')) || 0;
-      name = name.replace(/(?:—|\-|\()\s*\$?\s*[0-9.,]+\s*\)?$/i, '').trim();
-    } else {
-      lineSubtotal = Math.round((Number(totalAmount) || 0) / Math.max(1, count));
-    }
-
-    const unitPrice = (qty > 0 && lineSubtotal > 0) ? Math.round(lineSubtotal / qty) : lineSubtotal;
-    name = name.replace(/^["'"]+|["'"]+$/g, '').trim();
+    name = name.replace(/^["'*\s]+|["'*\s]+$/g, '').trim();
 
     return {
       id: `item-${idx}`,
       name: name || 'Corte Seleccionado',
       quantity: qty,
       unit,
+      priceUnit,
       price: unitPrice,
-      total: lineSubtotal > 0 ? lineSubtotal : (Number(totalAmount) || 0),
+      total: lineSubtotal,
       icon: getIcon(name)
     };
   };
@@ -215,43 +278,50 @@ export const parseOrderItems = (order) => {
   // 3. Si order.items es un string JSON o texto plano
   let rawTextLines = [];
   if (Array.isArray(order.items)) {
-    rawTextLines = order.items.filter(i => typeof i === 'string' && i.trim()).map(i => i.trim());
+    rawTextLines = order.items.filter(i => typeof i === 'string' && i.trim() && !isNoteItem(i)).map(i => i.trim());
   } else if (typeof order.items === 'string' && order.items.trim()) {
     const trimmed = order.items.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       try {
         const parsed = JSON.parse(trimmed);
         const arr = Array.isArray(parsed) ? parsed : [parsed];
-        return arr.map((p, idx) => {
-          if (typeof p === 'object' && p !== null) {
-            const qty = Number(p.quantity || p.qty || 1);
-            const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.product || '');
-            const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte ${idx + 1}`;
-            const total = Number(p.subtotal || p.total || 0) || (Number(p.price || 0) * qty);
-            return {
-              id: p.id || `pj-${idx}`,
-              name,
-              quantity: qty,
-              unit: p.unit || 'kg',
-              price: Number(p.unitPrice || p.price || 0) || (qty > 0 ? Math.round(total / qty) : total),
-              total: total > 0 ? total : Math.round((Number(order.totalAmount) || 0) / Math.max(1, arr.length)),
-              icon: p.icon || getIcon(name)
-            };
-          }
-          return parseSingleTextItem(p, idx, order.totalAmount, arr.length);
-        });
+        return arr
+          .map((p, idx) => {
+            if (typeof p === 'object' && p !== null) {
+              const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.product || '');
+              if (isNoteItem(rawName)) return null;
+              const isUnit = !!(p.isUnitMode && p.unitCount > 0);
+              const qty = isUnit ? Number(p.unitCount) : Number(p.quantity || p.qty || 1);
+              const unit = isUnit ? 'un' : (p.unit || 'kg');
+              const priceUnit = p.unit || 'kg';
+              const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte ${idx + 1}`;
+              const total = Number(p.subtotal || p.total || 0) || (Number(p.unitPrice || p.price || 0) * (Number(p.quantity) || qty));
+              return {
+                id: p.id || `pj-${idx}`,
+                name,
+                quantity: qty,
+                unit,
+                priceUnit,
+                price: Number(p.unitPrice || p.price || 0) || (qty > 0 ? Math.round(total / qty) : total),
+                total: total,
+                icon: p.icon || getIcon(name)
+              };
+            }
+            return parseSingleTextItem(p, idx);
+          })
+          .filter(Boolean);
       } catch (e) {
-        rawTextLines = trimmed.split('\n').map(s => s.trim()).filter(Boolean);
+        rawTextLines = trimmed.split('\n').map(s => s.trim()).filter(s => s && !isNoteItem(s));
       }
     } else {
-      rawTextLines = trimmed.split('\n').map(s => s.trim()).filter(Boolean);
+      rawTextLines = trimmed.split('\n').map(s => s.trim()).filter(s => s && !isNoteItem(s));
     }
   }
 
   if (rawTextLines.length > 0) {
-    return rawTextLines.map((str, idx) =>
-      parseSingleTextItem(str, idx, order.totalAmount, rawTextLines.length)
-    );
+    return rawTextLines
+      .map((str, idx) => parseSingleTextItem(str, idx))
+      .filter(Boolean);
   }
 
   return [{
@@ -4137,7 +4207,13 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
               <div className="grid grid-cols-2 gap-2 bg-[#111b21] p-3 rounded-2xl border border-slate-800/80">
                 <div>
                   <div className="text-[10px] text-slate-400 font-bold uppercase">Dirección de Entrega:</div>
-                  <div className="text-slate-200 font-medium truncate">{detailModal.address || 'A convenir / Retiro en local'}</div>
+                  <div className="text-slate-200 font-medium truncate">
+                    {detailModal.deliveryType === 'pickup' 
+                      ? '🏪 Retiro en Sucursal (No requiere envío)' 
+                      : (detailModal.address && !/lo voy a retirar|retiro en sucursal/i.test(detailModal.address) 
+                          ? detailModal.address 
+                          : 'A convenir / Retiro en local')}
+                  </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-bold uppercase">Sucursal Asignada:</div>
@@ -4168,7 +4244,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                         <div className="truncate">
                           <div className="font-bold text-white truncate">{item.name}</div>
                           <div className="text-[10px] text-slate-400 font-mono">
-                            ${item.price.toLocaleString('es-AR')} / {item.unit || 'kg'}
+                            ${item.price.toLocaleString('es-AR')} / {item.priceUnit || item.unit || 'kg'}
                           </div>
                         </div>
                       </div>

@@ -1902,11 +1902,14 @@ class DatabaseService {
       }
     }
 
-    // 2. Detección y corrección de dirección corrupta con saludos/conversación del bot
-    // Ej: "¡Entendido perfectamente, Don Juan! Me pongo firme..."
-    if (o.address && (/¡Entendido|¡De una|¡Espectacular|¡Hola|¡Claro|Me pongo firme|Sacamos el kilo|Detalle de tu pedido/i.test(o.address) || o.address.length > 70)) {
+    // 2. Detección y corrección de dirección corrupta con saludos/conversación del bot o retiro en sucursal
+    if (o.deliveryType === 'pickup' || o.fulfillmentType === 'pickup' || /retiro\s+en\s+sucursal/i.test(o.notes || '')) {
+      if (o.address && /lo\s+voy\s+a\s+retirar|retiro\s+por\s+sucursal|sucursal\s+en\s+roque/i.test(o.address)) {
+        o.address = '';
+      }
+    } else if (o.address && (/¡Entendido|¡De una|¡Espectacular|¡Hola|¡Claro|Me pongo firme|Sacamos el kilo|Detalle de tu pedido|lo voy a retirar/i.test(o.address) || o.address.length > 70)) {
       const lead = (db.leads || []).find(l => l.jid === o.jid || (l.phone && o.phone && l.phone.includes(o.phone)));
-      if (lead?.address && !/¡Entendido|¡De una/i.test(lead.address)) {
+      if (lead?.address && !/¡Entendido|¡De una|lo voy a retirar/i.test(lead.address)) {
         o.address = lead.address;
       } else {
         const addrMatch = o.address.match(/(?:Roque Funes|Funes|Urca|Av\.|Calle)\s+[0-9]{2,5}[^,\n\.]*/i);
@@ -1914,11 +1917,32 @@ class DatabaseService {
       }
     }
 
-    // 3. Detección y curación de ítems o productos con "[object Object]"
+    // 3. Detección y curación de notas coladas como productos o productos con "[object Object]"
     const allMasterProducts = db.products || DatabaseService.MASTER_PRODUCTS_SEED || [];
     let hadCorruptedProduct = false;
 
+    const isNoteOrDisclaimer = (rawName = '') => {
+      const s = String(rawName).trim();
+      if (/^(?:\(|\[|\*)?\s*nota\b/i.test(s)) return true;
+      if (/pesaje|balanza|precios de los cortes/i.test(s)) return true;
+      if (/total\s*(?:estimado|aproximado|pedido)?\s*:/i.test(s)) return true;
+      return false;
+    };
+
     if (Array.isArray(o.products) && o.products.length > 0) {
+      const originalLen = o.products.length;
+      o.products = o.products.filter(p => {
+        const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || p.product || '');
+        return !isNoteOrDisclaimer(rawName);
+      });
+      if (o.products.length < originalLen) {
+        hadCorruptedProduct = true;
+        const validTotal = o.products.reduce((acc, p) => acc + (Number(p.subtotal) || (Number(p.price || 0) * (Number(p.quantity) || 1))), 0);
+        if (validTotal > 0) {
+          o.totalAmount = validTotal;
+        }
+      }
+
       o.products = o.products.map((p, idx) => {
         const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
         if (!rawName || rawName === '[object Object]' || rawName.includes('[object Object]')) {
@@ -1951,6 +1975,7 @@ class DatabaseService {
     }
 
     if (Array.isArray(o.items)) {
+      o.items = o.items.filter(it => !isNoteOrDisclaimer(it));
       const hasCorruptedItems = o.items.some(it => typeof it !== 'string' || it.includes('[object Object]'));
       if (hasCorruptedItems || (hadCorruptedProduct && Array.isArray(o.products) && o.products.length > 0)) {
         if (Array.isArray(o.products) && o.products.length > 0) {
@@ -2180,18 +2205,39 @@ class DatabaseService {
 
       rawItems.forEach((itemStr, idx) => {
         const str = String(itemStr).replace(/^[•\-\*\s]+/, '').trim();
-        const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)\s*\)?$/);
-        const subtotal = priceMatch ? parseArgentinePrice(priceMatch[1]) : 0;
-        
+        if (!str || str === '[object Object]') return;
+        if (/^(?:\(|\[|\*)?\s*nota\b/i.test(str) || /pesaje|balanza|precios de los cortes/i.test(str) || /total\s*(?:estimado|aproximado)?\s*:/i.test(str)) {
+          return;
+        }
+
+        const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)(?:\s*\/\s*([a-zA-ZáéíóúÁÉÍÓÚ]+))?\s*\)?$/i);
+        const rawPriceVal = priceMatch ? parseArgentinePrice(priceMatch[1]) : 0;
+        const priceUnitSlash = priceMatch?.[2] ? priceMatch[2].toLowerCase() : '';
+
+        const colonMatch = str.match(/^[*_]*([^*_:\n]+)[*_]*\s*:\s*([0-9.,]+)\s*([a-zA-ZáéíóúÁÉÍÓÚ]+)?(?:\s*\([^)]*\))?(?:\s*(?:—|-|\()\s*\$?\s*[\d.,]+.*)?$/i);
         const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
-        let qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
-        let rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
+
+        let namePart = '';
+        let qty = 1;
+        let rawUnit = 'kg';
+
+        if (colonMatch) {
+          namePart = colonMatch[1].trim();
+          qty = parseFloat(colonMatch[2].replace(',', '.')) || 1;
+          rawUnit = (colonMatch[3] || 'kg').toLowerCase();
+        } else if (qtyMatch) {
+          qty = parseFloat(qtyMatch[1].replace(',', '.')) || 1;
+          rawUnit = (qtyMatch[2] || 'kg').toLowerCase();
+          const rawNamePart = qtyMatch[3].trim();
+          namePart = rawNamePart.replace(/^de\s+/i, '').trim();
+        } else {
+          namePart = str.split('—')[0].replace(/^de\s+/i, '').trim();
+        }
+
         if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
           qty = Number((qty / 1000).toFixed(3));
           rawUnit = 'kg';
         }
-        const rawNamePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
-        const namePart = rawNamePart.replace(/^de\s+/i, '').trim();
 
         const matched = allProducts.find(p => 
           p.name.toLowerCase() === namePart.toLowerCase() ||
@@ -2199,10 +2245,24 @@ class DatabaseService {
           p.name.toLowerCase().includes(namePart.toLowerCase())
         );
 
-        const unitPrice = matched ? Number(matched.price) : (qty > 0 && subtotal > 0 ? Math.round(subtotal / qty) : 0);
         const isUnit = /un|unidades?|botellas?|bolsas?|combo/i.test(rawUnit) || (matched && matched.unit !== 'kg');
         const unitsPerKg = matched?.unitsPerKg || 8;
         const finalQty = (isUnit && matched?.unit === 'kg') ? Number((qty / unitsPerKg).toFixed(3)) : qty;
+
+        let unitPrice = matched ? Number(matched.price) : 0;
+        let subtotal = 0;
+
+        if (priceUnitSlash || (priceMatch && !isUnit && rawUnit.startsWith('k'))) {
+          unitPrice = rawPriceVal > 0 ? rawPriceVal : unitPrice;
+          subtotal = Math.round(finalQty * unitPrice);
+        } else if (rawPriceVal > 0) {
+          subtotal = rawPriceVal;
+          if (unitPrice === 0) {
+            unitPrice = finalQty > 0 ? Math.round(subtotal / finalQty) : subtotal;
+          }
+        } else {
+          subtotal = Math.round(unitPrice * finalQty);
+        }
 
         parsedProducts.push({
           id: matched?.id || `prod-${idx}`,
@@ -2215,7 +2275,7 @@ class DatabaseService {
           unit: matched?.unit || rawUnit,
           isUnitMode: isUnit,
           unitCount: isUnit ? qty : 0,
-          subtotal: subtotal || Math.round(unitPrice * finalQty)
+          subtotal: subtotal
         });
       });
 
@@ -2405,21 +2465,38 @@ class DatabaseService {
 
         const str = String(itemStr).replace(/^[•\-\*\s]+/, '').trim();
         if (!str || str === '[object Object]') return;
-        
-        // Detectar subtotal de la línea: "— $39.999", "($39.999)", "$39.999", "— $17.980,50"
-        const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)\s*\)?$/);
-        const subtotal = priceMatch ? parseArgentinePrice(priceMatch[1]) : 0;
-        
-        // Detectar cantidad al inicio: "2 kg", "800g", "1 combo", "6 unidades", "1x"
+        if (/^(?:\(|\[|\*)?\s*nota\b/i.test(str) || /pesaje|balanza|precios de los cortes/i.test(str) || /total\s*(?:estimado|aproximado)?\s*:/i.test(str)) {
+          return;
+        }
+
+        const priceMatch = str.match(/(?:—|\-|\()\s*\$?\s*([\d\.\,]+)(?:\s*\/\s*([a-zA-ZáéíóúÁÉÍÓÚ]+))?\s*\)?$/i);
+        const rawPriceVal = priceMatch ? parseArgentinePrice(priceMatch[1]) : 0;
+        const priceUnitSlash = priceMatch?.[2] ? priceMatch[2].toLowerCase() : '';
+
+        const colonMatch = str.match(/^[*_]*([^*_:\n]+)[*_]*\s*:\s*([0-9.,]+)\s*([a-zA-ZáéíóúÁÉÍÓÚ]+)?(?:\s*\([^)]*\))?(?:\s*(?:—|-|\()\s*\$?\s*[\d.,]+.*)?$/i);
         const qtyMatch = str.match(/^([0-9.,]+)\s*(?:x\s*)?(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|combo|un|unidades?|botellas?|bolsas?|piezas?)?\s+(.+?)(?:\s*—|\s*\(|\s*\$|$)/i);
-        let qty = qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : 1;
-        let rawUnit = qtyMatch ? (qtyMatch[2] || 'kg').toLowerCase() : 'kg';
+
+        let namePart = '';
+        let qty = 1;
+        let rawUnit = 'kg';
+
+        if (colonMatch) {
+          namePart = colonMatch[1].trim();
+          qty = parseFloat(colonMatch[2].replace(',', '.')) || 1;
+          rawUnit = (colonMatch[3] || 'kg').toLowerCase();
+        } else if (qtyMatch) {
+          qty = parseFloat(qtyMatch[1].replace(',', '.')) || 1;
+          rawUnit = (qtyMatch[2] || 'kg').toLowerCase();
+          const rawNamePart = qtyMatch[3].trim();
+          namePart = rawNamePart.replace(/^de\s+/i, '').trim();
+        } else {
+          namePart = str.split('—')[0].replace(/^de\s+/i, '').trim();
+        }
+
         if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
           qty = Number((qty / 1000).toFixed(3));
           rawUnit = 'kg';
         }
-        const rawNamePart = qtyMatch ? qtyMatch[3].trim() : str.split('—')[0].trim();
-        const namePart = rawNamePart.replace(/^de\s+/i, '').trim();
 
         const lower = namePart.toLowerCase();
         const matchedProd = allProducts.find(p => 
@@ -2427,12 +2504,25 @@ class DatabaseService {
           p.name.toLowerCase().includes(lower) || 
           (p.plu && lower.includes(p.plu.toLowerCase()))
         );
-        
-        const unitPrice = matchedProd ? Number(matchedProd.price) : (subtotal > 0 && qty > 0 ? Math.round(subtotal / qty) : subtotal);
+
         const isUnit = /un|unidades?|botellas?|bolsas?|combo/i.test(rawUnit) || (matchedProd && matchedProd.unit !== 'kg');
         const unitsPerKg = matchedProd?.unitsPerKg || 8;
         const finalQty = (isUnit && matchedProd?.unit === 'kg') ? Number((qty / unitsPerKg).toFixed(3)) : qty;
-        const lineTotal = subtotal > 0 ? subtotal : Math.round(unitPrice * finalQty);
+
+        let unitPrice = matchedProd ? Number(matchedProd.price) : 0;
+        let lineTotal = 0;
+
+        if (priceUnitSlash || (priceMatch && !isUnit && rawUnit.startsWith('k'))) {
+          unitPrice = rawPriceVal > 0 ? rawPriceVal : unitPrice;
+          lineTotal = Math.round(finalQty * unitPrice);
+        } else if (rawPriceVal > 0) {
+          lineTotal = rawPriceVal;
+          if (unitPrice === 0) {
+            unitPrice = finalQty > 0 ? Math.round(lineTotal / finalQty) : lineTotal;
+          }
+        } else {
+          lineTotal = Math.round(unitPrice * finalQty);
+        }
 
         products.push({
           id: matchedProd?.id || `prod-${idx}`,

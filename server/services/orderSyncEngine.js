@@ -175,6 +175,9 @@ export class OrderSyncEngine {
           else if (/allende|figueroa|mercadito/i.test(userMsg)) branchName = 'VILLA ALLENDE';
           else if (/san isidro|luchesse/i.test(userMsg)) branchName = 'COUNTRY SAN ISIDRO';
         }
+        if (cleanAddr && /(?:retiro|sucursal|pasar\s+a\s+buscar|voy\s+a\s+retirar)/i.test(cleanAddr)) {
+          cleanAddr = '';
+        }
       } else if (cleanAddr) {
         deliveryType = 'delivery';
       }
@@ -212,12 +215,16 @@ export class OrderSyncEngine {
               if (key) {
                 if (isAdditionIntent && mergedProductsMap.has(key)) {
                   const existing = mergedProductsMap.get(key);
+                  const isU = Boolean(p.isUnitMode || existing.isUnitMode);
                   const newQty = (Number(existing.quantity) || 1) + (Number(p.quantity) || 1);
+                  const newUnitCount = isU ? ((Number(existing.unitCount) || 0) + (Number(p.unitCount) || 0)) : 0;
                   const unitP = Number(p.unitPrice || existing.unitPrice || p.price || 0);
                   const newSub = unitP > 0 ? Math.round(unitP * newQty) : ((Number(existing.subtotal) || 0) + (Number(p.subtotal) || 0));
                   mergedProductsMap.set(key, {
                     ...existing,
                     quantity: newQty,
+                    isUnitMode: isU,
+                    unitCount: newUnitCount,
                     subtotal: newSub
                   });
                 } else {
@@ -337,7 +344,7 @@ export class OrderSyncEngine {
     const detailHeaderMatch = replyMsg.match(/(?:(?:📋|📝|📦|🛒|🍽️)?\s*\*?\s*(?:Detalle|Resumen)(?:\s+de)?(?:\s+tu|\s+del)?\s+pedido[^*:\n]*\*?[:\s]*)/i);
     if (detailHeaderMatch) {
       const afterHeader = replyMsg.slice(detailHeaderMatch.index + detailHeaderMatch[0].length);
-      const nextSectionMatch = afterHeader.match(/\n\s*(?:\([^\n]*nota|para que esto|cómo seguimos|1[\.\)]\s*\*?direcci[oó]n|direcci[oó]n completa|medio de pago|¿a d[oó]nde|¿c[oó]mo prefiere)/i);
+      const nextSectionMatch = afterHeader.match(/\n\s*(?:(?:\*|_|\(|\s)*(?:nota|aviso|aclaraci[oó]n|los precios de los cortes)|para que esto|para que|cómo seguimos|c[oó]mo seguimos|1[\.\)]\s*\*?direcci[oó]n|direcci[oó]n completa|medio de pago|forma de pago|el pago|¿a d[oó]nde|¿c[oó]mo prefiere|¿le hace falta)/i);
       relevantText = nextSectionMatch ? afterHeader.slice(0, nextSectionMatch.index) : afterHeader;
     }
 
@@ -363,8 +370,23 @@ export class OrderSyncEngine {
 
       if (!clean) continue;
 
-      // Descartar líneas de total, subtotales, notas o metadatos
-      if (/^(?:total|total estimado|total acumulado|subtotal|nota:|para que|av[ií]seme|recordamos|cómo seguimos)/i.test(clean)) {
+      // Descartar notas, totales, avisos de pesaje o metadatos de checkout
+      const cleanLower = clean.toLowerCase();
+      if (
+        cleanLower.startsWith('nota') ||
+        cleanLower.startsWith('(nota') ||
+        cleanLower.startsWith('[nota') ||
+        cleanLower.includes('pesaje') ||
+        cleanLower.includes('balanza') ||
+        cleanLower.includes('precios de los cortes') ||
+        cleanLower.includes('precios son por kilo') ||
+        cleanLower.includes('total informado es estimado') ||
+        cleanLower.includes('leve variación') ||
+        cleanLower.includes('leve variacion') ||
+        /^(?:total|total estimado|total acumulado|subtotal|precio total|importe total|saldo)\b/i.test(clean) ||
+        /^(?:para que|av[ií]seme|recordamos|c[oó]mo seguimos|cómo seguimos|qué te parece|avisame|paso final|coordinar|el pago|ya le reserv|excelente|de diez|de una|joya|gracias)/i.test(clean) ||
+        /^(?:1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|[1-9]\))\s*(?:coordinar|elegir|sumar|env[ií]o|retiro|domicilio|sucursal|efectivo|transferencia|mercado)/i.test(clean)
+      ) {
         continue;
       }
 
@@ -384,7 +406,7 @@ export class OrderSyncEngine {
 
       // Extraer subtotal directo: — *$40.499* o -> $40.499 o → *$40.498,50*
       let subtotal = 0;
-      const arrowMatch = clean.match(/(?:→|->|—)\s*\*?\$?\s*([\d\.,]+)\s*\*?\s*$/i);
+      const arrowMatch = clean.match(/(?:→|->|—|-)\s*\*?\$?\s*([\d\.,]+)\s*\*?(?!\s*\/\s*[a-zA-Z]+)\s*$/i);
       if (arrowMatch) {
         subtotal = parseArgentinePrice(arrowMatch[1]);
       }
@@ -393,48 +415,71 @@ export class OrderSyncEngine {
       let itemBody = clean
         .replace(/\s*\([^)]*\[PLU[^)]*\)\s*/gi, '')
         .replace(/\s*\([^)]*\$\s*[\d\.,]+[^)]*\)\s*/gi, '')
-        .replace(/(?:→|->|—)\s*\*?\$?\s*[\d\.,]+.*$/gi, '')
+        .replace(/(?:→|->|—|-)\s*\*?\$?\s*[\d\.,]+.*$/gi, '')
         .replace(/[*_"]/g, '')
         .trim();
 
-      // Extraer cantidad y unidad inicial: "1,5 kg de COSTILLA", "800g de CHORIZO CRIOLLOS", "1 unidad de CARBON X 4 KG"
-      const qtyMatch = itemBody.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b)?\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?(.*)$/i);
+      // Detección bidireccional de cantidad y nombre:
+      // Pattern 1: Nombre : Cantidad (ej: "Costilla: 1,2 kg (aprox.)", "Chorizos de Cerdo: 4 unidades")
+      // Pattern 2: Cantidad de Nombre (ej: "1,5 kg de COSTILLA", "4 chorizos de cerdo")
+      // Pattern 3: Separador guion o paréntesis (ej: "Costilla - 1,2 kg", "Costilla (1,2 kg)")
+      const colonMatch = itemBody.match(/^(.+?)\s*:\s*(\d+(?:[.,]\d+)?)\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\b\s*(.*)$/i);
+      const leadingQtyMatch = !colonMatch ? itemBody.match(/^(\d+(?:[.,]\d+)?)\s*(?:x\b|X\b)?\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\s*(?:de\s+)?(.*)$/i) : null;
+      const separatorMatch = (!colonMatch && !leadingQtyMatch) ? itemBody.match(/^(.+?)\s*(?:-|–|—|\()\s*(\d+(?:[.,]\d+)?)\s*(kg|kilos?|k\b|g\b|gr\b|grs\b|gramos\b|unidades?|un\b|u\b|bolsas?|botellas?|combos?|tiras?|bifes?)?\b\s*(?:.*)$/i) : null;
 
-      let qty = 1;
-      let unit = 'kg';
-      let isUnitMode = false;
+      let rawQty = 1;
+      let rawUnit = '';
       let nameCandidate = itemBody;
 
-      if (qtyMatch) {
-        const rawQty = parseFloat(qtyMatch[1].replace(',', '.'));
-        const rawUnit = (qtyMatch[2] || '').toLowerCase();
-        nameCandidate = (qtyMatch[3] || '').trim();
+      if (colonMatch) {
+        nameCandidate = colonMatch[1].trim();
+        rawQty = parseFloat(colonMatch[2].replace(',', '.'));
+        rawUnit = (colonMatch[3] || '').toLowerCase();
+      } else if (leadingQtyMatch) {
+        rawQty = parseFloat(leadingQtyMatch[1].replace(',', '.'));
+        rawUnit = (leadingQtyMatch[2] || '').toLowerCase();
+        nameCandidate = (leadingQtyMatch[3] || '').trim();
+      } else if (separatorMatch) {
+        nameCandidate = separatorMatch[1].trim();
+        rawQty = parseFloat(separatorMatch[2].replace(',', '.'));
+        rawUnit = (separatorMatch[3] || '').toLowerCase();
+      }
 
-        if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
-          qty = Number((rawQty / 1000).toFixed(3));
-          unit = 'kg';
-          isUnitMode = false;
-        } else if (/^(?:unidades?|un|u)$/i.test(rawUnit)) {
-          qty = rawQty;
-          unit = 'un';
-          isUnitMode = true;
-        } else if (/^bolsas?$/i.test(rawUnit)) {
-          qty = rawQty;
-          unit = 'bolsa';
-          isUnitMode = true;
-        } else if (/^botellas?$/i.test(rawUnit)) {
-          qty = rawQty;
-          unit = 'botella';
-          isUnitMode = true;
-        } else if (/^combos?$/i.test(rawUnit)) {
-          qty = rawQty;
-          unit = 'combo';
-          isUnitMode = true;
-        } else {
-          qty = rawQty;
-          unit = 'kg';
-          isUnitMode = false;
-        }
+      let qty = rawQty || 1;
+      let unit = 'kg';
+      let isUnitMode = false;
+      let unitCount = 0;
+
+      if (/^(?:g|gr|grs|gramos)$/i.test(rawUnit)) {
+        qty = Number((rawQty / 1000).toFixed(3));
+        unit = 'kg';
+        isUnitMode = false;
+        unitCount = 0;
+      } else if (/^(?:unidades?|un|u)$/i.test(rawUnit) || (!rawUnit && /^(?:chori|morcilla|costeleta|milanesa|hamburguesa)/i.test(nameCandidate))) {
+        qty = rawQty;
+        unit = 'un';
+        isUnitMode = true;
+        unitCount = rawQty;
+      } else if (/^bolsas?$/i.test(rawUnit)) {
+        qty = rawQty;
+        unit = 'bolsa';
+        isUnitMode = true;
+        unitCount = rawQty;
+      } else if (/^botellas?$/i.test(rawUnit)) {
+        qty = rawQty;
+        unit = 'botella';
+        isUnitMode = true;
+        unitCount = rawQty;
+      } else if (/^combos?$/i.test(rawUnit)) {
+        qty = rawQty;
+        unit = 'combo';
+        isUnitMode = true;
+        unitCount = rawQty;
+      } else {
+        qty = rawQty;
+        unit = 'kg';
+        isUnitMode = false;
+        unitCount = 0;
       }
 
       if (!nameCandidate || nameCandidate.length < 2) continue;
@@ -444,10 +489,27 @@ export class OrderSyncEngine {
       const catalogProduct = this.matchCatalogProduct(nameCandidate, catalog, plu);
       const catalogPrice = catalogProduct ? Number(catalogProduct.price) : 0;
       const effectiveUnitPrice = unitPrice > 0 ? unitPrice : catalogPrice;
-      const effectiveUnit = catalogProduct?.unit || unit;
+      let effectiveUnit = catalogProduct?.unit || unit;
 
-      if (subtotal <= 0 && effectiveUnitPrice > 0) {
-        subtotal = Math.round(qty * effectiveUnitPrice);
+      let finalQty = qty;
+      if (isUnitMode && catalogProduct && catalogProduct.unit === 'kg') {
+        const unitsPerKg = catalogProduct.unitsPerKg || 8;
+        finalQty = Number((qty / unitsPerKg).toFixed(3));
+        effectiveUnit = 'kg';
+        if (subtotal <= 0 && effectiveUnitPrice > 0) {
+          subtotal = Math.round(finalQty * effectiveUnitPrice);
+        }
+      } else if (catalogProduct && catalogProduct.unit !== 'kg') {
+        isUnitMode = true;
+        effectiveUnit = catalogProduct.unit;
+        unitCount = qty;
+        if (subtotal <= 0 && effectiveUnitPrice > 0) {
+          subtotal = Math.round(qty * effectiveUnitPrice);
+        }
+      } else {
+        if (subtotal <= 0 && effectiveUnitPrice > 0) {
+          subtotal = Math.round(qty * effectiveUnitPrice);
+        }
       }
 
       const productEntry = {
@@ -458,18 +520,18 @@ export class OrderSyncEngine {
         name: catalogProduct?.name || nameCandidate,
         price: effectiveUnitPrice,
         unitPrice: effectiveUnitPrice,
-        quantity: qty,
+        quantity: finalQty,
         unit: effectiveUnit,
-        isUnitMode: isUnitMode || (catalogProduct && catalogProduct.unit !== 'kg'),
-        unitCount: isUnitMode ? qty : 0,
+        isUnitMode: isUnitMode,
+        unitCount: isUnitMode ? (unitCount || qty) : 0,
         subtotal: subtotal
       };
 
       products.push(productEntry);
-      if (isUnitMode) {
-        items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
+      if (isUnitMode && productEntry.unitCount > 0) {
+        items.push(`• ${productEntry.unitCount} Unidades de ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
       } else {
-        items.push(`• ${qty} ${productEntry.unit} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
+        items.push(`• ${productEntry.quantity} ${productEntry.unit || 'kg'} ${productEntry.name} — $${subtotal.toLocaleString('es-AR')}`);
       }
       total += subtotal;
     }
@@ -644,21 +706,31 @@ export class OrderSyncEngine {
           quantity = Number((quantity / 1000).toFixed(3));
         }
 
-        const unitPrice = Number(prod.price) || 0;
-        const subtotal = Math.round(unitPrice * quantity);
+        const isUnit = /un|unidades?|botellas?|bolsas?|combo/i.test(rawUnit) || (!rawUnit && /^(?:chori|morcilla|costeleta|milanesa|hamburguesa)/i.test(prod.name)) || prod.unit !== 'kg';
+        const unitsPerKg = prod.unitsPerKg || 8;
+        const finalQty = (isUnit && prod.unit === 'kg') ? Number((quantity / unitsPerKg).toFixed(3)) : quantity;
+        const subtotal = Math.round(unitPrice * finalQty);
 
         products.push({
           id: prod.id || `prod_${prod.plu || Math.random().toString(36).substr(2, 5)}`,
           plu: prod.plu || '',
+          barcode: prod.barcode || '',
+          category: prod.category || 'Carnicería',
           name: prod.name,
           price: unitPrice,
           unitPrice: unitPrice,
-          quantity: quantity,
+          quantity: finalQty,
           unit: prod.unit || 'kg',
+          isUnitMode: isUnit,
+          unitCount: isUnit ? quantity : 0,
           subtotal: subtotal
         });
 
-        items.push(`• ${quantity} ${prod.unit || 'kg'} ${prod.name} — $${subtotal.toLocaleString('es-AR')}`);
+        if (isUnit && quantity > 0) {
+          items.push(`• ${quantity} Unidades de ${prod.name} — $${subtotal.toLocaleString('es-AR')}`);
+        } else {
+          items.push(`• ${finalQty} ${prod.unit || 'kg'} ${prod.name} — $${subtotal.toLocaleString('es-AR')}`);
+        }
         total += subtotal;
       }
     }
