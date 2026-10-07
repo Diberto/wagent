@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import { MessageSquare, Calculator, PackageCheck, Bike, Menu, Bell, QrCode } from 'lucide-react';
+import { MessageSquare, Calculator, PackageCheck, Bike, Menu, Bell, QrCode, Settings } from 'lucide-react';
 import SidebarNav from './components/SidebarNav';
 import AdminHubView from './components/AdminHubView';
 import Navbar from './components/Navbar';
