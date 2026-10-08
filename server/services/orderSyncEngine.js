@@ -196,12 +196,12 @@ export class OrderSyncEngine {
         if (activeOrder && ['pending', 'preparing', 'draft'].includes(activeOrder.status)) {
           const isExplicitResetOrReplace = /(?:solo quiero|quiero solo|un solo|una sola|nada mas|en vez de|cambia|cambiame|modifica|modificame|borra todo|borrá todo|empecemos de nuevo|arranquemos de nuevo)/i.test(userMsg);
           const isAdditionIntent = /(?:agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|mas|más|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2)/i.test(userMsg);
-          const hasAuthoritativeDetail = /(?:(?:📋|📝|📦|🛒|🍽️|✨|👉)?\s*\*?\s*(?:Detalle|Resumen)[^\n:]*?(?:pedido|propuesta|orden))/iu.test(replyMsg);
+          const hasAuthoritativeDetail = /(?:(?:📋|📝|📦|🛒|🍽️|✨|👉)?\s*\*?\s*(?:Detalle|Resumen|Desglose)[^\n:]*?(?:pedido|propuesta|orden|compra))/iu.test(replyMsg);
 
-          // Si el agente emitió un detalle autoritativo completo de pedido (ej: "📋 Detalle de tu pedido...")
-          // con lista completa de ítems y el cliente NO solicitó una suma incremental ("agrega", "suma"),
-          // el detalle del agente REEMPLAZA el carrito para no acumular cortes fantasma o descartados.
-          const isAuthoritativeReplacement = hasAuthoritativeDetail && !isAdditionIntent && productsToOrder.length > 0;
+          // Si el agente emitió un detalle autoritativo completo de pedido (ej: "📋 Detalle de tu pedido...", "Resumen...", "Desglose...")
+          // con lista de ítems, el detalle del agente es la verdad consolidada final del pedido y REEMPLAZA el carrito
+          // para no acumular cortes fantasma ni duplicar ítems acordados.
+          const isAuthoritativeReplacement = hasAuthoritativeDetail && productsToOrder.length > 0;
           const shouldReplaceCart = isExplicitResetOrReplace || isOptionSelection || isAuthoritativeReplacement;
 
           // Si la orden activa ya contiene productos y no se solicitó un reinicio explícito:
@@ -230,8 +230,14 @@ export class OrderSyncEngine {
             for (const p of productsToOrder) {
               const key = (p.id || p.name || '').toLowerCase().trim();
               if (key) {
-                if (isAdditionIntent && mergedProductsMap.has(key)) {
-                  // Sumar cantidades si el usuario explícitamente dijo "agrega / suma más"
+                // Verificar si el usuario pidió explícitamente agregar más de ESTE producto en particular
+                const prodWords = (p.name || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+                const isItemSpecificallyAdded = prodWords.some(w =>
+                  new RegExp(`(?:agrega|agregá|suma|sumá|sumar|mas|más|otro|otra|un|una|\\d+)\\s+(?:de\\s+)?(?:el|la|los|las)?\\s*${w}`, 'i').test(userMsg)
+                );
+
+                if (isAdditionIntent && isItemSpecificallyAdded && mergedProductsMap.has(key)) {
+                  // Sumar cantidades SOLO si el usuario explícitamente pidió sumar más de este producto en particular
                   const existing = mergedProductsMap.get(key);
                   const isU = Boolean(p.isUnitMode || existing.isUnitMode);
                   const newQty = (Number(existing.quantity) || 1) + (Number(p.quantity) || 1);
