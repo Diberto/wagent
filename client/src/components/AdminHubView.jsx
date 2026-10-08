@@ -70,8 +70,11 @@ export default function AdminHubView({
   // AI Connection Test
   const [isTestingAi, setIsTestingAi] = useState(false);
   const [aiTestResult, setAiTestResult] = useState(null);
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
-  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [showKeyMap, setShowKeyMap] = useState({});
+  const toggleKeyVisibility = (keyField) => {
+    setShowKeyMap(prev => ({ ...prev, [keyField]: !prev[keyField] }));
+  };
+  const [showAllApiKeys, setShowAllApiKeys] = useState(false);
 
   // ARCA (AFIP) Facturación Electrónica & Multi-Razón Social
   const [isTestingArca, setIsTestingArca] = useState(false);
@@ -160,20 +163,27 @@ export default function AdminHubView({
     setIsTestingAi(true);
     setAiTestResult(null);
     try {
+      const prov = settings?.aiProvider || 'gemini';
       let activeKey = '';
-      if (settings?.aiProvider === 'gemini') activeKey = settings?.geminiApiKey;
-      else if (settings?.aiProvider === 'openai') activeKey = settings?.openaiApiKey;
-      else if (settings?.aiProvider === 'nvidia') activeKey = settings?.nvidiaApiKey;
-      else if (settings?.aiProvider === 'custom') activeKey = settings?.customApiKey;
+      if (prov === 'gemini') activeKey = settings?.geminiApiKey;
+      else if (prov === 'openai') activeKey = settings?.openaiApiKey;
+      else if (prov === 'nvidia') activeKey = settings?.nvidiaApiKey;
+      else if (prov === 'anthropic') activeKey = settings?.anthropicApiKey;
+      else if (prov === 'deepseek') activeKey = settings?.deepseekApiKey;
+      else if (prov === 'groq') activeKey = settings?.groqApiKey;
+      else if (prov === 'openrouter') activeKey = settings?.openrouterApiKey;
+      else if (prov === 'cohere') activeKey = settings?.cohereApiKey;
+      else if (prov === 'custom') activeKey = settings?.customApiKey;
 
       const res = await fetch('/api/ai/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          provider: settings?.aiProvider,
-          model: settings?.aiModel,
-          apiKey: activeKey,
-          customBaseUrl: settings?.customBaseUrl
+          provider: prov,
+          model: settings?.aiModel || getDefaultModelForProvider(prov),
+          apiKey: activeKey || '',
+          customBaseUrl: settings?.customBaseUrl || '',
+          customEndpoint: settings?.customBaseUrl || settings?.customEndpoint || ''
         })
       });
       const data = await res.json();
@@ -491,16 +501,56 @@ export default function AdminHubView({
             </div>
 
             {aiTestResult && (
-              <div className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
-                aiTestResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              <div className={`p-4 rounded-xl border text-xs space-y-2.5 animate-in fade-in ${
+                aiTestResult.success 
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-slate-200' 
+                  : 'bg-rose-950/40 border-rose-500/40 text-rose-200'
               }`}>
-                {aiTestResult.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                <span>{aiTestResult.message || (aiTestResult.success ? 'Conexión exitosa con el proveedor de IA' : aiTestResult.error)}</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                  <span className="flex items-center gap-2 font-bold">
+                    {aiTestResult.success ? <CheckCircle2 size={17} className="text-emerald-400" /> : <AlertCircle size={17} className="text-rose-400" />}
+                    <span className={aiTestResult.success ? 'text-emerald-300' : 'text-rose-300'}>
+                      {aiTestResult.success ? '¡Conexión Exitosa con el Modelo!' : 'Error de Conexión con el Modelo'}
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-2 font-mono text-[11px]">
+                    {aiTestResult.model && (
+                      <span className="bg-black/40 border border-white/10 px-2.5 py-0.5 rounded text-white font-semibold">
+                        Modelo: {aiTestResult.model}
+                      </span>
+                    )}
+                    {aiTestResult.latencyMs !== undefined && (
+                      <span className="text-amber-400 bg-black/40 border border-amber-500/20 px-2 py-0.5 rounded">
+                        ⏱️ {aiTestResult.latencyMs} ms
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {aiTestResult.success ? (
+                  <div className="space-y-1 pt-1">
+                    <p className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5">
+                      <span>💬 Respuesta real generada por el modelo:</span>
+                    </p>
+                    <div className="p-3 rounded-xl bg-black/50 border border-emerald-500/30 font-mono text-emerald-200 text-xs whitespace-pre-wrap leading-relaxed select-text shadow-inner">
+                      {aiTestResult.response || 'Sin texto de respuesta'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1 pt-1">
+                    <p className="text-[11px] text-rose-400 font-semibold flex items-center gap-1.5">
+                      <span>⚠️ Detalle del error devuelto por la API:</span>
+                    </p>
+                    <div className="p-3 rounded-xl bg-black/50 border border-rose-500/30 font-mono text-rose-200 text-xs whitespace-pre-wrap leading-relaxed select-text shadow-inner">
+                      {aiTestResult.error || 'Error desconocido'}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Provider Select */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Provider & Model Select */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300">Proveedor de IA Activo</label>
                 <select
@@ -515,88 +565,609 @@ export default function AdminHubView({
                   }}
                   className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
                 >
-                  <option value="gemini">Google Gemini (Recomendado)</option>
-                  <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
-                  <option value="nvidia">NVIDIA NIM (Llama 3.3 70B)</option>
-                  <option value="custom">Servidor Propio / Local (Ollama / VLLM)</option>
+                  <option value="gemini">Google Gemini (Oficial)</option>
+                  <option value="openai">OpenAI (GPT-4o / GPT-4o-mini / o3-mini)</option>
+                  <option value="nvidia">NVIDIA NIM (Llama 3.3 70B / DeepSeek R1 / Nemotron)</option>
+                  <option value="anthropic">Anthropic Claude (Claude 3.7 / 3.5 Sonnet)</option>
+                  <option value="deepseek">DeepSeek AI (V3 / R1 Reasoner)</option>
+                  <option value="groq">Groq Cloud (LPU Ultra Rápido)</option>
+                  <option value="openrouter">OpenRouter (100+ Modelos Multi-Cloud)</option>
+                  <option value="cohere">Cohere (Command R+)</option>
+                  <option value="local">Servidor Local (Ollama / LM Studio)</option>
+                  <option value="custom">Endpoint Custom / Compatible OpenAI (vLLM / TGI)</option>
                 </select>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Modelo Seleccionado</label>
-                {SYSTEM_AI_MODELS[settings.aiProvider || 'gemini']?.length > 0 ? (
-                  <select
-                    value={settings.aiModel || getDefaultModelForProvider(settings.aiProvider || 'gemini')}
-                    onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
-                  >
-                    {SYSTEM_AI_MODELS[settings.aiProvider || 'gemini'].map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} {m.tag ? `(${m.tag})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300">Modelo Seleccionado</label>
+                  <span className="text-[10px] text-slate-400">Podés escribir, pegar o elegir sugerido</span>
+                </div>
+                <div className="space-y-2">
                   <input
                     type="text"
                     value={settings.aiModel || ''}
                     onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-                    placeholder="Nombre del modelo (ej: llama3.2)"
+                    placeholder="Escribe o pega el ID del modelo (ej: gemini-3.8-flash, meta/llama-3.3-70b-instruct...)"
                     className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
                   />
-                )}
+                  {/* Sugerencias clicables del proveedor actual */}
+                  {SYSTEM_AI_MODELS[settings.aiProvider || 'gemini']?.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] text-slate-400 mr-0.5">Sugeridos:</span>
+                      {SYSTEM_AI_MODELS[settings.aiProvider || 'gemini'].map((m) => {
+                        const isSelected = (settings.aiModel || '') === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setSettings({ ...settings, aiModel: m.id })}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-mono border transition ${
+                              isSelected
+                                ? 'bg-emerald-500/25 border-emerald-500/60 text-emerald-300 font-bold'
+                                : 'bg-[#1f2c34] border-[#2a3942] text-slate-300 hover:border-slate-500 hover:text-white'
+                            }`}
+                            title={m.desc || m.name}
+                          >
+                            {m.name || m.id} {m.tag ? `• ${m.tag}` : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* API Keys */}
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                  <span>Gemini API Key</span>
-                  <span className="text-[10px] text-slate-400">Protegida</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showGeminiKey ? "text" : "password"}
-                    value={settings.geminiApiKey || ''}
-                    onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                    placeholder="AIzaSy..."
-                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowGeminiKey(!showGeminiKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
-                    title={showGeminiKey ? "Ocultar clave" : "Mostrar clave"}
-                  >
-                    {showGeminiKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
+            {/* Credenciales del Proveedor Seleccionado */}
+            <div className="p-4 rounded-xl bg-[#111b21] border border-[#202c33] space-y-4">
+              <div className="flex items-center justify-between border-b border-[#202c33] pb-2">
+                <span className="text-xs font-bold text-white flex items-center gap-2">
+                  <span>🔑 Credenciales para: </span>
+                  <span className="text-emerald-400 uppercase font-mono tracking-wide">
+                    {settings.aiProvider || 'gemini'}
+                  </span>
+                </span>
+                <span className="text-[11px] text-slate-400">Configuración requerida para la IA activa</span>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                  <span>OpenAI API Key</span>
-                  <span className="text-[10px] text-slate-400">Opcional para GPT-4o</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showOpenaiKey ? "text" : "password"}
-                    value={settings.openaiApiKey || ''}
-                    onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
-                    placeholder="sk-..."
-                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowOpenaiKey(!showOpenaiKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
-                    title={showOpenaiKey ? "Ocultar clave" : "Mostrar clave"}
-                  >
-                    {showOpenaiKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+              {/* Gemini */}
+              {(settings.aiProvider === 'gemini' || !settings.aiProvider) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Google Gemini API Key</span>
+                    <a href="https://aistudio.google.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-emerald-400 hover:underline">
+                      Obtener gratis en Google AI Studio ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.geminiApiKey ? "text" : "password"}
+                      value={settings.geminiApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                      placeholder="AIzaSy..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('geminiApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.geminiApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.geminiApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* NVIDIA NIM */}
+              {settings.aiProvider === 'nvidia' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>NVIDIA NIM API Key</span>
+                    <a href="https://build.nvidia.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-green-400 hover:underline">
+                      Obtener créditos en build.nvidia.com ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.nvidiaApiKey ? "text" : "password"}
+                      value={settings.nvidiaApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, nvidiaApiKey: e.target.value })}
+                      placeholder="nvapi-..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('nvidiaApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.nvidiaApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.nvidiaApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* OpenAI */}
+              {settings.aiProvider === 'openai' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>OpenAI API Key</span>
+                    <a href="https://platform.openai.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-sky-400 hover:underline">
+                      Obtener en platform.openai.com ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.openaiApiKey ? "text" : "password"}
+                      value={settings.openaiApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
+                      placeholder="sk-proj-... o sk-..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('openaiApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.openaiApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.openaiApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Anthropic */}
+              {settings.aiProvider === 'anthropic' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Anthropic Claude API Key</span>
+                    <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-purple-400 hover:underline">
+                      Obtener en console.anthropic.com ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.anthropicApiKey ? "text" : "password"}
+                      value={settings.anthropicApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, anthropicApiKey: e.target.value })}
+                      placeholder="sk-ant-..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('anthropicApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.anthropicApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.anthropicApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* DeepSeek */}
+              {settings.aiProvider === 'deepseek' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>DeepSeek API Key</span>
+                    <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:underline">
+                      Obtener en platform.deepseek.com ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.deepseekApiKey ? "text" : "password"}
+                      value={settings.deepseekApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, deepseekApiKey: e.target.value })}
+                      placeholder="sk-..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('deepseekApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.deepseekApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.deepseekApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Groq */}
+              {settings.aiProvider === 'groq' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Groq Cloud API Key</span>
+                    <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-400 hover:underline">
+                      Obtener gratis en console.groq.com ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.groqApiKey ? "text" : "password"}
+                      value={settings.groqApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, groqApiKey: e.target.value })}
+                      placeholder="gsk_..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('groqApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.groqApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.groqApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* OpenRouter */}
+              {settings.aiProvider === 'openrouter' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>OpenRouter API Key</span>
+                    <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-400 hover:underline">
+                      Obtener en openrouter.ai ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.openrouterApiKey ? "text" : "password"}
+                      value={settings.openrouterApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, openrouterApiKey: e.target.value })}
+                      placeholder="sk-or-..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('openrouterApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.openrouterApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.openrouterApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Cohere */}
+              {settings.aiProvider === 'cohere' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>Cohere API Key</span>
+                    <a href="https://dashboard.cohere.com" target="_blank" rel="noopener noreferrer" className="text-[10px] text-orange-400 hover:underline">
+                      Obtener en dashboard.cohere.com ↗
+                    </a>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showKeyMap.cohereApiKey ? "text" : "password"}
+                      value={settings.cohereApiKey || ''}
+                      onChange={(e) => setSettings({ ...settings, cohereApiKey: e.target.value })}
+                      placeholder="co-..."
+                      className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleKeyVisibility('cohereApiKey')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                      title={showKeyMap.cohereApiKey ? "Ocultar clave" : "Mostrar clave"}
+                    >
+                      {showKeyMap.cohereApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Local Ollama / LM Studio */}
+              {settings.aiProvider === 'local' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>URL Base del Servidor Local</span>
+                    <span className="text-[10px] text-cyan-400">Ollama: http://localhost:11434/v1 | LM Studio: http://localhost:1234/v1</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.customBaseUrl || ''}
+                    onChange={(e) => setSettings({ ...settings, customBaseUrl: e.target.value })}
+                    placeholder="http://localhost:11434/v1"
+                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                  />
+                </div>
+              )}
+
+              {/* Custom Endpoint OpenAI-compatible */}
+              {settings.aiProvider === 'custom' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">URL Base del Endpoint</label>
+                    <input
+                      type="text"
+                      value={settings.customBaseUrl || ''}
+                      onChange={(e) => setSettings({ ...settings, customBaseUrl: e.target.value })}
+                      placeholder="https://api.tu-servidor.com/v1 o http://localhost:8000/v1"
+                      className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300">API Key del Endpoint (Opcional)</label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.customApiKey ? "text" : "password"}
+                        value={settings.customApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, customApiKey: e.target.value })}
+                        placeholder="Clave de acceso o Bearer token..."
+                        className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('customApiKey')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                        title={showKeyMap.customApiKey ? "Ocultar clave" : "Mostrar clave"}
+                      >
+                        {showKeyMap.customApiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Toggle para ver y gestionar otras API Keys guardadas */}
+            <div className="border border-[#202c33] rounded-xl overflow-hidden bg-[#111b21]/50">
+              <button
+                type="button"
+                onClick={() => setShowAllApiKeys(!showAllApiKeys)}
+                className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-[#182229]/50 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Key size={14} className="text-slate-400" />
+                  <span className="text-xs font-bold text-slate-200">Gestionar Todas las API Keys Guardadas</span>
+                  <span className="text-[10px] text-slate-400">(NVIDIA, Gemini, OpenAI, Claude, DeepSeek, Groq, etc.)</span>
+                </div>
+                <span className="text-xs text-emerald-400 font-semibold">{showAllApiKeys ? '▲ Ocultar' : '▼ Ver Todas'}</span>
+              </button>
+
+              {showAllApiKeys && (
+                <div className="p-4 border-t border-[#202c33] grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#0c1317]">
+                  {/* Gemini Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>Gemini API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">geminiApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_gemini ? "text" : "password"}
+                        value={settings.geminiApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                        placeholder="AIzaSy..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_gemini')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_gemini ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* OpenAI Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>OpenAI API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">openaiApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_openai ? "text" : "password"}
+                        value={settings.openaiApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
+                        placeholder="sk-..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_openai')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_openai ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* NVIDIA NIM Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>NVIDIA NIM API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">nvidiaApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_nvidia ? "text" : "password"}
+                        value={settings.nvidiaApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, nvidiaApiKey: e.target.value })}
+                        placeholder="nvapi-..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_nvidia')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_nvidia ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Anthropic Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>Anthropic Claude API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">anthropicApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_anthropic ? "text" : "password"}
+                        value={settings.anthropicApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, anthropicApiKey: e.target.value })}
+                        placeholder="sk-ant-..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_anthropic')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_anthropic ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* DeepSeek Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>DeepSeek API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">deepseekApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_deepseek ? "text" : "password"}
+                        value={settings.deepseekApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, deepseekApiKey: e.target.value })}
+                        placeholder="sk-..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_deepseek')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_deepseek ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Groq Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>Groq Cloud API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">groqApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_groq ? "text" : "password"}
+                        value={settings.groqApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, groqApiKey: e.target.value })}
+                        placeholder="gsk_..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_groq')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_groq ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* OpenRouter Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>OpenRouter API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">openrouterApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_openrouter ? "text" : "password"}
+                        value={settings.openrouterApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, openrouterApiKey: e.target.value })}
+                        placeholder="sk-or-..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_openrouter')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_openrouter ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Cohere Key */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>Cohere API Key</span>
+                      <span className="text-[9px] text-slate-500 font-mono">cohereApiKey</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showKeyMap.all_cohere ? "text" : "password"}
+                        value={settings.cohereApiKey || ''}
+                        onChange={(e) => setSettings({ ...settings, cohereApiKey: e.target.value })}
+                        placeholder="co-..."
+                        className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => toggleKeyVisibility('all_cohere')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                      >
+                        {showKeyMap.all_cohere ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Custom Endpoint Base URL & Key */}
+                  <div className="space-y-1 md:col-span-2 pt-2 border-t border-[#202c33]/70">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                          <span>URL Base de Endpoint Personalizado / Local</span>
+                          <span className="text-[9px] text-slate-500 font-mono">customBaseUrl</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.customBaseUrl || ''}
+                          onChange={(e) => setSettings({ ...settings, customBaseUrl: e.target.value })}
+                          placeholder="http://localhost:11434/v1 o https://mi-servidor.com/v1"
+                          className="w-full px-3 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                          <span>Custom API Key (Opcional)</span>
+                          <span className="text-[9px] text-slate-500 font-mono">customApiKey</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showKeyMap.all_custom ? "text" : "password"}
+                            value={settings.customApiKey || ''}
+                            onChange={(e) => setSettings({ ...settings, customApiKey: e.target.value })}
+                            placeholder="API Key o Token..."
+                            className="w-full pl-3 pr-9 py-1.5 rounded-lg bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleKeyVisibility('all_custom')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                          >
+                            {showKeyMap.all_custom ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Regional Cordobés Prompting */}

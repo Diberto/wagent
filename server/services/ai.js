@@ -2195,7 +2195,7 @@ export class AIService {
    * Devuelve latencia, texto de respuesta, tokens y detalles técnicos reales.
    * Si falla, devuelve el error exacto del API (código HTTP, mensaje, detalles) sin enmascararlo con fallbacks.
    */
-  static async testModelConnection({ provider, model, apiKey, customEndpoint, temperature = 0.7, maxTokens = 150 }) {
+  static async testModelConnection({ provider, model, apiKey, customEndpoint, customBaseUrl, temperature = 0.7, maxTokens = 150 }) {
     const s = db.getSettings() || {};
     let effectiveProvider = provider || s.aiProvider || 'gemini';
     if (effectiveProvider === 'system_default') {
@@ -2387,7 +2387,7 @@ export class AIService {
       }
 
       // 4. OpenAI y Proveedores Compatibles (OpenAI, NVIDIA NIM, DeepSeek, Groq, OpenRouter, Cohere, Local, Custom)
-      let baseURL = customEndpoint;
+      let baseURL = customEndpoint || customBaseUrl || s.customBaseUrl || s.customEndpoint;
       let effectiveKey = apiKey;
 
       if (effectiveProvider === 'openai') {

@@ -155,12 +155,14 @@ export const SYSTEM_AI_MODELS = {
     { id: 'default', name: 'Modelo Global de Ajustes', tag: 'Automático', desc: 'Hereda automáticamente el motor y modelo principal configurado en Ajustes', isFree: false }
   ],
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Recomendado', desc: 'Ultra rápido, óptimo para ventas conversacionales y pedidos', isFree: false },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Máxima Inteligencia', desc: 'Máximo razonamiento, comprensión profunda y análisis', isFree: false },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Nueva Generación', desc: 'Respuestas ágiles con soporte multimodal', isFree: false },
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Recomendado', desc: 'Ultra rápido de última generación, óptimo para ventas conversacionales y pedidos', isFree: false },
+    { id: 'gemini-3.8-pro', name: 'Gemini 3.8 Pro', tag: 'Máxima Inteligencia', desc: 'Máximo razonamiento, comprensión profunda y análisis multimodal', isFree: false },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Flash 2.5', desc: 'Modelo rápido para atención comercial', isFree: false },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', tag: 'Pro 2.5', desc: 'Razonamiento profundo', isFree: false },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', tag: 'Flash 2.0', desc: 'Respuestas ágiles con soporte multimodal', isFree: false },
     { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', tag: 'Baja Latencia', desc: 'Latencia mínima para alto volumen de mensajes', isFree: false },
-    { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro', tag: 'Contexto 2M', desc: 'Enorme ventana de contexto para catálogos gigantescos', isFree: false },
-    { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash', tag: 'Estable', desc: 'Modelo clásico de Google de alta disponibilidad', isFree: false }
+    { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash', tag: 'Estable', desc: 'Modelo clásico de Google de alta disponibilidad', isFree: false },
+    { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro', tag: 'Contexto 2M', desc: 'Enorme ventana de contexto para catálogos gigantescos', isFree: false }
   ],
   anthropic: [
     { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', tag: 'Última Generación', desc: 'Razonamiento híbrido de última generación y empatía humana máxima', isFree: false },
@@ -229,7 +231,7 @@ export const SYSTEM_AI_MODELS = {
 
 export const getDefaultModelForProvider = (providerId) => {
   const models = SYSTEM_AI_MODELS[providerId];
-  if (!models || models.length === 0) return 'gemini-2.5-flash';
+  if (!models || models.length === 0) return 'gemini-3.8-flash';
   const rec = models.find(m => m.tag === 'Recomendado');
   return rec ? rec.id : models[0].id;
 };
