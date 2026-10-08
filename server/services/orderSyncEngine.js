@@ -198,11 +198,13 @@ export class OrderSyncEngine {
           const isAdditionIntent = /(?:agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|mas|más|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2)/i.test(userMsg);
           const hasAuthoritativeDetail = /(?:(?:📋|📝|📦|🛒|🍽️|✨|👉)?\s*\*?\s*(?:Detalle|Resumen)[^\n:]*?(?:pedido|propuesta|orden))/iu.test(replyMsg);
 
-          // Si el cliente está eligiendo una opción o el bot brindó el detalle autoritativo completo del pedido,
-          // los productos extraídos del reply reemplazan completamente cualquier propuesta preliminar
-          const shouldReplaceCart = isExplicitResetOrReplace || isOptionSelection || hasAuthoritativeDetail;
+          // Si el cliente está eligiendo una opción de propuesta (ej: eligió opción 1 de 2 alternativas preliminares)
+          // o pidió explícitamente reiniciar el pedido ("borra todo", "empecemos de nuevo"), reemplazar el carrito
+          const shouldReplaceCart = isExplicitResetOrReplace || isOptionSelection;
 
-          if (!shouldReplaceCart && isAdditionIntent && Array.isArray(activeOrder.products) && activeOrder.products.length > 0) {
+          // Si la orden activa ya contiene productos y no se solicitó un reinicio explícito:
+          // PRESERVAR Y COMBINAR SIEMPRE todos los productos acordados previamente.
+          if (!shouldReplaceCart && Array.isArray(activeOrder.products) && activeOrder.products.length > 0) {
             const mergedProductsMap = new Map();
             // Cargar productos previos de la orden
             for (const p of activeOrder.products) {
@@ -210,11 +212,24 @@ export class OrderSyncEngine {
               if (key) mergedProductsMap.set(key, { ...p });
             }
 
+            // Detección de eliminación específica por parte del usuario (ej: "sacame el chorizo", "sin carbón")
+            for (const [key, p] of mergedProductsMap.entries()) {
+              const prodWords = (p.name || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+              const isExplicitlyRemoved = prodWords.some(w => {
+                const removeRegex = new RegExp(`(?:sin|sacame|sacá|saca|quitame|quitá|quita|borrame|borrá|borra|no\\s+quiero)\\s+(?:el|la|los|las)?\\s*${w}`, 'i');
+                return removeRegex.test(userMsg);
+              });
+              if (isExplicitlyRemoved) {
+                mergedProductsMap.delete(key);
+              }
+            }
+
             // Integrar productos del nuevo turno
             for (const p of productsToOrder) {
               const key = (p.id || p.name || '').toLowerCase().trim();
               if (key) {
                 if (isAdditionIntent && mergedProductsMap.has(key)) {
+                  // Sumar cantidades si el usuario explícitamente dijo "agrega / suma más"
                   const existing = mergedProductsMap.get(key);
                   const isU = Boolean(p.isUnitMode || existing.isUnitMode);
                   const newQty = (Number(existing.quantity) || 1) + (Number(p.quantity) || 1);
@@ -229,13 +244,15 @@ export class OrderSyncEngine {
                     subtotal: newSub
                   });
                 } else {
+                  // Si no era suma adicional sobre el mismo ítem, pero el bot lo detalló (o es nuevo corte):
+                  // Actualizar sus valores (precio/peso balanza) o sumarlo como nuevo producto
                   mergedProductsMap.set(key, { ...p });
                 }
               }
             }
 
             const combinedProducts = Array.from(mergedProductsMap.values());
-            if (combinedProducts.length >= productsToOrder.length) {
+            if (combinedProducts.length > 0) {
               productsToOrder = combinedProducts;
               totalAmountToOrder = combinedProducts.reduce((acc, p) => acc + (Number(p.subtotal) || 0), 0);
               itemsToOrder = combinedProducts.map(p => {
@@ -450,8 +467,21 @@ export class OrderSyncEngine {
         .replace(/\s*\([^)]*\[PLU[^)]*\)\s*/gi, '')
         .replace(/\s*\([^)]*\$\s*[\d\.,]+[^)]*\)\s*/gi, '')
         .replace(/(?:→|->|—|-|:)\s*\*?\$?\s*[\d\.,]+.*$/gi, '')
+        .replace(/\([^)]*(?:aprox|estimamos|balanza|pesaje|total\s*[0-9]|precio)[^)]*\)/gi, '')
         .replace(/[*_"]/g, '')
         .trim();
+
+      // Detección de peso balanza explícito en la línea (ej: "total 0.400kg", "total 0.4 kg", "400g")
+      let explicitKg = null;
+      if (!/x\s*\d+\s*(?:kg|kilos?|g|gr)\b/i.test(clean)) {
+        const explicitKgMatch = clean.match(/(?:total\s+|balanza\s*:?\s*|peso\s*:?\s*)([0-9]+(?:[.,][0-9]+)?)\s*(?:kg|kilos?)\b/i);
+        const explicitGrMatch = clean.match(/(?:total\s+|balanza\s*:?\s*|peso\s*:?\s*)([0-9]+)\s*(?:g|gr|grs|gramos)\b/i);
+        if (explicitKgMatch && !/^[\s•*\-+]*\d+(?:[.,]\d+)?\s*(?:kg|kilos?)/i.test(clean)) {
+          explicitKg = parseFloat(explicitKgMatch[1].replace(',', '.'));
+        } else if (explicitGrMatch && !/^[\s•*\-+]*\d+(?:[.,]\d+)?\s*(?:g|gr|grs|gramos)/i.test(clean)) {
+          explicitKg = Number((parseFloat(explicitGrMatch[1]) / 1000).toFixed(3));
+        }
+      }
 
       // Detección:
       // Pattern 1: Cantidad de Nombre (ej: "1,5 kg de COSTILLA", "4 chorizos de cerdo", "1 unidad CARBON")
@@ -539,8 +569,21 @@ export class OrderSyncEngine {
       }
 
       let finalQty = qty;
-      if (isUnitMode && catalogProduct && catalogProduct.unit === 'kg') {
-        const unitsPerKg = catalogProduct.unitsPerKg || 8;
+      if (explicitKg && explicitKg > 0) {
+        finalQty = explicitKg;
+        effectiveUnit = 'kg';
+        if (subtotal <= 0 && effectiveUnitPrice > 0) {
+          subtotal = Math.round(finalQty * effectiveUnitPrice);
+        }
+      } else if (isUnitMode && catalogProduct && catalogProduct.unit === 'kg') {
+        const unitsPerKg = catalogProduct.unitsPerKg || (
+          /chorizo|chori/i.test(catalogProduct.name || nameCandidate) ? 5 :
+          /morcilla/i.test(catalogProduct.name || nameCandidate) ? 5 :
+          /costeleta/i.test(catalogProduct.name || nameCandidate) ? 4 :
+          /milanesa/i.test(catalogProduct.name || nameCandidate) ? 5 :
+          /bife/i.test(catalogProduct.name || nameCandidate) ? 3 :
+          /pollo|pata/i.test(catalogProduct.name || nameCandidate) ? 3 : 8
+        );
         finalQty = Number((qty / unitsPerKg).toFixed(3));
         effectiveUnit = 'kg';
         if (subtotal <= 0 && effectiveUnitPrice > 0) {
@@ -613,9 +656,9 @@ export class OrderSyncEngine {
       ? catalog.filter(p => !/^(?:sena|seña)\s+de\s+pedidos$/i.test(p.name))
       : catalog;
 
-    // 1. PLU exacto si es válido
-    if (plu && plu !== '0000' && plu !== '0') {
-      const byPlu = safeCatalog.find(p => p.plu === plu);
+    // 1. PLU exacto si es válido en el catálogo
+    if (plu && plu !== '0') {
+      const byPlu = safeCatalog.find(p => p.plu && String(p.plu) === String(plu));
       if (byPlu) return byPlu;
     }
 
@@ -656,6 +699,11 @@ export class OrderSyncEngine {
 
     if (/\bchorizo.*criollo/i.test(clean)) {
       const match = safeCatalog.find(p => /\bchorizo.*criollo/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bchorizo.*criollo/i.test(p.name));
+      if (match) return match;
+    }
+
+    if (/\bchorizo.*cerdo/i.test(clean)) {
+      const match = safeCatalog.find(p => /\bchorizo.*cerdo/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bchorizo.*cerdo/i.test(p.name));
       if (match) return match;
     }
 

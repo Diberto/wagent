@@ -694,12 +694,12 @@ export function parseQuantityAndMode(str, prod = null) {
   const hasKgMention = /(?:kilo|kilos|kg|kgs|grs|gramos)\b/i.test(s);
   const isUnitMention = !hasKgMention && /(?:unidades?|\bun\b|chorizos?|chori|choris|morcillas?|bifes?|costeletas?|chuletas?|piezas?|patas?)/i.test(s);
 
-  // Default units per kg map (promedio 7 a 9 para chorizos = 8)
+  // Default units per kg map (promedio 200g por chorizo/morcilla = 5 un/kg)
   const unitsPerKg = prod?.unitsPerKg || (
-    /chorizo|chori/i.test(prod?.name || s) ? 8 :
-    /morcilla/i.test(prod?.name || s) ? 7 :
+    /chorizo|chori/i.test(prod?.name || s) ? 5 :
+    /morcilla/i.test(prod?.name || s) ? 5 :
     /costeleta/i.test(prod?.name || s) ? 4 :
-    /milanesa/i.test(prod?.name || s) ? 6 :
+    /milanesa/i.test(prod?.name || s) ? 5 :
     /bife/i.test(prod?.name || s) ? 3 :
     /pollo|pata/i.test(prod?.name || s) ? 3 : 1
   );
@@ -2077,9 +2077,47 @@ export function buildFullSystemPrompt(settings, catalog = null) {
   const businessRules = settings.businessRules || 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, pagos en efectivo, transferencia o Mercado Pago.';
   const customPrompt = settings.systemPrompt || '';
 
-  const activeProducts = (catalog || db.getProducts() || [])
-    .filter(p => p.isAvailable !== false && p.price > 0)
-    .slice(0, 45)
+  const allAvailable = (catalog || db.getProducts() || [])
+    .filter(p => p.isAvailable !== false && p.price > 0);
+
+  // Garantizar presencia de las familias esenciales: Vacuno, Embutidos, Achuras, Cerdo, Pollo, Carbón/Leña y Combos
+  const priorityCategories = [
+    { cat: 'CARNE VACUNA', limit: 30 },
+    { cat: 'EMBUTIDOS', limit: 15 },
+    { cat: 'ACHURAS', limit: 12 },
+    { cat: 'CARNE DE CERDO', limit: 15 },
+    { cat: 'CARNE DE POLLO', limit: 10 },
+    { cat: 'CARBON Y LENA', limit: 6 },
+    { cat: 'COMBOS - OFERTAS', limit: 6 },
+    { cat: 'ALMACEN', limit: 10 },
+    { cat: 'BEBIDAS', limit: 8 }
+  ];
+
+  const selectedProductsMap = new Map();
+  for (const { cat, limit } of priorityCategories) {
+    const matching = allAvailable.filter(p => {
+      const c = (p.category || '').toUpperCase().trim();
+      const n = (p.name || '').toUpperCase().trim();
+      if (cat === 'CARBON Y LENA') {
+        return c.includes('CARBON') || c.includes('LE') || n.includes('CARBON') || n.includes('LEÑA');
+      }
+      return c === cat;
+    }).slice(0, limit);
+
+    for (const p of matching) {
+      selectedProductsMap.set(p.id || p.name, p);
+    }
+  }
+
+  // Rellenar con otros productos disponibles si queda cupo hasta 110 productos
+  for (const p of allAvailable) {
+    if (selectedProductsMap.size >= 110) break;
+    if (!selectedProductsMap.has(p.id || p.name)) {
+      selectedProductsMap.set(p.id || p.name, p);
+    }
+  }
+
+  const activeProducts = Array.from(selectedProductsMap.values())
     .map(p => `• [PLU ${p.plu || '-'}] ${p.name}: $${Number(p.price).toLocaleString('es-AR')}/${p.unit || 'kg'}`)
     .join('\n');
 
@@ -2135,6 +2173,12 @@ Reglas de Oro y Asesoramiento de Élite:
   * Opción 3: Especialidades o Cocina Diaria (Nalga / Bola de Lomo para milanesas + Molida Especial + Costeletas).
   REGLA INQUEBRANTABLE DE CATÁLOGO: NUNCA ofrezcas, inventes ni menciones cortes, combos, vinos o productos que no estén explícitamente listados en el Catálogo Oficial Vigente o en la Base de Conocimiento. Todos los precios que cotices deben coincidir exactamente con los del catálogo.
 - Cálculo Preciso de Raciones: Para asados calcula entre 500g y 600g por persona (sumando cortes y achuras). Para comidas de olla, horno o milanesas calcula 250g a 300g por persona. Explica la distribución en: (1) La Previa / Achuras, (2) El Plato Fuerte y (3) Acompañamientos / Bebidas / Carbón.
+- Pesaje y Estimación de Embutidos por Unidad:
+  * Para productos por unidad que se pesan en balanza (chorizos, morcillas), calcula un promedio de **200g por unidad** (5 unidades por kilo).
+  * Ejemplo: si el cliente pide "2 chorizos de cerdo", aclara que son 2 unidades y estima aproximadamente **400g (0.400 kg)** en balanza, calculando el precio estimado exacto sobre esos 400g (ej: $14.760/kg x 0.400 kg = $5.904). NUNCA digas que 2 chorizos son 250g ni utilices pesos erróneos.
+- Cotización del Total Integral y No Omisión de Ítems Acumulados:
+  * Cuando el cliente pregunte "¿Cuánto sería el total?", pida un detalle o sume un producto, NUNCA omitas ni dejes afuera productos que ya fueron pedidos o confirmados previamente en la conversación (ej: si pidió chorizos y luego sumó carbón, el desglose debe incluir AMBOS: los chorizos Y el carbón con sus respectivos subtotales, y el total debe ser la suma exacta de todos ellos).
+  * Si el cliente pregunta "¿Cuánto sería el total?", desglosa cada ítem del pedido acumulado con su subtotal y brinda el gran total final exacto.
 - Atención Consultiva Integral y Reenganche de Ventas: Si el cliente hace cualquier pregunta (la hora, pedidos pendientes, medios de pago, sucursales, envíos a domicilio, o charla casual), responde PRIMERO a su consulta con total amabilidad, precisión y empatía, y LUEGO reengancha con entusiasmo hacia la propuesta de compra para armar su pedido.
 - Consulta de la Hora: Si el cliente pregunta qué hora es o si están abiertos, indícale la hora actual exacta (${currentTimeStr}) y comenta alegremente que estás firme en mostrador para prepararle los mejores cortes.
 - Aclaración de Precios por Kilo y Pesaje Variable: En todo detalle de pedido o resumen de compra, aclara al inicio que los precios son por kilo ("📋 Detalle de tu pedido (precios por kilo según corte):") e incluye obligatoriamente luego del monto final la nota: "*(Nota: Los precios de los cortes son por kilo. El total informado es estimado y puede tener una leve variación según el pesaje exacto final en balanza).*".
@@ -2983,8 +3027,22 @@ Whenever the user asks about the current time, date, products count, orders, or 
       if (activeOrd) {
         const originLabel = activeOrd.channel === 'TIENDA' ? 'la Tienda Web' : (activeOrd.channel === 'POS' ? 'el Mostrador / POS' : 'WhatsApp');
         const deliveryInfo = activeOrd.deliveryType === 'pickup' ? `Retiro por sucursal ${activeOrd.branch || 'URCA'}` : `Envío a domicilio (${activeOrd.address || 'Córdoba Capital'})`;
-        orderStatusContext = `Estado de Pedidos del Cliente (FLUJO CENTRALIZADO OMNICANAL): Tiene el Pedido Activo #${activeOrd.id} realizado a través de ${originLabel}. Estado: "${activeOrd.status}" (${activeOrd.isPrepared ? 'Preparado / Listo' : 'En preparación'}). Modalidad: ${deliveryInfo}. Total: $${Number(activeOrd.totalAmount || 0).toLocaleString('es-AR')}. Cortes: ${Array.isArray(activeOrd.items) ? activeOrd.items.join(', ') : activeOrd.items}.
-REGLA CRÍTICA OMNICANAL: Si el cliente consulta por su pedido ("cómo va mi pedido?", "a qué hora llega?", "hice un pedido por la web/pos", etc.), respóndele con total coherencia, claridad y calidez sobre este Pedido #${activeOrd.id} ya registrado. NUNCA crees un pedido duplicado ni vuelvas a cobrarle por productos que ya compró. Solo ofrece nuevos cortes si el cliente pide expresamente hacer un pedido adicional.`;
+        const productsBreakdown = Array.isArray(activeOrd.products) && activeOrd.products.length > 0
+          ? activeOrd.products.map(p => {
+              const qStr = p.isUnitMode ? `${p.unitCount || p.quantity} Unidades` : `${p.quantity} ${p.unit || 'kg'}`;
+              return `• ${qStr} de ${p.name} ($${Number(p.subtotal || p.price || 0).toLocaleString('es-AR')})`;
+            }).join('\n')
+          : (Array.isArray(activeOrd.items) ? activeOrd.items.join('\n') : (activeOrd.items || ''));
+
+        orderStatusContext = `Estado de Pedidos del Cliente (FLUJO CENTRALIZADO OMNICANAL):
+Tiene el Pedido Activo #${activeOrd.id} en curso (${originLabel}). Estado: "${activeOrd.status}". Modalidad: ${deliveryInfo}. Total acumulado: $${Number(activeOrd.totalAmount || 0).toLocaleString('es-AR')}.
+Productos acumulados actualmente en su pedido:
+${productsBreakdown}
+
+REGLA CRÍTICA DE COTIZACIÓN Y DETALLE:
+Cuando el cliente pregunte "¿Cuánto sería el total?", pida un desglose o sume un nuevo ítem, DEBES INCLUIR Y DESGLOSAR TODOS los productos acumulados listados arriba (${activeOrd.products?.map(p => p.name).join(', ') || 'todos los cortes'}), junto con cualquier ítem que esté agregando en este mensaje.
+NUNCA omitas ni dejes afuera el carbón, los chorizos ni ningún corte ya agregado. Cotiza siempre el total exacto ($${Number(activeOrd.totalAmount || 0).toLocaleString('es-AR')}).
+Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobre este Pedido #${activeOrd.id}.`;
       } else if (lead?.draftCart && Array.isArray(lead.draftCart.items) && lead.draftCart.items.length > 0) {
         orderStatusContext = `Estado de Pedidos del Cliente: Tiene un borrador de pedido en curso con: ${lead.draftCart.items.join(', ')}, Total: $${lead.draftCart.total}.`;
       } else if (activeLeadOrders.length > 0) {

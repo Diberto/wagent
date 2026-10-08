@@ -2255,9 +2255,27 @@ class DatabaseService {
           p.name.toLowerCase().includes(namePart.toLowerCase())
         );
 
+        let explicitKg = null;
+        if (!/x\s*\d+\s*(?:kg|kilos?|g|gr)\b/i.test(str)) {
+          const explicitKgMatch = str.match(/(?:total\s+|balanza\s*:?\s*|peso\s*:?\s*)([0-9]+(?:[.,][0-9]+)?)\s*(?:kg|kilos?)\b/i);
+          const explicitGrMatch = str.match(/(?:total\s+|balanza\s*:?\s*|peso\s*:?\s*)([0-9]+)\s*(?:g|gr|grs|gramos)\b/i);
+          if (explicitKgMatch && !/^[0-9]+(?:[.,][0-9]+)?\s*(?:kg|kilos?)/i.test(str)) {
+            explicitKg = parseFloat(explicitKgMatch[1].replace(',', '.'));
+          } else if (explicitGrMatch && !/^[0-9]+\s*(?:g|gr|grs|gramos)/i.test(str)) {
+            explicitKg = Number((parseFloat(explicitGrMatch[1]) / 1000).toFixed(3));
+          }
+        }
+
         const isUnit = /un|unidades?|botellas?|bolsas?|combo/i.test(rawUnit) || (matched && matched.unit !== 'kg');
-        const unitsPerKg = matched?.unitsPerKg || 8;
-        const finalQty = (isUnit && matched?.unit === 'kg') ? Number((qty / unitsPerKg).toFixed(3)) : qty;
+        const unitsPerKg = matched?.unitsPerKg || (
+          /chorizo|chori/i.test(matched?.name || namePart) ? 5 :
+          /morcilla/i.test(matched?.name || namePart) ? 5 :
+          /costeleta/i.test(matched?.name || namePart) ? 4 :
+          /milanesa/i.test(matched?.name || namePart) ? 5 :
+          /bife/i.test(matched?.name || namePart) ? 3 :
+          /pollo|pata/i.test(matched?.name || namePart) ? 3 : 8
+        );
+        const finalQty = (explicitKg && explicitKg > 0) ? explicitKg : ((isUnit && matched?.unit === 'kg') ? Number((qty / unitsPerKg).toFixed(3)) : qty);
 
         let unitPrice = matched ? Number(matched.price) : 0;
         let subtotal = 0;
@@ -2516,7 +2534,14 @@ class DatabaseService {
         );
 
         const isUnit = /un|unidades?|botellas?|bolsas?|combo/i.test(rawUnit) || (matchedProd && matchedProd.unit !== 'kg');
-        const unitsPerKg = matchedProd?.unitsPerKg || 8;
+        const unitsPerKg = matchedProd?.unitsPerKg || (
+          /chorizo|chori/i.test(matchedProd?.name || namePart) ? 5 :
+          /morcilla/i.test(matchedProd?.name || namePart) ? 5 :
+          /costeleta/i.test(matchedProd?.name || namePart) ? 4 :
+          /milanesa/i.test(matchedProd?.name || namePart) ? 5 :
+          /bife/i.test(matchedProd?.name || namePart) ? 3 :
+          /pollo|pata/i.test(matchedProd?.name || namePart) ? 3 : 8
+        );
         const finalQty = (isUnit && matchedProd?.unit === 'kg') ? Number((qty / unitsPerKg).toFixed(3)) : qty;
 
         let unitPrice = matchedProd ? Number(matchedProd.price) : 0;
