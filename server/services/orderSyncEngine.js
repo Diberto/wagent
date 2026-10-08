@@ -194,7 +194,7 @@ export class OrderSyncEngine {
       // 7. Si se detectaron ítems, crear o actualizar la orden
       if (itemsToOrder.length > 0) {
         if (activeOrder && ['pending', 'preparing', 'draft'].includes(activeOrder.status)) {
-          const isExplicitResetOrReplace = /(?:solo quiero|quiero solo|un solo|una sola|nada mas|en vez de|cambia|cambiame|modifica|modificame|borra todo|borrá todo|empecemos de nuevo|arranquemos de nuevo)/i.test(userMsg);
+          const isExplicitResetOrReplace = /(?:solo quiero|quiero solo|un solo|una sola|nada mas|nada más|borra todo|borrá todo|empecemos de nuevo|arranquemos de nuevo)/i.test(userMsg);
           const isAdditionIntent = /(?:agrega|agregá|agregar|agregame|agregale|suma|sumá|sumar|sumale|sumame|mas|más|tambien|también|sumale también|mas los|más los|mas 1|mas 2|y los|y las|y 1|y 2)/i.test(userMsg);
           const hasAuthoritativeDetail = /(?:(?:📋|📝|📦|🛒|🍽️|✨|👉)?\s*\*?\s*(?:Detalle|Resumen|Desglose)[^\n:]*?(?:pedido|propuesta|orden|compra))/iu.test(replyMsg);
 
@@ -223,6 +223,22 @@ export class OrderSyncEngine {
               });
               if (isExplicitlyRemoved) {
                 mergedProductsMap.delete(key);
+              }
+            }
+
+            // Detección de modificación o reemplazo de corte (ej: "cambia eso", "en vez de bola de lomo quiero milanesas ya hechas")
+            const isChangeIntent = /(?:cambia|cambiame|modifica|modificame|en vez de|reemplaza|reemplazá)\b/i.test(userMsg);
+            if (isChangeIntent) {
+              for (const [key, p] of mergedProductsMap.entries()) {
+                const prodWords = (p.name || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+                const isExplicitlyTargeted = prodWords.some(w =>
+                  new RegExp(`(?:en vez de|cambia(?:me)?|reemplaza(?:me)?)\\s+(?:el|la|los|las)?\\s*${w}`, 'i').test(userMsg)
+                );
+                // Si el usuario pidió cambiar milanesas ya hechas y en el pedido había un corte crudo para milanesa (bola de lomo, nalga, peceto)
+                const isMilanesaCutSubstitution = /bola|lomo|nalga|peceto|cuadril/i.test(p.name) && /milanesa/i.test(userMsg);
+                if (isExplicitlyTargeted || isMilanesaCutSubstitution) {
+                  mergedProductsMap.delete(key);
+                }
               }
             }
 
@@ -387,6 +403,14 @@ export class OrderSyncEngine {
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) continue;
+
+      // Descartar encabezados de sección o agrupadores (ej: "*Para las Milanesas:*", "*Para el Asadito (4 personas):*", "*Cortes principales:*")
+      // Una línea que termina en ':' (o ':*') o empieza con 'Para ...' y NO tiene precio explícito ($xx, ->, —) es un título de categoría, NUNCA un ítem.
+      const hasExplicitPrice = /(?:\$|->|—)\s*[\d\.,]+/i.test(line);
+      const isHeaderLine = /:\s*\*?$/i.test(line) || /^\*?\s*(?:para\s+(?:las?|el|los|un|la|hacer)|cortes?\s+principales|la\s+previa|achuras|acompañamiento|combos?|opci[oó]n\s*\d|propuesta\s*\d)\b/i.test(line);
+      if (!hasExplicitPrice && isHeaderLine) {
+        continue;
+      }
 
       // Detectar si la línea contiene cantidades o precios (es una línea de producto real)
       const hasPriceOrQty = /(?:\d+(?:[.,]\d+)?\s*(?:kg|kilos?|g|gr|unidades?|unidad|un\b|bolsas?|botellas?)|(?:\$|->|—)\s*[\d\.,]+)/i.test(line);
@@ -684,13 +708,7 @@ export class OrderSyncEngine {
       ? catalog.filter(p => !/^(?:sena|seña)\s+de\s+pedidos$/i.test(p.name))
       : catalog;
 
-    // 1. PLU exacto si es válido en el catálogo
-    if (plu && plu !== '0') {
-      const byPlu = safeCatalog.find(p => p.plu && String(p.plu) === String(plu));
-      if (byPlu) return byPlu;
-    }
-
-    // 2. Coincidencia exacta (con y sin acentos)
+    // 1. Coincidencia exacta (con y sin acentos) - prioritaria sobre PLU para no desviar nombres explícitos
     const normalizeClean = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     let found = safeCatalog.find(p => {
       const pClean = (p.name || '').toLowerCase().trim();
@@ -699,7 +717,38 @@ export class OrderSyncEngine {
     }) || safeCatalog.find(p => (p.name || '').toLowerCase().trim() === clean);
     if (found) return found;
 
-    // 3. Reglas semánticas prioritarias para insumos y cortes comunes de carnicería
+    // 2. Reglas semánticas prioritarias para insumos y cortes comunes de carnicería
+    // Milanesas: si se pide milanesa/s, NUNCA debe matchear hamburguesas, morcillas u otros cortes
+    if (/\bmilanesas?\b/i.test(clean)) {
+      if (/\bpeceto\b/i.test(clean)) {
+        const match = safeCatalog.find(p => /\bmilanesas?\s+de\s+peceto\b/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /peceto/i.test(p.name));
+        if (match) return match;
+      }
+      if (/\bcerdo\b/i.test(clean)) {
+        const match = safeCatalog.find(p => /\bmilanesas?\s+de\s+cerdo\b/i.test(p.name) && Number(p.price) > 0);
+        if (match) return match;
+      }
+      if (/\bpollo\b/i.test(clean)) {
+        const match = safeCatalog.find(p => /\bmilanesas?\s+de\s+pollo\b/i.test(p.name) && Number(p.price) > 0);
+        if (match) return match;
+      }
+      if (/\bsoja\b/i.test(clean)) {
+        const match = safeCatalog.find(p => /soja/i.test(p.name) && Number(p.price) > 0);
+        if (match) return match;
+      }
+      // Milanesa tradicional / de carne vacuna / ya hechas / rebozadas / empanadas
+      const tradicional = safeCatalog.find(p => /\bmilanesa\s+tradicional\b/i.test(p.name) && Number(p.price) > 0) ||
+                          safeCatalog.find(p => /\bmilanesas?\b/i.test(p.name) && Number(p.price) > 0);
+      if (tradicional) return tradicional;
+    }
+
+    // Hamburguesas
+    if (/\bhamburguesas?\b/i.test(clean)) {
+      const match = safeCatalog.find(p => /\bhamburguesas?\b/i.test(p.name) && Number(p.price) > 0);
+      if (match) return match;
+    }
+
+    // Carbón / Leña
     if (/\bcarb[oó]n\b/i.test(clean)) {
       const has4 = clean.includes('4');
       const has3 = clean.includes('3');
@@ -725,19 +774,39 @@ export class OrderSyncEngine {
       if (match) return match;
     }
 
+    if (/\bchorizo.*cerdo/i.test(clean) || (/\bchorizo/i.test(clean) && /\bcerdo\b/i.test(clean))) {
+      const match = safeCatalog.find(p => /\bchorizo.*cerdo/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bchorizo.*cerdo/i.test(p.name));
+      if (match) return match;
+    }
+
     if (/\bchorizo.*criollo/i.test(clean)) {
       const match = safeCatalog.find(p => /\bchorizo.*criollo/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bchorizo.*criollo/i.test(p.name));
       if (match) return match;
     }
 
-    if (/\bchorizo.*cerdo/i.test(clean)) {
-      const match = safeCatalog.find(p => /\bchorizo.*cerdo/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bchorizo.*cerdo/i.test(p.name));
+    if (/\bmorcilla/i.test(clean)) {
+      if (/\bvasca\b/i.test(clean)) {
+        const matchVasca = safeCatalog.find(p => /\bvasca\b/i.test(p.name) && Number(p.price) > 0);
+        if (matchVasca) return matchVasca;
+      }
+      // Morcilla común (evitar morcilla vasca si no se pidió explícitamente vasca)
+      const match = safeCatalog.find(p => /^(?:morcilla)$/i.test(p.name.trim()) && Number(p.price) > 0) ||
+                    safeCatalog.find(p => /\bmorcilla\b/i.test(p.name) && !/vasca/i.test(p.name) && Number(p.price) > 0) ||
+                    safeCatalog.find(p => /\bmorcilla/i.test(p.name) && Number(p.price) > 0);
       if (match) return match;
     }
 
-    if (/\bmorcilla/i.test(clean)) {
-      const match = safeCatalog.find(p => /\bmorcilla/i.test(p.name) && Number(p.price) > 0) || safeCatalog.find(p => /\bmorcilla/i.test(p.name));
-      if (match) return match;
+    // 3. PLU exacto si es válido en el catálogo Y es coherente con el nombre del producto
+    if (plu && plu !== '0') {
+      const byPlu = safeCatalog.find(p => p.plu && String(p.plu) === String(plu));
+      if (byPlu) {
+        const pClean = (byPlu.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const targetClean = clean.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        // Si el texto tiene nombre (ej: "milanesas"), no aceptar un PLU que apunte a un producto completamente ajeno (ej: "morcilla vasca")
+        const cleanWords = targetClean.split(/[\s,()\-]+/).filter(w => w.length >= 4);
+        const isTrustworthy = cleanWords.length === 0 || cleanWords.some(w => pClean.includes(w));
+        if (isTrustworthy) return byPlu;
+      }
     }
 
     // Coincidencia sin notas entre paréntesis (ej: "Matambrito de Cerdo (Entrecot)" -> "Matambrito de Cerdo")
@@ -780,6 +849,14 @@ export class OrderSyncEngine {
         .filter(w => w.length >= 3 && !stopWords.has(w));
 
       if (prodWords.length === 0) continue;
+
+      // Si la búsqueda incluye una palabra ancla fundamental (milanesa, hamburguesa, chorizo, morcilla, carbon),
+      // descartar productos que NO contengan esa palabra ancla (ej: "milanesas de carne" NUNCA debe matchear "hamburguesas de carne")
+      const anchorWords = ['milanesa', 'hamburguesa', 'chorizo', 'morcilla', 'carbon'];
+      const targetAnchor = targetWords.find(tw => anchorWords.some(aw => tw.startsWith(aw.slice(0, 5))));
+      if (targetAnchor && !prodWords.some(pw => pw.startsWith(targetAnchor.slice(0, 5)))) {
+        continue;
+      }
 
       // Calcular coincidencia de palabras principales con prefijos de al menos 5 letras (evita carbón -> bicarbonato)
       let matches = 0;
@@ -848,14 +925,31 @@ export class OrderSyncEngine {
       // Un PLU solo se considera si el usuario puso expresamente "plu 123" o "código 123"
       const hasExplicitPlu = prod.plu && new RegExp(`\\b(?:plu|c[oó]digo|cod\\.?)\\s*[:=]?\\s*${prod.plu}\\b`, 'i').test(lowerText);
 
-      // El nombre del corte debe coincidir con límites de palabras completas
+      // El nombre del corte debe coincidir con límites de palabras completas o variantes comunes
       const escapedName = prodName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-      const hasNameMatch = new RegExp(`\\b${escapedName}\\b`, 'i').test(lowerText);
+      let hasNameMatch = new RegExp(`\\b${escapedName}\\b`, 'i').test(lowerText);
+      let matchedPattern = escapedName;
+
+      if (!hasNameMatch) {
+        if (/^milanesa\s+tradicional$/i.test(prodName) && /\bmilanesas?\b/i.test(lowerText) && !/\b(?:peceto|cerdo|pollo|soja)\b/i.test(lowerText)) {
+          hasNameMatch = true;
+          matchedPattern = 'milanesas?(?:\\s+de\\s+carne(?:s)?(?:\\s+ya\\s+hechas?)?)?';
+        } else if (/^vacio$/i.test(prodName) && /\bvac[ií]os?\b/i.test(lowerText) && !/\bcerdo\b/i.test(lowerText)) {
+          hasNameMatch = true;
+          matchedPattern = 'vac[ií]os?';
+        } else if (/^costilla$/i.test(prodName) && /\b(?:costillas?|tira\s+de\s+asado|asado\s+de\s+tira)\b/i.test(lowerText)) {
+          hasNameMatch = true;
+          matchedPattern = '(?:costillas?|tira\\s+de\\s+asado|asado\\s+de\\s+tira)';
+        } else if (/^morcilla$/i.test(prodName) && /\bmorcillas?\b/i.test(lowerText) && !/\bvasca\b/i.test(lowerText)) {
+          hasNameMatch = true;
+          matchedPattern = 'morcillas?';
+        }
+      }
 
       const isMentioned = hasExplicitPlu || hasNameMatch;
 
       if (isMentioned) {
-        const qtyRegex = new RegExp(`(\\d+(?:[\\.,]\\d+)?)\\s*(?:(kg|kilos?|k\\b|g\\b|gr\\b|grs\\b|gramos\\b|unidades?|un|bolsas?|botellas?|combos?|piezas?))?\\s+(?:de\\s+)?(?:${escapedName})`, 'i');
+        const qtyRegex = new RegExp(`(\\d+(?:[\\.,]\\d+)?)\\s*(?:(kg|kilos?|k\\b|g\\b|gr\\b|grs\\b|gramos\\b|unidades?|un|bolsas?|botellas?|combos?|piezas?))?\\s+(?:de\\s+)?(?:${matchedPattern})`, 'i');
         const match = text.match(qtyRegex);
         let quantity = match ? parseFloat(match[1].replace(',', '.')) : 1;
         const rawUnit = match && match[2] ? match[2].toLowerCase() : '';
