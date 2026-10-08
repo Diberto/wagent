@@ -851,16 +851,32 @@ export class WhatsAppService {
       const targetJid = (await this.formatRecipientJid(jid)) || jid;
       let typingSafetyTimer = null;
 
+      const clearTypingPresence = async () => {
+        if (typingSafetyTimer) {
+          clearTimeout(typingSafetyTimer);
+          typingSafetyTimer = null;
+        }
+        if (this.sock) {
+          try {
+            await this.sock.sendPresenceUpdate('paused', targetJid);
+            if (jid && jid !== targetJid) {
+              await this.sock.sendPresenceUpdate('paused', jid);
+            }
+          } catch (_) {}
+        }
+      };
+
       // Mostrar estado de presencia "componiendo" / "escribiendo" en WhatsApp
       if (this.sock) {
         try {
           await this.sock.sendPresenceUpdate('composing', targetJid);
-          // Temporizador de seguridad: Cancelar 'composing' automáticamente tras 6 segundos para evitar chat colgado
+          if (jid && jid !== targetJid) {
+            await this.sock.sendPresenceUpdate('composing', jid);
+          }
+          // Temporizador de seguridad estricto: Cancelar 'composing' automáticamente tras 3.5 segundos para evitar chat colgado
           typingSafetyTimer = setTimeout(() => {
-            if (this.sock) {
-              this.sock.sendPresenceUpdate('paused', targetJid).catch(() => {});
-            }
-          }, 6000);
+            clearTypingPresence().catch(() => {});
+          }, 3500);
         } catch (e) {}
       }
 
@@ -903,18 +919,8 @@ export class WhatsAppService {
             cleanClientResponse = '¡Hola! ¿En qué puedo asesorarte hoy con tu pedido en República de la Carne? 🥩';
           }
 
-          // Cancelar temporizador de seguridad de typing
-          if (typingSafetyTimer) {
-            clearTimeout(typingSafetyTimer);
-            typingSafetyTimer = null;
-          }
-
           // Pausar presencia explícitamente antes de entregar el mensaje
-          if (this.sock) {
-            try {
-              await this.sock.sendPresenceUpdate('paused', targetJid);
-            } catch (e) {}
-          }
+          await clearTypingPresence();
 
           console.log(`📤 Enviando respuesta a ${targetJid}: "${cleanClientResponse.slice(0, 80)}..." (Voz: ${shouldSendAudio})`);
 
@@ -960,15 +966,7 @@ export class WhatsAppService {
           console.error('Error enviando respuesta automática de IA:', err);
         } finally {
           // GARANTÍA CRÍTICA: En cualquier caso de error o interrupción, SIEMPRE apagar el estado 'composing'
-          if (typingSafetyTimer) {
-            clearTimeout(typingSafetyTimer);
-            typingSafetyTimer = null;
-          }
-          if (this.sock) {
-            try {
-              await this.sock.sendPresenceUpdate('paused', targetJid);
-            } catch (e) {}
-          }
+          await clearTypingPresence();
         }
       }, 1500);
     }
@@ -1093,9 +1091,18 @@ export class WhatsAppService {
     // Asegurar pausado de presencia de escritura previo al despacho
     try {
       await this.sock.sendPresenceUpdate('paused', cleanJid);
+      if (jid && jid !== cleanJid) {
+        await this.sock.sendPresenceUpdate('paused', jid);
+      }
     } catch (_) {}
     console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando a ${cleanJid} (WS Open: ${Boolean(this.sock?.ws?.isOpen)}): "${cleanText.slice(0, 80)}..."`);
     const sent = await this.sock.sendMessage(cleanJid, { text: cleanText });
+    try {
+      await this.sock.sendPresenceUpdate('paused', cleanJid);
+      if (jid && jid !== cleanJid) {
+        await this.sock.sendPresenceUpdate('paused', jid);
+      }
+    } catch (_) {}
     console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Entregado exitosamente a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
     return sent;
   }
@@ -1122,12 +1129,21 @@ export class WhatsAppService {
     // Asegurar pausado de presencia de escritura previo al despacho
     try {
       await this.sock.sendPresenceUpdate('paused', cleanJid);
+      if (jid && jid !== cleanJid) {
+        await this.sock.sendPresenceUpdate('paused', jid);
+      }
     } catch (_) {}
     console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando imagen a ${cleanJid}...`);
     const sent = await this.sock.sendMessage(cleanJid, {
       image: imgBuffer,
       caption: cleanCaption
     });
+    try {
+      await this.sock.sendPresenceUpdate('paused', cleanJid);
+      if (jid && jid !== cleanJid) {
+        await this.sock.sendPresenceUpdate('paused', jid);
+      }
+    } catch (_) {}
     console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Imagen entregada a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
     return sent;
   }
@@ -1150,6 +1166,9 @@ export class WhatsAppService {
     // Asegurar pausado de presencia de escritura previo al despacho
     try {
       await this.sock.sendPresenceUpdate('paused', cleanJid);
+      if (jid && jid !== cleanJid) {
+        await this.sock.sendPresenceUpdate('paused', jid);
+      }
     } catch (_) {}
     console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando nota de voz a ${cleanJid}...`);
     const sent = await this.sock.sendMessage(cleanJid, {
@@ -1157,6 +1176,12 @@ export class WhatsAppService {
       mimetype: isOgg ? 'audio/ogg; codecs=opus' : 'audio/mp4',
       ptt: true // Nota de voz nativa en WhatsApp
     });
+    try {
+      await this.sock.sendPresenceUpdate('paused', cleanJid);
+      if (jid && jid !== cleanJid) {
+        await this.sock.sendPresenceUpdate('paused', jid);
+      }
+    } catch (_) {}
     console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Nota de voz entregada a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
     return sent;
   }
