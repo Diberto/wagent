@@ -2204,65 +2204,183 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     res.json(updated);
   });
 
+  // Helper infalible para resolver el JID de WhatsApp del cliente
+  const resolveOrderTargetJid = async (order) => {
+    if (!order) return null;
+    const rawJid = String(order.jid || order.customerJid || '').trim();
+
+    // 1. JID estándar @s.whatsapp.net
+    if (rawJid.includes('@s.whatsapp.net')) {
+      const userPart = rawJid.split('@')[0];
+      const cleanDigits = userPart.replace(/\D/g, '');
+      if (cleanDigits.length >= 8) return `${cleanDigits}@s.whatsapp.net`;
+    }
+
+    // 2. Si es LID, resolver a teléfono
+    if (rawJid.includes('@lid') && typeof whatsappService.resolvePhoneJid === 'function') {
+      try {
+        const resolved = await whatsappService.resolvePhoneJid(rawJid);
+        if (resolved && resolved.includes('@s.whatsapp.net')) {
+          const digits = resolved.split('@')[0].replace(/\D/g, '');
+          if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+        }
+      } catch (e) {}
+    }
+
+    // 3. Buscar en leads
+    const lead = db.getLead(order.jid || order.customerJid || order.phone || order.customerPhone);
+    if (lead) {
+      if (lead.jid && lead.jid.includes('@s.whatsapp.net')) {
+        const digits = lead.jid.split('@')[0].replace(/\D/g, '');
+        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+      }
+      if (Array.isArray(lead.altJids)) {
+        for (const alt of lead.altJids) {
+          if (alt && alt.includes('@s.whatsapp.net')) {
+            const digits = alt.split('@')[0].replace(/\D/g, '');
+            if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+          }
+        }
+      }
+      if (lead.phone) {
+        let digits = String(lead.phone).replace(/\D/g, '');
+        if (digits.length === 10 && !digits.startsWith('54')) digits = '549' + digits;
+        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+      }
+    }
+
+    // 4. Fallback directo con dígitos numéricos del pedido
+    const rawPhone = order.phone || order.customerPhone || order.jid || '';
+    let digits = String(rawPhone).replace(/\D/g, '');
+    if (digits.length === 10 && !digits.startsWith('54')) digits = '549' + digits;
+    if (digits.length >= 8) {
+      return `${digits}@s.whatsapp.net`;
+    }
+
+    return null;
+  };
+
   router.patch('/orders/:id/status', async (req, res) => {
-    const { status, notify, customMessage } = req.body;
-    if (!status) return res.status(400).json({ error: 'Estado no proporcionado' });
+    const { status, paymentStatus, notifyCustomer, notify, notifyClient, notificationMessage, customMessage } = req.body;
+    if (!status && !paymentStatus) return res.status(400).json({ error: 'Estado o estado de pago no proporcionado' });
 
     const order = db.getOrder(req.params.id);
     if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
 
-    const updated = db.updateOrderStatus(req.params.id, status);
+    const targetStatus = status || order.status;
+    const shouldNotify = (notifyCustomer !== false && notify !== false && notifyClient !== false);
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (paymentStatus) updateData.paymentStatus = paymentStatus;
+
+    const updated = db.updateOrder(req.params.id, updateData);
+    io.emit('order:update', updated);
 
     let notified = false;
     let notificationError = null;
+    let savedMsg = null;
 
-    if (notify) {
-      let targetJid = null;
-      if (whatsappService && typeof whatsappService.getCleanOrderClientJid === 'function') {
-        targetJid = await whatsappService.getCleanOrderClientJid(order);
-      } else {
-        targetJid = order.jid || (order.phone ? `${order.phone.replace(/\D/g, '')}@s.whatsapp.net` : null);
-      }
+    if (shouldNotify && status) {
+      try {
+        const targetJid = await resolveOrderTargetJid(order);
+        let lead = db.getLead(order.jid || order.customerJid || order.phone || targetJid);
+        if (!lead && targetJid) {
+          lead = db.getLead(targetJid);
+        }
 
-      if (targetJid && whatsappService && whatsappService.status === 'connected') {
-        const msgToSend = customMessage || `¡Hola ${order.customerName || 'Cliente'}! Tu pedido #${order.id} ha cambiado de estado a: *${status}*. 🥩`;
-        try {
-          if (typeof whatsappService.sendTextMessage === 'function') {
-            await whatsappService.sendTextMessage(targetJid, msgToSend);
-          } else if (typeof whatsappService.sendMessage === 'function') {
-            await whatsappService.sendMessage(targetJid, msgToSend);
+        const clientName = order.customerName || lead?.name || 'Cliente';
+        const orderId = order.id;
+        const address = order.address || 'tu domicilio';
+        const branch = order.branch || order.branchName || 'Urca Central';
+        const totalFormatted = Number(order.totalAmount || 0).toLocaleString('es-AR');
+
+        let messageToSend = notificationMessage || customMessage;
+        if (!messageToSend) {
+          switch (status) {
+            case 'preparing':
+              messageToSend = `¡Hola ${clientName}! 🥩 Tu pedido #${orderId} por $${totalFormatted} ingresó al sector de corte y ya está siendo preparado con la máxima calidad y terneza artesanal. En breve te avisamos cuando esté listo. 🙌`;
+              break;
+            case 'ready':
+            case 'ready_for_pickup':
+              if (order.deliveryType === 'pickup' || order.branchName || order.branch) {
+                messageToSend = `¡Hola ${clientName}! ✨🥩 ¡Tu pedido #${orderId} ya está listo para retirar en nuestra sucursal **${branch}** (${order.address || 'Av. José Roque Funes 1115'})! ¡Te esperamos! 🙌`;
+              } else {
+                messageToSend = `¡Hola ${clientName}! ✨🥩 Tu pedido #${orderId} ya está preparado y empaquetado en carnicería, listo para salir con el repartidor. 🛵`;
+              }
+              break;
+            case 'in_transit':
+              messageToSend = `¡Buenas noticias ${clientName}! 🛵🥩 Tu pedido #${orderId} ya salió de sucursal y va en camino hacia ${address}. El repartidor llegará en los próximos minutos.`;
+              break;
+            case 'delivered':
+              messageToSend = `¡Pedido #${orderId} entregado con éxito! 🎉🥩 Esperamos que disfrutes tu compra en República de la Carne. ¡La calidad nos hace diferentes! 🙌`;
+              break;
+            case 'cancelled':
+              messageToSend = `Hola ${clientName}, te informamos que tu pedido #${orderId} ha sido cancelado. Si necesitás asistencia o realizar un nuevo pedido, escribinos por acá.`;
+              break;
+            case 'pending':
+              messageToSend = `¡Hola ${clientName}! Tu pedido #${orderId} se encuentra registrado y pendiente de preparación.`;
+              break;
+            default:
+              messageToSend = `Hola ${clientName}, el estado de tu pedido #${orderId} ha sido actualizado a: *${status}*.`;
           }
-          const savedMsg = db.saveMessage({
-            chatId: targetJid,
+        }
+
+        // 1. Enviar por WhatsApp si el servicio está disponible y hay JID destinatario
+        if (targetJid && whatsappService) {
+          try {
+            if (typeof whatsappService.sendTextMessage === 'function') {
+              await whatsappService.sendTextMessage(targetJid, messageToSend);
+              notified = true;
+            } else if (typeof whatsappService.sendMessage === 'function') {
+              await whatsappService.sendMessage(targetJid, messageToSend);
+              notified = true;
+            }
+          } catch (sendErr) {
+            console.error('Error enviando WhatsApp mediante WhatsAppService:', sendErr.message);
+            notificationError = sendErr.message;
+          }
+        } else {
+          notificationError = !whatsappService ? 'WhatsApp no disponible' : 'No se encontró un número de teléfono o JID de WhatsApp válido';
+        }
+
+        // 2. SIEMPRE registrar el mensaje en la base de datos para que quede reflejado en el chat del admin y cliente
+        const chatJid = lead?.jid || targetJid || order.jid;
+        if (chatJid && messageToSend) {
+          savedMsg = db.saveMessage({
+            chatId: chatJid,
             sender: 'agent',
             type: 'text',
-            content: msgToSend,
+            content: messageToSend,
             timestamp: new Date().toISOString()
           });
-          io.emit('chat:message', { message: savedMsg });
-          notified = true;
-        } catch (waErr) {
-          console.error('Error enviando notificación de estado por WhatsApp:', waErr);
-          notificationError = waErr.message || 'Error al enviar por WhatsApp';
+
+          if (lead) {
+            db.updateLead(lead.id, {
+              lastMessage: messageToSend,
+              lastMessageAt: new Date().toISOString()
+            });
+          }
+
+          io.emit('chat:message', { 
+            message: savedMsg, 
+            lead: lead || { id: chatJid, jid: chatJid, name: order.customerName, phone: order.phone } 
+          });
         }
-      } else {
-        notificationError = !whatsappService || whatsappService.status !== 'connected'
-          ? 'WhatsApp no está conectado'
-          : 'No se pudo determinar el JID o teléfono del cliente';
+      } catch (notifyErr) {
+        console.error('Error enviando notificación automática de estado de pedido:', notifyErr);
+        notificationError = notifyErr.message;
       }
     }
-
-    io.emit('order:update', updated);
 
     auditLogger.info(
       'orders',
       'order_status_updated',
-      `Pedido #${order.id} cambió a estado: "${status}" (Cliente: ${order.customerName || 'Cliente'})`,
-      { orderId: order.id, previousStatus: order.status, newStatus: status, notified },
+      `Pedido #${order.id} cambió a estado: "${targetStatus}" (Cliente: ${order.customerName || 'Cliente'})`,
+      { orderId: order.id, previousStatus: order.status, newStatus: targetStatus, notified, notificationError },
       { orderId: order.id, customer: order.customerName, phone: order.phone, channel: order.channel }
     );
 
-    res.json({ ...updated, notified, notificationError });
+    res.json({ success: true, ...updated, order: updated, notified, notificationError, message: savedMsg });
   });
 
   const handleOrderMercadoPago = async (req, res) => {
@@ -2522,143 +2640,6 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
-  // Helper infalible para resolver el JID de WhatsApp del cliente
-  const resolveOrderTargetJid = async (order) => {
-    if (!order) return null;
-    const rawJid = String(order.jid || '').trim();
-
-    // 1. JID estándar @s.whatsapp.net
-    if (rawJid.includes('@s.whatsapp.net')) {
-      const userPart = rawJid.split('@')[0];
-      const cleanDigits = userPart.replace(/\D/g, '');
-      if (cleanDigits.length >= 8) return `${cleanDigits}@s.whatsapp.net`;
-    }
-
-    // 2. Si es LID, resolver a teléfono
-    if (rawJid.includes('@lid') && typeof whatsappService.resolvePhoneJid === 'function') {
-      try {
-        const resolved = await whatsappService.resolvePhoneJid(rawJid);
-        if (resolved && resolved.includes('@s.whatsapp.net')) {
-          const digits = resolved.split('@')[0].replace(/\D/g, '');
-          if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
-        }
-      } catch (e) {}
-    }
-
-    // 3. Buscar en leads
-    const lead = db.getLead(order.jid || order.phone);
-    if (lead) {
-      if (lead.jid && lead.jid.includes('@s.whatsapp.net')) {
-        const digits = lead.jid.split('@')[0].replace(/\D/g, '');
-        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
-      }
-      if (Array.isArray(lead.altJids)) {
-        for (const alt of lead.altJids) {
-          if (alt && alt.includes('@s.whatsapp.net')) {
-            const digits = alt.split('@')[0].replace(/\D/g, '');
-            if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
-          }
-        }
-      }
-      if (lead.phone) {
-        const digits = String(lead.phone).replace(/\D/g, '');
-        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
-      }
-    }
-
-    // 4. Fallback directo con dígitos numéricos
-    const rawPhone = order.phone || order.jid || '';
-    const digits = String(rawPhone).replace(/\D/g, '');
-    if (digits.length >= 8) {
-      return `${digits}@s.whatsapp.net`;
-    }
-
-    return null;
-  };
-
-  router.patch('/orders/:id/status', async (req, res) => {
-    const { status, paymentStatus, notifyCustomer, notify, notifyClient, notificationMessage, customMessage } = req.body;
-    const order = db.getOrder(req.params.id);
-    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
-
-    const shouldNotify = (notifyCustomer !== false && notify !== false && notifyClient !== false);
-    const updateData = {};
-    if (status) updateData.status = status;
-    if (paymentStatus) updateData.paymentStatus = paymentStatus;
-
-    const updated = db.updateOrder(req.params.id, updateData);
-    io.emit('order:update', updated);
-
-    let notified = false;
-    let notificationError = null;
-
-    // Enviar notificación automática por WhatsApp al cliente a menos que se desactive explícitamente
-    if (shouldNotify && status) {
-      try {
-        const targetJid = await resolveOrderTargetJid(order);
-        const lead = db.getLead(order.jid || order.phone);
-
-        if (targetJid) {
-          let messageToSend = notificationMessage || customMessage;
-          if (!messageToSend) {
-            const clientName = order.customerName || lead?.name || 'Estimado cliente';
-            switch (status) {
-              case 'preparing':
-                messageToSend = `¡Hola ${clientName}! 🥩 Tu pedido #${order.id} por $${Number(order.totalAmount || 0).toLocaleString('es-AR')} ingresó al sector de corte y ya está siendo preparado con la máxima calidad y terneza artesanal. En breve te avisamos cuando esté listo. 🙌`;
-                break;
-              case 'in_transit':
-                messageToSend = `¡Buenas noticias ${clientName}! 🛵🥩 Tu pedido #${order.id} ya está en camino a tu domicilio (${order.address || 'Córdoba'}). El repartidor llegará en los próximos minutos.`;
-                break;
-              case 'ready_for_pickup':
-              case 'ready':
-                messageToSend = `¡Tu pedido #${order.id} ya está listo para retirar! 🎉🥩 Podés pasar por nuestra sucursal **${order.branch || 'Urca Central'}** (${order.address || 'Av. José Roque Funes 1115'}). ¡Te esperamos!`;
-                break;
-              case 'delivered':
-                messageToSend = `¡Pedido #${order.id} entregado con éxito! 🎉🥩 Esperamos que disfrutes tu compra en República de la Carne. ¡La calidad nos hace diferentes! 🙌`;
-                break;
-              case 'cancelled':
-                messageToSend = `Hola ${clientName}, te informamos que tu pedido #${order.id} ha sido cancelado. Si necesitás asistencia o realizar un nuevo pedido, escribinos por acá.`;
-                break;
-              default:
-                messageToSend = `Hola ${clientName}, el estado de tu pedido #${order.id} ha sido actualizado a: *${status}*.`;
-            }
-          }
-
-          try {
-            await whatsappService.sendMessage(targetJid, messageToSend);
-            notified = true;
-          } catch (sendErr) {
-            console.error('Error enviando WhatsApp mediante WhatsAppService:', sendErr.message);
-            notificationError = sendErr.message;
-          }
-          
-          const savedMsg = db.saveMessage({
-            chatId: targetJid,
-            sender: 'bot',
-            type: 'text',
-            content: messageToSend,
-            timestamp: new Date().toISOString()
-          });
-
-          if (lead) {
-            db.updateLead(lead.id, {
-              lastMessage: messageToSend,
-              lastMessageAt: new Date().toISOString()
-            });
-          }
-
-          io.emit('chat:message', { message: savedMsg, lead: lead || { jid: targetJid, name: order.customerName } });
-        } else {
-          notificationError = 'No se encontró un número de teléfono o JID de WhatsApp válido para este pedido';
-        }
-      } catch (notifyErr) {
-        console.error('Error enviando notificación automática de estado de pedido:', notifyErr);
-        notificationError = notifyErr.message;
-      }
-    }
-
-    res.json({ success: true, order: updated, notified, notificationError });
-  });
 
 
   // Edit full order

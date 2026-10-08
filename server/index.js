@@ -30,9 +30,9 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-      imgSrc: ["'self'", "data:", "blob:", "*", "https://*.tile.openstreetmap.org", "https://*.openstreetmap.org"],
+      imgSrc: ["'self'", "data:", "blob:", "*", "https://*.tile.openstreetmap.org", "https://*.openstreetmap.org", "https://*.basemaps.cartocdn.com", "https://basemaps.cartocdn.com"],
       mediaSrc: ["'self'", "blob:", "data:", "*"],
-      connectSrc: ["'self'", "ws:", "wss:", "*", "https://nominatim.openstreetmap.org"],
+      connectSrc: ["'self'", "ws:", "wss:", "*", "https://nominatim.openstreetmap.org", "https://*.basemaps.cartocdn.com"],
       frameSrc: ["'self'", "https://www.openstreetmap.org", "https://*.openstreetmap.org", "https://maps.google.com", "https://*.mercadopago.com.ar", "https://*.mercadopago.com"],
       childSrc: ["'self'", "blob:", "https://www.openstreetmap.org", "https://*.openstreetmap.org"]
     }

@@ -344,7 +344,15 @@ export default function ChatInbox({
       if (!selectedLead || !message) return;
       const currentJid = selectedLead.jid;
       const altJids = selectedLead.altJids || [];
-      if (message.chatId === currentJid || altJids.includes(message.chatId)) {
+      const leadPhoneDigits = String(selectedLead.phone || selectedLead.jid || '').replace(/\D/g, '');
+      const coreDigits = leadPhoneDigits.length >= 8 ? leadPhoneDigits.slice(-8) : (leadPhoneDigits.length >= 6 ? leadPhoneDigits : '');
+      const msgDigits = String(message.chatId || '').replace(/\D/g, '');
+      const isMatch = message.chatId === currentJid || 
+        altJids.includes(message.chatId) || 
+        message.chatId === selectedLead.id ||
+        (coreDigits.length >= 6 && msgDigits.length >= 6 && (msgDigits.includes(coreDigits) || coreDigits.includes(msgDigits.slice(-8))));
+
+      if (isMatch) {
         setMessages(prev => {
           // 1. Si ya existe exactamente el mismo ID, ignorar o actualizar
           const existingExact = prev.findIndex(m => m.id === message.id);
@@ -594,11 +602,12 @@ export default function ChatInbox({
       const res = await fetch(`/api/orders/${order.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, notify: false })
+        body: JSON.stringify({ status: newStatus, notify: true })
       });
       const data = await res.json();
       if (res.ok) {
-        setLeadOrders(prev => prev.map(o => o.id === order.id ? data : o));
+        const updatedOrder = data.order || data;
+        setLeadOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
       }
     } catch (err) {
       console.error('Error actualizando estado:', err);

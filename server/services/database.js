@@ -942,13 +942,33 @@ class DatabaseService {
   getMessages(chatId, limit = 50) {
     const db = this.readDb();
     const cleanId = String(chatId).trim();
-    const lead = (db.leads || []).find(l => l.id === cleanId || l.jid === cleanId);
-    const jids = [cleanId];
+    const lead = this.getLead(cleanId);
+    const jids = new Set([cleanId]);
     if (lead) {
-      if (lead.jid) jids.push(lead.jid);
-      if (lead.altJids) jids.push(...lead.altJids);
+      if (lead.id) jids.add(lead.id);
+      if (lead.jid) jids.add(lead.jid);
+      if (Array.isArray(lead.altJids)) {
+        for (const alt of lead.altJids) {
+          if (alt) jids.add(alt);
+        }
+      }
+      if (lead.phone) {
+        const digits = String(lead.phone).replace(/\D/g, '');
+        if (digits) {
+          jids.add(`${digits}@s.whatsapp.net`);
+          jids.add(digits);
+        }
+      }
     }
-    const messages = (db.messages || []).filter(m => jids.includes(m.chatId));
+    const core = extractCoreDigits(cleanId);
+    const messages = (db.messages || []).filter(m => {
+      if (jids.has(m.chatId)) return true;
+      if (core && core.length >= 7) {
+        const mCore = extractCoreDigits(m.chatId);
+        if (mCore === core) return true;
+      }
+      return false;
+    });
     return messages.slice(-limit);
   }
 
