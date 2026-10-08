@@ -138,7 +138,7 @@ export const parseOrderItems = (order) => {
         const isUnit = !!(p.isUnitMode && p.unitCount > 0) || (p.unit || '').toLowerCase() === 'un' || (p.unit || '').toLowerCase().startsWith('unid');
         const qty = isUnit ? (Number(p.unitCount) || Number(p.quantity) || 1) : (Number(p.quantity) || 1);
         const unit = isUnit ? 'un' : (p.unit || 'kg');
-        const priceUnit = p.unit || 'kg';
+        const priceUnit = isUnit ? 'un' : (p.unit || 'kg');
         const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
         const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
           ? rawName 
@@ -175,7 +175,7 @@ export const parseOrderItems = (order) => {
         const isUnit = !!(item.isUnitMode && item.unitCount > 0) || (item.unit || '').toLowerCase() === 'un' || (item.unit || '').toLowerCase().startsWith('unid');
         const qty = isUnit ? (Number(item.unitCount) || Number(item.quantity || item.qty || 1)) : Number(item.quantity || item.qty || 1);
         const unit = isUnit ? 'un' : (item.unit || 'kg');
-        const priceUnit = item.unit || 'kg';
+        const priceUnit = isUnit ? 'un' : (item.unit || 'kg');
         const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
         const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte Seleccionado ${idx + 1}`;
         const pricePerKg = Number(item.price) || 0;
