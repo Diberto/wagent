@@ -135,23 +135,29 @@ export const parseOrderItems = (order) => {
         return !isNoteItem(rawName);
       })
       .map((p, idx) => {
-        const isUnit = !!(p.isUnitMode && p.unitCount > 0);
-        const qty = isUnit ? Number(p.unitCount) : (Number(p.quantity) || 1);
+        const isUnit = !!(p.isUnitMode && p.unitCount > 0) || (p.unit || '').toLowerCase() === 'un' || (p.unit || '').toLowerCase().startsWith('unid');
+        const qty = isUnit ? (Number(p.unitCount) || Number(p.quantity) || 1) : (Number(p.quantity) || 1);
         const unit = isUnit ? 'un' : (p.unit || 'kg');
         const priceUnit = p.unit || 'kg';
         const rawName = typeof p.name === 'string' ? p.name : (p.name?.name || p.name?.product || '');
         const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) 
           ? rawName 
           : (p.product || `Corte Seleccionado ${idx + 1}`);
-        const lineSubtotal = Number(p.subtotal) || (Number(p.unitPrice || p.price || 0) * (Number(p.quantity) || qty)) || 0;
-        const unitPrice = Number(p.unitPrice || p.price) || (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : lineSubtotal);
+        const pricePerKg = Number(p.price) || 0;
+        const unitsPerKg = p.unitsPerKg || ((/chori|morci/i.test(name)) ? 5 : (/costeleta|bife/i.test(name) ? 4 : (/mila|hamburg/i.test(name) ? 8 : 1)));
+        const pricePerUnit = Number(p.unitPrice) || (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg);
+        const lineSubtotal = Number(p.subtotal) || (isUnit ? Math.round(pricePerUnit * qty) : Math.round(pricePerKg * qty)) || 0;
+        const effectivePrice = isUnit ? (qty > 0 && lineSubtotal > 0 ? Math.round(lineSubtotal / qty) : pricePerUnit) : pricePerKg;
         return {
           id: p.id || `prod-${idx}`,
           name,
           quantity: qty,
           unit,
           priceUnit,
-          price: unitPrice,
+          price: effectivePrice,
+          pricePerKg,
+          pricePerUnit,
+          unitsPerKg,
           total: lineSubtotal,
           icon: p.icon || getIcon(name)
         };
@@ -166,20 +172,27 @@ export const parseOrderItems = (order) => {
         return !isNoteItem(rawName);
       })
       .map((item, idx) => {
-        const isUnit = !!(item.isUnitMode && item.unitCount > 0);
-        const qty = isUnit ? Number(item.unitCount) : Number(item.quantity || item.qty || 1);
+        const isUnit = !!(item.isUnitMode && item.unitCount > 0) || (item.unit || '').toLowerCase() === 'un' || (item.unit || '').toLowerCase().startsWith('unid');
+        const qty = isUnit ? (Number(item.unitCount) || Number(item.quantity || item.qty || 1)) : Number(item.quantity || item.qty || 1);
         const unit = isUnit ? 'un' : (item.unit || 'kg');
         const priceUnit = item.unit || 'kg';
         const rawName = typeof item.name === 'string' ? item.name : (item.name?.name || item.product || '');
         const name = (rawName && rawName !== '[object Object]' && !rawName.includes('[object Object]')) ? rawName : `Corte Seleccionado ${idx + 1}`;
-        const sub = Number(item.subtotal || item.total || 0) || (Number(item.unitPrice || item.price || 0) * (Number(item.quantity) || qty));
+        const pricePerKg = Number(item.price) || 0;
+        const unitsPerKg = item.unitsPerKg || ((/chori|morci/i.test(name)) ? 5 : (/costeleta|bife/i.test(name) ? 4 : (/mila|hamburg/i.test(name) ? 8 : 1)));
+        const pricePerUnit = Number(item.unitPrice) || (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg);
+        const sub = Number(item.subtotal || item.total || 0) || (isUnit ? Math.round(pricePerUnit * qty) : Math.round(pricePerKg * qty));
+        const effectivePrice = isUnit ? (qty > 0 && sub > 0 ? Math.round(sub / qty) : pricePerUnit) : pricePerKg;
         return {
           id: item.id || `item-${idx}`,
           name,
           quantity: qty,
           unit,
           priceUnit,
-          price: Number(item.unitPrice || item.price || 0) || (qty > 0 && sub > 0 ? Math.round(sub / qty) : 0),
+          price: effectivePrice,
+          pricePerKg,
+          pricePerUnit,
+          unitsPerKg,
           total: sub,
           icon: item.icon || getIcon(name)
         };
@@ -680,20 +693,88 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       const q = Number(item.quantity) || 1;
       const u = item.unit || 'kg';
       const isKg = u.toLowerCase() === 'kg' || u.toLowerCase().startsWith('kilo');
+      const isUnit = u.toLowerCase() === 'un' || u.toLowerCase().startsWith('unid');
+      const unitPrice = isUnit ? (item.pricePerUnit || item.price) : (item.pricePerKg || item.price);
+      const lineSubtotal = Math.round(unitPrice * q);
       const qtyStr = isKg && q < 1 ? `${Math.round(q * 1000)}g` : `${q} ${u}`;
-      const lineSubtotal = Math.round(item.price * q);
       return `${qtyStr}x ${item.name} ($${lineSubtotal.toLocaleString('es-AR')})`;
     });
-    const total = cartList.reduce((acc, item) => acc + Math.round(item.price * (Number(item.quantity) || 1)), 0);
+
+    const structuredProducts = cartList.map(item => {
+      const q = Number(item.quantity) || 1;
+      const isUnit = (item.unit || '').toLowerCase() === 'un' || (item.unit || '').toLowerCase().startsWith('unid');
+      const unitsPerKg = item.unitsPerKg || ((/chori|morci/i.test(item.name)) ? 5 : (/costeleta|bife/i.test(item.name) ? 4 : (/mila|hamburg/i.test(item.name) ? 8 : 1)));
+      const pricePerKg = item.pricePerKg || item.price || 0;
+      const pricePerUnit = item.pricePerUnit || (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg);
+      const lineSubtotal = Math.round((isUnit ? pricePerUnit : pricePerKg) * q);
+      const weightKg = isUnit ? (unitsPerKg > 1 ? Number((q / unitsPerKg).toFixed(3)) : q) : q;
+
+      return {
+        id: item.id,
+        name: item.name,
+        unit: item.unit || 'kg',
+        isUnitMode: isUnit,
+        unitCount: isUnit ? q : undefined,
+        quantity: weightKg,
+        price: pricePerKg,
+        unitPrice: pricePerUnit,
+        unitsPerKg,
+        subtotal: lineSubtotal,
+        icon: item.icon || '🥩'
+      };
+    });
+
+    const total = structuredProducts.reduce((acc, p) => acc + (p.subtotal || 0), 0);
     setItemsInputText(formattedLines.join('\n'));
     setOrderModal(prev => prev ? {
       ...prev,
       data: {
         ...prev.data,
         items: formattedLines,
+        products: structuredProducts,
         totalAmount: total
       }
     } : null);
+  };
+
+  const handleTogglePosItemUnit = (prodId) => {
+    setPosCart(prev => {
+      const updated = prev.map(item => {
+        if (item.id !== prodId) return item;
+        const currentUnit = (item.unit || 'kg').toLowerCase();
+        const unitsPerKg = item.unitsPerKg || ((/chori|morci/i.test(item.name)) ? 5 : (/costeleta|bife/i.test(item.name) ? 4 : (/mila|hamburg/i.test(item.name) ? 8 : 1)));
+        const pricePerKg = item.pricePerKg || item.price || 0;
+        const pricePerUnit = item.pricePerUnit || (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg);
+
+        if (currentUnit === 'un' || currentUnit.startsWith('unid')) {
+          // Switch un -> kg
+          const newQty = unitsPerKg > 1 ? Math.round((item.quantity / unitsPerKg) * 1000) / 1000 : item.quantity;
+          return {
+            ...item,
+            unit: 'kg',
+            price: pricePerKg,
+            pricePerKg,
+            pricePerUnit,
+            unitsPerKg,
+            quantity: newQty > 0 ? newQty : 0.5
+          };
+        } else {
+          // Switch kg -> un
+          const newQty = unitsPerKg > 1 ? Math.max(1, Math.round(item.quantity * unitsPerKg)) : Math.max(1, Math.round(item.quantity));
+          return {
+            ...item,
+            unit: 'un',
+            price: pricePerUnit,
+            pricePerKg,
+            pricePerUnit,
+            unitsPerKg,
+            quantity: newQty
+          };
+        }
+      });
+      syncPosCartToOrder(updated);
+      return updated;
+    });
   };
 
   const handleAddPosProduct = (prod, defaultWeight = null) => {
@@ -706,9 +787,24 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         const newQty = Math.round((existing.quantity + step) * 1000) / 1000;
         updated = prev.map(item => item.id === existing.id ? { ...item, quantity: newQty } : item);
       } else {
-        const isKg = (prod.unit || 'kg').toLowerCase() === 'kg';
+        const unitsPerKg = prod.unitsPerKg || ((/chori|morci/i.test(prod.name)) ? 5 : (/costeleta|bife/i.test(prod.name) ? 4 : (/mila|hamburg/i.test(prod.name) ? 8 : 1)));
+        const pricePerKg = Number(prod.price) || 0;
+        const pricePerUnit = prod.unitPrice || (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg);
+        const unit = (prod.unit || 'kg').toLowerCase() === 'un' || (prod.unit || '').toLowerCase().startsWith('unid') ? 'un' : 'kg';
+        const isKg = unit === 'kg';
+        const effectivePrice = isKg ? pricePerKg : pricePerUnit;
         const initialQty = defaultWeight || (isKg ? 1 : 1);
-        updated = [...prev, { id: prod.id, name: prod.name, price: Number(prod.price) || 0, quantity: initialQty, unit: prod.unit || 'kg', icon: prod.icon || '🥩' }];
+        updated = [...prev, { 
+          id: prod.id, 
+          name: prod.name, 
+          price: effectivePrice, 
+          pricePerKg, 
+          pricePerUnit, 
+          unitsPerKg, 
+          quantity: initialQty, 
+          unit, 
+          icon: prod.icon || '🥩' 
+        }];
       }
       syncPosCartToOrder(updated);
       return updated;
@@ -755,6 +851,8 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       const targetGrams = Math.max(50, currentGrams + deltaGrams);
       const targetKg = Math.round(targetGrams) / 1000;
       const updated = prev.map(item => item.id === prodId ? { ...item, quantity: targetKg } : item);
+      syncPosCartToOrder(updated);
+      return updated;
     });
   };
 
@@ -1108,12 +1206,15 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       id: item.id || `item-${idx}`,
       name: item.name,
       price: item.price,
+      pricePerKg: item.pricePerKg || item.price,
+      pricePerUnit: item.pricePerUnit || item.price,
+      unitsPerKg: item.unitsPerKg || 5,
       quantity: item.quantity,
       unit: item.unit || 'kg',
       icon: item.icon || '🥩'
     }));
 
-    setPosCart(parsedCart.length > 0 ? parsedCart : [{ id: 'item-0', name: 'Combo Asadazo', price: Number(order.totalAmount) || 0, quantity: 1, unit: 'combo', icon: '⭐' }]);
+    setPosCart(parsedCart.length > 0 ? parsedCart : [{ id: 'item-0', name: 'Combo Asadazo', price: Number(order.totalAmount) || 0, pricePerKg: Number(order.totalAmount) || 0, pricePerUnit: Number(order.totalAmount) || 0, unitsPerKg: 1, quantity: 1, unit: 'combo', icon: '⭐' }]);
     setPosMode('pos');
     setOrderModal({
       mode: 'edit',
@@ -3195,8 +3296,32 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                                     <span className="text-sm shrink-0">{item.icon || '🥩'}</span>
                                     <div className="truncate">
                                       <div className="font-bold text-white truncate">{item.name}</div>
-                                      <div className="text-[10px] text-slate-400 font-mono">
-                                        ${item.price.toLocaleString('es-AR')} / {item.unit || 'kg'}
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        {/* Toggle interactivo de Unidad (kg vs un) */}
+                                        <div className="inline-flex rounded-lg bg-[#182229] p-0.5 border border-slate-700/80 text-[10px] font-bold">
+                                          <button
+                                            type="button"
+                                            onClick={() => isKg ? null : handleTogglePosItemUnit(item.id)}
+                                            className={`px-1.5 py-0.5 rounded transition ${isKg ? 'bg-emerald-600 text-white font-black shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                            title="Cobrar y pesar por Kilo (kg)"
+                                          >
+                                            kg
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => !isKg ? null : handleTogglePosItemUnit(item.id)}
+                                            className={`px-1.5 py-0.5 rounded transition ${!isKg ? 'bg-emerald-600 text-white font-black shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                            title="Cobrar y fraccionar por Unidad (un)"
+                                          >
+                                            un
+                                          </button>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 font-mono">
+                                          ${Number(item.price).toLocaleString('es-AR')} / {item.unit || 'kg'}
+                                          {item.unit === 'un' && item.pricePerKg ? (
+                                            <span className="text-slate-500 ml-1">(${Number(item.pricePerKg).toLocaleString('es-AR')}/kg)</span>
+                                          ) : null}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -3208,7 +3333,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                                         type="button"
                                         onClick={() => isKg ? handleStepPosWeightGrams(item.id, -250) : handleRemovePosProduct(item.id)}
                                         className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
-                                        title={isKg ? 'Restar 250g' : 'Restar 1'}
+                                        title={isKg ? 'Restar 250g' : 'Restar 1 un'}
                                       >
                                         <Minus size={11} />
                                       </button>
@@ -3231,7 +3356,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                                         type="button"
                                         onClick={() => isKg ? handleStepPosWeightGrams(item.id, 250) : handleAddPosProduct(item)}
                                         className="p-1 text-emerald-400 hover:text-white rounded hover:bg-slate-800 transition"
-                                        title={isKg ? 'Sumar 250g' : 'Sumar 1'}
+                                        title={isKg ? 'Sumar 250g' : 'Sumar 1 un'}
                                       >
                                         <Plus size={11} />
                                       </button>
@@ -3253,7 +3378,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                                 </div>
 
                                 {/* Weight quick pills for kg items */}
-                                {isKg && (
+                                {isKg ? (
                                   <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-slate-800/60">
                                     <span className="text-[10px] text-slate-500 font-medium mr-1">Pesos rápidos:</span>
                                     {[
@@ -3276,6 +3401,25 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                                         }`}
                                       >
                                         {preset.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  /* Unit quick pills for un items */
+                                  <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-slate-800/60">
+                                    <span className="text-[10px] text-slate-500 font-medium mr-1">Unidades rápidas:</span>
+                                    {[1, 2, 3, 4, 6, 8, 10, 12].map(preset => (
+                                      <button
+                                        key={preset}
+                                        type="button"
+                                        onClick={() => handleSetPosItemQuantity(item.id, preset)}
+                                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold transition ${
+                                          currentQty === preset
+                                            ? 'bg-emerald-500 text-slate-950 font-bold'
+                                            : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        {preset} un
                                       </button>
                                     ))}
                                   </div>

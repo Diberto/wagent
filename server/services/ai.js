@@ -1690,11 +1690,11 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
             }
           }
         }
-        if (displayedList.length === 0) {
+        if (displayedList.length === 0 && /OFERTAS Y CORTES|OFERTAS Y COMBOS|cortes estrella|mejores promos/i.test(prevAgentMsg)) {
           displayedList = getFeaturedWhatsAppOffers(catalog);
         }
 
-        const chosenProd = (optIdx >= 0 && optIdx < displayedList.length) ? displayedList[optIdx] : (catalog[optIdx] || null);
+        const chosenProd = (optIdx >= 0 && optIdx < displayedList.length) ? displayedList[optIdx] : null;
         if (chosenProd) {
           let hasExplicitQtyInMsg = /(?:\d+(?:[\.,]\d+)?\s*(?:kg|kilos?|unidades?|un\b|bifes?|tiras?|piezas?|combos?|bolsas?|botellas?|chorizos?|morcillas?|milanesas?|costeletas?)|medio\s+kilo|1\/2\s*kg)/i.test(cleanMsg) && !isSingleCatalogNumber;
           let parsedQty = hasExplicitQtyInMsg 
@@ -1808,7 +1808,7 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
               }
             }
           }
-          if (displayedList.length === 0) {
+          if (displayedList.length === 0 && /OFERTAS Y CORTES|OFERTAS Y COMBOS|cortes estrella|mejores promos/i.test(prevAgentMsg)) {
             displayedList = getFeaturedWhatsAppOffers(catalog);
           }
           if (optIdx >= 0 && optIdx < displayedList.length) {
@@ -3753,7 +3753,7 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
     // 0.00022 RESPUESTAS A SELECCIÓN DE OPCIONES DE DESAMBIGUACIÓN Y CATÁLOGO
     const wasAmbiguousOffered = /En mostrador tenemos varias opciones de|¿Cuál de estas opciones preferís que te preparemos y cuántos kilos o unidades/i.test(lastAgentMessage);
     const isRemovalOrReplacement = /(?:sac[aá]|quit[aá]|sin\s+|elimin[aá]|borr[aá]|cambi[aá]|reemplaz[aá]|en\s+vez\s+de)/i.test(t);
-    const wasMenuOrAmbiguousOffered = (wasAmbiguousOffered || (wasMenuOffered && !wasWelcomeMenuOffered)) && !isRemovalOrReplacement;
+    const wasMenuOrAmbiguousOffered = (wasAmbiguousOffered || (wasMenuOffered && !wasWelcomeMenuOffered)) && !isRemovalOrReplacement && !wasDeliveryTypeOffered;
     if (wasMenuOrAmbiguousOffered) {
       const isOptionNum = /^(?:[1-9]|1[0-9]|20|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣|8️⃣|9️⃣|🔟|la\s+[1-9]|el\s+[1-9]|opci[oó]n\s+[1-9])$/i.test(cleanConfirmText);
       const isNamedOption = /(?:chorizo|chori|cuadril|matambre|milanesa|costilla|colorado|cheddar|criollo|dubai|tapa|colita|vacio|vacío|asado|bife|entraña|molida|pollo|carbon|carbón|vino)/i.test(t);
@@ -3772,7 +3772,7 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
             }
           }
         }
-        if (displayedList.length === 0) {
+        if (displayedList.length === 0 && (isOffersCutsMenuOffered || /OFERTAS Y CORTES|OFERTAS Y COMBOS|cortes estrella|mejores promos/i.test(lastAgentMessage))) {
           displayedList = getFeaturedWhatsAppOffers(products);
         }
 
@@ -3783,8 +3783,7 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
           if (optIdx >= 0 && optIdx < displayedList.length) {
             chosenProduct = displayedList[optIdx];
           }
-        }
-        if (!chosenProduct) {
+        } else if (isNamedOption) {
           chosenProduct = matchBestProduct(rawText, displayedList.length > 0 ? displayedList : products);
         }
 

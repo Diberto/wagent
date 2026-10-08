@@ -551,6 +551,32 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
     }
   };
 
+  const handleToggleProductUnit = async (prod, newUnit) => {
+    try {
+      const unitsPerKg = prod.unitsPerKg || ((/chori|morci/i.test(prod.name)) ? 5 : (/costeleta|bife/i.test(prod.name) ? 4 : (/mila|hamburg/i.test(prod.name) ? 8 : 1)));
+      const unitPrice = prod.unitPrice || (unitsPerKg > 1 ? Math.round(prod.price / unitsPerKg) : prod.price);
+      const updated = {
+        ...prod,
+        unit: newUnit,
+        unitsPerKg: prod.unitsPerKg || (newUnit === 'un' ? unitsPerKg : null),
+        unitPrice: prod.unitPrice || (newUnit === 'un' ? unitPrice : null)
+      };
+      const res = await fetch(`${apiBaseUrl}/api/products/${prod.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setProducts(prev => prev.map(p => p.id === prod.id ? (saved.product || saved) : p));
+        setSyncMessage({ type: 'success', text: `Unidad de "${prod.name}" cambiada a ${newUnit === 'un' ? 'Unidad (un)' : 'Kilo (kg)'}` });
+        setTimeout(() => setSyncMessage(null), 3000);
+      }
+    } catch (err) {
+      console.error('Error toggling product unit:', err);
+    }
+  };
+
   const copyToClipboard = (text, type = 'plu') => {
     navigator.clipboard.writeText(text);
     setCopiedPlu(text);
@@ -1026,8 +1052,34 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-extrabold text-white whitespace-nowrap">
-                          <span className="text-emerald-400 text-sm">${Number(prod.price).toLocaleString()}</span>
-                          <span className="text-[10px] text-slate-400 font-normal ml-0.5">/{prod.unit || 'kg'}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-emerald-400 text-sm">${Number(prod.price).toLocaleString()}</span>
+                            {/* Toggle interactivo de Unidad (kg vs un) */}
+                            <div className="inline-flex rounded-lg bg-[#202c33] p-0.5 border border-slate-700/60 text-[10px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleProductUnit(prod, 'kg')}
+                                className={`px-1.5 py-0.5 rounded transition ${(prod.unit || 'kg') === 'kg' ? 'bg-emerald-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+                                title="Vender por Kilo"
+                              >
+                                kg
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleProductUnit(prod, 'un')}
+                                className={`px-1.5 py-0.5 rounded transition ${(prod.unit || 'kg') === 'un' || (prod.unit || '') === 'unidad' ? 'bg-emerald-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+                                title="Vender por Unidad"
+                              >
+                                un
+                              </button>
+                            </div>
+                          </div>
+                          {(prod.unit === 'un' || prod.unit === 'unidad') && (
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                              ${(prod.unitPrice || (prod.unitsPerKg ? Math.round(prod.price / prod.unitsPerKg) : prod.price)).toLocaleString()}/un
+                              {prod.unitsPerKg ? ` (~${Math.round(1000 / prod.unitsPerKg)}g)` : ''}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${
@@ -1267,10 +1319,36 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
 
                   <div className="pt-3 border-t border-slate-800/80 mt-3 flex items-center justify-between">
                     <div>
-                      <span className="text-base font-black text-emerald-400">
-                        ${Number(prod.price).toLocaleString()}
-                      </span>
-                      <span className="text-xs text-slate-400 ml-1">/{prod.unit || 'kg'}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-black text-emerald-400">
+                          ${Number(prod.price).toLocaleString()}
+                        </span>
+                        {/* Toggle interactivo de Unidad (kg vs un) */}
+                        <div className="inline-flex rounded-lg bg-[#202c33] p-0.5 border border-slate-700/60 text-[10px] font-bold">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleProductUnit(prod, 'kg')}
+                            className={`px-1.5 py-0.5 rounded transition ${(prod.unit || 'kg') === 'kg' ? 'bg-emerald-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+                            title="Vender por Kilo"
+                          >
+                            kg
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleProductUnit(prod, 'un')}
+                            className={`px-1.5 py-0.5 rounded transition ${(prod.unit || 'kg') === 'un' || (prod.unit || '') === 'unidad' ? 'bg-emerald-600 text-white font-black' : 'text-slate-400 hover:text-white'}`}
+                            title="Vender por Unidad"
+                          >
+                            un
+                          </button>
+                        </div>
+                      </div>
+                      {(prod.unit === 'un' || prod.unit === 'unidad') && (
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          ${(prod.unitPrice || (prod.unitsPerKg ? Math.round(prod.price / prod.unitsPerKg) : prod.price)).toLocaleString()}/un
+                          {prod.unitsPerKg ? ` (~${Math.round(1000 / prod.unitsPerKg)}g)` : ''}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -1366,12 +1444,12 @@ export default function ProductCatalog({ apiBaseUrl = '', socket = null }) {
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Unidad de Medida</label>
                   <select
-                    value={formData.unit}
+                    value={formData.unit === 'unidad' ? 'un' : formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     className="w-full px-3 py-2 bg-[#202c33] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                   >
                     <option value="kg">Por Kilo (kg)</option>
-                    <option value="unidad">Por Unidad (un)</option>
+                    <option value="un">Por Unidad (un)</option>
                     <option value="combo">Por Combo (promo)</option>
                     <option value="paquete">Por Paquete</option>
                     <option value="bolsa">Por Bolsa (carbón)</option>

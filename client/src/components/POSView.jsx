@@ -350,6 +350,12 @@ export default function POSView({
     const existingIndex = activeCart.items.findIndex(item => item.id === product.id);
     let updatedItems = [...activeCart.items];
 
+    const isUnit = (product.unit || '').toLowerCase() === 'un' || (product.unit || '').toLowerCase().startsWith('unid');
+    const unitsPerKg = product.unitsPerKg || ((/chori|morci/i.test(product.name)) ? 5 : (/costeleta|bife/i.test(product.name) ? 4 : (/mila|hamburg/i.test(product.name) ? 8 : 1)));
+    const pricePerKg = Number(product.price) || 0;
+    const pricePerUnit = product.unitPrice || (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg);
+    const effectivePrice = isUnit ? pricePerUnit : pricePerKg;
+
     if (existingIndex >= 0) {
       updatedItems[existingIndex] = {
         ...updatedItems[existingIndex],
@@ -359,13 +365,53 @@ export default function POSView({
       updatedItems.push({
         id: product.id,
         name: product.name,
-        price: product.price,
-        unit: product.unit || 'kg',
+        price: effectivePrice,
+        pricePerKg,
+        pricePerUnit,
+        unitsPerKg,
+        unit: isUnit ? 'un' : 'kg',
         quantity: qtyToAdd
       });
     }
 
     updateActiveCart({ items: updatedItems });
+  };
+
+  const handleToggleCartItemUnit = (productId) => {
+    const updated = activeCart.items.map(item => {
+      if (item.id !== productId) return item;
+      const currentUnit = (item.unit || 'kg').toLowerCase();
+      const unitsPerKg = item.unitsPerKg || ((/chori|morci/i.test(item.name)) ? 5 : (/costeleta|bife/i.test(item.name) ? 4 : (/mila|hamburg/i.test(item.name) ? 8 : 1)));
+      const pricePerKg = item.pricePerKg || item.price || 0;
+      const pricePerUnit = item.pricePerUnit || (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg);
+
+      if (currentUnit === 'un' || currentUnit.startsWith('unid')) {
+        // Switch un -> kg
+        const newQty = unitsPerKg > 1 ? Math.round((item.quantity / unitsPerKg) * 1000) / 1000 : item.quantity;
+        return {
+          ...item,
+          unit: 'kg',
+          price: pricePerKg,
+          pricePerKg,
+          pricePerUnit,
+          unitsPerKg,
+          quantity: newQty > 0 ? newQty : 0.5
+        };
+      } else {
+        // Switch kg -> un
+        const newQty = unitsPerKg > 1 ? Math.max(1, Math.round(item.quantity * unitsPerKg)) : Math.max(1, Math.round(item.quantity));
+        return {
+          ...item,
+          unit: 'un',
+          price: pricePerUnit,
+          pricePerKg,
+          pricePerUnit,
+          unitsPerKg,
+          quantity: newQty
+        };
+      }
+    });
+    updateActiveCart({ items: updated });
   };
 
   const handleUpdateItemQty = (productId, newQty) => {
@@ -598,24 +644,38 @@ export default function POSView({
       customerName: activeCart.customerName || 'Cliente Mostrador',
       phone: activeCart.phone || '',
       address: activeCart.address || '',
-      products: activeCart.items.map(it => ({
-        id: it.id,
-        plu: it.plu || '',
-        barcode: it.barcode || '',
-        name: String(it.name || 'Corte Seleccionado'),
-        price: Number(it.price || 0),
-        unitPrice: Number(it.price || 0),
-        quantity: Number(it.quantity || 1),
-        unit: it.unit || 'kg',
-        isUnitMode: Boolean(it.isUnitMode),
-        unitCount: it.unitCount || 0,
-        subtotal: Number(it.price || 0) * Number(it.quantity || 1)
-      })),
+      products: activeCart.items.map(it => {
+        const isUnit = (it.unit || '').toLowerCase() === 'un' || (it.unit || '').toLowerCase().startsWith('unid');
+        const unitsPerKg = it.unitsPerKg || ((/chori|morci/i.test(it.name)) ? 5 : (/costeleta|bife/i.test(it.name) ? 4 : (/mila|hamburg/i.test(it.name) ? 8 : 1)));
+        const pricePerKg = it.pricePerKg || (isUnit && unitsPerKg > 1 ? Math.round(it.price * unitsPerKg) : it.price);
+        const pricePerUnit = it.pricePerUnit || (isUnit ? it.price : (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg));
+        const lineSubtotal = Math.round((isUnit ? pricePerUnit : pricePerKg) * Number(it.quantity || 1));
+        const weightKg = isUnit ? (unitsPerKg > 1 ? Number((Number(it.quantity || 1) / unitsPerKg).toFixed(3)) : Number(it.quantity || 1)) : Number(it.quantity || 1);
+        return {
+          id: it.id,
+          plu: it.plu || '',
+          barcode: it.barcode || '',
+          name: String(it.name || 'Corte Seleccionado'),
+          price: pricePerKg,
+          unitPrice: pricePerUnit,
+          quantity: weightKg,
+          unit: it.unit || 'kg',
+          isUnitMode: isUnit,
+          unitCount: isUnit ? Number(it.quantity || 1) : 0,
+          unitsPerKg,
+          subtotal: lineSubtotal
+        };
+      }),
       items: activeCart.items.map(it => {
-        if (it.isUnitMode && it.unitCount > 0) {
-          return `• ${it.unitCount} Unidades de ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+        const isUnit = (it.unit || '').toLowerCase() === 'un' || (it.unit || '').toLowerCase().startsWith('unid');
+        const unitsPerKg = it.unitsPerKg || ((/chori|morci/i.test(it.name)) ? 5 : (/costeleta|bife/i.test(it.name) ? 4 : (/mila|hamburg/i.test(it.name) ? 8 : 1)));
+        const pricePerKg = it.pricePerKg || (isUnit && unitsPerKg > 1 ? Math.round(it.price * unitsPerKg) : it.price);
+        const pricePerUnit = it.pricePerUnit || (isUnit ? it.price : (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg));
+        const lineSubtotal = Math.round((isUnit ? pricePerUnit : pricePerKg) * Number(it.quantity || 1));
+        if (isUnit) {
+          return `• ${it.quantity} Unidades de ${it.name} — $${lineSubtotal.toLocaleString('es-AR')}`;
         }
-        return `• ${it.quantity} ${it.unit || 'kg'} ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+        return `• ${it.quantity} ${it.unit || 'kg'} ${it.name} — $${lineSubtotal.toLocaleString('es-AR')}`;
       }),
       totalAmount: total,
       paymentMethod: activeCart.paymentMethod,
@@ -714,24 +774,38 @@ export default function POSView({
       phone: dispatchForm.phone || activeCart.phone || '',
       address: dispatchForm.address || '',
       shippingAddress: dispatchForm.address || '',
-      products: activeCart.items.map(it => ({
-        id: it.id,
-        plu: it.plu || '',
-        barcode: it.barcode || '',
-        name: String(it.name || 'Corte Seleccionado'),
-        price: Number(it.price || 0),
-        unitPrice: Number(it.price || 0),
-        quantity: Number(it.quantity || 1),
-        unit: it.unit || 'kg',
-        isUnitMode: Boolean(it.isUnitMode),
-        unitCount: it.unitCount || 0,
-        subtotal: Number(it.price || 0) * Number(it.quantity || 1)
-      })),
+      products: activeCart.items.map(it => {
+        const isUnit = (it.unit || '').toLowerCase() === 'un' || (it.unit || '').toLowerCase().startsWith('unid');
+        const unitsPerKg = it.unitsPerKg || ((/chori|morci/i.test(it.name)) ? 5 : (/costeleta|bife/i.test(it.name) ? 4 : (/mila|hamburg/i.test(it.name) ? 8 : 1)));
+        const pricePerKg = it.pricePerKg || (isUnit && unitsPerKg > 1 ? Math.round(it.price * unitsPerKg) : it.price);
+        const pricePerUnit = it.pricePerUnit || (isUnit ? it.price : (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg));
+        const lineSubtotal = Math.round((isUnit ? pricePerUnit : pricePerKg) * Number(it.quantity || 1));
+        const weightKg = isUnit ? (unitsPerKg > 1 ? Number((Number(it.quantity || 1) / unitsPerKg).toFixed(3)) : Number(it.quantity || 1)) : Number(it.quantity || 1);
+        return {
+          id: it.id,
+          plu: it.plu || '',
+          barcode: it.barcode || '',
+          name: String(it.name || 'Corte Seleccionado'),
+          price: pricePerKg,
+          unitPrice: pricePerUnit,
+          quantity: weightKg,
+          unit: it.unit || 'kg',
+          isUnitMode: isUnit,
+          unitCount: isUnit ? Number(it.quantity || 1) : 0,
+          unitsPerKg,
+          subtotal: lineSubtotal
+        };
+      }),
       items: activeCart.items.map(it => {
-        if (it.isUnitMode && it.unitCount > 0) {
-          return `• ${it.unitCount} Unidades de ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+        const isUnit = (it.unit || '').toLowerCase() === 'un' || (it.unit || '').toLowerCase().startsWith('unid');
+        const unitsPerKg = it.unitsPerKg || ((/chori|morci/i.test(it.name)) ? 5 : (/costeleta|bife/i.test(it.name) ? 4 : (/mila|hamburg/i.test(it.name) ? 8 : 1)));
+        const pricePerKg = it.pricePerKg || (isUnit && unitsPerKg > 1 ? Math.round(it.price * unitsPerKg) : it.price);
+        const pricePerUnit = it.pricePerUnit || (isUnit ? it.price : (unitsPerKg > 1 ? Math.round(pricePerKg / unitsPerKg) : pricePerKg));
+        const lineSubtotal = Math.round((isUnit ? pricePerUnit : pricePerKg) * Number(it.quantity || 1));
+        if (isUnit) {
+          return `• ${it.quantity} Unidades de ${it.name} — $${lineSubtotal.toLocaleString('es-AR')}`;
         }
-        return `• ${it.quantity} ${it.unit || 'kg'} ${it.name} — $${Number((it.price || 0) * (it.quantity || 1)).toLocaleString('es-AR')}`;
+        return `• ${it.quantity} ${it.unit || 'kg'} ${it.name} — $${lineSubtotal.toLocaleString('es-AR')}`;
       }),
       totalAmount: total,
       paymentMethod: dispatchForm.paymentMethod,
@@ -1143,8 +1217,32 @@ export default function POSView({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-white truncate">{item.name}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">
-                      ${Number(item.price).toLocaleString('es-AR')} x {item.unit || 'kg'}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {/* Quick Unit Switch Pill */}
+                      <div className="inline-flex rounded-lg bg-[#111b21] p-0.5 border border-slate-700/80 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => (item.unit || 'kg') === 'kg' ? null : handleToggleCartItemUnit(item.id)}
+                          className={`px-1.5 py-0.5 rounded transition ${(item.unit || 'kg') === 'kg' ? 'bg-emerald-600 text-white font-black shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                          title="Cobrar y pesar por Kilo (kg)"
+                        >
+                          kg
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => (item.unit || 'kg') === 'un' ? null : handleToggleCartItemUnit(item.id)}
+                          className={`px-1.5 py-0.5 rounded transition ${(item.unit || 'kg') === 'un' ? 'bg-emerald-600 text-white font-black shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                          title="Cobrar y fraccionar por Unidad (un)"
+                        >
+                          un
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        ${Number(item.price).toLocaleString('es-AR')} x {item.unit || 'kg'}
+                        {item.unit === 'un' && item.pricePerKg ? (
+                          <span className="text-slate-500 ml-1">(${Number(item.pricePerKg).toLocaleString('es-AR')}/kg)</span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
 
@@ -1171,7 +1269,7 @@ export default function POSView({
 
                   <div className="text-right min-w-[60px]">
                     <div className="font-black text-emerald-400 font-mono">
-                      ${(item.price * item.quantity).toLocaleString('es-AR')}
+                      ${Math.round(item.price * item.quantity).toLocaleString('es-AR')}
                     </div>
                   </div>
 
