@@ -29,7 +29,9 @@ import {
   ArrowRight,
   Plus,
   Trash2,
-  X
+  X,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import UsersView from './UsersView';
 import DatabaseView from './DatabaseView';
@@ -68,6 +70,8 @@ export default function AdminHubView({
   // AI Connection Test
   const [isTestingAi, setIsTestingAi] = useState(false);
   const [aiTestResult, setAiTestResult] = useState(null);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
 
   // ARCA (AFIP) Facturación Electrónica & Multi-Razón Social
   const [isTestingArca, setIsTestingArca] = useState(false);
@@ -156,13 +160,19 @@ export default function AdminHubView({
     setIsTestingAi(true);
     setAiTestResult(null);
     try {
+      let activeKey = '';
+      if (settings?.aiProvider === 'gemini') activeKey = settings?.geminiApiKey;
+      else if (settings?.aiProvider === 'openai') activeKey = settings?.openaiApiKey;
+      else if (settings?.aiProvider === 'nvidia') activeKey = settings?.nvidiaApiKey;
+      else if (settings?.aiProvider === 'custom') activeKey = settings?.customApiKey;
+
       const res = await fetch('/api/ai/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           provider: settings?.aiProvider,
           model: settings?.aiModel,
-          apiKey: settings?.geminiApiKey || settings?.openaiApiKey || settings?.nvidiaApiKey,
+          apiKey: activeKey,
           customBaseUrl: settings?.customBaseUrl
         })
       });
@@ -514,29 +524,54 @@ export default function AdminHubView({
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300">Modelo Seleccionado</label>
-                <input
-                  type="text"
-                  value={settings.aiModel || ''}
-                  onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
-                />
+                {SYSTEM_AI_MODELS[settings.aiProvider || 'gemini']?.length > 0 ? (
+                  <select
+                    value={settings.aiModel || getDefaultModelForProvider(settings.aiProvider || 'gemini')}
+                    onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
+                  >
+                    {SYSTEM_AI_MODELS[settings.aiProvider || 'gemini'].map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} {m.tag ? `(${m.tag})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={settings.aiModel || ''}
+                    onChange={(e) => setSettings({ ...settings, aiModel: e.target.value })}
+                    placeholder="Nombre del modelo (ej: llama3.2)"
+                    className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                  />
+                )}
               </div>
             </div>
 
-            {/* API Keys (Secured / Masked) */}
+            {/* API Keys */}
             <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
                   <span>Gemini API Key</span>
-                  <span className="text-[10px] text-slate-400">Enmascarada por seguridad</span>
+                  <span className="text-[10px] text-slate-400">Protegida</span>
                 </label>
-                <input
-                  type="password"
-                  value={settings.geminiApiKey || ''}
-                  onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                  placeholder="AIzaSy..."
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
-                />
+                <div className="relative">
+                  <input
+                    type={showGeminiKey ? "text" : "password"}
+                    value={settings.geminiApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                    placeholder="AIzaSy..."
+                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGeminiKey(!showGeminiKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                    title={showGeminiKey ? "Ocultar clave" : "Mostrar clave"}
+                  >
+                    {showGeminiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -544,13 +579,23 @@ export default function AdminHubView({
                   <span>OpenAI API Key</span>
                   <span className="text-[10px] text-slate-400">Opcional para GPT-4o</span>
                 </label>
-                <input
-                  type="password"
-                  value={settings.openaiApiKey || ''}
-                  onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
-                  placeholder="sk-..."
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
-                />
+                <div className="relative">
+                  <input
+                    type={showOpenaiKey ? "text" : "password"}
+                    value={settings.openaiApiKey || ''}
+                    onChange={(e) => setSettings({ ...settings, openaiApiKey: e.target.value })}
+                    placeholder="sk-..."
+                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition"
+                    title={showOpenaiKey ? "Ocultar clave" : "Mostrar clave"}
+                  >
+                    {showOpenaiKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
               </div>
             </div>
 

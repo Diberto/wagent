@@ -2210,6 +2210,22 @@ export class AIService {
 
     const startTime = Date.now();
 
+    const resolveValidKey = (explicitKey, savedKey, envKey) => {
+      if (explicitKey && typeof explicitKey === 'string') {
+        const trimmed = explicitKey.trim();
+        if (!trimmed.includes('••••') && !trimmed.includes('****') && trimmed.length > 5) {
+          return trimmed;
+        }
+      }
+      if (savedKey && typeof savedKey === 'string') {
+        const trimmed = savedKey.trim();
+        if (!trimmed.includes('••••') && !trimmed.includes('****') && trimmed.length > 5) {
+          return trimmed;
+        }
+      }
+      return (envKey || '').trim();
+    };
+
     try {
       // 0. Qwen 2.5 0.5B Embebido con node-llama-cpp (Zero-RAM, Offline)
       if (effectiveProvider === 'qwen_embedded' || effectiveProvider === 'embedded') {
@@ -2229,7 +2245,7 @@ export class AIService {
 
       // 1. Google Gemini
       if (effectiveProvider === 'gemini') {
-        const key = apiKey || s.geminiApiKey || process.env.GEMINI_API_KEY;
+        const key = resolveValidKey(apiKey, s.geminiApiKey, process.env.GEMINI_API_KEY);
         if (!key || !key.startsWith('AIza')) {
           return {
             success: false,
@@ -2278,7 +2294,7 @@ export class AIService {
 
       // 2. Anthropic Claude
       if (effectiveProvider === 'anthropic') {
-        const key = apiKey || s.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+        const key = resolveValidKey(apiKey, s.anthropicApiKey, process.env.ANTHROPIC_API_KEY);
         if (!key || !key.startsWith('sk-ant-')) {
           return {
             success: false,
@@ -2375,29 +2391,29 @@ export class AIService {
       let effectiveKey = apiKey;
 
       if (effectiveProvider === 'openai') {
-        effectiveKey = effectiveKey || s.openaiApiKey || process.env.OPENAI_API_KEY;
+        effectiveKey = resolveValidKey(effectiveKey, s.openaiApiKey, process.env.OPENAI_API_KEY);
         baseURL = baseURL || undefined;
       } else if (effectiveProvider === 'nvidia') {
-        effectiveKey = effectiveKey || s.nvidiaApiKey || process.env.NVIDIA_API_KEY;
+        effectiveKey = resolveValidKey(effectiveKey, s.nvidiaApiKey, process.env.NVIDIA_API_KEY);
         baseURL = baseURL || 'https://integrate.api.nvidia.com/v1';
       } else if (effectiveProvider === 'deepseek') {
-        effectiveKey = effectiveKey || s.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
+        effectiveKey = resolveValidKey(effectiveKey, s.deepseekApiKey, process.env.DEEPSEEK_API_KEY);
         baseURL = baseURL || 'https://api.deepseek.com';
       } else if (effectiveProvider === 'groq') {
-        effectiveKey = effectiveKey || s.groqApiKey || process.env.GROQ_API_KEY;
+        effectiveKey = resolveValidKey(effectiveKey, s.groqApiKey, process.env.GROQ_API_KEY);
         baseURL = baseURL || 'https://api.groq.com/openai/v1';
       } else if (effectiveProvider === 'openrouter') {
-        effectiveKey = effectiveKey || s.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+        effectiveKey = resolveValidKey(effectiveKey, s.openrouterApiKey, process.env.OPENROUTER_API_KEY);
         baseURL = baseURL || 'https://openrouter.ai/api/v1';
       } else if (effectiveProvider === 'cohere') {
-        effectiveKey = effectiveKey || s.cohereApiKey || process.env.COHERE_API_KEY;
+        effectiveKey = resolveValidKey(effectiveKey, s.cohereApiKey, process.env.COHERE_API_KEY);
         baseURL = baseURL || 'https://api.cohere.ai/v1';
       } else if (effectiveProvider === 'local') {
         baseURL = baseURL || (effectiveModel.includes('lmstudio') ? 'http://localhost:1234/v1' : 'http://localhost:11434/v1');
         effectiveKey = effectiveKey || 'ollama';
       } else if (effectiveProvider === 'custom') {
         baseURL = baseURL || s.customBaseUrl || 'http://localhost:11434/v1';
-        effectiveKey = effectiveKey || s.customApiKey || 'custom-key';
+        effectiveKey = resolveValidKey(effectiveKey, s.customApiKey, 'custom-key');
       }
 
       const requiresKey = !['local'].includes(effectiveProvider);

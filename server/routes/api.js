@@ -3592,12 +3592,11 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   router.get('/settings', (req, res) => {
     try {
       const settings = db.getSettings() || {};
-      const masked = maskSettings(settings);
       const availableVoices = (typeof SpeechService !== 'undefined' && SpeechService.getAvailableVoices)
         ? SpeechService.getAvailableVoices()
         : [];
       res.json({
-        settings: masked,
+        settings,
         availableVoices
       });
     } catch (err) {
@@ -3611,9 +3610,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       const current = db.getSettings() || {};
       const sanitizedPayload = unmaskPayload(req.body, current);
       const updated = db.updateSettings(sanitizedPayload);
-      const maskedResponse = maskSettings(updated);
-      io.emit('settings:update', maskedResponse);
-      res.json(maskedResponse);
+      io.emit('settings:update', updated);
+      res.json(updated);
     } catch (err) {
       console.error('Error en PUT /api/settings:', err);
       res.status(500).json({ error: err.message });
