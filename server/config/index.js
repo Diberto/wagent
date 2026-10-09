@@ -43,6 +43,15 @@ export const CONFIG = {
     mercadopagoTestUser: process.env.MERCADOPAGO_TEST_USER || '',
     mercadopagoEnabled: true,
     mercadopagoAutoSendLink: true,
+
+    // Conexión y Proveedor de WhatsApp (Baileys QR vs Meta Cloud API Oficial)
+    whatsappProvider: process.env.WHATSAPP_PROVIDER || 'baileys', // 'baileys' | 'meta_cloud'
+    metaPhoneNumberId: process.env.META_PHONE_NUMBER_ID || '',
+    metaWabaId: process.env.META_WABA_ID || '',
+    metaAccessToken: process.env.META_ACCESS_TOKEN || '',
+    metaVerifyToken: process.env.META_VERIFY_TOKEN || 'wagent_meta_verify_2026',
+    metaAppSecret: process.env.META_APP_SECRET || '',
+    metaApiVersion: process.env.META_API_VERSION || 'v21.0',
     agentName: 'Carlos',
     agentRole: 'Maestro Carnicero de República de la Carne',
     businessName: 'República de la Carne',

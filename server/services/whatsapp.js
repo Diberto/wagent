@@ -9,6 +9,7 @@ import { db, isLidIdentifier, normalizePhoneNumber } from './database.js';
 import { AIService } from './ai.js';
 import { AudioConverter } from './audioConverter.js';
 import { SpeechService } from './speech.js';
+import { MetaWhatsAppService } from './metaWhatsApp.js';
 
 /**
  * Desenpaqueta mensajes anidados (efímeros, view-once, multimedia con subtítulo)
@@ -1700,6 +1701,9 @@ export class WhatsAppManager {
     // Migración automática de credenciales legadas desde usr-central-admin hacia auth_info_baileys
     this.migrateLegacyAdminAuth();
 
+    // Servicio Oficial Meta WhatsApp Cloud API
+    this.metaService = new MetaWhatsAppService(io);
+
     // Sesión Maestra Principal Unificada para la Línea Central de la Empresa
     this.primarySession = new WhatsAppService(io, 'default', CONFIG.AUTH_DIR);
     this.sessions.set('default', this.primarySession);
@@ -1781,6 +1785,10 @@ export class WhatsAppManager {
   }
 
   getStatus(userId = 'default') {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.metaService.getStatus();
+    }
     const id = userId || 'default';
     if (id === 'default' || id === 'usr-central-admin' || id === 'admin_central' || id === 'usr-admin' || id === 'usr-admin-republica') {
       return this.primarySession.getStatus();
@@ -1802,6 +1810,10 @@ export class WhatsAppManager {
   }
 
   get status() {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.metaService.isConfigured() ? 'connected' : 'disconnected';
+    }
     if (this.primarySession?.status === 'connected') return 'connected';
     for (const session of this.sessions.values()) {
       if (session && session.status === 'connected') {
@@ -1812,6 +1824,10 @@ export class WhatsAppManager {
   }
 
   get isAnyConnected() {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.metaService.isConfigured();
+    }
     return this.status === 'connected';
   }
 
@@ -1889,6 +1905,10 @@ export class WhatsAppManager {
   }
 
   async sendTextMessage(jid, text, userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.metaService.sendTextMessage(jid, text);
+    }
     const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
@@ -1897,6 +1917,10 @@ export class WhatsAppManager {
   }
 
   async sendVoiceNote(jid, audioPathOrBuffer, userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.metaService.sendVoiceNote(jid, audioPathOrBuffer);
+    }
     const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
@@ -1905,6 +1929,10 @@ export class WhatsAppManager {
   }
 
   async sendImageMessage(jid, imagePathOrBuffer, caption = '', userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.metaService.sendImageMessage(jid, imagePathOrBuffer, caption);
+    }
     const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
@@ -1913,6 +1941,10 @@ export class WhatsAppManager {
   }
 
   async sendMessage(jid, text, media = null, userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.metaService.sendMessage(jid, text, media);
+    }
     const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
@@ -1921,6 +1953,10 @@ export class WhatsAppManager {
   }
 
   async sendDriverDispatchNotification(order, driver, notifyClient = true, userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.primarySession.sendDriverDispatchNotification.call(this, order, driver, notifyClient);
+    }
     const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
@@ -1929,6 +1965,10 @@ export class WhatsAppManager {
   }
 
   async sendBranchDerivationNotification(order, branch, notifyClient = true, userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      return this.primarySession.sendBranchDerivationNotification.call(this, order, branch, notifyClient);
+    }
     const session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
@@ -1942,11 +1982,21 @@ export class WhatsAppManager {
   }
 
   async resolvePhoneJid(jid, userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      const clean = this.metaService.formatRecipientPhone(jid);
+      return clean ? `${clean}@s.whatsapp.net` : null;
+    }
     const session = this.getActiveConnectedSession(userId);
     return session ? session.resolvePhoneJid(jid) : null;
   }
 
   async formatRecipientJid(target, userId = null) {
+    const settings = db.getSettings();
+    if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
+      const clean = this.metaService.formatRecipientPhone(target);
+      return clean ? `${clean}@s.whatsapp.net` : null;
+    }
     const session = this.getActiveConnectedSession(userId);
     return session ? session.formatRecipientJid(target) : null;
   }

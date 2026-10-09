@@ -13,7 +13,8 @@ export default function QRModal({
   onDisconnect,
   currentUser,
   allUsers = [],
-  socket
+  socket,
+  onOpenSettings
 }) {
   if (!isOpen) return null;
 
@@ -23,6 +24,8 @@ export default function QRModal({
 
   const [selectedUserId, setSelectedUserId] = useState('default');
   const [operatorSessions, setOperatorSessions] = useState({});
+  const [whatsappProvider, setWhatsappProvider] = useState('baileys');
+  const [metaStatus, setMetaStatus] = useState(null);
   const [activeSessionStatus, setActiveSessionStatus] = useState({
     status: status || 'disconnected',
     qrDataUrl: qrDataUrl || null,
@@ -46,12 +49,19 @@ export default function QRModal({
     }
   };
 
-  // Fetch all sessions
+  // Fetch all sessions & provider
   const fetchAllSessions = async () => {
     try {
       const res = await fetch('/api/whatsapp/sessions');
       const data = await res.json();
       setOperatorSessions(data || {});
+
+      const provRes = await fetch('/api/whatsapp/provider');
+      if (provRes.ok) {
+        const provData = await provRes.json();
+        if (provData.provider) setWhatsappProvider(provData.provider);
+        if (provData.metaStatus) setMetaStatus(provData.metaStatus);
+      }
     } catch (err) {}
   };
 
@@ -245,6 +255,39 @@ export default function QRModal({
           <div className="mt-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-center gap-2">
             <AlertCircle size={16} className="text-rose-400 shrink-0" />
             <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {/* Banner Informativo si Meta Cloud API es el proveedor activo */}
+        {whatsappProvider === 'meta_cloud' && (
+          <div className="mt-3 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/50 via-teal-950/40 to-slate-900 border border-emerald-500/40 text-xs flex items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                <Smartphone size={16} />
+              </div>
+              <div>
+                <div className="font-bold text-white flex items-center gap-2">
+                  <span>Modo Activo: Meta WhatsApp Cloud API</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                    Oficial
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-300">
+                  {metaStatus?.isConfigured
+                    ? `Línea oficial configurada (${metaStatus?.displayPhoneNumber || 'Lista'}). Los mensajes operan por Meta Cloud API.`
+                    : 'Falta configurar credenciales oficiales en la pestaña Meta WhatsApp API.'}
+                </div>
+              </div>
+            </div>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition shrink-0"
+              >
+                ⚙️ Configurar Meta
+              </button>
+            )}
           </div>
         )}
 

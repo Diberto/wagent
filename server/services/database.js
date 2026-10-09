@@ -1051,6 +1051,20 @@ class DatabaseService {
     return false;
   }
 
+  updateMessageStatus(messageId, status, errorDetails = null) {
+    if (!messageId) return null;
+    const db = this.readDb();
+    if (!db.messages) return null;
+    const msg = db.messages.find(m => m.id === messageId);
+    if (msg) {
+      msg.status = status;
+      if (errorDetails) msg.deliveryWarning = errorDetails;
+      this.writeDb(db);
+      return msg;
+    }
+    return null;
+  }
+
   // --- Calls ---
   getCalls() {
     const db = this.readDb();

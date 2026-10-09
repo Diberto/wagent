@@ -1000,6 +1000,92 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
+  // --- Meta WhatsApp Cloud API Endpoints Oficiales ---
+  router.get('/whatsapp/provider', (req, res) => {
+    try {
+      const settings = db.getSettings() || {};
+      res.json({
+        provider: settings.whatsappProvider || 'baileys',
+        baileysStatus: whatsappService.primarySession?.getStatus() || { status: 'disconnected' },
+        metaStatus: whatsappService.metaService?.getStatus() || { status: 'disconnected' }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Verificación de Webhook de Meta (hub.challenge)
+  router.get('/whatsapp/meta-webhook', (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    const settings = db.getSettings() || {};
+    const expectedToken = String(settings.metaVerifyToken || 'wagent_meta_verify_2026').trim();
+
+    if (mode === 'subscribe' && token === expectedToken) {
+      console.log('✅ [Meta Webhook GET] Desafío de suscripción de Webhook aceptado exitosamente!');
+      return res.status(200).send(challenge);
+    }
+    console.warn(`❌ [Meta Webhook GET] Desafío rechazado. Mode: ${mode}, Token recibido: "${token}", Token esperado: "${expectedToken}"`);
+    return res.status(403).json({ error: 'Token de verificación de Meta inválido' });
+  });
+
+  // Recepción de eventos y mensajes entrantes de Meta (mensajes, estados sent/delivered/read/failed)
+  router.post('/whatsapp/meta-webhook', async (req, res) => {
+    try {
+      // Responder 200 OK a Meta de inmediato para evitar reintentos y timeouts
+      res.status(200).send('EVENT_RECEIVED');
+
+      const signature = req.headers['x-hub-signature-256'];
+      if (signature && whatsappService?.metaService) {
+        const rawBody = JSON.stringify(req.body);
+        const isValid = whatsappService.metaService.verifySignature(rawBody, signature);
+        if (!isValid) {
+          console.warn('⚠️ [Meta Webhook POST] Firma HMAC SHA-256 x-hub-signature-256 no coincide. Verifica metaAppSecret.');
+        }
+      }
+
+      if (whatsappService?.metaService) {
+        await whatsappService.metaService.handleWebhookPayload(req.body);
+      }
+    } catch (err) {
+      console.error('Error procesando payload de Webhook Meta WhatsApp:', err.message);
+    }
+  });
+
+  // Prueba en vivo de credenciales de Meta Graph API
+  router.post('/whatsapp/meta/test', async (req, res) => {
+    try {
+      if (!whatsappService?.metaService) {
+        return res.status(500).json({ success: false, error: 'Servicio de Meta WhatsApp no inicializado' });
+      }
+      const currentSettings = db.getSettings() || {};
+      let { phoneNumberId, accessToken, apiVersion } = req.body || {};
+
+      if (accessToken && (accessToken.includes('••••') || accessToken.includes('****'))) {
+        accessToken = currentSettings.metaAccessToken;
+      } else if (!accessToken) {
+        accessToken = currentSettings.metaAccessToken;
+      }
+      if (!phoneNumberId) {
+        phoneNumberId = currentSettings.metaPhoneNumberId;
+      }
+      if (!apiVersion) {
+        apiVersion = currentSettings.metaApiVersion;
+      }
+
+      const result = await whatsappService.metaService.testConnection({
+        phoneNumberId,
+        accessToken,
+        apiVersion
+      });
+      res.json(result);
+    } catch (err) {
+      console.error('Error en prueba de conexión Meta Cloud API:', err.message);
+      res.status(400).json({ success: false, error: err.message });
+    }
+  });
+
   // --- 2. Leads & CRM Kanban ---
   router.get('/leads', (req, res) => {
     res.json(db.getLeads());
@@ -3650,7 +3736,9 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     'mercadopagoWebhookSecret',
     'wooConsumerKey',
     'wooConsumerSecret',
-    'arcaPrivateKey'
+    'arcaPrivateKey',
+    'metaAccessToken',
+    'metaAppSecret'
   ];
 
   function maskSecret(val) {

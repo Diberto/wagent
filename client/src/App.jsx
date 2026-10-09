@@ -968,6 +968,10 @@ export default function App() {
         currentUser={currentUser}
         allUsers={allUsers}
         socket={socket}
+        onOpenSettings={() => {
+          setIsQRModalOpen(false);
+          setIsSettingsModalOpen(true);
+        }}
       />
 
       {/* Settings Modal */}
