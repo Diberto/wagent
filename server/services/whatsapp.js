@@ -1015,58 +1015,72 @@ export class WhatsAppService {
       return `${cleanLidDigits}@lid`;
     }
 
-    // 3. Usuario estándar (@s.whatsapp.net)
-    if (target.includes('@s.whatsapp.net')) {
-      const userPart = target.split('@')[0].replace(/\D/g, '');
-      if (userPart.length >= 8) {
-        return `${userPart}@s.whatsapp.net`;
-      }
-    }
+    // 3. Si es un identificador de Lead en la base de datos o sintético (lead-xxx, test-xxx, usr-xxx)
+    const isSynthetic = (s) => Boolean(s && (s.startsWith('lead-') || s.startsWith('test-') || s.startsWith('usr-') || s.includes('-test') || /^[a-z_]+$/i.test(s)));
 
-    // 4. Si es un identificador de Lead en la base de datos (lead-xxx, test-xxx, usr-xxx)
-    if (target.startsWith('lead-') || target.startsWith('test-') || target.startsWith('usr-')) {
+    if (isSynthetic(target)) {
       const lead = db.getLead(target);
       if (lead) {
-        if (lead.jid && (lead.jid.endsWith('@s.whatsapp.net') || lead.jid.endsWith('@lid') || lead.jid.endsWith('@g.us'))) {
-          return this.formatRecipientJid(lead.jid);
-        }
-        if (lead.altJid) {
-          return this.formatRecipientJid(lead.altJid);
-        }
         if (lead.phone && !isLidIdentifier(lead.phone)) {
           target = lead.phone;
+        } else if (lead.altJid && !isSynthetic(lead.altJid)) {
+          return this.formatRecipientJid(lead.altJid);
+        } else if (Array.isArray(lead.altJids)) {
+          const nonSynAlt = lead.altJids.find(a => a && !isSynthetic(a) && (a.endsWith('@s.whatsapp.net') || a.endsWith('@lid')));
+          if (nonSynAlt) return this.formatRecipientJid(nonSynAlt);
+        } else if (lead.jid && lead.jid !== target && !isSynthetic(lead.jid) && (lead.jid.endsWith('@s.whatsapp.net') || lead.jid.endsWith('@lid') || lead.jid.endsWith('@g.us'))) {
+          return this.formatRecipientJid(lead.jid);
         }
       }
     }
 
-    // 5. Es un número de teléfono en formato crudo (+54 9 351..., 54351..., 351...)
-    // 5.1 Verificar si existe un Lead con este teléfono que ya tenga su JID canónico guardado
+    // 4. Es un número de teléfono o usuario @s.whatsapp.net
+    // 4.1 Verificar si existe un Lead con este identificador que ya tenga su JID canónico guardado
     const existingLead = db.getLead(target);
     if (existingLead?.jid && (existingLead.jid.endsWith('@s.whatsapp.net') || existingLead.jid.endsWith('@lid'))) {
-      return this.formatRecipientJid(existingLead.jid);
+      if (existingLead.jid !== target && !isSynthetic(existingLead.jid)) {
+        return this.formatRecipientJid(existingLead.jid);
+      }
     }
 
-    const rawDigits = target.replace(/\D/g, '');
+    let rawDigits = target.split('@')[0].replace(/\D/g, '');
+    if (rawDigits.length === 10 && !rawDigits.startsWith('54')) {
+      rawDigits = '549' + rawDigits;
+    }
 
-    // 5.2 Si el socket Baileys está conectado, consultar a WhatsApp directamente (onWhatsApp / USync)
-    // para obtener el JID exacto y canónico registrado en WhatsApp (resuelve automáticamente 54 vs 549)
-    if (this.sock && this.status === 'connected' && rawDigits.length >= 8) {
-      try {
-        const onWaResults = await this.sock.onWhatsApp(rawDigits);
-        if (Array.isArray(onWaResults) && onWaResults.length > 0 && onWaResults[0]?.exists) {
-          const verifiedJid = onWaResults[0].jid;
-          if (verifiedJid) {
-            return verifiedJid;
+    // 4.2 Si es número argentino, verificar formato canónico exacto con WhatsApp (54 vs 549)
+    if (rawDigits.startsWith('54') && rawDigits.length >= 10) {
+      const with9 = rawDigits.startsWith('549') ? rawDigits : `549${rawDigits.slice(2)}`;
+      const without9 = rawDigits.startsWith('549') ? `54${rawDigits.slice(3)}` : rawDigits;
+
+      // Si el socket Baileys está conectado, consultar a WhatsApp directamente (onWhatsApp / USync)
+      if (this.sock && this.status === 'connected') {
+        try {
+          const onWaResults = await this.sock.onWhatsApp(with9, without9);
+          if (Array.isArray(onWaResults)) {
+            const valid = onWaResults.find(r => r && r.exists && r.jid);
+            if (valid?.jid) {
+              return valid.jid;
+            }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
+
+      // Por defecto para Argentina en WhatsApp, la mayoría de cuentas móviles usan 549 o el formato provisto
+      return `${with9}@s.whatsapp.net`;
     }
 
-    // 5.3 Normalización local estándar para Argentina e internacional
-    const norm = normalizePhoneNumber(target);
-    const digits = (norm || target).replace(/\D/g, '');
-    if (digits.length >= 8) {
-      return `${digits}@s.whatsapp.net`;
+    // 4.3 Internacional o genérico
+    if (rawDigits.length >= 8) {
+      if (this.sock && this.status === 'connected') {
+        try {
+          const onWaResults = await this.sock.onWhatsApp(rawDigits);
+          if (Array.isArray(onWaResults) && onWaResults[0]?.exists && onWaResults[0]?.jid) {
+            return onWaResults[0].jid;
+          }
+        } catch (_) {}
+      }
+      return `${rawDigits}@s.whatsapp.net`;
     }
 
     const fallback = jidNormalizedUser(target);
@@ -1080,7 +1094,7 @@ export class WhatsAppService {
     if (!this.sock || this.status !== 'connected') {
       throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]. Estado actual: ${this.status}`);
     }
-    const cleanJid = await this.formatRecipientJid(jid);
+    let cleanJid = await this.formatRecipientJid(jid);
     if (!cleanJid) {
       throw new Error(`JID o teléfono de destinatario inválido: "${jid}"`);
     }
@@ -1095,15 +1109,34 @@ export class WhatsAppService {
         await this.sock.sendPresenceUpdate('paused', jid);
       }
     } catch (_) {}
+
     console.log(`📤 [WhatsApp Saliente (${this.sessionId})] Enviando a ${cleanJid} (WS Open: ${Boolean(this.sock?.ws?.isOpen)}): "${cleanText.slice(0, 80)}..."`);
-    const sent = await this.sock.sendMessage(cleanJid, { text: cleanText });
+    
+    let sent;
+    try {
+      sent = await this.sock.sendMessage(cleanJid, { text: cleanText });
+    } catch (firstErr) {
+      // Reintento inteligente para números argentinos si el primer formato (549 vs 54) falló
+      const isArgNet = cleanJid.includes('@s.whatsapp.net') && cleanJid.startsWith('54');
+      if (isArgNet) {
+        const altJid = cleanJid.startsWith('549')
+          ? `54${cleanJid.slice(3)}`
+          : `549${cleanJid.slice(2)}`;
+        console.warn(`⚠️ [WhatsApp Saliente (${this.sessionId})] Error con ${cleanJid} (${firstErr.message}). Reintentando con JID argentino alternativo ${altJid}...`);
+        sent = await this.sock.sendMessage(altJid, { text: cleanText });
+        cleanJid = altJid;
+      } else {
+        throw firstErr;
+      }
+    }
+
     try {
       await this.sock.sendPresenceUpdate('paused', cleanJid);
       if (jid && jid !== cleanJid) {
         await this.sock.sendPresenceUpdate('paused', jid);
       }
     } catch (_) {}
-    console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Entregado exitosamente a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
+    console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Entregado exitosamente a WhatsApp (${cleanJid}). Msg ID: ${sent?.key?.id || 'OK'}`);
     return sent;
   }
 
@@ -1906,6 +1939,16 @@ export class WhatsAppManager {
   async getCleanOrderClientJid(order, userId = null) {
     const session = this.getActiveConnectedSession(userId);
     return session ? session.getCleanOrderClientJid(order) : null;
+  }
+
+  async resolvePhoneJid(jid, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
+    return session ? session.resolvePhoneJid(jid) : null;
+  }
+
+  async formatRecipientJid(target, userId = null) {
+    const session = this.getActiveConnectedSession(userId);
+    return session ? session.formatRecipientJid(target) : null;
   }
 }
 

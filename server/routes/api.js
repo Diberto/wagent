@@ -2204,60 +2204,121 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     res.json(updated);
   });
 
-  // Helper infalible para resolver el JID de WhatsApp del cliente
+  // Helper infalible para resolver el JID de WhatsApp del cliente y alternativas viables
   const resolveOrderTargetJid = async (order) => {
-    if (!order) return null;
-    const rawJid = String(order.jid || order.customerJid || '').trim();
+    if (!order) return { primaryJid: null, fallbackJids: [], lead: null };
 
-    // 1. JID estándar @s.whatsapp.net
-    if (rawJid.includes('@s.whatsapp.net')) {
-      const userPart = rawJid.split('@')[0];
-      const cleanDigits = userPart.replace(/\D/g, '');
-      if (cleanDigits.length >= 8) return `${cleanDigits}@s.whatsapp.net`;
+    // 1. Buscar en Lead de la BD por múltiples vías
+    let lead = null;
+    const searchKeys = [
+      order.jid,
+      order.customerJid,
+      order.phone,
+      order.customerPhone,
+      order.id
+    ].filter(Boolean);
+
+    for (const key of searchKeys) {
+      lead = db.getLead(key);
+      if (lead) break;
     }
 
-    // 2. Si es LID, resolver a teléfono
-    if (rawJid.includes('@lid') && typeof whatsappService.resolvePhoneJid === 'function') {
-      try {
-        const resolved = await whatsappService.resolvePhoneJid(rawJid);
-        if (resolved && resolved.includes('@s.whatsapp.net')) {
-          const digits = resolved.split('@')[0].replace(/\D/g, '');
-          if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
-        }
-      } catch (e) {}
-    }
+    const candidateList = [];
 
-    // 3. Buscar en leads
-    const lead = db.getLead(order.jid || order.customerJid || order.phone || order.customerPhone);
-    if (lead) {
-      if (lead.jid && lead.jid.includes('@s.whatsapp.net')) {
-        const digits = lead.jid.split('@')[0].replace(/\D/g, '');
-        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+    // 2. Extraer teléfono real (del pedido o del lead)
+    const rawPhones = [order.phone, order.customerPhone, lead?.phone].filter(Boolean);
+    for (const p of rawPhones) {
+      let digits = String(p).replace(/\D/g, '');
+      // Si son 10 dígitos (ej: 3516262475) y no arranca con 54, agregar 549
+      if (digits.length === 10 && !digits.startsWith('54')) {
+        digits = '549' + digits;
       }
-      if (Array.isArray(lead.altJids)) {
-        for (const alt of lead.altJids) {
-          if (alt && alt.includes('@s.whatsapp.net')) {
-            const digits = alt.split('@')[0].replace(/\D/g, '');
-            if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+      if (digits.length >= 8) {
+        if (digits.startsWith('549')) {
+          candidateList.push(`${digits}@s.whatsapp.net`);
+          candidateList.push(`54${digits.slice(3)}@s.whatsapp.net`); // alternativa sin 9
+        } else if (digits.startsWith('54')) {
+          candidateList.push(`${digits}@s.whatsapp.net`);
+          candidateList.push(`549${digits.slice(2)}@s.whatsapp.net`); // alternativa con 9
+        } else {
+          candidateList.push(`${digits}@s.whatsapp.net`);
+        }
+      }
+    }
+
+    // 3. JIDs explícitos (del pedido y del lead)
+    const rawJids = [order.jid, order.customerJid, lead?.jid, ...(Array.isArray(lead?.altJids) ? lead.altJids : [])].filter(Boolean);
+    for (const rj of rawJids) {
+      const cleanRj = String(rj).trim();
+      if (!cleanRj) continue;
+
+      // 3.1 Si es @lid
+      if (cleanRj.endsWith('@lid')) {
+        // Intentar resolver a teléfono si whatsappService lo soporta
+        if (typeof whatsappService?.resolvePhoneJid === 'function') {
+          try {
+            const resolved = await whatsappService.resolvePhoneJid(cleanRj);
+            if (resolved && resolved.includes('@s.whatsapp.net')) {
+              candidateList.push(resolved);
+            }
+          } catch (_) {}
+        }
+        // PRESERVAR @lid como candidato válido (Baileys envía punto a punto a @lid)
+        const lidDigits = cleanRj.split('@')[0].replace(/\D/g, '');
+        if (lidDigits.length >= 8) {
+          candidateList.push(`${lidDigits}@lid`);
+        }
+        continue;
+      }
+
+      // 3.2 Si es @s.whatsapp.net estándar (ignorar cadenas puramente de test/sintéticas)
+      if (cleanRj.includes('@s.whatsapp.net')) {
+        const userPart = cleanRj.split('@')[0];
+        // Si no es un ID sintético (test-direct-, lead-)
+        if (!userPart.startsWith('test-') && !userPart.startsWith('lead-')) {
+          const digits = userPart.replace(/\D/g, '');
+          if (digits.length >= 8) {
+            if (digits.startsWith('549')) {
+              candidateList.push(`${digits}@s.whatsapp.net`);
+              candidateList.push(`54${digits.slice(3)}@s.whatsapp.net`);
+            } else if (digits.startsWith('54')) {
+              candidateList.push(`${digits}@s.whatsapp.net`);
+              candidateList.push(`549${digits.slice(2)}@s.whatsapp.net`);
+            } else {
+              candidateList.push(`${digits}@s.whatsapp.net`);
+            }
           }
         }
       }
-      if (lead.phone) {
-        let digits = String(lead.phone).replace(/\D/g, '');
-        if (digits.length === 10 && !digits.startsWith('54')) digits = '549' + digits;
-        if (digits.length >= 8) return `${digits}@s.whatsapp.net`;
+    }
+
+    // Deduplicar candidatos manteniendo orden de preferencia
+    const uniqueCandidates = [...new Set(candidateList.filter(Boolean))];
+
+    // Formatear/verificar con whatsappService si está conectado
+    let primaryJid = null;
+    const verifiedFallback = [];
+
+    for (const cand of uniqueCandidates) {
+      let formatted = cand;
+      if (typeof whatsappService?.formatRecipientJid === 'function') {
+        try {
+          const f = await whatsappService.formatRecipientJid(cand);
+          if (f) formatted = f;
+        } catch (_) {}
+      }
+      if (!primaryJid) {
+        primaryJid = formatted;
+      } else if (!verifiedFallback.includes(formatted) && formatted !== primaryJid) {
+        verifiedFallback.push(formatted);
       }
     }
 
-    // 4. Fallback directo con dígitos numéricos del pedido
-    const rawPhone = order.phone || order.customerPhone || order.jid || '';
-    let digits = String(rawPhone).replace(/\D/g, '');
-    if (digits.length === 10 && !digits.startsWith('54')) digits = '549' + digits;
-    if (digits.length >= 8) {
-      return `${digits}@s.whatsapp.net`;
-    }
-
-    return null;
+    return {
+      primaryJid,
+      fallbackJids: verifiedFallback,
+      lead
+    };
   };
 
   router.patch('/orders/:id/status', async (req, res) => {
@@ -2278,14 +2339,16 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
     let notified = false;
     let notificationError = null;
+    let deliveredJid = null;
     let savedMsg = null;
 
     if (shouldNotify && status) {
       try {
-        const targetJid = await resolveOrderTargetJid(order);
-        let lead = db.getLead(order.jid || order.customerJid || order.phone || targetJid);
-        if (!lead && targetJid) {
-          lead = db.getLead(targetJid);
+        const resolution = await resolveOrderTargetJid(order);
+        const { primaryJid, fallbackJids = [], lead: resolvedLead } = resolution || {};
+        let lead = resolvedLead || db.getLead(order.jid || order.customerJid || order.phone || primaryJid);
+        if (!lead && primaryJid) {
+          lead = db.getLead(primaryJid);
         }
 
         const clientName = order.customerName || lead?.name || 'Cliente';
@@ -2325,33 +2388,51 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
           }
         }
 
-        // 1. Enviar por WhatsApp si el servicio está disponible y hay JID destinatario
-        if (targetJid && whatsappService) {
-          try {
-            if (typeof whatsappService.sendTextMessage === 'function') {
-              await whatsappService.sendTextMessage(targetJid, messageToSend);
-              notified = true;
-            } else if (typeof whatsappService.sendMessage === 'function') {
-              await whatsappService.sendMessage(targetJid, messageToSend);
-              notified = true;
+        // Lista de candidatos ordenada para entrega WhatsApp con reintentos automáticos
+        const candidateJids = [...new Set([primaryJid, ...fallbackJids].filter(Boolean))];
+        const sessionUserId = req.user?.id || req.body?.userId || null;
+
+        if (candidateJids.length > 0 && whatsappService) {
+          for (const targetJid of candidateJids) {
+            try {
+              console.log(`📤 [PATCH /orders/${order.id}/status] Intentando entrega a ${targetJid}...`);
+              if (typeof whatsappService.sendTextMessage === 'function') {
+                await whatsappService.sendTextMessage(targetJid, messageToSend, sessionUserId);
+                notified = true;
+                deliveredJid = targetJid;
+                notificationError = null;
+                console.log(`✅ [PATCH /orders/${order.id}/status] Notificación WhatsApp entregada con éxito a ${targetJid}`);
+                break;
+              } else if (typeof whatsappService.sendMessage === 'function') {
+                await whatsappService.sendMessage(targetJid, messageToSend, null, sessionUserId);
+                notified = true;
+                deliveredJid = targetJid;
+                notificationError = null;
+                console.log(`✅ [PATCH /orders/${order.id}/status] Notificación WhatsApp entregada con éxito a ${targetJid}`);
+                break;
+              }
+            } catch (sendErr) {
+              console.warn(`⚠️ [PATCH /orders/${order.id}/status] Error al despachar a ${targetJid}: ${sendErr.message}`);
+              notificationError = sendErr.message;
             }
-          } catch (sendErr) {
-            console.error('Error enviando WhatsApp mediante WhatsAppService:', sendErr.message);
-            notificationError = sendErr.message;
           }
         } else {
-          notificationError = !whatsappService ? 'WhatsApp no disponible' : 'No se encontró un número de teléfono o JID de WhatsApp válido';
+          notificationError = !whatsappService ? 'WhatsApp no disponible en servidor' : 'No se encontró un número de teléfono o JID de WhatsApp válido para este pedido';
         }
 
-        // 2. SIEMPRE registrar el mensaje en la base de datos para que quede reflejado en el chat del admin y cliente
-        const chatJid = lead?.jid || targetJid || order.jid;
+        // 2. Registrar el mensaje en la base de datos reflejando con fidelidad el estado de entrega
+        const chatJid = deliveredJid || lead?.jid || primaryJid || order.jid;
         if (chatJid && messageToSend) {
           savedMsg = db.saveMessage({
             chatId: chatJid,
             sender: 'agent',
             type: 'text',
             content: messageToSend,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            status: notified ? 'sent' : 'failed',
+            deliveryStatus: notified ? 'delivered' : 'failed',
+            deliveryError: notified ? null : notificationError,
+            recipientJid: deliveredJid || chatJid
           });
 
           if (lead) {
@@ -2363,7 +2444,9 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
           io.emit('chat:message', { 
             message: savedMsg, 
-            lead: lead || { id: chatJid, jid: chatJid, name: order.customerName, phone: order.phone } 
+            lead: lead || { id: chatJid, jid: chatJid, name: order.customerName, phone: order.phone },
+            deliveryFailed: !notified,
+            deliveryError: notificationError
           });
         }
       } catch (notifyErr) {
@@ -2376,11 +2459,19 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       'orders',
       'order_status_updated',
       `Pedido #${order.id} cambió a estado: "${targetStatus}" (Cliente: ${order.customerName || 'Cliente'})`,
-      { orderId: order.id, previousStatus: order.status, newStatus: targetStatus, notified, notificationError },
+      { orderId: order.id, previousStatus: order.status, newStatus: targetStatus, notified, notificationError, deliveredJid },
       { orderId: order.id, customer: order.customerName, phone: order.phone, channel: order.channel }
     );
 
-    res.json({ success: true, ...updated, order: updated, notified, notificationError, message: savedMsg });
+    res.json({ 
+      success: true, 
+      ...updated, 
+      order: updated, 
+      notified, 
+      notificationError, 
+      deliveredJid, 
+      message: savedMsg 
+    });
   });
 
   const handleOrderMercadoPago = async (req, res) => {

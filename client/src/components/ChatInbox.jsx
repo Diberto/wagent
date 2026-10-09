@@ -608,6 +608,15 @@ export default function ChatInbox({
       if (res.ok) {
         const updatedOrder = data.order || data;
         setLeadOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
+        if (data.notified) {
+          setOrderCartSuccess(`✅ Pedido #${order.id} actualizado a "${newStatus}" y notificado al cliente por WhatsApp.`);
+          setTimeout(() => setOrderCartSuccess(null), 4000);
+        } else if (data.notificationError) {
+          setOrderCartSuccess(`⚠️ Pedido #${order.id} actualizado a "${newStatus}". WhatsApp NO enviado: ${data.notificationError}`);
+          setTimeout(() => setOrderCartSuccess(null), 6000);
+        }
+      } else {
+        alert(data.error || 'Error actualizando estado del pedido');
       }
     } catch (err) {
       console.error('Error actualizando estado:', err);
