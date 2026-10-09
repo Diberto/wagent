@@ -22,6 +22,16 @@
       "env": {
         "AUTH_HEADER": ""
       }
+    },
+    "whatsapp-business-tools": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://mcp.facebook.com/whatsapp_business_tools"
+      ]
     }
   }
 }
