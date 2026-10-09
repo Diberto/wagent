@@ -258,7 +258,39 @@ export class SpeechService {
       }
     }
 
-    // 2. OpenAI TTS si está configurado y ElevenLabs no generó
+    // 2. Kokoro TTS (Open-source ultra-rápido autohosteado, compatible con API OpenAI TTS)
+    if (!mp3Generated && (provider === 'kokoro' || settings.ttsProvider === 'kokoro')) {
+      const kokoroUrl = settings.kokoroApiUrl || process.env.KOKORO_API_URL || 'http://localhost:8880/v1/audio/speech';
+      const kokoroVoice = voice || settings.kokoroVoice || 'ef_dora';
+      try {
+        const kokoroRes = await fetch(kokoroUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(settings.kokoroApiKey ? { 'Authorization': `Bearer ${settings.kokoroApiKey}` } : {})
+          },
+          body: JSON.stringify({
+            model: 'kokoro',
+            input: text,
+            voice: kokoroVoice,
+            response_format: 'mp3'
+          })
+        });
+
+        if (kokoroRes.ok) {
+          const arrayBuffer = await kokoroRes.arrayBuffer();
+          fs.writeFileSync(tempRawMp3, Buffer.from(arrayBuffer));
+          mp3Generated = true;
+          console.log(`🎙️ [Kokoro TTS] Audio sintetizado con éxito (${kokoroVoice})`);
+        } else {
+          console.warn(`⚠️ Kokoro TTS error (${kokoroRes.status}). Usando Edge Neural como respaldo...`);
+        }
+      } catch (kErr) {
+        console.warn(`⚠️ Kokoro TTS no disponible (${kErr.message}). Usando Edge Neural como respaldo...`);
+      }
+    }
+
+    // 3. OpenAI TTS si está configurado y los anteriores no generaron
     if (!mp3Generated && provider === 'openai' && settings.openaiApiKey) {
       try {
         const openai = new OpenAI({ apiKey: settings.openaiApiKey });
