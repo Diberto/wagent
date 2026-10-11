@@ -963,6 +963,24 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
+  router.post('/whatsapp/reconnect', async (req, res) => {
+    try {
+      const userId = req.body.userId || 'default';
+      const requestingUserId = req.body.requestingUserId || req.headers['x-user-id'];
+      const requestingUser = requestingUserId ? db.getUser(requestingUserId) : null;
+
+      const authCheck = validateQrAccess(userId, requestingUser);
+      if (!authCheck.allowed) {
+        return res.status(403).json({ error: authCheck.error });
+      }
+
+      const status = await whatsappService.reconnectSession(userId);
+      res.json({ success: true, message: `Reconectando sesión de WhatsApp para ${userId}...`, status });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   router.post('/whatsapp/reset', async (req, res) => {
     try {
       const userId = req.body.userId || 'default';

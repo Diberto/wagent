@@ -93,6 +93,33 @@ export default function AdminHubView({
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [copiedVerifyToken, setCopiedVerifyToken] = useState(false);
   const [showMetaToken, setShowMetaToken] = useState(false);
+
+  // WhatsApp Baileys Watchdog & Reconnect
+  const [isReconnectingWa, setIsReconnectingWa] = useState(false);
+  const [waReconnectMsg, setWaReconnectMsg] = useState(null);
+
+  const handleReconnectWa = async () => {
+    setIsReconnectingWa(true);
+    setWaReconnectMsg(null);
+    try {
+      const res = await fetch('/api/whatsapp/reconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'default' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWaReconnectMsg({ success: true, text: 'Reanudando conexión con credenciales guardadas...' });
+      } else {
+        setWaReconnectMsg({ success: false, text: data.error || 'No se pudo reconectar' });
+      }
+    } catch (err) {
+      setWaReconnectMsg({ success: false, text: 'Error de red' });
+    } finally {
+      setTimeout(() => setIsReconnectingWa(false), 2000);
+      setTimeout(() => setWaReconnectMsg(null), 6000);
+    }
+  };
   const [showMetaSecret, setShowMetaSecret] = useState(false);
 
   const handleTestMetaWhatsApp = async () => {
@@ -456,16 +483,23 @@ export default function AdminHubView({
                       {settings.whatsappProvider === 'meta_cloud' ? 'Oficial Cloud' : 'Sesión Web QR'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    {settings.whatsappProvider === 'meta_cloud'
-                      ? (settings.metaPhoneNumberId ? '🟢 API de Meta Cloud activa y configurada' : '🟡 Pendiente de configurar Phone Number ID de Meta')
-                      : (whatsappStatus === 'connected' ? '🟢 Sesión Baileys vinculada y escuchando mensajes' : '🔴 Desconectado - Requiere vinculación QR')
-                    }
+                  <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
+                    <span>
+                      {settings.whatsappProvider === 'meta_cloud'
+                        ? (settings.metaPhoneNumberId ? '🟢 API de Meta Cloud activa y configurada' : '🟡 Pendiente de configurar Phone Number ID de Meta')
+                        : (whatsappStatus === 'connected' ? '🟢 Sesión Baileys vinculada y escuchando mensajes' : '🔴 Desconectado - Requiere vinculación')
+                      }
+                    </span>
+                    {settings.whatsappProvider !== 'meta_cloud' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-medium inline-flex items-center gap-1">
+                        <ShieldCheck size={11} /> Watchdog 24/7 Anti-Desconexión
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-auto">
+              <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
                 {settings.whatsappProvider === 'meta_cloud' ? (
                   <button
                     onClick={() => setActiveSection('metaWhatsapp')}
@@ -476,6 +510,17 @@ export default function AdminHubView({
                   </button>
                 ) : (
                   <>
+                    {whatsappStatus !== 'connected' && (
+                      <button
+                        onClick={handleReconnectWa}
+                        disabled={isReconnectingWa}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition flex items-center gap-1.5 shadow-md shadow-emerald-950/20"
+                        title="Reanudar sesión guardada sin escanear código QR"
+                      >
+                        {isReconnectingWa ? <RefreshCw size={13} className="animate-spin" /> : <Zap size={13} className="fill-current" />}
+                        <span>Reconectar</span>
+                      </button>
+                    )}
                     <button
                       onClick={onOpenQR}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#202c33] hover:bg-[#2a3942] text-white border border-slate-700 transition"
@@ -494,6 +539,17 @@ export default function AdminHubView({
                 )}
               </div>
             </div>
+
+            {waReconnectMsg && (
+              <div className={`p-2.5 rounded-xl text-xs border flex items-center gap-2 ${
+                waReconnectMsg.success
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}>
+                {waReconnectMsg.success ? <CheckCircle2 size={14} className="text-emerald-400 shrink-0" /> : <AlertCircle size={14} className="text-rose-400 shrink-0" />}
+                <span>{waReconnectMsg.text}</span>
+              </div>
+            )}
 
             {/* Autopilot Mode Toggle */}
             <div className="p-4 rounded-2xl bg-[#111b21] border border-[#202c33] flex items-center justify-between">

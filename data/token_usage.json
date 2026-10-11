@@ -1,15 +1,15 @@
 {
-  "totalTokens": 8461,
-  "totalPromptTokens": 699,
-  "totalCompletionTokens": 7762,
-  "totalRequests": 50,
+  "totalTokens": 8586,
+  "totalPromptTokens": 711,
+  "totalCompletionTokens": 7875,
+  "totalRequests": 51,
   "byProvider": {
     "gemini": {
       "name": "gemini",
-      "totalTokens": 8461,
-      "promptTokens": 699,
-      "completionTokens": 7762,
-      "requests": 50,
+      "totalTokens": 8586,
+      "promptTokens": 711,
+      "completionTokens": 7875,
+      "requests": 51,
       "totalLatencyMs": 0,
       "avgLatencyMs": 0
     }
@@ -18,15 +18,26 @@
     "gemini-1.5-flash": {
       "name": "gemini-1.5-flash",
       "provider": "gemini",
-      "totalTokens": 8461,
-      "promptTokens": 699,
-      "completionTokens": 7762,
-      "requests": 50,
+      "totalTokens": 8586,
+      "promptTokens": 711,
+      "completionTokens": 7875,
+      "requests": 51,
       "totalLatencyMs": 0,
       "avgLatencyMs": 0
     }
   },
   "recentLogs": [
+    {
+      "id": "tok_1791558441706_4ali",
+      "timestamp": "2026-10-09T15:07:21.706Z",
+      "provider": "gemini",
+      "model": "gemini-1.5-flash",
+      "promptTokens": 12,
+      "completionTokens": 113,
+      "totalTokens": 125,
+      "latencyMs": 0,
+      "caller": "whatsapp"
+    },
     {
       "id": "tok_1791479078488_pi6p",
       "timestamp": "2026-10-08T17:04:38.488Z",

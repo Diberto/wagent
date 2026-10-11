@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw, LogOut, X, Users, UserCheck, ShieldAlert, Sparkles } from 'lucide-react';
+import { QrCode, Smartphone, CheckCircle2, AlertCircle, RefreshCw, LogOut, X, Users, UserCheck, ShieldAlert, Sparkles, ShieldCheck, Zap, Radio } from 'lucide-react';
 
 const ALLOWED_QR_ROLES = ['admin', 'gerencia', 'encargado', 'cajero'];
 
@@ -32,6 +32,7 @@ export default function QRModal({
     user: user || null
   });
   const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 
   // Fetch status of the selected operator session
@@ -149,6 +150,35 @@ export default function QRModal({
       setErrorMessage('Error de red al conectar WhatsApp');
     } finally {
       setIsLoadingSession(false);
+    }
+  };
+
+  const handleReconnectSelected = async () => {
+    setIsReconnecting(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch('/api/whatsapp/reconnect', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || 'default'
+        },
+        body: JSON.stringify({ 
+          userId: selectedUserId
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMessage(data.error || 'No se pudo reconectar la sesión guardada');
+      } else if (data.status) {
+        setActiveSessionStatus(data.status);
+      }
+      fetchAllSessions();
+    } catch (err) {
+      console.error('Error reconectando WhatsApp:', err);
+      setErrorMessage('Error de red al reconectar sesión guardada');
+    } finally {
+      setIsReconnecting(false);
     }
   };
 
@@ -406,12 +436,24 @@ export default function QRModal({
                   </p>
 
                   {currentUserInfo && (
-                    <div className="w-full bg-[#182229] border border-slate-700/60 rounded-2xl p-3 mb-4 text-left max-w-sm">
+                    <div className="w-full bg-[#182229] border border-slate-700/60 rounded-2xl p-3 mb-3 text-left max-w-sm">
                       <div className="text-[11px] text-slate-400 mb-0.5">Número y Cuenta Vinculada:</div>
                       <div className="text-xs font-bold text-emerald-400">{currentUserInfo.name || currentUserInfo.id?.split(':')[0] || 'WhatsApp Business'}</div>
                       <div className="text-[11px] text-slate-300 font-mono">+{currentUserInfo.id?.split('@')[0]?.split(':')[0]}</div>
                     </div>
                   )}
+
+                  {/* 24/7 Watchdog Keepalive Indicator */}
+                  <div className="w-full max-w-sm mb-4 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2 text-emerald-300 font-semibold">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                      </span>
+                      <span>Watchdog 24/7 Activo</span>
+                    </div>
+                    <span className="text-slate-400 text-[10px]">Ping cada 45s • Auto-Sanación</span>
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <button
@@ -500,21 +542,52 @@ export default function QRModal({
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center py-4 text-center">
+                <div className="flex flex-col items-center py-4 text-center max-w-sm">
                   <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
                     <AlertCircle size={28} />
                   </div>
-                  <h3 className="text-base font-bold text-white mb-1">Línea no conectada</h3>
-                  <p className="text-xs text-slate-400 max-w-xs mb-4">
-                    Genera un código QR para vincular el número de WhatsApp de este operario al CRM.
+                  <h3 className="text-base font-bold text-white mb-1">Línea Desconectada</h3>
+                  <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                    {activeSessionStatus?.hasSavedAuth 
+                      ? 'Existen credenciales guardadas para esta línea. Puedes reanudar la sesión directamente o generar un nuevo código QR.'
+                      : 'Genera un código QR para vincular el número de WhatsApp de este operario al CRM.'}
                   </p>
-                  <button
-                    onClick={() => handleResetSelected()}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 transition active:scale-95"
-                  >
-                    <RefreshCw size={15} />
-                    Generar Código QR para {selectedUserId === 'default' ? 'Línea Central' : (selectedUserObj?.name || 'Operario')}
-                  </button>
+
+                  <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full justify-center">
+                    {activeSessionStatus?.hasSavedAuth && (
+                      <button
+                        onClick={handleReconnectSelected}
+                        disabled={isReconnecting}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition active:scale-95"
+                      >
+                        {isReconnecting ? <RefreshCw size={14} className="animate-spin" /> : <Zap size={14} className="fill-current" />}
+                        <span>Reconectar Sesión (Sin QR)</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleResetSelected()}
+                      className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition active:scale-95 ${
+                        activeSessionStatus?.hasSavedAuth
+                          ? 'bg-[#182229] hover:bg-slate-800 text-slate-200 border border-slate-700'
+                          : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/25'
+                      }`}
+                    >
+                      <RefreshCw size={14} />
+                      <span>{activeSessionStatus?.hasSavedAuth ? 'Vincular Otro Celular (Nuevo QR)' : `Generar QR para ${selectedUserId === 'default' ? 'Línea Central' : (selectedUserObj?.name || 'Operario')}`}</span>
+                    </button>
+                  </div>
+
+                  {/* Anti-disconnect info banner */}
+                  <div className="mt-4 p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-left w-full">
+                    <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px] mb-0.5">
+                      <ShieldCheck size={14} />
+                      <span>Sistema Anti-Desconexión 24/7</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                      El servidor monitorea el socket cada 20s y envía paquetes de presencia cada 45s. Si hay microcortes de red, el sistema se auto-repara sin borrar tus credenciales.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
