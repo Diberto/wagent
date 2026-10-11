@@ -57,19 +57,21 @@ export function isCredsValid(credsPath) {
   try {
     if (!fs.existsSync(credsPath)) return false;
     const stat = fs.statSync(credsPath);
-    if (stat.size <= 50) return false;
+    if (stat.size <= 40) return false;
     const raw = fs.readFileSync(credsPath, 'utf8');
     const content = JSON.parse(raw);
     if (!content) return false;
-    // Si el archivo fue escrito en los últimos 2 minutos, puede estar en proceso activo de vinculación
-    const isFresh = (Date.now() - stat.mtimeMs) < 120000;
-    if (isFresh) {
-      return true;
-    }
-    // Para credenciales guardadas en disco que no son frescas, debe estar completada la registración
-    if (content.registered === false || !content.me || !content.me.id) {
+
+    // Una sesión SOLO es válida si el usuario ya vinculó el teléfono exitosamente:
+    // 1. Debe estar explícitamente registrada (registered: true)
+    // 2. Debe poseer identidad asignada 'me' con JID telefónico real de WhatsApp
+    if (content.registered !== true) {
       return false;
     }
+    if (!content.me || !content.me.id) {
+      return false;
+    }
+
     return true;
   } catch (e) {
     return false;
@@ -99,7 +101,27 @@ export class WhatsAppService {
     this.lastPingAt = 0;
     this.explicitlyDisconnected = false;
     this.watchdogTimer = null;
+    this.reconnectTimer = null;
     this.startWatchdog();
+  }
+
+  /**
+   * Planifica un único reintento de conexión cancelando timers previos duplicados
+   */
+  scheduleReconnect(delayMs = 3000, { resetAuth = false } = {}) {
+    this.cancelScheduledReconnect();
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.isInitializing = false;
+      this.initialize({ resetAuth });
+    }, delayMs);
+  }
+
+  cancelScheduledReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   }
 
   /**
@@ -133,15 +155,20 @@ export class WhatsAppService {
    * Chequea la salud del socket, previene estados zombies y autoreconecta si hay credenciales válidas
    */
   async runWatchdogCheck() {
-    // Si el usuario desconectó explícitamente desde el panel o está escaneando QR activo, no forzar
+    // Si el usuario desconectó explícitamente desde el panel o está en modo QR activo, NUNCA interferir
     if (this.explicitlyDisconnected || this.status === 'qr_ready') {
       return;
     }
 
-    // Si está inicializando, verificar que no haya quedado estancado (timeout de 75s)
+    // Si ya existe un temporizador de reconexión programado, dejarlo actuar ordenadamente
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    // Si está inicializando, verificar que no haya quedado estancado (timeout de 90s)
     if (this.isInitializing) {
       const initDuration = Date.now() - (this.connectingStartedAt || Date.now());
-      if (initDuration > 75000) {
+      if (initDuration > 90000) {
         console.warn(`⏱️ [Watchdog ${this.sessionId}] Conexión estancada durante ${Math.round(initDuration / 1000)}s. Reseteando socket para reintentar...`);
         this.isInitializing = false;
         this.status = 'disconnected';
@@ -171,9 +198,10 @@ export class WhatsAppService {
         return;
       }
 
-      // Enviar presencia activa cada 45s para mantener abierta la tabla de NAT del router / ISP
+      // Enviar presencia activa cada 45s para mantener abierta la tabla de NAT del router / ISP (solo si lleva >30s conectado estable)
       const now = Date.now();
-      if (!this.lastPingAt || (now - this.lastPingAt) >= 45000) {
+      const connectedDuration = this.lastConnectedAt ? (now - this.lastConnectedAt) : 0;
+      if (connectedDuration > 30000 && (!this.lastPingAt || (now - this.lastPingAt) >= 45000)) {
         this.lastPingAt = now;
         try {
           if (this.sock && typeof this.sock.sendPresenceUpdate === 'function') {
@@ -186,19 +214,19 @@ export class WhatsAppService {
       return;
     }
 
-    // 2. Estado 'connecting' estancado por más de 60s
+    // 2. Estado 'connecting' estancado por más de 90s
     if (this.status === 'connecting') {
       const connectingDuration = Date.now() - (this.connectingStartedAt || Date.now());
-      if (connectingDuration > 60000) {
-        console.warn(`⏱️ [Watchdog ${this.sessionId}] Socket en 'connecting' durante >60s sin resolver. Reintentando...`);
+      if (connectingDuration > 90000) {
+        console.warn(`⏱️ [Watchdog ${this.sessionId}] Socket en 'connecting' durante >90s sin resolver. Reintentando...`);
         this.isInitializing = false;
         this.initialize();
       }
       return;
     }
 
-    // 3. Estado 'disconnected' pero con credenciales válidas guardadas: Autoreconectar sin esperar al usuario
-    if (this.status === 'disconnected' && hasValidCreds) {
+    // 3. Estado 'disconnected' pero con credenciales válidas guardadas Y sin timer activo: Autoreconectar
+    if (this.status === 'disconnected' && hasValidCreds && !this.reconnectTimer) {
       console.log(`🛡️ [Watchdog ${this.sessionId}] WhatsApp se encuentra desconectado pero posee sesión guardada válida. Autoreconectando automáticamente...`);
       this.isInitializing = false;
       this.initialize();
@@ -312,6 +340,7 @@ export class WhatsAppService {
 
   async initialize({ resetAuth = false } = {}) {
     if (this.isInitializing) return;
+    this.cancelScheduledReconnect();
     this.isInitializing = true;
     this.connectingStartedAt = Date.now();
 
@@ -383,14 +412,14 @@ export class WhatsAppService {
         logger,
         printQRInTerminal: false,
         auth: state,
-        browser: Browsers.windows('Desktop'),
+        browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: true,
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
-        keepAliveIntervalMs: 25000,
-        retryRequestDelayMs: 2000,
-        markOnlineOnConnect: true,
+        keepAliveIntervalMs: 30000,
+        retryRequestDelayMs: 2500,
+        markOnlineOnConnect: false,
         getMessage: async () => undefined
       });
 
@@ -412,6 +441,7 @@ export class WhatsAppService {
           this.reconnectAttempts = 0;
           this.rapidDisconnectCount = 0;
           this.connectingStartedAt = 0;
+          this.cancelScheduledReconnect();
           try {
             this.qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 10 });
             this.emitQR();
@@ -450,10 +480,7 @@ export class WhatsAppService {
             console.log(`🔄 [${this.sessionId}] Reinicio requerido por WhatsApp (515) para completar vinculación de sesión. Reconectando de inmediato...`);
             this.status = 'connecting';
             this.emitStatus();
-            setTimeout(() => {
-              this.isInitializing = false;
-              this.initialize();
-            }, 300);
+            this.scheduleReconnect(300);
             return;
           }
 
@@ -468,6 +495,18 @@ export class WhatsAppService {
 
           console.log(`Conexión de WhatsApp cerrada [${this.sessionId}]. Motivo: ${statusCode} (${errorMsg}). LoggedOut: ${isLoggedOut}, Replaced: ${isReplaced}`);
 
+          const credsActive = path.join(this.authDir, 'creds.json');
+          const hasSavedSession = isCredsValid(credsActive);
+
+          // Si el socket se cerró durante la espera o rotación del QR y aún NO hay sesión registrada por el teléfono:
+          // WhatsApp refresca el token de vinculación cada 30-40 segundos.
+          // Mantener el QR en pantalla y solicitar el refresco de socket sin provocar parpadeo en la UI.
+          if (!hasSavedSession && (this.status === 'qr_ready' || this.status === 'connecting' || !this.user)) {
+            console.log(`🔄 [${this.sessionId}] Ciclo de rotación o refresco de QR (${statusCode}). Manteniendo QR visible y renovando socket...`);
+            this.scheduleReconnect(1000);
+            return;
+          }
+
           this.status = 'disconnected';
           this.qrCode = null;
           this.qrDataUrl = null;
@@ -480,10 +519,7 @@ export class WhatsAppService {
             console.warn(`⚠️ [${this.sessionId}] Sesión reemplazada (440): Se detectó otra conexión activa con esta misma cuenta de WhatsApp. Reintentando reconexión en 45 segundos...`);
             this.reconnectAttempts = 0;
             this.rapidDisconnectCount = 0;
-            setTimeout(() => {
-              this.isInitializing = false;
-              this.initialize();
-            }, 45000);
+            this.scheduleReconnect(45000);
             return;
           }
 
@@ -500,10 +536,7 @@ export class WhatsAppService {
             console.warn(`⚠️ [${this.sessionId}] Detectado flapping intermitente. Restaurando desde backup de autenticación seguro y esperando 15s...`);
             this.rapidDisconnectCount = 0;
             this.restoreAuthFromBackup();
-            setTimeout(() => {
-              this.isInitializing = false;
-              this.initialize();
-            }, 15000);
+            this.scheduleReconnect(15000);
             return;
           }
 
@@ -513,10 +546,7 @@ export class WhatsAppService {
             await this.clearAuthFiles({ clearBackup: true });
             this.reconnectAttempts = 0;
             this.rapidDisconnectCount = 0;
-            setTimeout(() => {
-              this.isInitializing = false;
-              this.initialize({ resetAuth: true });
-            }, 2500);
+            this.scheduleReconnect(2500, { resetAuth: true });
             return;
           }
 
@@ -524,12 +554,10 @@ export class WhatsAppService {
           this.reconnectAttempts++;
           const delayMs = Math.min(30000, Math.round(3000 * Math.pow(1.2, Math.min(this.reconnectAttempts, 8))));
           console.log(`🔄 [${this.sessionId}] Reintentando conexión automática 24/7 (intento #${this.reconnectAttempts}) en ${Math.round(delayMs / 1000)}s...`);
-          setTimeout(() => {
-            this.isInitializing = false;
-            this.initialize();
-          }, delayMs);
+          this.scheduleReconnect(delayMs);
         } else if (connection === 'open') {
           console.log(`✅ ¡Conexión de WhatsApp establecida exitosamente [${this.sessionId}]!`);
+          this.cancelScheduledReconnect();
           this.status = 'connected';
           this.qrCode = null;
           this.qrDataUrl = null;
@@ -1748,6 +1776,7 @@ export class WhatsAppService {
 
   async disconnect({ clearAuth = true } = {}) {
     try {
+      this.cancelScheduledReconnect();
       this.status = 'disconnected';
       this.qrCode = null;
       this.qrDataUrl = null;

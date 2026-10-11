@@ -89,7 +89,13 @@ export default function QRModal({
       const targetSession = data.sessionId || data.userId || 'default';
       setOperatorSessions(prev => ({ ...prev, [targetSession]: data }));
       if (matchesSelected(targetSession)) {
-        setActiveSessionStatus(data);
+        setActiveSessionStatus(prev => ({
+          ...prev,
+          ...data,
+          // Preservar QR si la transición es a 'connecting' para evitar parpadeos visuales en el modal
+          qrDataUrl: data.qrDataUrl !== undefined ? data.qrDataUrl : (data.status === 'connecting' ? prev.qrDataUrl : null),
+          qrCode: data.qrCode !== undefined ? data.qrCode : (data.status === 'connecting' ? prev.qrCode : null)
+        }));
         setIsLoadingSession(false);
       }
     };
