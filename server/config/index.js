@@ -59,7 +59,7 @@ export const CONFIG = {
     region: 'Córdoba Capital y Alrededores',
     currency: 'ARS ($)',
     slang: 'Cordobés / Argentino amigable y experto (¡De diez!, ¡De una!, asado, achuras, cortes del día)',
-    businessRules: 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, pagos en efectivo, transferencia (Alias: republica.carne.mp) o Mercado Pago.',
+    businessRules: 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, compra mínima para envíos a domicilio de $30.000 ARS (sin mínimo para retiro en sucursal), pagos en efectivo, transferencia (Alias: republica.carne.mp) o Mercado Pago.',
     autoReplyEnabled: true,
     voiceRepliesEnabled: true, // Si el usuario manda audio, responder con audio
     autoCallFollowUp: true,    // Enviar nota de voz automática cuando entra una llamada
@@ -111,7 +111,10 @@ export const CONFIG = {
       whatsappDirectNumber: '+5493516262475',
       showStockBadges: true,
       requireFiscalData: false,
-      allowBackorders: true
+      allowBackorders: true,
+      minimumPurchase: 30000, // Compra mínima para envíos a domicilio ($30.000 ARS como en Pedix)
+      stockDisplayConditionValue: 7, // Alerta de stock crítico (muestra "¡Últimas X unidades!" si stock <= 7)
+      enableOrdersOnClosed: true // Permitir recepción de pedidos fuera de horario para preparación a primera hora
     },
 
     // Modos de Inteligencia y Personalidad del Agente

@@ -1613,6 +1613,9 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         deliveryFreeEnabled: settings.deliveryFreeEnabled !== false,
         deliveryExpressEnabled: settings.deliveryExpressEnabled !== false,
         deliveryCoverageRadiusKm: Number(settings.deliveryCoverageRadiusKm) ?? 15,
+        minimumPurchase: Number(settings.storeConfig?.minimumPurchase ?? CONFIG.DEFAULT_SETTINGS.storeConfig?.minimumPurchase ?? 30000),
+        stockDisplayConditionValue: Number(settings.storeConfig?.stockDisplayConditionValue ?? 7),
+        enableOrdersOnClosed: settings.storeConfig?.enableOrdersOnClosed !== false,
         storeConfig: {
           ...(CONFIG.DEFAULT_SETTINGS.storeConfig || {}),
           ...(settings.storeConfig || {})
@@ -1637,7 +1640,11 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
           barcode: p.barcode,
           name: p.name,
           category: p.category || 'Parrilla',
+          groupName: p.groupName || null,
           price: Number(p.price) || 0,
+          priceDiscount: p.priceDiscount ? Number(p.priceDiscount) : null,
+          discountPercent: p.discountPercent || 0,
+          presentations: p.presentations || [],
           unit: p.unit || 'kg',
           description: p.description || '',
           imageUrl: p.imageUrl || '',
@@ -1715,6 +1722,16 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       // 1. Calcular subtotal de ítems
       const subtotalCalc = allItems.reduce((acc, it) => acc + (Number(it.subtotal) || (Number(it.price || 0) * Number(it.quantity || it.amount || 1))), 0);
       const subtotal = Math.max(1, Math.round(subtotalCalc));
+
+      // 1.5 Validar compra mínima para envíos a domicilio ($30.000 como en Pedix)
+      const settings = db.getSettings() || {};
+      const minPurchase = Number(settings.storeConfig?.minimumPurchase ?? CONFIG.DEFAULT_SETTINGS.storeConfig?.minimumPurchase ?? 30000);
+      if (deliveryType === 'delivery' && subtotal < minPurchase) {
+        return res.status(400).json({
+          success: false,
+          error: `La compra mínima para envíos a domicilio es de $${minPurchase.toLocaleString('es-AR')}. Tu pedido actual suma $${subtotal.toLocaleString('es-AR')}. ¡Sumá algún corte adicional, embutidos o carbón para completar tu pedido!`
+        });
+      }
 
       // 2. Calcular logística de franja y costo de envío
       const deliveryCalc = db.calculateDeliverySlotAndCost({

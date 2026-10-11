@@ -321,16 +321,27 @@ export default function StorefrontView({ onBackToAdmin = null, currentUser = nul
     };
   }, []);
 
-  // Agregar al Carrito (soporta kilos o unidades)
-  const handleAddToCart = (product, mode = 'kg', amount = 1) => {
+  // Agregar al Carrito (soporta kilos, unidades o presentaciones fijas como en Pedix)
+  const handleAddToCart = (product, mode = 'kg', amount = 1, presentation = null) => {
     const isUnit = mode === 'units';
     const unitsPerKg = product.unitsPerKg || getUnitsPerKg(product.name);
-    const unitPrice = Number(product.price) || 0;
+    
+    // Si tiene descuento y no tiene presentación, usar precio con descuento
+    const effectiveBasePrice = (product.priceDiscount && Number(product.priceDiscount) > 0 && Number(product.priceDiscount) < Number(product.price))
+      ? Number(product.priceDiscount)
+      : Number(product.price || 0);
 
-    const calculatedKg = isUnit ? (amount / unitsPerKg) : amount;
-    const subtotal = Math.round(unitPrice * calculatedKg);
+    const unitPrice = presentation ? Number(presentation.price) : effectiveBasePrice;
+    const calculatedKg = presentation ? 1 : (isUnit ? (amount / unitsPerKg) : amount);
+    const subtotal = Math.round(unitPrice * (presentation ? amount : calculatedKg));
 
-    const cartItemId = `${product.id || product.name}_${isUnit ? 'unit' : 'kg'}`;
+    const cartItemId = presentation
+      ? `${product.id || product.name}_pres_${presentation.id || presentation.name}`
+      : `${product.id || product.name}_${isUnit ? 'unit' : 'kg'}`;
+
+    const displayName = presentation
+      ? `${product.name} (${presentation.name})`
+      : product.name;
 
     setCart(prev => {
       const existing = prev.find(item => item.cartItemId === cartItemId);
@@ -338,12 +349,12 @@ export default function StorefrontView({ onBackToAdmin = null, currentUser = nul
         return prev.map(item => {
           if (item.cartItemId === cartItemId) {
             const newAmount = item.amount + amount;
-            const newKg = isUnit ? (newAmount / unitsPerKg) : newAmount;
-            const newSubtotal = Math.round(unitPrice * newKg);
+            const newKg = presentation ? 1 : (isUnit ? (newAmount / unitsPerKg) : newAmount);
+            const newSubtotal = Math.round(unitPrice * (presentation ? newAmount : newKg));
             return {
               ...item,
               amount: newAmount,
-              quantity: isUnit ? newKg : newAmount,
+              quantity: presentation ? newAmount : (isUnit ? newKg : newAmount),
               unitCount: isUnit ? newAmount : 0,
               subtotal: newSubtotal
             };
@@ -355,14 +366,18 @@ export default function StorefrontView({ onBackToAdmin = null, currentUser = nul
       return [...prev, {
         cartItemId,
         id: product.id,
-        name: product.name,
+        name: displayName,
+        rawName: product.name,
+        presentationName: presentation?.name || null,
         category: product.category,
         price: unitPrice,
-        unit: product.unit || 'kg',
-        isUnitMode: isUnit,
+        originalPrice: product.price ? Number(product.price) : null,
+        hasDiscount: Boolean(product.priceDiscount && !presentation),
+        unit: presentation ? (presentation.name || 'unid') : (product.unit || 'kg'),
+        isUnitMode: Boolean(presentation || isUnit),
         unitCount: isUnit ? amount : 0,
         amount,
-        quantity: calculatedKg,
+        quantity: presentation ? amount : calculatedKg,
         subtotal,
         imageUrl: product.imageUrl || product.image || null
       }];
@@ -661,9 +676,17 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
 
 
       const targetWhatsApp = (storeConfig.whatsappDirectNumber || '5493516262475').replace(/\D/g, '');
-      const waUrl = `https://wa.me/${targetWhatsApp}?text=${encodeURIComponent(whatsappText)}`;
+      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
+      let waUrl = `https://wa.me/${targetWhatsApp}?text=${encodeURIComponent(whatsappText)}`;
+      if (isAndroid) {
+        waUrl = `whatsapp://send?phone=${targetWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
+      } else if (!isMobile) {
+        waUrl = `https://web.whatsapp.com/send?phone=${targetWhatsApp}&text=${encodeURIComponent(whatsappText)}`;
+      }
       
-      // Abrir WhatsApp
+      // Abrir WhatsApp con deep-link inteligente
       window.open(waUrl, '_blank');
 
       // Si hay link de Mercado Pago, ofrecer abrirlo
@@ -1684,16 +1707,50 @@ ${orderNotes.trim() ? `\n📝 *Aclaraciones:* ${orderNotes.trim()}\n` : '\n'}
                       <span><strong>Aviso de balanza:</strong> Los precios de los cortes son por kilo. El valor final se confirmará al pesaje exacto al preparar el pedido.</span>
                     </div>
 
+                    {/* Alerta de Compra Mínima (como en Pedix La República: $30.000 para envíos) */}
+                    {(() => {
+                      const minimumPurchase = Number(storeConfig.minimumPurchase || 30000);
+                      const isDelivery = deliveryType === 'delivery';
+                      const isBelowMin = isDelivery && finalCartTotal < minimumPurchase;
+                      const missing = Math.max(0, minimumPurchase - finalCartTotal);
+
+                      if (isBelowMin) {
+                        return (
+                          <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold space-y-1 animate-in fade-in">
+                            <div className="flex items-center gap-1.5 text-rose-200 font-black">
+                              <span>⚠️</span>
+                              <span>Compra mínima para envíos: ${minimumPurchase.toLocaleString('es-AR')}</span>
+                            </div>
+                            <p className="text-[11px] text-rose-300/90 font-medium">
+                              Te faltan <b>${missing.toLocaleString('es-AR')}</b> para habilitar el envío a domicilio. Podés sumar más cortes o elegir <i>Retiro en Sucursal</i> (sin mínimo).
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     <button
                       onClick={handleCheckout}
-                      disabled={isSubmittingOrder}
+                      disabled={isSubmittingOrder || (deliveryType === 'delivery' && finalCartTotal < Number(storeConfig.minimumPurchase || 30000))}
                       className="w-full py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 shadow-2xl active:scale-98 transition-all disabled:opacity-50 text-slate-950"
                       style={{
-                        background: `linear-gradient(135deg, ${storeConfig.primaryColor || '#10b981'}, ${storeConfig.accentColor || '#38bdf8'})`
+                        background: (deliveryType === 'delivery' && finalCartTotal < Number(storeConfig.minimumPurchase || 30000))
+                          ? 'rgba(255, 255, 255, 0.1)'
+                          : `linear-gradient(135deg, ${storeConfig.primaryColor || '#10b981'}, ${storeConfig.accentColor || '#38bdf8'})`,
+                        color: (deliveryType === 'delivery' && finalCartTotal < Number(storeConfig.minimumPurchase || 30000))
+                          ? '#94a3b8'
+                          : '#020617'
                       }}
                     >
                       <MessageCircle className="w-5 h-5 fill-current" />
-                      <span>{isSubmittingOrder ? 'Generando Pedido...' : 'Confirmar Pedido'}</span>
+                      <span>
+                        {isSubmittingOrder 
+                          ? 'Generando Pedido...' 
+                          : (deliveryType === 'delivery' && finalCartTotal < Number(storeConfig.minimumPurchase || 30000))
+                          ? `Sumá $${Math.max(0, Number(storeConfig.minimumPurchase || 30000) - finalCartTotal).toLocaleString('es-AR')} más para Enviar`
+                          : 'Confirmar Pedido'}
+                      </span>
                     </button>
                   </div>
 
@@ -1754,6 +1811,18 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
   const isFractionable = isProductFractionable(product.name, product.category);
   const unitsPerKg = product.unitsPerKg || getUnitsPerKg(product.name);
 
+  // Presentaciones dinámicas (como en Pedix)
+  const presentations = Array.isArray(product.presentations) ? product.presentations : (product.presentations?.items || []);
+  const [selectedPresentation, setSelectedPresentation] = useState(presentations.length > 0 ? presentations[0] : null);
+
+  // Precios y Descuentos
+  const regularPrice = Number(product.price) || 0;
+  const hasDiscount = Boolean(product.priceDiscount && Number(product.priceDiscount) > 0 && Number(product.priceDiscount) < regularPrice);
+  const effectiveBasePrice = hasDiscount ? Number(product.priceDiscount) : regularPrice;
+  const discountPercent = hasDiscount 
+    ? (product.discountPercent || Math.round(((regularPrice - effectiveBasePrice) / regularPrice) * 100))
+    : 0;
+
   // Modo: 'kg' (peso) o 'units' (piezas)
   const [mode, setMode] = useState(isKgProduct ? (isFractionable ? 'units' : 'kg') : 'units');
   const [amount, setAmount] = useState(() => {
@@ -1761,13 +1830,13 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
     return isFractionable ? 4 : 1;
   });
 
-  const unitPrice = Number(product.price) || 0;
+  const unitPrice = selectedPresentation ? Number(selectedPresentation.price) : effectiveBasePrice;
   const isUnit = mode === 'units';
-  const calculatedKg = isKgProduct ? (isUnit ? (amount / unitsPerKg) : amount) : amount;
-  const calculatedSubtotal = Math.round(unitPrice * calculatedKg);
+  const calculatedKg = selectedPresentation ? 1 : (isKgProduct ? (isUnit ? (amount / unitsPerKg) : amount) : amount);
+  const calculatedSubtotal = Math.round(unitPrice * (selectedPresentation ? amount : calculatedKg));
 
   const handleIncrement = () => {
-    if (!isKgProduct) {
+    if (selectedPresentation || !isKgProduct) {
       setAmount(prev => prev + 1);
     } else if (isUnit) {
       setAmount(prev => prev + (isFractionable ? 2 : 1));
@@ -1777,7 +1846,7 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
   };
 
   const handleDecrement = () => {
-    if (!isKgProduct) {
+    if (selectedPresentation || !isKgProduct) {
       setAmount(prev => Math.max(1, prev - 1));
     } else if (isUnit) {
       setAmount(prev => Math.max(isFractionable ? 2 : 1, prev - (isFractionable ? 2 : 1)));
@@ -1785,6 +1854,8 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
       setAmount(prev => Math.max(0.5, +(prev - 0.5).toFixed(1)));
     }
   };
+
+  const stockQty = Number(product.stockQuantity ?? product.stock ?? 100);
 
   return (
     <div className="bg-white/[0.03] hover:bg-white/[0.07] border border-white/10 hover:border-white/25 rounded-3xl overflow-hidden flex flex-col justify-between transition-all duration-300 group shadow-xl hover:shadow-2xl hover:-translate-y-1 backdrop-blur-xl">
@@ -1802,12 +1873,29 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
           }}
         />
 
-        {/* Category Pill */}
-        <span className="absolute top-3 left-3 px-2.5 py-1 bg-black/60 backdrop-blur-md rounded-xl text-[10px] font-bold text-slate-300 uppercase tracking-wider border border-white/10 shadow">
-          {product.category || 'Carnicería'}
-        </span>
+        {/* Badge de Descuento (como en Pedix) */}
+        {hasDiscount && !selectedPresentation && (
+          <span className="absolute top-3 left-3 z-10 px-2.5 py-1 bg-rose-600/90 text-white backdrop-blur-md rounded-xl text-[11px] font-black tracking-wider border border-rose-400/40 shadow-lg flex items-center gap-1 animate-pulse">
+            <span>🔥</span>
+            <span>-{discountPercent}% OFF</span>
+          </span>
+        )}
 
-        {isKgProduct && (
+        {/* Category Pill */}
+        {!hasDiscount && (
+          <span className="absolute top-3 left-3 px-2.5 py-1 bg-black/60 backdrop-blur-md rounded-xl text-[10px] font-bold text-slate-300 uppercase tracking-wider border border-white/10 shadow">
+            {product.category || 'Carnicería'}
+          </span>
+        )}
+
+        {/* Alerta de Stock Crítico (<= 7 unidades) */}
+        {stockQty > 0 && stockQty <= 7 && (
+          <span className="absolute bottom-3 left-3 z-10 px-2 py-0.5 bg-amber-500/90 text-slate-950 backdrop-blur-md rounded-lg text-[10px] font-black uppercase tracking-wide border border-amber-300 shadow">
+            ⚡ ¡Últimas {stockQty} unid.!
+          </span>
+        )}
+
+        {isKgProduct && !selectedPresentation && (
           <span 
             className="absolute top-3 right-3 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wide backdrop-blur-md border border-white/15 text-slate-950"
             style={{ backgroundColor: primaryColor }}
@@ -1823,14 +1911,49 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
           <h3 className="text-sm font-extrabold text-white leading-snug line-clamp-2 mb-1 group-hover:text-emerald-400 transition-colors">
             {product.name}
           </h3>
-          <div className="text-base font-black text-emerald-400">
-            ${unitPrice.toLocaleString('es-AR')}
-            <span className="text-xs text-slate-400 font-normal"> / {product.unit || 'kg'}</span>
+
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <div className="text-base font-black text-emerald-400">
+              ${unitPrice.toLocaleString('es-AR')}
+              <span className="text-xs text-slate-400 font-normal"> / {selectedPresentation ? (selectedPresentation.name || 'un') : (product.unit || 'kg')}</span>
+            </div>
+            {hasDiscount && !selectedPresentation && (
+              <span className="text-xs text-slate-400 line-through font-semibold">
+                ${regularPrice.toLocaleString('es-AR')}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Mode Selector (Kg vs Units) */}
-        {isKgProduct && (
+        {/* Selector de Presentaciones (como en Pedix) */}
+        {presentations.length > 0 ? (
+          <div className="space-y-1.5 bg-black/40 p-2 rounded-2xl border border-white/10">
+            <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+              Presentaciones Disponibles:
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {presentations.map(pres => {
+                const isSelected = selectedPresentation?.name === pres.name;
+                return (
+                  <button
+                    key={pres.id || pres.name}
+                    type="button"
+                    onClick={() => { setSelectedPresentation(pres); setAmount(1); }}
+                    className={`px-2 py-1 rounded-xl text-[11px] font-bold transition border ${
+                      isSelected
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-black shadow-sm'
+                        : 'bg-black/50 border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+                    }`}
+                  >
+                    <span>{pres.name}</span>
+                    <span className="text-[10px] text-emerald-400/90 ml-1">(${Number(pres.price).toLocaleString('es-AR')})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : isKgProduct ? (
+          /* Mode Selector (Kg vs Units) */
           <div className="bg-black/50 p-1 rounded-xl border border-white/10 flex text-[11px] font-bold">
             <button
               type="button"
@@ -1853,63 +1976,65 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
               <span>Por Unidad</span>
             </button>
           </div>
-        )}
+        ) : null}
 
         {/* Quick Select Chips */}
-        <div className="flex items-center gap-1.5 justify-center flex-wrap">
-          {isKgProduct && mode === 'kg' ? (
-            <>
-              {[0.5, 1, 1.5, 2, 3].map(w => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setAmount(w)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
-                    amount === w
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
-                  }`}
-                >
-                  {w === 0.5 ? '500g' : `${w} kg`}
-                </button>
-              ))}
-            </>
-          ) : isKgProduct && mode === 'units' ? (
-            <>
-              {[2, 4, 6, 8, 12].map(u => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => setAmount(u)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
-                    amount === u
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
-                  }`}
-                >
-                  {u} un
-                </button>
-              ))}
-            </>
-          ) : (
-            <>
-              {[1, 2, 3, 5].map(u => (
-                <button
-                  key={u}
-                  type="button"
-                  onClick={() => setAmount(u)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
-                    amount === u
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
-                  }`}
-                >
-                  {u} {product.unit || 'un'}
-                </button>
-              ))}
-            </>
-          )}
-        </div>
+        {!selectedPresentation && (
+          <div className="flex items-center gap-1.5 justify-center flex-wrap">
+            {isKgProduct && mode === 'kg' ? (
+              <>
+                {[0.5, 1, 1.5, 2, 3].map(w => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => setAmount(w)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
+                      amount === w
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
+                    }`}
+                  >
+                    {w === 0.5 ? '500g' : `${w} kg`}
+                  </button>
+                ))}
+              </>
+            ) : isKgProduct && mode === 'units' ? (
+              <>
+                {[2, 4, 6, 8, 12].map(u => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => setAmount(u)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
+                      amount === u
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
+                    }`}
+                  >
+                    {u} un
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                {[1, 2, 3, 5].map(u => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => setAmount(u)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition border ${
+                      amount === u
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
+                    }`}
+                  >
+                    {u} {product.unit || 'un'}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Stepper & Add to Cart Button */}
         <div className="space-y-2">
@@ -1924,7 +2049,9 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
 
             <div className="text-center font-bold text-xs">
               <span className="text-white">
-                {isKgProduct
+                {selectedPresentation
+                  ? `${amount} x ${selectedPresentation.name}`
+                  : isKgProduct
                   ? (mode === 'units' ? `${amount} un (~${calculatedKg.toFixed(2)} kg)` : `${amount} kg`)
                   : `${amount} ${product.unit || 'un'}`}
               </span>
@@ -1944,7 +2071,7 @@ function AppleProductCard({ product, onAddToCart, primaryColor = '#0071e3' }) {
 
           <button
             type="button"
-            onClick={() => onAddToCart(product, mode, amount)}
+            onClick={() => onAddToCart(product, mode, amount, selectedPresentation)}
             className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition shadow-lg shadow-emerald-500/20"
           >
             <ShoppingBag className="w-3.5 h-3.5" />

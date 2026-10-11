@@ -2118,7 +2118,21 @@ export function buildFullSystemPrompt(settings, catalog = null) {
   }
 
   const activeProducts = Array.from(selectedProductsMap.values())
-    .map(p => `• [PLU ${p.plu || '-'}] ${p.name}: $${Number(p.price).toLocaleString('es-AR')}/${p.unit || 'kg'}`)
+    .map(p => {
+      let line = `• [PLU ${p.plu || '-'}] ${p.name}: `;
+      if (p.priceDiscount && p.priceDiscount < p.price) {
+        line += `¡OFERTA ${p.discountPercent ? `-${p.discountPercent}%` : ''}! $${Number(p.priceDiscount).toLocaleString('es-AR')}/${p.unit || 'kg'} (Precio regular: $${Number(p.price).toLocaleString('es-AR')})`;
+      } else {
+        line += `$${Number(p.price).toLocaleString('es-AR')}/${p.unit || 'kg'}`;
+      }
+      if (p.presentations && p.presentations.length > 0) {
+        const presList = (Array.isArray(p.presentations) ? p.presentations : (p.presentations?.items || []))
+          .map(pr => `${pr.name} ($${Number(pr.price).toLocaleString('es-AR')})`)
+          .join(', ');
+        if (presList) line += ` [Presentaciones: ${presList}]`;
+      }
+      return line;
+    })
     .join('\n');
 
   // Obtener recetas tradicionales activas
@@ -2153,6 +2167,7 @@ Contexto Regional y Negocio:
 • Moneda de Venta: ${currency} (todos los precios son exactos en moneda local)
 • Tono y Modismos: ${slang}
 • Directivas de Negocio: ${businessRules}
+• Compra Mínima: Para envíos a domicilio en Córdoba, el pedido mínimo es de $30.000 ARS. Si el pedido del cliente no alcanza ese importe, oriéntalo amablemente a sumar algún corte adicional, embutidos o carbón para llegar al monto mínimo y coordinar el envío. Para retiro por sucursal no hay compra mínima.
 
 Directiva de Personalidad:
 ${personalityDirective}

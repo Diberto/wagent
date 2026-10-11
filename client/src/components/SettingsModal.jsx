@@ -2560,6 +2560,74 @@ export default function SettingsModal({ isOpen, onClose }) {
                   </div>
                 </div>
               </div>
+
+              {/* Card 5: Reglas de Pedidos & Compra Mínima (Pedix Mode) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-4">
+                <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Reglas de Compra Mínima & Alertas de Stock</h3>
+                    <p className="text-xs text-slate-400">Protege la rentabilidad del delivery y fomenta la compra inmediata</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Compra Mínima para Envíos a Domicilio ($ ARS)
+                    </label>
+                    <input
+                      type="number"
+                      value={settings?.storeConfig?.minimumPurchase ?? 30000}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), minimumPurchase: Number(e.target.value) || 0 }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Valor configurado en La República: $30.000 ARS. Los pedidos inferiores no pueden solicitar envío a domicilio.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Umbral de Alerta de Stock Crítico (Unidades)
+                    </label>
+                    <input
+                      type="number"
+                      value={settings?.storeConfig?.stockDisplayConditionValue ?? 7}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), stockDisplayConditionValue: Number(e.target.value) || 0 }
+                      })}
+                      className="w-full px-3.5 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Muestra el badge "⚡ ¡Últimas X unid.!" en el catálogo cuando el stock sea menor o igual a este valor.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings?.storeConfig?.enableOrdersOnClosed !== false}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        storeConfig: { ...(settings?.storeConfig || {}), enableOrdersOnClosed: e.target.checked }
+                      })}
+                      className="rounded accent-emerald-500"
+                    />
+                    <span className="text-xs font-medium text-slate-300">
+                      Permitir recibir pedidos fuera de horario comercial (se preparan a primera hora del día hábil siguiente)
+                    </span>
+                  </label>
+                </div>
+              </div>
             </div>
           )}
 

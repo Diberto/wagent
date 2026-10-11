@@ -1183,12 +1183,26 @@ class DatabaseService {
   getProducts() {
     const db = this.readDb();
     const prods = (!db.products || db.products.length === 0) ? this.seedMasterProducts() : db.products;
-    return prods.map(p => ({
-      ...p,
-      showInPos: p.showInPos !== undefined ? p.showInPos : (p.isAvailable !== false),
-      showInWhatsApp: p.showInWhatsApp !== undefined ? p.showInWhatsApp : (p.isAvailable !== false),
-      showInWeb: p.showInWeb !== undefined ? p.showInWeb : (p.isAvailable !== false)
-    }));
+    return prods.map(p => {
+      const price = Number(p.price) || 0;
+      const priceDiscount = (p.priceDiscount && Number(p.priceDiscount) > 0 && Number(p.priceDiscount) < price)
+        ? Number(p.priceDiscount)
+        : null;
+      const discountPercent = priceDiscount
+        ? Math.round(((price - priceDiscount) / price) * 100)
+        : 0;
+
+      return {
+        ...p,
+        priceDiscount,
+        discountPercent,
+        presentations: Array.isArray(p.presentations) ? p.presentations : (p.presentations?.items || []),
+        groupName: p.groupName || null,
+        showInPos: p.showInPos !== undefined ? p.showInPos : (p.isAvailable !== false),
+        showInWhatsApp: p.showInWhatsApp !== undefined ? p.showInWhatsApp : (p.isAvailable !== false),
+        showInWeb: p.showInWeb !== undefined ? p.showInWeb : (p.isAvailable !== false)
+      };
+    });
   }
 
   parseBarcode(barcode) {
