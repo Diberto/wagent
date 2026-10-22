@@ -6467,15 +6467,29 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   router.post('/inventory/transfers', (req, res) => {
     try {
-      const { fromBranchId, toBranchId, items, notes, dispatchedBy, driverId } = req.body;
+      const { fromBranchId, toBranchId, items, notes, dispatchedBy, driverId, cadeteName, vehicleType, deliveryService, cadetePlate, cadetePhone } = req.body;
       const transfer = inventoryService.createBranchTransfer({
         fromBranchId,
         toBranchId,
         items,
         notes,
         dispatchedBy,
-        driverId
+        driverId,
+        cadeteName,
+        vehicleType,
+        deliveryService,
+        cadetePlate,
+        cadetePhone
       });
+      res.json({ success: true, transfer });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/inventory/transfers/:id/driver', (req, res) => {
+    try {
+      const transfer = inventoryService.assignTransferDriver(req.params.id, req.body);
       res.json({ success: true, transfer });
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -6595,12 +6609,36 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       let mediaUrl = null;
 
       if (req.file) {
-        imageSource = req.file.path;
-        mimeType = req.file.mimetype || 'image/jpeg';
-        mediaUrl = `/media/${path.basename(req.file.path)}`;
+        if (req.file.mimetype === 'application/pdf') {
+          imageSource = req.file.path;
+          mimeType = 'application/pdf';
+          mediaUrl = `/media/${path.basename(req.file.path)}`;
+        } else {
+          try {
+            const optimized = await ImageService.handleUploadedImage(req.file);
+            imageSource = optimized.filePath;
+            mimeType = 'image/webp';
+            mediaUrl = optimized.url;
+          } catch (convErr) {
+            console.warn('Fallback a imagen original en scan:', convErr.message);
+            imageSource = req.file.path;
+            mimeType = req.file.mimetype || 'image/jpeg';
+            mediaUrl = `/media/${path.basename(req.file.path)}`;
+          }
+        }
       } else if (req.body.imageBase64) {
-        imageSource = req.body.imageBase64;
-        mimeType = req.body.mimeType || 'image/jpeg';
+        try {
+          const rawBase64 = req.body.imageBase64.replace(/^data:image\/\w+;base64,/, '');
+          const buffer = Buffer.from(rawBase64, 'base64');
+          const optimized = await ImageService.processAndOptimizeImage(buffer, `scan_${Date.now()}`);
+          imageSource = optimized.filePath;
+          mimeType = 'image/webp';
+          mediaUrl = optimized.url;
+        } catch (convErr) {
+          console.warn('Fallback a base64 directo:', convErr.message);
+          imageSource = req.body.imageBase64;
+          mimeType = req.body.mimeType || 'image/jpeg';
+        }
       } else {
         return res.status(400).json({ error: 'Debe subir un archivo o enviar imagen en base64' });
       }
@@ -6673,10 +6711,13 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     try {
       const { inviteUrl } = req.body;
       if (!inviteUrl) return res.status(400).json({ error: 'Enlace o código de invitación requerido' });
+      if (!whatsappService || !whatsappService.sock) {
+        return res.status(400).json({ error: 'WhatsApp no está conectado actualmente. Verifique la conexión antes de unir al grupo.' });
+      }
       const result = await whatsappService.joinGroupViaInvite(inviteUrl);
       res.json({ success: true, ...result });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: err.message || 'No se pudo unir al grupo con el enlace provisto.' });
     }
   });
 
@@ -6727,7 +6768,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         adminNotifyPhone: req.body.adminNotifyPhone || '',
         silentGroups: Array.isArray(req.body.silentGroups) ? req.body.silentGroups : (current.silentGroups || [])
       };
-      db.saveSettings(updated);
+      db.updateSettings(updated);
       res.json({ success: true, settings: updated });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -6784,7 +6825,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       }
 
       current.silentGroups = groups;
-      db.saveSettings(current);
+      db.updateSettings(current);
       res.json({ success: true, group: groupRecord, groups });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -6798,7 +6839,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       let groups = Array.isArray(current.silentGroups) ? current.silentGroups : [];
       groups = groups.filter(g => g.id !== id && g.groupId !== id);
       current.silentGroups = groups;
-      db.saveSettings(current);
+      db.updateSettings(current);
       res.json({ success: true, groups });
     } catch (err) {
       res.status(500).json({ error: err.message });

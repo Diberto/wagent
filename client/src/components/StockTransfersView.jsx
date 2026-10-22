@@ -39,8 +39,13 @@ import {
   Check,
   AlertCircle,
   Copy,
-  Pencil
+  Pencil,
+  Bike,
+  Car,
+  ZoomIn,
+  Image as ImageIcon
 } from 'lucide-react';
+import { VEHICLE_TYPES, getVehicleBadge } from './DriversView.jsx';
 
 export const EXPENSE_CATEGORIES = [
   { id: 'mercaderia', label: '🥩 Mercadería & Cortes (Suma a Stock)', badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
@@ -68,9 +73,20 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
   const [transfers, setTransfers] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+
+  // Preview Image Modal (Lightbox)
+  const [previewImageModal, setPreviewImageModal] = useState(null);
+
+  // Quick Cadete / Driver Assignment Modal
+  const [assignDriverModal, setAssignDriverModal] = useState(null);
+
+  // Supplier Match / Link / Create state for OCR & Invoice Editing
+  const [scannerSupplierMode, setScannerSupplierMode] = useState('link'); // 'link' | 'create_new'
+  const [editSupplierMode, setEditSupplierMode] = useState('link'); // 'link' | 'create_new'
 
   // Multi-Group Silent Groups state
   const [silentGroups, setSilentGroups] = useState([]);
@@ -113,7 +129,13 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
     toBranchId: '',
     items: [],
     notes: '',
-    dispatchedBy: currentUser?.name || 'Encargado'
+    dispatchedBy: currentUser?.name || 'Encargado',
+    driverId: '',
+    cadeteName: '',
+    vehicleType: 'moto',
+    deliveryService: '',
+    cadetePlate: '',
+    cadetePhone: ''
   });
 
   const [isNewSupplierModalOpen, setIsNewSupplierModalOpen] = useState(false);
@@ -213,6 +235,37 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
       }
     } catch (e) {
       console.error('Error cargando proveedores:', e);
+    }
+  };
+
+  const loadDrivers = async () => {
+    try {
+      const res = await fetch('/api/drivers');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setDrivers(data);
+      }
+    } catch (e) {
+      console.error('Error cargando repartidores:', e);
+    }
+  };
+
+  const handleAssignDriverToTransfer = async (transferId, assignmentData) => {
+    try {
+      const res = await fetch(`/api/inventory/transfers/${transferId}/driver`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assignmentData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAssignDriverModal(null);
+        loadTransfers();
+      } else {
+        alert(data.error || 'Error asignando repartidor al traspaso');
+      }
+    } catch (e) {
+      alert('Error asignando repartidor: ' + e.message);
     }
   };
 
@@ -480,6 +533,7 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
     loadBranches();
     loadProducts();
     loadSuppliers();
+    loadDrivers();
     loadTransfers();
     loadInvoices();
     loadParticipatingGroups();
@@ -498,12 +552,18 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
     socket.on('transfers:sync', (data) => setTransfers(data));
     socket.on('invoices:sync', (data) => setInvoices(data));
     socket.on('suppliers:sync', (data) => setSuppliers(data));
+    socket.on('driver:new', () => loadDrivers());
+    socket.on('driver:update', () => loadDrivers());
+    socket.on('driver:delete', () => loadDrivers());
 
     return () => {
       socket.off('stock:updated');
       socket.off('transfers:sync');
       socket.off('invoices:sync');
       socket.off('suppliers:sync');
+      socket.off('driver:new');
+      socket.off('driver:update');
+      socket.off('driver:delete');
     };
   }, [socket]);
 
@@ -565,7 +625,13 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
           toBranchId: '',
           items: [],
           notes: '',
-          dispatchedBy: currentUser?.name || 'Encargado'
+          dispatchedBy: currentUser?.name || 'Encargado',
+          driverId: '',
+          cadeteName: '',
+          vehicleType: 'moto',
+          deliveryService: '',
+          cadetePlate: '',
+          cadetePhone: ''
         });
         loadTransfers();
         loadStock();
@@ -1170,6 +1236,53 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                         </div>
                       ))}
                     </div>
+
+                    {/* Cadete / Repartidor Asignado al Traspaso */}
+                    {t.cadeteName ? (
+                      <div className="bg-[#182229] rounded-lg p-2.5 border border-[#202c33] flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-lg bg-[#111b21] border border-slate-700/80 flex items-center justify-center text-sm shrink-0">
+                            {getVehicleBadge(t.vehicleType, t.deliveryService).icon}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-white flex items-center gap-1.5 flex-wrap">
+                              <span className="truncate">{t.cadeteName}</span>
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold border ${getVehicleBadge(t.vehicleType, t.deliveryService).badge}`}>
+                                {getVehicleBadge(t.vehicleType, t.deliveryService).label}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
+                              {t.cadetePhone && <span>📱 {t.cadetePhone}</span>}
+                              {t.cadetePlate && <span>Pat: {t.cadetePlate}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {t.status === 'in_transit' && (
+                          <button
+                            type="button"
+                            onClick={() => setAssignDriverModal(t)}
+                            className="px-2 py-0.5 rounded bg-[#202c33] hover:bg-[#2a3942] text-slate-300 text-[10px] font-semibold transition shrink-0 ml-2"
+                            title="Cambiar Cadete / Repartidor"
+                          >
+                            Cambiar
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-[#182229]/60 rounded-lg p-2 border border-dashed border-[#202c33] flex items-center justify-between text-xs">
+                        <span className="text-slate-500 text-[11px] italic">Sin cadete asignado</span>
+                        {t.status === 'in_transit' && (
+                          <button
+                            type="button"
+                            onClick={() => setAssignDriverModal(t)}
+                            className="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          >
+                            <Bike size={11} />
+                            <span>Asignar Cadete</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {t.notes && (
                       <p className="text-[11px] text-slate-400 mt-2 italic">"{t.notes}"</p>
@@ -2234,8 +2347,133 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                 )}
               </div>
 
+              {/* Sección Asignación de Cadete / Reparto y Vehículo */}
+              <div className="bg-[#182229] p-3.5 rounded-xl border border-sky-500/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bike size={16} className="text-sky-400" />
+                    <span className="font-bold text-white text-xs">Asignar Cadete / Reparto / Chofer:</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Opcional para despacho</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold text-[11px]">Seleccionar Repartidor / Cadete:</label>
+                    <select
+                      value={newTransferData.driverId || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) {
+                          setNewTransferData({
+                            ...newTransferData,
+                            driverId: '',
+                            cadeteName: '',
+                            cadetePhone: '',
+                            cadetePlate: '',
+                            vehicleType: 'moto',
+                            deliveryService: ''
+                          });
+                        } else if (val === 'custom_external') {
+                          setNewTransferData({
+                            ...newTransferData,
+                            driverId: 'custom_external',
+                            cadeteName: 'Delivery Externo (Rapiboy)',
+                            vehicleType: 'delivery_externo',
+                            deliveryService: 'Rapiboy'
+                          });
+                        } else {
+                          const drv = drivers.find(d => d.id === val);
+                          if (drv) {
+                            setNewTransferData({
+                              ...newTransferData,
+                              driverId: drv.id,
+                              cadeteName: drv.name,
+                              cadetePhone: drv.phone,
+                              cadetePlate: drv.plate || '',
+                              vehicleType: drv.vehicleType || 'moto',
+                              deliveryService: drv.deliveryService || ''
+                            });
+                          }
+                        }
+                      }}
+                      className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    >
+                      <option value="">Sin cadete (Asignar más tarde)</option>
+                      <optgroup label="Flota de Repartidores Registrados">
+                        {drivers.map(d => (
+                          <option key={d.id} value={d.id}>
+                            {d.name} ({getVehicleBadge(d.vehicleType, d.deliveryService).label}) - {d.phone || 'Sin tel'}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Servicio Externo o Ad-Hoc">
+                        <option value="custom_external">📦 Delivery Externo (Rapiboy, PedidosYa, etc.)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold text-[11px]">Tipo de Vehículo / Modalidad:</label>
+                    <select
+                      value={newTransferData.vehicleType || 'moto'}
+                      onChange={(e) => setNewTransferData({ ...newTransferData, vehicleType: e.target.value })}
+                      className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-xs text-white font-medium"
+                    >
+                      {VEHICLE_TYPES.map(vt => (
+                        <option key={vt.id} value={vt.id}>
+                          {vt.icon} {vt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {newTransferData.vehicleType === 'delivery_externo' && (
+                  <div className="grid grid-cols-2 gap-2 bg-[#111b21] p-2.5 rounded-lg border border-rose-500/30">
+                    <div>
+                      <label className="block text-rose-300 font-semibold mb-1 text-[11px]">Empresa Delivery Externo:</label>
+                      <select
+                        value={['Rapiboy', 'PedidosYa', 'Uber Flash', 'Didi Entrega'].includes(newTransferData.deliveryService) ? newTransferData.deliveryService : 'Otro'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewTransferData({
+                            ...newTransferData,
+                            deliveryService: val === 'Otro' ? '' : val
+                          });
+                        }}
+                        className="w-full bg-[#182229] border border-[#2a3942] rounded-lg px-2 py-1 text-xs text-white"
+                      >
+                        <option value="Rapiboy">Rapiboy</option>
+                        <option value="PedidosYa">PedidosYa</option>
+                        <option value="Uber Flash">Uber Flash</option>
+                        <option value="Didi Entrega">Didi Entrega</option>
+                        <option value="Otro">Otro / Personalizado</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-semibold text-[11px]">Nombre Chofer / Nro Envío:</label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Rapiboy #8812 / Juan"
+                        value={newTransferData.cadeteName || ''}
+                        onChange={(e) => setNewTransferData({ ...newTransferData, cadeteName: e.target.value })}
+                        className="w-full bg-[#182229] border border-[#2a3942] rounded-lg px-2 py-1 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {newTransferData.driverId && newTransferData.driverId !== 'custom_external' && (
+                  <div className="flex items-center gap-3 text-[11px] text-slate-300 bg-[#111b21] p-2 rounded-lg border border-[#202c33]">
+                    <span>📱 Tel: <strong>{newTransferData.cadetePhone || 'No registrado'}</strong></span>
+                    {newTransferData.cadetePlate && <span>Dominio: <strong>{newTransferData.cadetePlate}</strong></span>}
+                  </div>
+                )}
+              </div>
+
               <div>
-                <label className="block text-slate-400 mb-1">Observaciones / Chofer / Vehículo</label>
+                <label className="block text-slate-400 mb-1">Observaciones / Chofer / Precinto</label>
                 <input
                   type="text"
                   value={newTransferData.notes}
@@ -2343,25 +2581,171 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
               {/* Step 3: Review Extracted Data */}
               {scanStep === 'review' && extractedInvoiceData && (
                 <div className="space-y-3.5 text-xs">
+                  {/* Vista previa de la imagen escaneada */}
+                  {(scannedImagePreview || extractedInvoiceData.mediaUrl) && (
+                    <div className="bg-[#182229] p-2.5 rounded-xl border border-[#2a3942] flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          onClick={() => setPreviewImageModal(scannedImagePreview || extractedInvoiceData.mediaUrl)}
+                          className="h-14 w-14 rounded-lg bg-[#111b21] border border-[#202c33] overflow-hidden shrink-0 cursor-pointer relative group flex items-center justify-center"
+                        >
+                          <img
+                            src={scannedImagePreview || extractedInvoiceData.mediaUrl}
+                            alt="Ticket preview"
+                            className="h-full w-full object-cover group-hover:scale-105 transition"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                            <ZoomIn size={14} className="text-white" />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="font-bold text-white text-xs flex items-center gap-2">
+                            <span>Foto del Comprobante Escaneado</span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              WEBP
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Verifique los datos extraídos contra el ticket original.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewImageModal(scannedImagePreview || extractedInvoiceData.mediaUrl)}
+                        className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 text-xs font-semibold flex items-center gap-1 transition shrink-0"
+                      >
+                        <ZoomIn size={13} />
+                        <span>Ver Foto Completa</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Confirmación y Vinculación de Proveedor */}
+                  <div className="bg-[#182229] p-3 rounded-xl border border-emerald-500/30 space-y-2.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Building2 size={16} className="text-emerald-400" />
+                        <span className="font-bold text-white text-xs">Proveedor Detectado por OCR:</span>
+                        <span className="font-extrabold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          {extractedInvoiceData.merchant || 'Sin detectar'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 bg-[#111b21] p-0.5 rounded-lg border border-[#2a3942]">
+                        <button
+                          type="button"
+                          onClick={() => setScannerSupplierMode('link')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                            scannerSupplierMode === 'link' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          🏢 Vincular a Existente
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScannerSupplierMode('create_new')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                            scannerSupplierMode === 'create_new' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          ➕ Agregar como Nuevo
+                        </button>
+                      </div>
+                    </div>
+
+                    {scannerSupplierMode === 'link' ? (
+                      <div className="space-y-1">
+                        <label className="block text-slate-400 text-[11px]">Seleccionar de los proveedores registrados en el sistema:</label>
+                        <select
+                          value={suppliers.find(s => s.name?.toLowerCase().trim() === extractedInvoiceData.merchant?.toLowerCase().trim())?.id || ''}
+                          onChange={(e) => {
+                            const sel = suppliers.find(s => s.id === e.target.value);
+                            if (sel) {
+                              setExtractedInvoiceData({
+                                ...extractedInvoiceData,
+                                merchant: sel.name,
+                                supplierId: sel.id
+                              });
+                            }
+                          }}
+                          className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white font-semibold text-xs"
+                        >
+                          <option value="">Seleccione proveedor de la lista...</option>
+                          {suppliers.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} {s.cuit ? `(CUIT: ${s.cuit})` : ''} - {s.category || 'General'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 bg-[#111b21] p-2 rounded-lg border border-amber-500/30">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-slate-400 text-[11px] mb-0.5">Nombre Proveedor / Razón Social:</label>
+                            <input
+                              type="text"
+                              value={extractedInvoiceData.merchant || ''}
+                              onChange={(e) => setExtractedInvoiceData({ ...extractedInvoiceData, merchant: e.target.value })}
+                              placeholder="Nombre del proveedor"
+                              className="w-full bg-[#182229] border border-[#2a3942] rounded-lg px-2 py-1 text-white text-xs font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 text-[11px] mb-0.5">CUIT (si fue detectado):</label>
+                            <input
+                              type="text"
+                              value={extractedInvoiceData.cuit || ''}
+                              onChange={(e) => setExtractedInvoiceData({ ...extractedInvoiceData, cuit: e.target.value })}
+                              placeholder="30-..."
+                              className="w-full bg-[#182229] border border-[#2a3942] rounded-lg px-2 py-1 text-white text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!extractedInvoiceData.merchant) {
+                                alert('Nombre de proveedor requerido');
+                                return;
+                              }
+                              try {
+                                const res = await fetch('/api/inventory/suppliers', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    name: extractedInvoiceData.merchant,
+                                    cuit: extractedInvoiceData.cuit || '',
+                                    category: 'Carne Vacuna',
+                                    paymentTerms: 'Contado'
+                                  })
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                  alert(`✅ Proveedor "${extractedInvoiceData.merchant}" registrado en el sistema`);
+                                  loadSuppliers();
+                                  setScannerSupplierMode('link');
+                                }
+                              } catch (err) {
+                                alert('Error registrando proveedor: ' + err.message);
+                              }
+                            }}
+                            className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1 shadow"
+                          >
+                            <Plus size={12} />
+                            <span>Confirmar y Guardar como Nuevo Proveedor</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Header info & Total */}
                   <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex items-center justify-between">
-                    <div className="flex-1 pr-3">
-                      <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-1">
-                        Proveedor / Frigorífico
-                      </div>
-                      <input
-                        type="text"
-                        value={extractedInvoiceData.merchant || ''}
-                        onChange={(e) => setExtractedInvoiceData({ ...extractedInvoiceData, merchant: e.target.value })}
-                        placeholder="Nombre del proveedor"
-                        className="bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1 text-white font-bold text-xs w-full max-w-sm"
-                      />
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-[10px] text-slate-400 uppercase font-semibold">Total Calculado</div>
-                      <div className="text-lg font-bold text-emerald-400 font-mono">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Facturado</span>
+                      <span className="text-xl font-bold text-emerald-400 font-mono">
                         ${Number(extractedInvoiceData.total || 0).toLocaleString('es-AR')}
-                      </div>
+                      </span>
                     </div>
                   </div>
 
@@ -2704,20 +3088,200 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
             </div>
 
             <div className="space-y-4 text-xs flex-1 overflow-y-auto custom-scrollbar pr-1">
-              {/* Header and Total */}
-              <div className="bg-[#182229] p-3.5 rounded-xl border border-[#2a3942] flex flex-wrap items-center justify-between gap-3">
-                <div className="flex-1 min-w-[240px]">
-                  <label className="block text-slate-400 mb-1 font-semibold text-[11px]">Proveedor / Frigorífico</label>
-                  <input
-                    type="text"
-                    value={editingInvoiceData.supplierName || ''}
-                    onChange={(e) => setEditingInvoiceData({ ...editingInvoiceData, supplierName: e.target.value })}
-                    className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white font-semibold text-xs"
-                    placeholder="Razón Social del Proveedor"
-                  />
+              {/* Preview de Imagen del Comprobante Escaneado / Grupo */}
+              {editingInvoiceData.mediaUrl && (
+                <div className="bg-[#182229] p-3 rounded-xl border border-blue-500/30 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      onClick={() => setPreviewImageModal(editingInvoiceData.mediaUrl)}
+                      className="h-14 w-14 rounded-lg bg-[#111b21] border border-[#202c33] overflow-hidden shrink-0 cursor-pointer relative group flex items-center justify-center"
+                    >
+                      <img
+                        src={editingInvoiceData.mediaUrl}
+                        alt="Comprobante Original"
+                        className="h-full w-full object-cover group-hover:scale-105 transition"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                        <ZoomIn size={14} className="text-white" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-bold text-white text-xs flex items-center gap-2">
+                        <span>Foto del Comprobante Digitalizado</span>
+                        {editingInvoiceData.mediaUrl.endsWith('.webp') ? (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+                            WEBP
+                          </span>
+                        ) : (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 font-bold">
+                            IMG
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400">Captura original recibida por WhatsApp o subida por escáner.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewImageModal(editingInvoiceData.mediaUrl)}
+                      className="px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 text-xs font-semibold flex items-center gap-1 transition"
+                    >
+                      <ZoomIn size={13} />
+                      <span>Ver Foto Completa</span>
+                    </button>
+                    <a
+                      href={editingInvoiceData.mediaUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-slate-400 hover:text-white transition"
+                      title="Abrir en pestaña nueva"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[11px] text-slate-400 uppercase font-semibold block">Total Comprobante</span>
+              )}
+
+              {/* Confirmación y Vinculación de Proveedor */}
+              <div className="bg-[#182229] p-3.5 rounded-xl border border-emerald-500/30 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Building2 size={16} className="text-emerald-400" />
+                    <span className="font-bold text-white text-xs">Proveedor / Frigorífico:</span>
+                    <span className="font-extrabold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      {editingInvoiceData.supplierName || 'Sin especificar'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 bg-[#111b21] p-0.5 rounded-lg border border-[#2a3942]">
+                    <button
+                      type="button"
+                      onClick={() => setEditSupplierMode('link')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                        editSupplierMode === 'link' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🏢 Vincular a Existente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditSupplierMode('create_new')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                        editSupplierMode === 'create_new' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ➕ Agregar como Nuevo
+                    </button>
+                  </div>
+                </div>
+
+                {editSupplierMode === 'link' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 text-[11px] mb-1">Elegir de los proveedores registrados:</label>
+                      <select
+                        value={editingInvoiceData.supplierId || suppliers.find(s => s.name?.toLowerCase().trim() === editingInvoiceData.supplierName?.toLowerCase().trim())?.id || ''}
+                        onChange={(e) => {
+                          const sel = suppliers.find(s => s.id === e.target.value);
+                          if (sel) {
+                            setEditingInvoiceData({
+                              ...editingInvoiceData,
+                              supplierName: sel.name,
+                              supplierId: sel.id
+                            });
+                          }
+                        }}
+                        className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white font-semibold text-xs"
+                      >
+                        <option value="">Seleccione proveedor de la lista...</option>
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} {s.cuit ? `(CUIT: ${s.cuit})` : ''} - {s.category || 'General'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] mb-1">Nombre / Razón Social en Factura:</label>
+                      <input
+                        type="text"
+                        value={editingInvoiceData.supplierName || ''}
+                        onChange={(e) => setEditingInvoiceData({ ...editingInvoiceData, supplierName: e.target.value })}
+                        className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white font-semibold text-xs"
+                        placeholder="Razón Social del Proveedor"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 bg-[#111b21] p-2.5 rounded-lg border border-amber-500/30">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-slate-400 text-[11px] mb-0.5">Nombre Proveedor / Razón Social:</label>
+                        <input
+                          type="text"
+                          value={editingInvoiceData.supplierName || ''}
+                          onChange={(e) => setEditingInvoiceData({ ...editingInvoiceData, supplierName: e.target.value })}
+                          placeholder="Nombre del nuevo proveedor"
+                          className="w-full bg-[#182229] border border-[#2a3942] rounded-lg px-2 py-1 text-white text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 text-[11px] mb-0.5">CUIT (Opcional):</label>
+                        <input
+                          type="text"
+                          id="newSupplierCuitInput"
+                          placeholder="30-..."
+                          className="w-full bg-[#182229] border border-[#2a3942] rounded-lg px-2 py-1 text-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!editingInvoiceData.supplierName) {
+                            alert('Nombre de proveedor requerido');
+                            return;
+                          }
+                          const cuitVal = document.getElementById('newSupplierCuitInput')?.value || '';
+                          try {
+                            const res = await fetch('/api/inventory/suppliers', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                name: editingInvoiceData.supplierName,
+                                cuit: cuitVal,
+                                category: 'Carne Vacuna',
+                                paymentTerms: 'Contado'
+                              })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                              alert(`✅ Proveedor "${editingInvoiceData.supplierName}" registrado en el sistema`);
+                              loadSuppliers();
+                              if (data.supplier?.id) {
+                                setEditingInvoiceData({
+                                  ...editingInvoiceData,
+                                  supplierId: data.supplier.id
+                                });
+                              }
+                              setEditSupplierMode('link');
+                            }
+                          } catch (err) {
+                            alert('Error registrando proveedor: ' + err.message);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1 shadow"
+                      >
+                        <Plus size={12} />
+                        <span>Confirmar y Guardar como Nuevo Proveedor</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-1 border-t border-[#202c33]/70">
+                  <span className="text-[11px] text-slate-400">Total calculado del comprobante:</span>
                   <span className="text-xl font-bold font-mono text-emerald-400">
                     ${Number(editingInvoiceData.totalAmount || 0).toLocaleString('es-AR')}
                   </span>
@@ -2950,6 +3514,252 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
           </div>
         </div>
       )}
+
+      {/* ================================================================= */}
+      {/* QUICK ASSIGN DRIVER / CADETE MODAL                                */}
+      {/* ================================================================= */}
+      {assignDriverModal && (
+        <AssignDriverModalDialog
+          transfer={assignDriverModal}
+          drivers={drivers}
+          onClose={() => setAssignDriverModal(null)}
+          onSave={(driverData) => handleAssignDriverToTransfer(assignDriverModal.id, driverData)}
+        />
+      )}
+
+      {/* ================================================================= */}
+      {/* LIGHTBOX PREVIEW IMAGE MODAL                                      */}
+      {/* ================================================================= */}
+      {previewImageModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+          <div className="relative max-w-4xl w-full max-h-[90vh] bg-[#111b21] rounded-2xl border border-[#2a3942] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-4 py-3 bg-[#182229] border-b border-[#202c33] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt size={16} className="text-emerald-400" />
+                <span className="text-xs font-bold text-white">Comprobante / Ticket Original</span>
+                {typeof previewImageModal === 'string' && previewImageModal.endsWith('.webp') && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    WEBP Optimizado
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewImageModal}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-slate-300 hover:text-white text-xs flex items-center gap-1 transition"
+                >
+                  <ExternalLink size={13} />
+                  <span>Abrir en Pestaña</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageModal(null)}
+                  className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-black/50">
+              <img
+                src={previewImageModal}
+                alt="Ticket Original"
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg shadow-xl border border-[#202c33]"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Componente Modal para Asignar Cadete / Repartidor a Traspaso Existente
+// ---------------------------------------------------------------------------
+function AssignDriverModalDialog({ transfer, drivers, onClose, onSave }) {
+  const [driverId, setDriverId] = useState(transfer.driverId || '');
+  const [cadeteName, setCadeteName] = useState(transfer.cadeteName || '');
+  const [vehicleType, setVehicleType] = useState(transfer.vehicleType || 'moto');
+  const [deliveryService, setDeliveryService] = useState(transfer.deliveryService || '');
+  const [cadetePlate, setCadetePlate] = useState(transfer.cadetePlate || '');
+  const [cadetePhone, setCadetePhone] = useState(transfer.cadetePhone || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSelectDriver = (e) => {
+    const selectedId = e.target.value;
+    setDriverId(selectedId);
+    if (!selectedId) {
+      setCadeteName('');
+      return;
+    }
+    const found = drivers.find(d => String(d.id) === String(selectedId));
+    if (found) {
+      setCadeteName(found.name || '');
+      setCadetePhone(found.phone || '');
+      if (found.vehicleType) setVehicleType(found.vehicleType);
+      if (found.deliveryService) setDeliveryService(found.deliveryService);
+      if (found.vehiclePlate) setCadetePlate(found.vehiclePlate);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+    await onSave({
+      driverId,
+      cadeteName,
+      vehicleType,
+      deliveryService,
+      cadetePlate,
+      cadetePhone
+    });
+    setIsSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+      <div className="bg-[#111b21] rounded-2xl border border-[#2a3942] w-full max-w-lg p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between pb-3 border-b border-[#202c33]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
+              <Bike size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Asignar Cadete / Repartidor al Traspaso</h3>
+              <p className="text-[11px] text-slate-400">
+                {transfer.fromBranchName} ➔ {transfer.toBranchName}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+          {/* Driver Selection */}
+          <div>
+            <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+              Seleccionar de Repartidores Registrados:
+            </label>
+            <select
+              value={driverId}
+              onChange={handleSelectDriver}
+              className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-white"
+            >
+              <option value="">-- Personalizado / Ingresar datos manuales --</option>
+              {drivers.map(d => (
+                <option key={d.id} value={d.id}>
+                  {d.name} {d.phone ? `(${d.phone})` : ''} - {d.vehicleType || 'Sin vehículo'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Name & Phone */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                Nombre del Cadete / Repartidor:
+              </label>
+              <input
+                type="text"
+                required
+                value={cadeteName}
+                onChange={(e) => setCadeteName(e.target.value)}
+                placeholder="Ej: Lucas Martínez"
+                className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                Teléfono de Contacto:
+              </label>
+              <input
+                type="text"
+                value={cadetePhone}
+                onChange={(e) => setCadetePhone(e.target.value)}
+                placeholder="Ej: +54 9 11 ..."
+                className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-white"
+              />
+            </div>
+          </div>
+
+          {/* Vehicle Type & Plate */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                Tipo de Vehículo / Modalidad:
+              </label>
+              <select
+                value={vehicleType}
+                onChange={(e) => setVehicleType(e.target.value)}
+                className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-white font-medium"
+              >
+                {VEHICLE_TYPES.map(vt => (
+                  <option key={vt.id} value={vt.id}>
+                    {vt.icon} {vt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                Patente / Identificador:
+              </label>
+              <input
+                type="text"
+                value={cadetePlate}
+                onChange={(e) => setCadetePlate(e.target.value)}
+                placeholder="Ej: AF123CD"
+                className="w-full bg-[#182229] border border-[#2a3942] rounded-xl px-3 py-2 text-white font-mono uppercase"
+              />
+            </div>
+          </div>
+
+          {/* Delivery service if external */}
+          {vehicleType === 'delivery_externo' && (
+            <div className="bg-[#182229] p-3 rounded-xl border border-amber-500/30 space-y-1">
+              <label className="block text-amber-400 font-semibold text-[11px]">
+                Servicio / Plataforma Externa:
+              </label>
+              <select
+                value={deliveryService}
+                onChange={(e) => setDeliveryService(e.target.value)}
+                className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white"
+              >
+                <option value="Rapiboy">Rapiboy</option>
+                <option value="PedidosYa">PedidosYa Envíos</option>
+                <option value="Treggo">Treggo</option>
+                <option value="Mensajería Privada">Mensajería Privada</option>
+                <option value="Otro">Otro Delivery Externo</option>
+              </select>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-3 border-t border-[#202c33]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-[#202c33] hover:bg-[#2a3942] text-slate-300 font-medium"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving || !cadeteName}
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold flex items-center gap-1.5 shadow-lg shadow-blue-950/40"
+            >
+              {isSaving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={15} />}
+              <span>Guardar Asignación</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

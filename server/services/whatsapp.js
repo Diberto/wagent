@@ -12,6 +12,7 @@ import { SpeechService } from './speech.js';
 import { MetaWhatsAppService } from './metaWhatsApp.js';
 import { inventoryService } from './inventoryService.js';
 import { invoiceOcrService } from './invoiceOcrService.js';
+import { imageService } from './imageService.js';
 
 /**
  * Desenpaqueta mensajes anidados (efímeros, view-once, multimedia con subtítulo)
@@ -872,15 +873,33 @@ export class WhatsAppService {
       console.log(`🧾 [Grupo WhatsApp "${matchedGroup.groupName || groupJid}"] Comprobante recibido. Iniciando análisis OCR TicketScan en modo pasivo...`);
 
       const buffer = await downloadMediaMessage(msg, 'buffer', {});
-      const ext = isDocument 
-        ? (path.extname(messageContent.documentMessage.fileName || '.pdf') || '.pdf') 
-        : '.jpg';
-      const filename = `group_invoice_${Date.now()}_${msg.key.id}${ext}`;
-      const localPath = path.join(CONFIG.MEDIA_DIR, filename);
-      fs.writeFileSync(localPath, buffer);
+      let localPath;
+      let mediaUrl;
+      let mimeType;
 
-      const mediaUrl = `/media/${filename}`;
-      const mimeType = isDocument ? (messageContent.documentMessage.mimetype || 'application/pdf') : 'image/jpeg';
+      if (isImage) {
+        try {
+          const optimized = await imageService.processAndOptimizeImage(buffer, `group_invoice_${Date.now()}_${msg.key.id}`);
+          localPath = optimized.filePath;
+          mediaUrl = optimized.url;
+          mimeType = 'image/webp';
+          console.log(`🖼️ [Grupo WhatsApp] Imagen convertida y guardada en WebP: ${mediaUrl}`);
+        } catch (convErr) {
+          console.warn('Fallo convirtiendo imagen a WebP, guardando como jpg fallback:', convErr.message);
+          const filename = `group_invoice_${Date.now()}_${msg.key.id}.jpg`;
+          localPath = path.join(CONFIG.MEDIA_DIR, filename);
+          fs.writeFileSync(localPath, buffer);
+          mediaUrl = `/media/${filename}`;
+          mimeType = 'image/jpeg';
+        }
+      } else {
+        const ext = path.extname(messageContent.documentMessage.fileName || '.pdf') || '.pdf';
+        const filename = `group_invoice_${Date.now()}_${msg.key.id}${ext}`;
+        localPath = path.join(CONFIG.MEDIA_DIR, filename);
+        fs.writeFileSync(localPath, buffer);
+        mediaUrl = `/media/${filename}`;
+        mimeType = messageContent.documentMessage.mimetype || 'application/pdf';
+      }
 
       // Procesar comprobante con Gemini Vision (TicketScan OCR)
       const ocrResult = await invoiceOcrService.analyzeInvoice(localPath, mimeType);
@@ -1049,12 +1068,19 @@ export class WhatsAppService {
       try {
         console.log(`📥 Descargando imagen de ${jid}...`);
         const buffer = await downloadMediaMessage(msg, 'buffer', {});
-        const imgPath = path.join(CONFIG.MEDIA_DIR, `img_${Date.now()}_${msg.key.id}.jpg`);
-        fs.writeFileSync(imgPath, buffer);
+        let imgPath;
+        try {
+          const optimized = await imageService.processAndOptimizeImage(buffer, `img_${Date.now()}_${msg.key.id}`);
+          imgPath = optimized.filePath;
+          mediaUrl = optimized.url;
+        } catch (convErr) {
+          imgPath = path.join(CONFIG.MEDIA_DIR, `img_${Date.now()}_${msg.key.id}.jpg`);
+          fs.writeFileSync(imgPath, buffer);
+          mediaUrl = `/media/${path.basename(imgPath)}`;
+        }
         downloadedImagePath = imgPath;
-        mediaUrl = `/media/${path.basename(imgPath)}`;
         textContent = messageContent.imageMessage?.caption || messageContent.documentMessage?.caption || '[Imagen / Comprobante recibido]';
-        console.log(`📸 Imagen guardada en: ${mediaUrl}`);
+        console.log(`📸 Imagen guardada en WebP/JPG: ${mediaUrl}`);
       } catch (err) {
         console.error('Error descargando imagen entrante:', err);
         textContent = messageContent.imageMessage?.caption || '[Foto recibida]';

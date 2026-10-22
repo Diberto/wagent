@@ -267,7 +267,7 @@ export class InventoryService {
     return transfers.find(t => t.id === id) || null;
   }
 
-  createBranchTransfer({ fromBranchId, toBranchId, items = [], notes = '', dispatchedBy = 'Encargado', driverId = null }) {
+  createBranchTransfer({ fromBranchId, toBranchId, items = [], notes = '', dispatchedBy = 'Encargado', driverId = null, cadeteName = '', vehicleType = 'moto', deliveryService = '', cadetePlate = '', cadetePhone = '' }) {
     if (!fromBranchId || !toBranchId) throw new Error('Sucursal origen y destino son requeridas');
     if (fromBranchId === toBranchId) throw new Error('La sucursal de origen y destino no pueden ser la misma');
     if (!Array.isArray(items) || items.length === 0) throw new Error('Debe incluir al menos un producto a transferir');
@@ -278,6 +278,17 @@ export class InventoryService {
     const branches = db.getBranches();
     const fromBranch = branches.find(b => b.id === fromBranchId);
     const toBranch = branches.find(b => b.id === toBranchId);
+
+    let driver = null;
+    if (driverId) {
+      driver = (database.drivers || []).find(d => d.id === driverId);
+    }
+
+    const resolvedCadeteName = driver ? driver.name : (cadeteName || null);
+    const resolvedVehicleType = (driver && driver.vehicleType) ? driver.vehicleType : (vehicleType || 'moto');
+    const resolvedDeliveryService = (driver && driver.deliveryService) ? driver.deliveryService : (deliveryService || null);
+    const resolvedPlate = driver ? driver.plate : (cadetePlate || null);
+    const resolvedPhone = driver ? driver.phone : (cadetePhone || null);
 
     const transferNumber = `TR-${Date.now().toString().slice(-6)}`;
     const newTransfer = {
@@ -301,7 +312,13 @@ export class InventoryService {
       notes,
       dispatchedBy,
       dispatchedAt: new Date().toISOString(),
-      driverId: driverId || null,
+      driverId: driver ? driver.id : (driverId || null),
+      cadeteId: driver ? driver.id : (driverId || null),
+      cadeteName: resolvedCadeteName,
+      cadetePhone: resolvedPhone,
+      cadetePlate: resolvedPlate,
+      vehicleType: resolvedVehicleType, // 'bici' | 'moto' | 'auto' | 'utilitario' | 'camioneta_con_camara' | 'delivery_externo'
+      deliveryService: resolvedDeliveryService, // e.g. 'Rapiboy', 'PedidosYa'
       receivedBy: null,
       receivedAt: null,
       createdAt: new Date().toISOString(),
@@ -358,6 +375,35 @@ export class InventoryService {
         user: receivedBy
       });
     });
+
+    db.writeDb(database);
+    this.emit('transfers:sync', database.branchTransfers);
+    this.emit('transfer:updated', transfer);
+
+    return transfer;
+  }
+
+  assignTransferDriver(transferId, { driverId = null, cadeteName = '', vehicleType = 'moto', deliveryService = '', phone = '', plate = '' } = {}) {
+    const database = db.readDb();
+    if (!Array.isArray(database.branchTransfers)) return null;
+
+    const transfer = database.branchTransfers.find(t => t.id === transferId);
+    if (!transfer) throw new Error('Traspaso no encontrado');
+
+    let driver = null;
+    if (driverId) {
+      driver = (database.drivers || []).find(d => d.id === driverId);
+    }
+
+    transfer.driverId = driverId || (driver ? driver.id : null);
+    transfer.cadeteId = transfer.driverId;
+    transfer.cadeteName = driver ? driver.name : (cadeteName || transfer.cadeteName || 'Repartidor / Cadete');
+    transfer.cadetePhone = driver ? driver.phone : (phone || transfer.cadetePhone || null);
+    transfer.cadetePlate = driver ? driver.plate : (plate || transfer.cadetePlate || null);
+    transfer.vehicleType = (driver && driver.vehicleType) ? driver.vehicleType : (vehicleType || transfer.vehicleType || 'moto');
+    transfer.deliveryService = (driver && driver.deliveryService) ? driver.deliveryService : (deliveryService || transfer.deliveryService || null);
+    transfer.assignedCadeteAt = new Date().toISOString();
+    transfer.updatedAt = new Date().toISOString();
 
     db.writeDb(database);
     this.emit('transfers:sync', database.branchTransfers);

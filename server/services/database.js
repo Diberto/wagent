@@ -344,6 +344,10 @@ class DatabaseService {
     return db.settings;
   }
 
+  saveSettings(newSettings) {
+    return this.updateSettings(newSettings);
+  }
+
   /**
    * Calcula la franja horaria recomendada y costo de envío según la regla de corte de las 12:00 hs,
    * tipo de envío (Estándar vs Express) y monto mínimo de compra para envío gratuito.
@@ -3415,6 +3419,8 @@ class DatabaseService {
       name: data.name || 'Repartidor',
       phone: data.phone || '',
       vehicle: data.vehicle || 'Moto',
+      vehicleType: data.vehicleType || 'moto', // 'bici' | 'moto' | 'auto' | 'utilitario' | 'camioneta_con_camara' | 'delivery_externo'
+      deliveryService: data.deliveryService || '', // 'Rapiboy' | 'PedidosYa' | etc. (if delivery_externo)
       plate: data.plate || '',
       branchId: data.branchId || null,
       userId: data.userId || null,

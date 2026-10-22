@@ -28,6 +28,36 @@ import {
 } from 'lucide-react';
 import UserPicker from './ui/UserPicker.jsx';
 
+export const VEHICLE_TYPES = [
+  { id: 'bici', label: 'Bicicleta', icon: '🚲', badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  { id: 'moto', label: 'Motocicleta', icon: '🛵', badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  { id: 'auto', label: 'Automóvil', icon: '🚗', badge: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  { id: 'utilitario', label: 'Utilitario / Fiorino / Kangoo', icon: '🚐', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+  { id: 'camioneta_con_camara', label: 'Camioneta con Cámara de Frío', icon: '🚛❄️', badge: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  { id: 'delivery_externo', label: 'Delivery Externo (Rapiboy / PedidosYa)', icon: '📦', badge: 'bg-rose-500/20 text-rose-400 border-rose-500/30' }
+];
+
+export const getVehicleBadge = (vehicleType = 'moto', deliveryService = '', vehicleName = '') => {
+  if (vehicleType === 'delivery_externo') {
+    return {
+      id: 'delivery_externo',
+      icon: '📦',
+      label: deliveryService ? `Ext: ${deliveryService}` : 'Delivery Externo',
+      badge: 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+    };
+  }
+  const found = VEHICLE_TYPES.find(v => v.id === vehicleType);
+  if (found) return found;
+
+  const v = (vehicleName || '').toLowerCase();
+  if (v.includes('bici')) return VEHICLE_TYPES[0];
+  if (v.includes('auto') || v.includes('coche')) return VEHICLE_TYPES[2];
+  if (v.includes('utilitario') || v.includes('fiorino') || v.includes('kangoo') || v.includes('partner')) return VEHICLE_TYPES[3];
+  if (v.includes('camara') || v.includes('cámara') || v.includes('frio') || v.includes('frío') || v.includes('camion')) return VEHICLE_TYPES[4];
+  if (v.includes('rapiboy') || v.includes('pedidosya') || v.includes('externo')) return VEHICLE_TYPES[5];
+  return VEHICLE_TYPES[1];
+};
+
 export default function DriversView({ socket }) {
   const [drivers, setDrivers] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -89,6 +119,8 @@ export default function DriversView({ socket }) {
       data: {
         name: '',
         phone: '+549351',
+        vehicleType: 'moto',
+        deliveryService: '',
         vehicle: 'Moto Honda CG 150',
         plate: '',
         branchId: branches[0]?.id || '',
@@ -102,7 +134,11 @@ export default function DriversView({ socket }) {
   const handleOpenEditDriver = (driver) => {
     setDriverModal({
       mode: 'edit',
-      data: { ...driver }
+      data: {
+        ...driver,
+        vehicleType: driver.vehicleType || 'moto',
+        deliveryService: driver.deliveryService || ''
+      }
     });
   };
 
@@ -215,11 +251,18 @@ export default function DriversView({ socket }) {
     return matchesSearch && matchesStatus;
   });
 
-  const getVehicleIcon = (vehicle = '') => {
-    const v = vehicle.toLowerCase();
-    if (v.includes('auto') || v.includes('coche')) return <Car size={16} className="text-sky-400" />;
-    if (v.includes('furgon') || v.includes('camioneta')) return <Truck size={16} className="text-purple-400" />;
-    return <Bike size={16} className="text-emerald-400" />;
+  const getVehicleIcon = (vehicle = '', vehicleType = 'moto', deliveryService = '') => {
+    if (vehicleType === 'bici') return <Bike size={16} className="text-emerald-400" />;
+    if (vehicleType === 'auto') return <Car size={16} className="text-purple-400" />;
+    if (vehicleType === 'utilitario') return <Truck size={16} className="text-amber-400" />;
+    if (vehicleType === 'camioneta_con_camara') return <span className="text-base leading-none" title="Camioneta c/ Cámara de Frío">🚛❄️</span>;
+    if (vehicleType === 'delivery_externo') return <span className="text-base leading-none" title={`Delivery Externo: ${deliveryService || 'Rapiboy/PedidosYa'}`}>📦</span>;
+    const v = (vehicle || '').toLowerCase();
+    if (v.includes('auto') || v.includes('coche')) return <Car size={16} className="text-purple-400" />;
+    if (v.includes('furgon') || v.includes('utilitario') || v.includes('kangoo') || v.includes('fiorino')) return <Truck size={16} className="text-amber-400" />;
+    if (v.includes('camion') || v.includes('camara') || v.includes('frío')) return <span className="text-base leading-none">🚛❄️</span>;
+    if (v.includes('bici')) return <Bike size={16} className="text-emerald-400" />;
+    return <Bike size={16} className="text-sky-400" />;
   };
 
   return (
@@ -381,7 +424,7 @@ export default function DriversView({ socket }) {
                         <td className="py-3.5 px-4 min-w-[160px]">
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-xl bg-[#111b21] border border-slate-700 flex items-center justify-center text-sm font-bold text-white shrink-0">
-                              {getVehicleIcon(driver.vehicle)}
+                              {getVehicleIcon(driver.vehicle, driver.vehicleType, driver.deliveryService)}
                             </div>
                             <div>
                               <div className="font-bold text-white">{driver.name}</div>
@@ -393,8 +436,19 @@ export default function DriversView({ socket }) {
                           {driver.phone || 'Sin WhatsApp'}
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="font-semibold text-slate-200">{driver.vehicle || 'Moto'}</div>
-                          {driver.plate && <div className="text-[10px] text-slate-400 font-mono">Patente: {driver.plate}</div>}
+                          {(() => {
+                            const badge = getVehicleBadge(driver.vehicleType, driver.deliveryService, driver.vehicle);
+                            return (
+                              <div className="space-y-1">
+                                <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold border ${badge.badge}`}>
+                                  <span>{badge.icon}</span>
+                                  <span>{badge.label}</span>
+                                </span>
+                                <div className="font-semibold text-slate-200">{driver.vehicle || 'Sin modelo'}</div>
+                                {driver.plate && <div className="text-[10px] text-slate-400 font-mono">Patente: {driver.plate}</div>}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap text-slate-300">
                           {branch?.name || 'Central'}
@@ -488,7 +542,7 @@ export default function DriversView({ socket }) {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-2xl bg-[#111b21] border border-slate-700/80 flex items-center justify-center text-xl font-bold text-white shadow-md">
-                          {getVehicleIcon(driver.vehicle)}
+                          {getVehicleIcon(driver.vehicle, driver.vehicleType, driver.deliveryService)}
                         </div>
                         <div>
                           <h3 className="text-base font-bold text-white leading-tight flex items-center gap-2">
@@ -513,10 +567,22 @@ export default function DriversView({ socket }) {
 
                     {/* Vehicle & Branch Details */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 space-y-0.5">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Vehículo:</span>
-                        <div className="text-slate-200 font-semibold truncate">{driver.vehicle || 'Moto'}</div>
-                        {driver.plate && <span className="text-[10px] font-mono text-emerald-400 font-bold block">Patente: {driver.plate}</span>}
+                      <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 space-y-1">
+                        {(() => {
+                          const badge = getVehicleBadge(driver.vehicleType, driver.deliveryService, driver.vehicle);
+                          return (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-slate-500 font-bold uppercase">Vehículo:</span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold border ${badge.badge}`}>
+                                  {badge.icon} {badge.label}
+                                </span>
+                              </div>
+                              <div className="text-slate-200 font-semibold truncate">{driver.vehicle || 'Sin modelo'}</div>
+                              {driver.plate && <span className="text-[10px] font-mono text-emerald-400 font-bold block">Patente: {driver.plate}</span>}
+                            </>
+                          );
+                        })()}
                       </div>
 
                       <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 space-y-0.5">
@@ -665,12 +731,67 @@ export default function DriversView({ socket }) {
                 />
               </div>
 
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Tipo de Vehículo / Modalidad de Reparto:</label>
+                <select
+                  value={driverModal.data.vehicleType || 'moto'}
+                  onChange={(e) => setDriverModal({
+                    ...driverModal,
+                    data: { ...driverModal.data, vehicleType: e.target.value }
+                  })}
+                  className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-emerald-500 font-medium"
+                >
+                  {VEHICLE_TYPES.map(vt => (
+                    <option key={vt.id} value={vt.id}>
+                      {vt.icon} {vt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {driverModal.data.vehicleType === 'delivery_externo' && (
+                <div className="bg-[#182229] p-3 rounded-xl border border-rose-500/30 space-y-2">
+                  <label className="block text-rose-300 font-bold text-xs uppercase tracking-wider">
+                    📦 Plataforma / Servicio de Delivery Externo:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={['Rapiboy', 'PedidosYa', 'Uber Flash', 'Didi Entrega'].includes(driverModal.data.deliveryService) ? driverModal.data.deliveryService : 'Otro'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDriverModal({
+                          ...driverModal,
+                          data: { ...driverModal.data, deliveryService: val === 'Otro' ? '' : val }
+                        });
+                      }}
+                      className="px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-rose-500 text-xs"
+                    >
+                      <option value="Rapiboy">Rapiboy</option>
+                      <option value="PedidosYa">PedidosYa</option>
+                      <option value="Uber Flash">Uber Flash</option>
+                      <option value="Didi Entrega">Didi Entrega</option>
+                      <option value="Otro">Otro / Personalizado</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Nombre empresa (ej: Rapiboy)"
+                      value={driverModal.data.deliveryService || ''}
+                      onChange={(e) => setDriverModal({
+                        ...driverModal,
+                        data: { ...driverModal.data, deliveryService: e.target.value }
+                      })}
+                      className="px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-rose-500 text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Vehículo:</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Modelo / Detalle Vehículo:</label>
                   <input
                     type="text"
-                    placeholder="Ej: Moto Honda CG 150"
+                    placeholder="Ej: Moto Honda CG 150 / Partner"
                     value={driverModal.data.vehicle}
                     onChange={(e) => setDriverModal({
                       ...driverModal,
