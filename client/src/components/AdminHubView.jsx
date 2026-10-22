@@ -35,7 +35,8 @@ import {
   Smartphone,
   QrCode,
   Copy,
-  ExternalLink
+  ExternalLink,
+  VolumeX
 } from 'lucide-react';
 import UsersView from './UsersView';
 import DatabaseView from './DatabaseView';
@@ -43,6 +44,8 @@ import SystemHealthView from './SystemHealthView';
 import LogsView from './LogsView';
 import AutomationRulesView from './AutomationRulesView';
 import WooCommerceView from './WooCommerceView';
+import StockTransfersView from './StockTransfersView';
+import ApiMcpHubView from './ApiMcpHubView';
 import { 
   SYSTEM_AI_PROVIDERS, 
   SYSTEM_AI_MODELS, 
@@ -351,11 +354,13 @@ export default function AdminHubView({
   // Secciones del Master Rail
   const sections = [
     { id: 'general', label: 'General & Datos', icon: Settings, desc: 'Nombre del negocio, moneda y reglas comerciales' },
+    { id: 'silentGroup', label: 'Grupo Silencioso (OCR)', icon: VolumeX, desc: 'Agente pasivo en WhatsApp para facturas y remitos' },
     { id: 'metaWhatsapp', label: 'Meta WhatsApp API', icon: Smartphone, desc: 'API Oficial Cloud de Meta, Webhooks y credenciales' },
     { id: 'ai', label: 'Modelos IA & Prompts', icon: Bot, desc: 'Gemini, OpenAI, Llama local y personalidad' },
     { id: 'logistics', label: 'Logística & Despachos', icon: Bike, desc: 'Franjas horarias, costos y radios de envío' },
     { id: 'payments', label: 'Mercado Pago', icon: CreditCard, desc: 'Pasarelas de cobro y Alias digital' },
     { id: 'arca', label: 'ARCA (AFIP) Facturación', icon: Receipt, desc: 'Multi-Razón Social, CUITs, puntos de venta y WSFE' },
+    { id: 'apiMcp', label: 'Conectividad API & MCP', icon: Cpu, desc: 'API REST, Keys de acceso y Servidor MCP para Agentes' },
     { id: 'automations', label: 'Automatizaciones', icon: Zap, desc: 'Reglas inteligentes de pedidos y respuestas' },
     { id: 'woocommerce', label: 'WooCommerce Sync', icon: Globe, desc: 'Sincronización de catálogo y stock online' },
     { id: 'users', label: 'Usuarios & Accesos', icon: Users, desc: 'Operadores, roles RBAC y permisos' },
@@ -2285,6 +2290,20 @@ export default function AdminHubView({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 14. GRUPO SILENCIOSO DE WHATSAPP (FACTURAS OCR & STOCK) */}
+        {activeSection === 'silentGroup' && (
+          <div className="h-full w-full">
+            <StockTransfersView socket={socket} currentUser={currentUser} initialTab="silent-group" />
+          </div>
+        )}
+
+        {/* 15. CONECTIVIDAD API REST & MCP SERVER */}
+        {activeSection === 'apiMcp' && (
+          <div className="h-full w-full">
+            <ApiMcpHubView currentUser={currentUser} />
           </div>
         )}
 

@@ -37,6 +37,58 @@ import {
 } from 'lucide-react';
 import ClientLocationMap from './ClientLocationMap';
 
+export const CUSTOM_FIELD_LABELS = {
+  birthDate: 'Fecha de Cumpleaños',
+  birthdate: 'Fecha de Cumpleaños',
+  cookingPreference: 'Preferencia de Cocción',
+  cookingpreference: 'Preferencia de Cocción',
+  registeredVia: 'Canal de Registro',
+  registeredvia: 'Canal de Registro',
+  preferredBranch: 'Sucursal de Preferencia',
+  preferredbranch: 'Sucursal de Preferencia',
+  cuit: 'CUIT / DNI',
+  barrio: 'Barrio / Zona',
+  notes: 'Notas Adicionales',
+  deliveryType: 'Tipo de Entrega',
+  deliverytype: 'Tipo de Entrega',
+  occupation: 'Ocupación',
+  source: 'Origen del Cliente'
+};
+
+export const CUSTOM_FIELD_VALUES = {
+  micuenta_portal: 'Portal Web Mi Cuenta',
+  portal_micuenta: 'Portal Web Mi Cuenta',
+  micuenta: 'Portal Web Mi Cuenta',
+  whatsapp_crm: 'WhatsApp / Asesor IA',
+  whatsapp: 'WhatsApp',
+  pos: 'POS Mostrador',
+  pos_counter: 'POS Mostrador',
+  manual: 'Carga Manual CRM',
+  imported: 'Importado / Excel',
+  delivery: 'Envío a Domicilio',
+  pickup: 'Retiro en Sucursal'
+};
+
+export function formatCustomFieldLabel(rawKey) {
+  if (!rawKey) return '';
+  const lower = String(rawKey).toLowerCase().trim();
+  if (CUSTOM_FIELD_LABELS[rawKey]) return CUSTOM_FIELD_LABELS[rawKey];
+  if (CUSTOM_FIELD_LABELS[lower]) return CUSTOM_FIELD_LABELS[lower];
+  return rawKey
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .trim()
+    .replace(/^\w/, c => c.toUpperCase());
+}
+
+export function formatCustomFieldValue(rawVal) {
+  if (rawVal === undefined || rawVal === null || rawVal === '') return '-';
+  const lower = String(rawVal).toLowerCase().trim();
+  if (CUSTOM_FIELD_VALUES[rawVal]) return CUSTOM_FIELD_VALUES[rawVal];
+  if (CUSTOM_FIELD_VALUES[lower]) return CUSTOM_FIELD_VALUES[lower];
+  return String(rawVal);
+}
+
 export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [customers, setCustomers] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -178,20 +230,33 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
 
   useEffect(() => {
     if (selectedCustomer) {
+      const existingCustom = selectedCustomer.customFields || {};
+      const birthDate = selectedCustomer.birthDate || existingCustom.birthDate || '';
+      const cookingPreference = selectedCustomer.cookingPreference || selectedCustomer.preferences?.cookingPreference || existingCustom.cookingPreference || 'Parrilla';
+      const registeredVia = existingCustom.registeredVia || selectedCustomer.registeredVia || (selectedCustomer.orders?.length > 0 ? 'pos_counter' : 'whatsapp_crm');
+
+      const unifiedCustomFields = {
+        birthDate,
+        cookingPreference,
+        registeredVia,
+        ...existingCustom
+      };
+
       setEditForm({
         name: selectedCustomer.name || '',
         phone: selectedCustomer.phone || '',
         email: selectedCustomer.email || '',
         address: selectedCustomer.address || '',
+        birthDate: birthDate,
         fiscalCondition: selectedCustomer.fiscalCondition || 'CF',
         cuit: selectedCustomer.cuit || '',
         preferredBranch: selectedCustomer.preferredBranch || '',
         preferredBranchId: selectedCustomer.preferredBranchId || '',
         preferredDriverId: selectedCustomer.preferredDriverId || '',
-        customFields: selectedCustomer.customFields || {},
+        customFields: unifiedCustomFields,
         preferences: {
           favoriteCuts: selectedCustomer.preferences?.favoriteCuts || [],
-          cookingPreference: selectedCustomer.preferences?.cookingPreference || 'Parrilla',
+          cookingPreference: cookingPreference,
           groupSize: selectedCustomer.preferences?.groupSize || '4 personas',
           preferredPayment: selectedCustomer.preferences?.preferredPayment || 'Efectivo / Transferencia',
           notes: selectedCustomer.preferences?.notes || ''
@@ -822,17 +887,38 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                               onChange={(e) => setEditForm({ ...editForm, preferredBranch: e.target.value })}
                               className="px-2 py-0.5 rounded bg-[#111b21] border border-slate-700 text-xs text-white"
                             >
-                              <option value="">🏢 Sin sucursal fija</option>
-                              <option value="URCA CENTRAL">📍 URCA CENTRAL</option>
-                              <option value="URCA 2 – ALTO TEJEDA">📍 URCA 2 – ALTO TEJEDA</option>
-                              <option value="INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA">📍 INTERCOUNTRY – CORTEZA MALL</option>
-                              <option value="DUARTE QUIRÓS">📍 DUARTE QUIRÓS</option>
-                              <option value="VILLA ALLENDE – MERCADITO DE LA VILLA">📍 VILLA ALLENDE</option>
-                              <option value="COUNTRY SAN ISIDRO – ALTO TEJEDA">📍 COUNTRY SAN ISIDRO</option>
+                              <option value="">🏢 Sin sucursal asignada</option>
+                              {branches.map(b => (
+                                <option key={b.id} value={b.name}>📍 {b.name}</option>
+                              ))}
                             </select>
                           ) : (
                             <span className="text-slate-300">
-                              {selectedCustomer.preferredBranch || 'URCA CENTRAL'}
+                              {selectedCustomer.preferredBranch || 'Sin sucursal asignada'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Cumpleaños / Fecha Nacimiento */}
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={12} className="text-pink-400" />
+                          {isEditing ? (
+                            <input
+                              type="date"
+                              value={editForm.birthDate || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditForm({
+                                  ...editForm,
+                                  birthDate: val,
+                                  customFields: { ...editForm.customFields, birthDate: val }
+                                });
+                              }}
+                              className="px-2 py-0.5 rounded bg-[#111b21] border border-slate-700 text-xs text-white"
+                            />
+                          ) : (
+                            <span className={selectedCustomer.birthDate ? 'text-slate-300' : 'text-slate-500 italic'}>
+                              {selectedCustomer.birthDate ? `🎂 ${selectedCustomer.birthDate}` : 'Sin cumpleaños'}
                             </span>
                           )}
                         </div>
@@ -944,7 +1030,7 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                 </div>
 
                 {/* KPI Metrics */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-800">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-slate-800">
                   <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800/80">
                     <div className="text-[11px] text-slate-400 font-semibold">Total Comprado</div>
                     <div className="text-base font-bold text-emerald-400">${(selectedCustomer.totalSpent || 0).toLocaleString('es-AR')}</div>
@@ -958,6 +1044,19 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                   <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800/80">
                     <div className="text-[11px] text-slate-400 font-semibold">Ticket Promedio</div>
                     <div className="text-base font-bold text-white">${(selectedCustomer.averageTicket || 0).toLocaleString('es-AR')}</div>
+                  </div>
+
+                  {/* Tarjeta Unificada de Fidelización & Puntos */}
+                  <div className="bg-[#111b21] p-3 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
+                    <div className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
+                      <Sparkles size={11} /> Puntos Club
+                    </div>
+                    <div className="text-base font-black text-amber-400">
+                      {selectedCustomer.loyalty ? selectedCustomer.loyalty.currentPoints.toLocaleString('es-AR') : '0'} pts
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Nivel {selectedCustomer.loyalty?.tier?.name || 'Bronce'} ({selectedCustomer.loyalty?.tier?.discountPercentage || 0}% de Descuento)
+                    </div>
                   </div>
 
                   <div className="bg-[#111b21] p-3 rounded-2xl border border-slate-800/80">
@@ -1031,53 +1130,120 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                     <Layers size={16} className="text-sky-400" />
                     Campos & Atributos Personalizados
                   </h3>
-                  <span className="text-[11px] text-slate-400">Datos adicionales de facturación, CUIT, cumpleaños, etc.</span>
+                  <span className="text-[11px] text-slate-400">Datos adicionales de facturación, CUIT, cumpleaños, fidelización, etc.</span>
                 </div>
 
                 {isEditing ? (
-                  <div className="space-y-2">
-                    {Object.entries(editForm.customFields || {}).map(([key, val]) => (
-                      <div key={key} className="flex items-center gap-2">
-                        <span className="w-1/3 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-800 text-xs text-slate-300 font-bold">{key}</span>
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={(e) => {
-                            setEditForm({
-                              ...editForm,
-                              customFields: { ...editForm.customFields, [key]: e.target.value }
-                            });
-                          }}
-                          className="flex-1 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = { ...editForm.customFields };
-                            delete updated[key];
-                            setEditForm({ ...editForm, customFields: updated });
-                          }}
-                          className="p-1.5 text-slate-500 hover:text-rose-400"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="space-y-2.5">
+                    {Object.entries(editForm.customFields || {}).map(([key, val]) => {
+                      const isCoreField = ['birthDate', 'cookingPreference', 'registeredVia'].includes(key);
+                      return (
+                        <div key={key} className="flex items-center gap-2 bg-[#111b21] p-2.5 rounded-2xl border border-slate-800">
+                          <div className="w-1/3 min-w-[140px] flex flex-col px-2">
+                            <span className="text-xs font-bold text-sky-400">
+                              {formatCustomFieldLabel(key)}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              {key}
+                            </span>
+                          </div>
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                          {key === 'birthDate' ? (
+                            <input
+                              type="date"
+                              value={val || ''}
+                              onChange={(e) => {
+                                const newVal = e.target.value;
+                                setEditForm({
+                                  ...editForm,
+                                  birthDate: newVal,
+                                  customFields: { ...editForm.customFields, [key]: newVal }
+                                });
+                              }}
+                              className="flex-1 px-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-500"
+                            />
+                          ) : key === 'cookingPreference' ? (
+                            <select
+                              value={val || 'Parrilla'}
+                              onChange={(e) => {
+                                const newVal = e.target.value;
+                                setEditForm({
+                                  ...editForm,
+                                  preferences: { ...editForm.preferences, cookingPreference: newVal },
+                                  customFields: { ...editForm.customFields, [key]: newVal }
+                                });
+                              }}
+                              className="flex-1 px-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="Parrilla">Parrilla / Asado</option>
+                              <option value="Horno">Horno y Estofados</option>
+                              <option value="Olla / Guiso">Olla / Guiso</option>
+                              <option value="Minutas / Rápido">Minutas / Rápido</option>
+                            </select>
+                          ) : key === 'registeredVia' ? (
+                            <select
+                              value={val || 'micuenta_portal'}
+                              onChange={(e) => {
+                                const newVal = e.target.value;
+                                setEditForm({
+                                  ...editForm,
+                                  customFields: { ...editForm.customFields, [key]: newVal }
+                                });
+                              }}
+                              className="flex-1 px-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-500"
+                            >
+                              <option value="micuenta_portal">Portal Web Mi Cuenta</option>
+                              <option value="whatsapp_crm">WhatsApp / Asesor IA</option>
+                              <option value="pos_counter">POS Mostrador</option>
+                              <option value="manual">Carga Manual CRM</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={val || ''}
+                              onChange={(e) => {
+                                setEditForm({
+                                  ...editForm,
+                                  customFields: { ...editForm.customFields, [key]: e.target.value }
+                                });
+                              }}
+                              className="flex-1 px-3 py-1.5 rounded-xl bg-[#182229] border border-slate-700 text-xs text-white focus:outline-none focus:border-sky-500"
+                              placeholder="Valor del campo..."
+                            />
+                          )}
+
+                          {!isCoreField && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = { ...editForm.customFields };
+                                delete updated[key];
+                                setEditForm({ ...editForm, customFields: updated });
+                              }}
+                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition"
+                              title="Eliminar campo personalizado"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    <div className="flex items-center gap-2 pt-3 border-t border-slate-800">
                       <input
                         type="text"
-                        placeholder="Nombre de campo (ej: CUIT, Barrio, Cumpleaños)..."
+                        placeholder="Nombre de nuevo campo (ej: CUIT, Barrio, Ocupación)..."
                         value={newCustomKey}
                         onChange={(e) => setNewCustomKey(e.target.value)}
-                        className="w-1/3 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500"
+                        className="w-1/3 px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
                       />
                       <input
                         type="text"
                         placeholder="Valor del campo..."
                         value={newCustomVal}
                         onChange={(e) => setNewCustomVal(e.target.value)}
-                        className="flex-1 px-3 py-1.5 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500"
+                        className="flex-1 px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
                       />
                       <button
                         type="button"
@@ -1094,24 +1260,29 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                             setNewCustomVal('');
                           }
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 text-xs font-bold transition"
+                        className="px-4 py-2 rounded-xl bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 text-xs font-bold transition flex items-center gap-1 shrink-0"
                       >
-                        + Agregar
+                        <Plus size={13} />
+                        Agregar
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                     {selectedCustomer.customFields && Object.keys(selectedCustomer.customFields).length > 0 ? (
                       Object.entries(selectedCustomer.customFields).map(([key, val]) => (
-                        <div key={key} className="p-2.5 bg-[#111b21] rounded-2xl border border-slate-800 flex flex-col">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold">{key}</span>
-                          <span className="text-xs font-semibold text-white mt-0.5">{val || '-'}</span>
+                        <div key={key} className="p-3 bg-[#111b21] rounded-2xl border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition">
+                          <span className="text-[11px] text-sky-400/90 font-bold flex items-center gap-1.5">
+                            {formatCustomFieldLabel(key)}
+                          </span>
+                          <span className="text-xs font-semibold text-white mt-1 break-words">
+                            {formatCustomFieldValue(val)}
+                          </span>
                         </div>
                       ))
                     ) : (
-                      <div className="col-span-full p-3 bg-[#111b21] rounded-2xl border border-slate-800 text-xs text-slate-500 italic">
-                        Sin campos personalizados. Hacé clic en "Editar" para agregar CUIT, Cumpleaños, etc.
+                      <div className="col-span-full p-4 bg-[#111b21] rounded-2xl border border-slate-800 text-xs text-slate-500 italic text-center">
+                        Sin campos personalizados cargados. Hacé clic en "Editar" para cargar datos adicionales.
                       </div>
                     )}
                   </div>
@@ -1135,15 +1306,19 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                     </span>
                     {isEditing ? (
                       <select
-                        value={editForm.preferences.cookingPreference}
-                        onChange={(e) => setEditForm({
-                          ...editForm,
-                          preferences: { ...editForm.preferences, cookingPreference: e.target.value }
-                        })}
+                        value={editForm.preferences.cookingPreference || 'Parrilla'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditForm({
+                            ...editForm,
+                            preferences: { ...editForm.preferences, cookingPreference: val },
+                            customFields: { ...editForm.customFields, cookingPreference: val }
+                          });
+                        }}
                         className="w-full bg-[#182229] border border-slate-700 text-xs text-white rounded-lg p-1.5"
                       >
-                        <option value="Parrilla / Asado">Parrilla / Asado</option>
-                        <option value="Horno y Estofados">Horno y Estofados</option>
+                        <option value="Parrilla">Parrilla / Asado</option>
+                        <option value="Horno">Horno y Estofados</option>
                         <option value="Milanesas">Milanesas</option>
                         <option value="Comidas Diarias">Comidas Diarias</option>
                       </select>

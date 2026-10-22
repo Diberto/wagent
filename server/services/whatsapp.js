@@ -10,6 +10,8 @@ import { AIService } from './ai.js';
 import { AudioConverter } from './audioConverter.js';
 import { SpeechService } from './speech.js';
 import { MetaWhatsAppService } from './metaWhatsApp.js';
+import { inventoryService } from './inventoryService.js';
+import { invoiceOcrService } from './invoiceOcrService.js';
 
 /**
  * Desenpaqueta mensajes anidados (efímeros, view-once, multimedia con subtítulo)
@@ -618,7 +620,11 @@ export class WhatsAppService {
         for (const msg of messages) {
           if (!msg.key || !msg.key.remoteJid) continue;
           if (msg.key.remoteJid === 'status@broadcast') continue;
-          if (msg.key.remoteJid.endsWith('@g.us')) continue;
+          if (msg.key.remoteJid.endsWith('@g.us')) {
+            // Escaneo pasivo silencioso de facturas en grupos de proveedores
+            await this.handleGroupMessage(msg);
+            continue;
+          }
 
           await this.handleIncomingMessage(msg);
         }
@@ -805,6 +811,123 @@ export class WhatsAppService {
           console.error('Error en auto-atención de llamada:', err);
         }
       }, 1000);
+    }
+  }
+
+  /**
+   * MODO SILENCIOSO / PASIVO: Escucha imágenes y comprobantes en grupos de proveedores sin responder en el grupo
+   */
+  async handleGroupMessage(msg) {
+    try {
+      const groupJid = msg.key.remoteJid;
+      const settings = db.getSettings();
+      const silentGroups = Array.isArray(settings.silentGroups) ? settings.silentGroups : [];
+
+      // Buscar si el grupo emisor está registrado en la lista de grupos silenciosos activos
+      let matchedGroup = silentGroups.find(g => g.groupId === groupJid && g.active !== false);
+
+      // Compatibilidad con configuración unitaria anterior si aún no se migró
+      if (!matchedGroup && settings.supplierScanGroupId === groupJid && settings.supplierScanGroupEnabled !== false) {
+        matchedGroup = {
+          groupId: settings.supplierScanGroupId,
+          groupName: 'Grupo Proveedores Principal',
+          branchId: settings.defaultSupplierBranchId || 'br-1',
+          expenseCategory: 'mercaderia',
+          autoConfirm: Boolean(settings.autoConfirmGroupInvoices),
+          active: true
+        };
+      }
+
+      // Si el grupo no está configurado como receptor silencioso o está pausado, ignorar en silencio
+      if (!matchedGroup) {
+        return;
+      }
+
+      // Desenpaquetar contenido
+      const rawMessage = msg.message;
+      if (!rawMessage) return;
+      const messageContent = unwrapMessageContent(rawMessage);
+      if (!messageContent) return;
+
+      const isImage = Boolean(messageContent.imageMessage);
+      const isDocument = Boolean(messageContent.documentMessage);
+
+      // Solo procesar si contiene archivo multimedia (foto de factura, remito o PDF)
+      if (!isImage && !isDocument) return;
+
+      console.log(`🧾 [Grupo WhatsApp "${matchedGroup.groupName || groupJid}"] Comprobante recibido. Iniciando análisis OCR TicketScan en modo pasivo...`);
+
+      const buffer = await downloadMediaMessage(msg, 'buffer', {});
+      const ext = isDocument 
+        ? (path.extname(messageContent.documentMessage.fileName || '.pdf') || '.pdf') 
+        : '.jpg';
+      const filename = `group_invoice_${Date.now()}_${msg.key.id}${ext}`;
+      const localPath = path.join(CONFIG.MEDIA_DIR, filename);
+      fs.writeFileSync(localPath, buffer);
+
+      const mediaUrl = `/media/${filename}`;
+      const mimeType = isDocument ? (messageContent.documentMessage.mimetype || 'application/pdf') : 'image/jpeg';
+
+      // Procesar comprobante con Gemini Vision (TicketScan OCR)
+      const ocrResult = await invoiceOcrService.analyzeInvoice(localPath, mimeType);
+      if (ocrResult.success && ocrResult.data) {
+        const extData = ocrResult.data;
+        console.log(`✅ [Grupo WhatsApp] Factura extraída: ${extData.merchant} - Total: $${extData.total}`);
+
+        const autoConfirm = matchedGroup.autoConfirm !== undefined ? Boolean(matchedGroup.autoConfirm) : Boolean(settings.autoConfirmGroupInvoices);
+        const expenseCategory = matchedGroup.expenseCategory || 'mercaderia';
+        const targetBranchId = matchedGroup.branchId || settings.defaultSupplierBranchId || 'br-1';
+
+        // Registrar factura en el sistema con sucursal y rubro de gastos asignado a este grupo
+        const registered = inventoryService.registerSupplierInvoice({
+          supplierId: extData.supplierId,
+          supplierName: extData.merchant || 'Proveedor de Grupo',
+          invoiceNumber: extData.invoiceNumber,
+          invoiceType: extData.invoiceType || 'Factura A',
+          date: extData.date,
+          branchId: targetBranchId,
+          expenseCategory,
+          items: extData.items || [],
+          totalAmount: extData.total,
+          mediaUrl,
+          rawOcrData: extData,
+          status: autoConfirm ? 'confirmed' : 'draft',
+          notes: `Recibido automáticamente desde grupo WhatsApp "${matchedGroup.groupName || groupJid}" [Caso: ${expenseCategory}]`,
+          operator: 'Bot Escáner Silencioso'
+        });
+
+        // Emitir notificación visual al panel web
+        if (this.io) {
+          this.io.emit('notification:new', {
+            title: `🧾 Factura Proveedor Detectada`,
+            message: `${extData.merchant || 'Proveedor'} - $${Number(extData.total || 0).toLocaleString('es-AR')} en ${registered.branchName} (${expenseCategory})`,
+            type: 'inventory',
+            tab: 'stock-transfers',
+            data: registered
+          });
+          this.io.emit('invoices:sync', inventoryService.getSupplierInvoices());
+          this.io.emit('stock:updated', { source: 'group_scan' });
+        }
+
+        // Si hay un teléfono de administrador configurado para alertas de compras, avisar por mensaje PRIVADO (nunca al grupo)
+        if (settings.notifyAdminOnGroupInvoice && settings.adminNotifyPhone) {
+          const adminJid = `${settings.adminNotifyPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+          const summaryMsg = `🔔 *[Comprobante Registrado desde Grupo]*\n\n` +
+            `👥 *Grupo:* ${matchedGroup.groupName || groupJid}\n` +
+            `📂 *Caso / Rubro:* ${expenseCategory.toUpperCase()}\n` +
+            `🏢 *Proveedor:* ${extData.merchant || 'No especificado'}\n` +
+            `📄 *Comprobante:* ${extData.invoiceType || 'Factura'} #${extData.invoiceNumber || 'S/N'}\n` +
+            `💰 *Monto Total:* $${Number(extData.total || 0).toLocaleString('es-AR')}\n` +
+            `📦 *Ítems/Cortes:* ${extData.items?.length || 0} detectados\n` +
+            `🏪 *Sucursal Asignada:* ${registered.branchName}\n` +
+            `⚡ *Estado:* ${registered.status === 'confirmed' ? 'Confirmado e ingresado a Stock' : 'Borrador pendiente de confirmación'}\n\n` +
+            `Podés revisarlo o editarlo en la sección de Stock y Facturas del sistema.`;
+
+          this.sendTextMessage(adminJid, summaryMsg).catch(err => console.warn('Error enviando aviso privado a admin:', err.message));
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ [Grupo WhatsApp] Error procesando comprobante silencioso:', err.message);
     }
   }
 
@@ -1364,6 +1487,53 @@ export class WhatsAppService {
     } catch (_) {}
     console.log(`✅ [WhatsApp Saliente (${this.sessionId})] Nota de voz entregada a WhatsApp. Msg ID: ${sent?.key?.id || 'OK'}`);
     return sent;
+  }
+
+  /**
+   * Obtiene la lista de grupos en los que participa el bot
+   */
+  async getParticipatingGroups() {
+    if (!this.sock || this.status !== 'connected') {
+      return [];
+    }
+    try {
+      const groups = await this.sock.groupFetchAllParticipating();
+      return Object.values(groups).map(g => ({
+        id: g.id,
+        subject: g.subject || 'Grupo sin nombre',
+        creation: g.creation,
+        owner: g.owner,
+        desc: g.desc ? g.desc.toString() : '',
+        participantsCount: Array.isArray(g.participants) ? g.participants.length : 0
+      }));
+    } catch (err) {
+      console.warn(`[WhatsApp ${this.sessionId}] Error obteniendo grupos participantes:`, err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Une al bot a un grupo de WhatsApp mediante enlace o código de invitación
+   */
+  async joinGroupViaInvite(inviteCodeOrUrl) {
+    if (!this.sock || this.status !== 'connected') {
+      throw new Error('WhatsApp no se encuentra conectado');
+    }
+    let code = String(inviteCodeOrUrl || '').trim();
+    if (code.includes('chat.whatsapp.com/')) {
+      code = code.split('chat.whatsapp.com/')[1].split(/[?#]/)[0];
+    }
+    if (!code) {
+      throw new Error('Código o enlace de invitación no válido');
+    }
+    try {
+      const groupId = await this.sock.groupAcceptInvite(code);
+      console.log(`✅ [WhatsApp ${this.sessionId}] Bot se unió exitosamente al grupo: ${groupId}`);
+      return { success: true, groupId };
+    } catch (err) {
+      console.error(`[WhatsApp ${this.sessionId}] Error uniéndose a grupo mediante enlace:`, err.message);
+      throw new Error(`Error al unirse al grupo: ${err.message}`);
+    }
   }
 
   /**
@@ -2165,6 +2335,22 @@ export class WhatsAppManager {
     }
     const session = this.getActiveConnectedSession(userId);
     return session ? session.formatRecipientJid(target) : null;
+  }
+
+  async getParticipatingGroups(userId = null) {
+    const session = this.getActiveConnectedSession(userId) || this.primarySession;
+    if (!session || typeof session.getParticipatingGroups !== 'function') {
+      return [];
+    }
+    return session.getParticipatingGroups();
+  }
+
+  async joinGroupViaInvite(inviteCodeOrUrl, userId = null) {
+    const session = this.getActiveConnectedSession(userId) || this.primarySession;
+    if (!session || typeof session.joinGroupViaInvite !== 'function') {
+      throw new Error('WhatsApp no está conectado en el servidor');
+    }
+    return session.joinGroupViaInvite(inviteCodeOrUrl);
   }
 }
 

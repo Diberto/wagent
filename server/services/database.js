@@ -255,11 +255,16 @@ class DatabaseService {
     if (!data) return false;
     this._cache = data;
 
-    // Sincronización transparente con SQLite WAL
-    try {
-      sqliteStorage.migrateFromJsonData(data);
-    } catch (sqliteErr) {
-      console.warn('⚠️ [DatabaseService] Error sincronizando a SQLite:', sqliteErr.message);
+    // Sincronización write-behind no bloqueante con SQLite WAL (debounced para alta concurrencia)
+    if (!this._sqliteSyncTimeout) {
+      this._sqliteSyncTimeout = setTimeout(() => {
+        this._sqliteSyncTimeout = null;
+        try {
+          if (this._cache) sqliteStorage.migrateFromJsonData(this._cache);
+        } catch (sqliteErr) {
+          console.warn('⚠️ [DatabaseService] Error sincronizando a SQLite:', sqliteErr.message);
+        }
+      }, 1500);
     }
 
     const jsonStr = JSON.stringify(data, null, 2);
@@ -645,6 +650,7 @@ class DatabaseService {
       if (leadData.address) existing.address = leadData.address;
       if (leadData.preferredBranch) existing.preferredBranch = leadData.preferredBranch;
       if (leadData.deliveryType) existing.deliveryType = leadData.deliveryType;
+      if (leadData.pin) existing.pin = String(leadData.pin).trim();
       if (leadData.customFields) {
         existing.customFields = { ...(existing.customFields || {}), ...leadData.customFields };
       }
@@ -681,6 +687,7 @@ class DatabaseService {
         jid: jid || (formattedPhone ? `${formattedPhone.replace(/\D/g, '')}@s.whatsapp.net` : ''),
         altJids: altJid ? [altJid] : [],
         phone: realPhoneCandidate,
+        pin: leadData.pin ? String(leadData.pin).trim() : null,
         name: leadData.realName || (leadData.name && leadData.name !== 'Contacto WhatsApp' ? leadData.name : (leadData.pushName && leadData.pushName !== 'Contacto WhatsApp' ? leadData.pushName : realPhoneCandidate || 'Nuevo Contacto')),
         pushName: leadData.pushName || 'Contacto WhatsApp',
         email: leadData.email || '',
@@ -2803,16 +2810,32 @@ class DatabaseService {
     const orders = (db.orders || []).filter(o => o.jid === lead.jid || (o.phone && lead.phone && lead.phone.includes(o.phone)));
     const totalSpent = orders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
 
+    const rawCustom = lead.customFields || {};
+    const birthDate = lead.birthDate || rawCustom.birthDate || '';
+    const cookingPreference = lead.preferences?.cookingPreference || lead.cookingPreference || rawCustom.cookingPreference || 'Parrilla';
+    const registeredVia = rawCustom.registeredVia || lead.registeredVia || (orders.length > 0 ? 'pos_counter' : 'whatsapp_crm');
+
+    const customFields = {
+      birthDate,
+      cookingPreference,
+      registeredVia,
+      ...rawCustom
+    };
+
     return {
       ...lead,
+      birthDate,
+      cookingPreference,
+      preferredBranch: lead.preferredBranch || '',
       orders,
       totalOrders: orders.length,
       totalSpent,
       averageTicket: orders.length > 0 ? Math.round(totalSpent / orders.length) : 0,
       lastOrder: orders[0] || null,
+      customFields,
       preferences: lead.preferences || {
         favoriteCuts: [],
-        cookingPreference: 'Parrilla',
+        cookingPreference,
         preferredPayment: 'Efectivo / Transferencia',
         groupSize: '4 personas',
         notes: ''
@@ -2828,6 +2851,53 @@ class DatabaseService {
     if (updates.preferences) {
       lead.preferences = { ...(lead.preferences || {}), ...updates.preferences };
     }
+
+    if (!lead.customFields) lead.customFields = {};
+    if (updates.customFields && typeof updates.customFields === 'object') {
+      lead.customFields = { ...lead.customFields, ...updates.customFields };
+    }
+
+    // Sincronizar campos unificados de fidelización y registro
+    const resolvedBirthDate = updates.birthDate !== undefined ? updates.birthDate : updates.customFields?.birthDate;
+    if (resolvedBirthDate !== undefined) {
+      lead.birthDate = resolvedBirthDate;
+      lead.customFields.birthDate = resolvedBirthDate;
+    }
+
+    const resolvedCooking = updates.cookingPreference !== undefined 
+      ? updates.cookingPreference 
+      : (updates.preferences?.cookingPreference !== undefined 
+          ? updates.preferences.cookingPreference 
+          : updates.customFields?.cookingPreference);
+    if (resolvedCooking !== undefined) {
+      if (!lead.preferences) lead.preferences = {};
+      lead.preferences.cookingPreference = resolvedCooking;
+      lead.cookingPreference = resolvedCooking;
+      lead.customFields.cookingPreference = resolvedCooking;
+    }
+
+    const resolvedRegisteredVia = updates.registeredVia !== undefined ? updates.registeredVia : updates.customFields?.registeredVia;
+    if (resolvedRegisteredVia !== undefined) {
+      lead.registeredVia = resolvedRegisteredVia;
+      lead.customFields.registeredVia = resolvedRegisteredVia;
+    }
+
+    if (updates.preferredBranch !== undefined) {
+      lead.preferredBranch = updates.preferredBranch;
+    }
+    if (updates.email !== undefined) {
+      lead.email = updates.email;
+    }
+    if (updates.address !== undefined) {
+      lead.address = updates.address;
+    }
+    if (updates.cuit !== undefined) {
+      lead.cuit = updates.cuit;
+    }
+    if (updates.fiscalCondition !== undefined) {
+      lead.fiscalCondition = updates.fiscalCondition;
+    }
+
     Object.assign(lead, updates);
     lead.updatedAt = new Date().toISOString();
     this.writeDb(db);

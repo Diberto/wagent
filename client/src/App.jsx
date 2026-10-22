@@ -30,11 +30,16 @@ import RecipesView from './components/RecipesView';
 import SystemHealthView from './components/SystemHealthView';
 import MultiAgentChatView from './components/MultiAgentChatView';
 import CouponsView from './components/CouponsView';
+import LoyaltyView from './components/LoyaltyView';
+import CustomerLoyaltyPortalView from './components/CustomerLoyaltyPortalView';
 import DatabaseView from './components/DatabaseView';
 import LogsView from './components/LogsView';
 import SuiteNavigation from './components/SuiteNavigation';
 import CustomerPortalModal from './components/CustomerPortalModal';
 import LoginView from './components/LoginView';
+import StockTransfersView from './components/StockTransfersView';
+import ApiMcpHubView from './components/ApiMcpHubView';
+import MeatMarketIntelligenceView from './components/MeatMarketIntelligenceView';
 import { playNotificationChime, playOrderChime, playMessagePing } from './utils/soundEffects';
 
 const socket = io({
@@ -50,6 +55,9 @@ const socket = io({
 export default function App() {
   const [currentTab, setCurrentTab] = useState(() => {
     if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/micuenta') || window.location.pathname.startsWith('/club')) {
+        return 'micuenta';
+      }
       if (window.location.pathname.startsWith('/tienda')) {
         return 'storefront';
       }
@@ -645,18 +653,20 @@ export default function App() {
   return (
     <div className="flex h-screen bg-[#0b141a] text-slate-100 overflow-hidden select-none">
       
-      {/* Sidebar Navigation Lateral (Visible en todas las vistas de operador/admin excepto tienda pública y POS autónomo) */}
-      {currentTab !== 'storefront' && !isPosStandalone && (
+      {/* Sidebar Navigation Lateral (Visible en todas las vistas de operador/admin excepto tienda pública, POS autónomo y portal del cliente) */}
+      {currentTab !== 'storefront' && currentTab !== 'micuenta' && !isPosStandalone && (
         <SidebarNav
           currentTab={currentTab}
           setCurrentTab={(tab) => {
             if (tab === 'storefront') {
               window.history.pushState({}, '', '/tienda');
+            } else if (tab === 'micuenta') {
+              window.history.pushState({}, '', '/micuenta');
             } else if (tab === 'pos-standalone') {
               window.history.pushState({}, '', '/pos');
               setCurrentTab('pos');
               return;
-            } else if (window.location.pathname.startsWith('/tienda') || window.location.pathname.startsWith('/pos')) {
+            } else if (window.location.pathname.startsWith('/tienda') || window.location.pathname.startsWith('/pos') || window.location.pathname.startsWith('/micuenta')) {
               window.history.pushState({}, '', '/');
             }
             setCurrentTab(tab);
@@ -679,7 +689,7 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 
         {/* Header Superior Móvil (Solo visible en pantallas < md en panel admin) */}
-        {currentTab !== 'storefront' && !isPosStandalone && (
+        {currentTab !== 'storefront' && currentTab !== 'micuenta' && !isPosStandalone && (
           <header className="md:hidden h-14 bg-[#111b21] border-b border-[#202c33] flex items-center justify-between px-3 shrink-0 z-20">
             <div className="flex items-center gap-2.5">
               <button
@@ -716,7 +726,13 @@ export default function App() {
         )}
 
         {/* Main View Area */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {currentTab === 'micuenta' && (
+          <div className="h-full overflow-y-auto custom-scrollbar">
+            <CustomerLoyaltyPortalView />
+          </div>
+        )}
+
         {currentTab === 'storefront' && (
           <div className="h-full overflow-y-auto custom-scrollbar">
             <StorefrontView 
@@ -767,6 +783,14 @@ export default function App() {
           />
         )}
 
+        {(currentTab === 'stock-transfers' || currentTab === 'silent-group') && (
+          <StockTransfersView 
+            socket={socket} 
+            currentUser={currentUser} 
+            initialTab={currentTab === 'silent-group' ? 'silent-group' : 'stock'} 
+          />
+        )}
+
         {currentTab === 'orders' && (
           <OrdersView 
             socket={socket} 
@@ -807,6 +831,10 @@ export default function App() {
 
         {currentTab === 'coupons' && (
           <CouponsView />
+        )}
+
+        {currentTab === 'loyalty' && (
+          <LoyaltyView socket={socket} />
         )}
 
         {currentTab === 'kanban' && (
@@ -864,7 +892,7 @@ export default function App() {
         )}
 
         {currentTab === 'analytics' && (
-          <AnalyticsDashboard />
+          <AnalyticsDashboard socket={socket} />
         )}
 
         {currentTab === 'users' && (
@@ -897,6 +925,19 @@ export default function App() {
             whatsappStatus={whatsappStatus}
             onOpenQR={() => setIsQRModalOpen(true)}
             initialSection={currentTab === 'arca' ? 'arca' : 'general'}
+          />
+        )}
+
+        {currentTab === 'api-mcp' && (
+          <ApiMcpHubView
+            currentUser={currentUser}
+          />
+        )}
+
+        {currentTab === 'meat-market' && (
+          <MeatMarketIntelligenceView
+            socket={socket}
+            currentUser={currentUser}
           />
         )}
       </main>

@@ -33,13 +33,19 @@ import { isMongoConnected, getDb, connectDB } from '../../db.js';
 import { sqliteStorage } from '../services/sqliteStorage.js';
 import { DbMigrationService } from '../services/dbMigrationService.js';
 import { auditLogger } from '../services/auditLogger.js';
-import { UserAuthService } from '../services/userAuthService.js';
+import { loyaltyService } from '../services/loyalty.js';
+import { inventoryService } from '../services/inventoryService.js';
+import { invoiceOcrService } from '../services/invoiceOcrService.js';
+import { scaleService } from '../services/scaleService.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
   wooCommerceService.setSocketIO(io);
   broadcastService.setWhatsAppService(whatsappService);
   broadcastService.setSocketIO(io);
+  loyaltyService.setSocketIO(io);
+  loyaltyService.setWhatsAppService(whatsappService);
+  inventoryService.setSocketIO(io);
 
   // Middleware de telemetría de peticiones para System Monitor
   router.use((req, res, next) => {
@@ -1374,61 +1380,75 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   });
 
   router.post('/chats/:jid/mark-read', (req, res) => {
-    db.markChatRead(req.params.jid);
-    res.json({ success: true });
+    try {
+      db.markChatRead(req.params.jid);
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error en /chats/:jid/mark-read:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Simular mensaje entrante para pruebas sin QR
   router.post('/chats/simulate-incoming', async (req, res) => {
-    const { jid = '5491199998888@s.whatsapp.net', name = 'Cliente Demo', text = 'Hola, quiero información', isAudio = false } = req.body;
+    try {
+      const { jid = '5491199998888@s.whatsapp.net', name = 'Cliente Demo', text = 'Hola, quiero información', isAudio = false } = req.body;
 
-    let lead = db.getLead(jid);
-    if (!lead) {
-      lead = db.saveOrUpdateLead({
-        jid,
-        name,
-        phone: jid.split('@')[0],
-        pushName: name
-      });
-    }
-
-    const savedMsg = db.saveMessage({
-      chatId: jid,
-      sender: 'user',
-      type: isAudio ? 'audio' : 'text',
-      content: text,
-      timestamp: new Date().toISOString(),
-      status: 'received'
-    });
-
-    io.emit('chat:message', { message: savedMsg, lead: db.getLead(jid) });
-
-    // Responder con IA si está habilitada
-    const settings = db.getSettings();
-    if (lead.aiEnabled && settings.autoReplyEnabled) {
-      setTimeout(async () => {
-        const aiResponse = await AIService.generateReply({
+      let lead = db.getLead(jid);
+      if (!lead) {
+        lead = db.saveOrUpdateLead({
           jid,
-          incomingText: text,
-          isAudioInput: isAudio
+          name,
+          phone: jid.split('@')[0],
+          pushName: name
         });
+      }
 
-        const savedAiMsg = db.saveMessage({
-          chatId: jid,
-          sender: 'agent',
-          type: aiResponse.shouldSendAudio ? 'audio' : 'text',
-          content: aiResponse.text,
-          mediaUrl: aiResponse.audioMp3Path ? `/media/${path.basename(aiResponse.audioMp3Path)}` : null,
-          audioDuration: aiResponse.audioDuration || 4,
-          timestamp: new Date().toISOString(),
-          status: 'sent'
-        });
+      const savedMsg = db.saveMessage({
+        chatId: jid,
+        sender: 'user',
+        type: isAudio ? 'audio' : 'text',
+        content: text,
+        timestamp: new Date().toISOString(),
+        status: 'received'
+      });
 
-        io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(jid) });
-      }, 1000);
+      io.emit('chat:message', { message: savedMsg, lead: db.getLead(jid) });
+
+      // Responder con IA si está habilitada
+      const settings = db.getSettings();
+      if (lead.aiEnabled && settings.autoReplyEnabled) {
+        setTimeout(async () => {
+          try {
+            const aiResponse = await AIService.generateReply({
+              jid,
+              incomingText: text,
+              isAudioInput: isAudio
+            });
+
+            const savedAiMsg = db.saveMessage({
+              chatId: jid,
+              sender: 'agent',
+              type: aiResponse.shouldSendAudio ? 'audio' : 'text',
+              content: aiResponse.text,
+              mediaUrl: aiResponse.audioMp3Path ? `/media/${path.basename(aiResponse.audioMp3Path)}` : null,
+              audioDuration: aiResponse.audioDuration || 4,
+              timestamp: new Date().toISOString(),
+              status: 'sent'
+            });
+
+            io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(jid) });
+          } catch (aiErr) {
+            console.error('Error en simulación de respuesta IA:', aiErr);
+          }
+        }, 1000);
+      }
+
+      res.json({ success: true, message: savedMsg });
+    } catch (err) {
+      console.error('Error en /chats/simulate-incoming:', err);
+      res.status(500).json({ success: false, error: err.message });
     }
-
-    res.json({ success: true, message: savedMsg });
   });
 
   // --- 4. Calls & Voice Center ---
@@ -2302,6 +2322,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     };
     const order = db.createOrder(payload);
     io.emit('order:new', order);
+    // Acumular puntos de fidelización automáticamente
+    loyaltyService.addPointsForOrder(order).catch(e => console.warn('⚠️ [Loyalty] Error sumando puntos:', e.message));
     res.json(order);
   });
 
@@ -2879,7 +2901,21 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   // --- 5.2 Customer Memory & Dossier System ---
   router.get('/customers', (req, res) => {
     const leads = db.getLeads();
-    const customers = leads.map(l => db.getCustomerProfile(l.id));
+    const customers = leads.map(l => {
+      const profile = db.getCustomerProfile(l.id);
+      const loyalty = loyaltyService.getCustomerLoyalty(l.id);
+      return {
+        ...profile,
+        loyalty: loyalty ? {
+          currentPoints: loyalty.currentPoints,
+          monetaryValue: loyalty.monetaryValue,
+          tier: loyalty.tier,
+          nextTier: loyalty.nextTier,
+          spendToNextTier: loyalty.spendToNextTier,
+          progressToNext: loyalty.progressToNext
+        } : null
+      };
+    });
     res.json(customers);
   });
 
@@ -3420,24 +3456,34 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   // --- 5.3 Mercado Pago Integration ---
   router.get('/mercadopago/status', async (req, res) => {
-    const creds = mercadoPagoService.getCredentials();
-    const test = await mercadoPagoService.testConnection();
-    res.json({
-      credentials: {
-        publicKey: creds.publicKey,
-        appId: creds.appId,
-        userId: creds.userId,
-        testUser: creds.testUser,
-        enabled: creds.enabled,
-        autoSendLink: creds.autoSendLink
-      },
-      connection: test
-    });
+    try {
+      const creds = mercadoPagoService.getCredentials();
+      const test = await mercadoPagoService.testConnection();
+      res.json({
+        credentials: {
+          publicKey: creds.publicKey,
+          appId: creds.appId,
+          userId: creds.userId,
+          testUser: creds.testUser,
+          enabled: creds.enabled,
+          autoSendLink: creds.autoSendLink
+        },
+        connection: test
+      });
+    } catch (err) {
+      console.error('Error en /mercadopago/status:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/mercadopago/test', async (req, res) => {
-    const result = await mercadoPagoService.testConnection();
-    res.json(result);
+    try {
+      const result = await mercadoPagoService.testConnection();
+      res.json(result);
+    } catch (err) {
+      console.error('Error en /mercadopago/test:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/mercadopago/create-link', async (req, res) => {
@@ -4817,28 +4863,38 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   // --- 11. WooCommerce & WordPress REST API Integration ---
   // =========================================================================
   router.get('/woocommerce/status', async (req, res) => {
-    const settings = db.getSettings();
-    const isConfigured = Boolean(settings.wooUrl && settings.wooConsumerKey && settings.wooConsumerSecret);
-    const logs = db.getWooCommerceLogs(10);
-    const products = db.getProducts();
-    const wooProductsCount = products.filter(p => p.source === 'woocommerce' || p.wooId).length;
+    try {
+      const settings = db.getSettings();
+      const isConfigured = Boolean(settings.wooUrl && settings.wooConsumerKey && settings.wooConsumerSecret);
+      const logs = db.getWooCommerceLogs(10);
+      const products = db.getProducts();
+      const wooProductsCount = products.filter(p => p.source === 'woocommerce' || p.wooId).length;
 
-    res.json({
-      isConfigured,
-      wooUrl: settings.wooUrl || '',
-      wooConsumerKey: settings.wooConsumerKey ? '••••••••' + settings.wooConsumerKey.slice(-4) : '',
-      wooSyncEnabled: Boolean(settings.wooSyncEnabled),
-      wooAutoPushOrders: Boolean(settings.wooAutoPushOrders),
-      wooLastSync: settings.wooLastSync || null,
-      totalWooProducts: wooProductsCount,
-      recentLogs: logs
-    });
+      res.json({
+        isConfigured,
+        wooUrl: settings.wooUrl || '',
+        wooConsumerKey: settings.wooConsumerKey ? '••••••••' + settings.wooConsumerKey.slice(-4) : '',
+        wooSyncEnabled: Boolean(settings.wooSyncEnabled),
+        wooAutoPushOrders: Boolean(settings.wooAutoPushOrders),
+        wooLastSync: settings.wooLastSync || null,
+        totalWooProducts: wooProductsCount,
+        recentLogs: logs
+      });
+    } catch (err) {
+      console.error('Error en /woocommerce/status:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/woocommerce/test', async (req, res) => {
-    const customConfig = req.body;
-    const result = await wooCommerceService.testConnection(customConfig);
-    res.json(result);
+    try {
+      const customConfig = req.body;
+      const result = await wooCommerceService.testConnection(customConfig);
+      res.json(result);
+    } catch (err) {
+      console.error('Error en /woocommerce/test:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/woocommerce/settings', (req, res) => {
@@ -5402,9 +5458,14 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   });
 
   router.post('/elevenlabs/agent/test', async (req, res) => {
-    const { agentId } = req.body;
-    const result = await ElevenLabsAgentService.testAgentConnection(agentId);
-    res.json(result);
+    try {
+      const { agentId } = req.body;
+      const result = await ElevenLabsAgentService.testAgentConnection(agentId);
+      res.json(result);
+    } catch (err) {
+      console.error('Error en /elevenlabs/agent/test:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/elevenlabs/agent/outbound-call', async (req, res) => {
@@ -5432,35 +5493,60 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   // --- Herramientas del Sistema para el Agente (Webhooks / Function Calling) ---
   router.get('/elevenlabs/agent/tools/products', (req, res) => {
-    const { category, search } = req.query;
-    res.json(ElevenLabsAgentService.getCatalogProducts({ category, search }));
+    try {
+      const { category, search } = req.query;
+      res.json(ElevenLabsAgentService.getCatalogProducts({ category, search }));
+    } catch (err) {
+      console.error('Error en /elevenlabs/agent/tools/products:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.get('/elevenlabs/agent/tools/branches', (req, res) => {
-    res.json(ElevenLabsAgentService.getBranchesInfo());
+    try {
+      res.json(ElevenLabsAgentService.getBranchesInfo());
+    } catch (err) {
+      console.error('Error en /elevenlabs/agent/tools/branches:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/elevenlabs/agent/tools/create-order', async (req, res) => {
-    const result = await ElevenLabsAgentService.createOrderFromAgent(req.body);
-    if (result.success) {
-      io.emit('order:new', db.getOrder(result.orderId));
-      io.emit('orders:updated', db.getOrders());
+    try {
+      const result = await ElevenLabsAgentService.createOrderFromAgent(req.body);
+      if (result.success) {
+        io.emit('order:new', db.getOrder(result.orderId));
+        io.emit('orders:updated', db.getOrders());
+      }
+      res.json(result);
+    } catch (err) {
+      console.error('Error en /elevenlabs/agent/tools/create-order:', err);
+      res.status(500).json({ success: false, error: err.message });
     }
-    res.json(result);
   });
 
   router.post('/elevenlabs/agent/tools/order-status', (req, res) => {
-    const { phone, jid, phoneNumber } = req.body;
-    res.json(ElevenLabsAgentService.getCustomerOrderStatus(phone || jid || phoneNumber));
+    try {
+      const { phone, jid, phoneNumber } = req.body;
+      res.json(ElevenLabsAgentService.getCustomerOrderStatus(phone || jid || phoneNumber));
+    } catch (err) {
+      console.error('Error en /elevenlabs/agent/tools/order-status:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/elevenlabs/agent/tools/update-customer', (req, res) => {
-    const result = ElevenLabsAgentService.updateCustomerData(req.body);
-    if (result.success) {
-      io.emit('lead:update', result.customer);
-      io.emit('leads:update', db.getLeads());
+    try {
+      const result = ElevenLabsAgentService.updateCustomerData(req.body);
+      if (result.success) {
+        io.emit('lead:update', result.customer);
+        io.emit('leads:update', db.getLeads());
+      }
+      res.json(result);
+    } catch (err) {
+      console.error('Error en /elevenlabs/agent/tools/update-customer:', err);
+      res.status(500).json({ success: false, error: err.message });
     }
-    res.json(result);
   });
 
   router.post('/elevenlabs/agent/tools/execute', async (req, res) => {
@@ -5812,8 +5898,13 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   // Compatibilidad hacia atrás con endpoints de /users
   router.get('/users', async (req, res) => {
-    const users = await UserAuthService.getUsers(req.query);
-    res.json(users);
+    try {
+      const users = await UserAuthService.getUsers(req.query);
+      res.json(users);
+    } catch (err) {
+      console.error('Error en GET /users:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/users', async (req, res) => {
@@ -5851,39 +5942,64 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   // --- Micro-App 1: Tienda Web (/api/v1/store) ---
   router.get('/v1/store/catalog', (req, res) => {
-    const products = db.getProducts().filter(p => p.isAvailable !== false && p.isAvailableDelivery !== false);
-    const categories = Array.from(new Set(products.map(p => p.category || 'Carnicería'))).filter(Boolean);
-    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
-    res.json({ products, categories, count: products.length });
+    try {
+      const products = db.getProducts().filter(p => p.isAvailable !== false && p.isAvailableDelivery !== false);
+      const categories = Array.from(new Set(products.map(p => p.category || 'Carnicería'))).filter(Boolean);
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      res.json({ products, categories, count: products.length });
+    } catch (err) {
+      console.error('Error en /v1/store/catalog:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/v1/store/validate-profile', (req, res) => {
-    const completeness = UserAuthService.evaluateProfileCompleteness(req.body);
-    res.json(completeness);
+    try {
+      const completeness = UserAuthService.evaluateProfileCompleteness(req.body);
+      res.json(completeness);
+    } catch (err) {
+      console.error('Error en /v1/store/validate-profile:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // --- Micro-App 2: POS Mostrador (/api/v1/pos) ---
   router.get('/v1/pos/quick-search', async (req, res) => {
-    const { q = '' } = req.query;
-    if (!q || q.length < 2) return res.json([]);
-    const users = await UserAuthService.getUsers({ search: q, limit: 10 });
-    res.json(users);
+    try {
+      const { q = '' } = req.query;
+      if (!q || q.length < 2) return res.json([]);
+      const users = await UserAuthService.getUsers({ search: q, limit: 10 });
+      res.json(users);
+    } catch (err) {
+      console.error('Error en /v1/pos/quick-search:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // --- Micro-App 3: KDS / Comandas Cocina (/api/v1/kds) ---
   router.get('/v1/kds/orders', (req, res) => {
-    const { branchId } = req.query;
-    let orders = db.getOrders().filter(o => ['pending', 'preparing', 'confirmed'].includes(o.status));
-    if (branchId) orders = orders.filter(o => o.branchId === branchId || o.branch === branchId);
-    res.json(orders);
+    try {
+      const { branchId } = req.query;
+      let orders = db.getOrders().filter(o => ['pending', 'preparing', 'confirmed'].includes(o.status));
+      if (branchId) orders = orders.filter(o => o.branchId === branchId || o.branch === branchId);
+      res.json(orders);
+    } catch (err) {
+      console.error('Error en /v1/kds/orders:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.patch('/v1/kds/orders/:id/status', async (req, res) => {
-    const { status, operatorName } = req.body;
-    const updated = db.updateOrderStatus(req.params.id, status);
-    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
-    io.emit('order:update', updated);
-    res.json(updated);
+    try {
+      const { status, operatorName } = req.body;
+      const updated = db.updateOrderStatus(req.params.id, status);
+      if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+      io.emit('order:update', updated);
+      res.json(updated);
+    } catch (err) {
+      console.error('Error en /v1/kds/orders/:id/status:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // --- Micro-App 4: Cadetes / Delivery (/api/v1/delivery) ---
@@ -5979,37 +6095,714 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   });
 
   router.delete('/coupons/:id', (req, res) => {
-    const ok = db.deleteCoupon(req.params.id);
-    res.json({ success: ok });
+    try {
+      const ok = db.deleteCoupon(req.params.id);
+      res.json({ success: ok });
+    } catch (err) {
+      console.error('Error en DELETE /coupons/:id:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/coupons/validate', (req, res) => {
-    const { code, orderAmount = 0, channel = 'all' } = req.body;
-    const result = db.validateCoupon(code, Number(orderAmount), channel);
-    res.json(result);
+    try {
+      const { code, orderAmount = 0, channel = 'all' } = req.body;
+      const result = db.validateCoupon(code, Number(orderAmount), channel);
+      res.json(result);
+    } catch (err) {
+      console.error('Error en POST /coupons/validate:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   router.post('/coupons/use', (req, res) => {
-    const { code } = req.body;
-    if (!code) return res.status(400).json({ error: 'Código requerido' });
-    const result = db.validateCoupon(code, 0);
-    if (!result.valid) return res.status(400).json({ error: result.error });
-    db.useCoupon(code);
-    res.json({ success: true });
+    try {
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ error: 'Código requerido' });
+      const result = db.validateCoupon(code, 0);
+      if (!result.valid) return res.status(400).json({ error: result.error });
+      db.useCoupon(code);
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Error en POST /coupons/use:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
 
   router.post('/leads/:id/sync-profile', async (req, res) => {
-    const { id } = req.params;
-    const lead = db.getLead(id);
-    if (!lead) return res.status(404).json({ error: 'Lead no encontrado' });
+    try {
+      const { id } = req.params;
+      const lead = db.getLead(id);
+      if (!lead) return res.status(404).json({ error: 'Lead no encontrado' });
 
-    if (whatsappService?.fetchAndSyncContactProfile) {
-      const updated = await whatsappService.fetchAndSyncContactProfile(lead.jid || id, lead.pushName);
-      return res.json({ success: true, lead: updated || lead });
+      if (whatsappService?.fetchAndSyncContactProfile) {
+        const updated = await whatsappService.fetchAndSyncContactProfile(lead.jid || id, lead.pushName);
+        return res.json({ success: true, lead: updated || lead });
+      }
+      res.json({ success: true, lead });
+    } catch (err) {
+      console.error('Error en POST /leads/:id/sync-profile:', err);
+      res.status(500).json({ success: false, error: err.message });
     }
-    res.json({ success: true, lead });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 🌟 PROGRAMA DE FIDELIZACIÓN Y PUNTOS (LOYALTY SYSTEM)
+  // ═════════════════════════════════════════════════════════════════════════════
+
+  // Obtener estadísticas globales del programa de fidelización
+  router.get('/loyalty/stats', (req, res) => {
+    try {
+      const stats = loyaltyService.getProgramStats();
+      res.json(stats);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Obtener y actualizar configuración y niveles (tiers)
+  router.get('/loyalty/config', (req, res) => {
+    try {
+      const config = loyaltyService.getConfig();
+      res.json(config);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/loyalty/config', (req, res) => {
+    try {
+      const updated = loyaltyService.updateConfig(req.body);
+      res.json({ success: true, config: updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Consultar estado de puntos y categoría de un cliente específico
+  router.get('/loyalty/customer/:id', (req, res) => {
+    try {
+      const data = loyaltyService.getCustomerLoyalty(req.params.id);
+      if (!data) return res.status(404).json({ error: 'Cliente no encontrado' });
+      res.json(data);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Canjear puntos (usado en checkout POS o tienda)
+  router.post('/loyalty/redeem', async (req, res) => {
+    try {
+      const { customerId, points, orderId, description } = req.body;
+      const result = await loyaltyService.redeemPoints({
+        customerId,
+        pointsToRedeem: points,
+        orderId,
+        description
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Ajuste manual de puntos (bonos, compensaciones)
+  router.post('/loyalty/adjust', async (req, res) => {
+    try {
+      const { customerId, points, type, reason } = req.body;
+      const result = await loyaltyService.adjustPoints({ customerId, points, type, reason });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Envío de campaña masiva por WhatsApp segmentada por nivel de fidelidad
+  router.post('/loyalty/broadcast-tier', async (req, res) => {
+    try {
+      const { tierId, message, title = 'Campaña de Fidelización' } = req.body;
+      if (!message || !tierId) {
+        return res.status(400).json({ error: 'Faltan parámetros: tierId y message requeridos' });
+      }
+
+      const leads = db.getLeads() || [];
+      const recipients = [];
+
+      for (const l of leads) {
+        if (!l.jid || l.jid.includes('status@broadcast') || l.jid.includes('g.us')) continue;
+        const profile = db.getCustomerProfile(l.id);
+        const tierInfo = loyaltyService.calculateTierForSpend(profile?.totalSpent || 0);
+
+        if (tierId === 'all' || tierInfo.currentTier.id === tierId) {
+          recipients.push({
+            jid: l.jid,
+            phone: l.phone,
+            name: l.name || 'Cliente'
+          });
+        }
+      }
+
+      if (recipients.length === 0) {
+        return res.json({ success: true, count: 0, message: 'No hay clientes registrados en este nivel.' });
+      }
+
+      // Enviar usando broadcastService o encolar
+      let sentCount = 0;
+      for (const recipient of recipients) {
+        const personalizedMsg = message.replace(/{nombre}/gi, recipient.name);
+        if (whatsappService?.sendMessage) {
+          try {
+            await whatsappService.sendMessage(recipient.jid, personalizedMsg);
+            sentCount++;
+          } catch (e) {
+            console.warn(`⚠️ [LoyaltyBroadcast] Error enviando a ${recipient.jid}:`, e.message);
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        totalEligible: recipients.length,
+        sentCount,
+        message: `Campaña enviada con éxito a ${sentCount} clientes del nivel ${tierId}.`
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // --- Endpoints para la Landing / Portal del Cliente (/micuenta) ---
+
+  // Obtener sucursales activas para el selector de sucursal en /micuenta
+  router.get('/loyalty/portal/branches', (req, res) => {
+    try {
+      const branches = db.getBranches() || [];
+      const activeBranches = branches.filter(b => b.isActive !== false).map(b => ({
+        id: b.id,
+        name: b.name,
+        address: b.address || ''
+      }));
+      res.json(activeBranches);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Verificar existencia y estado de seguridad del cliente por número de teléfono
+  router.post('/loyalty/portal/check-phone', (req, res) => {
+    try {
+      const { phone } = req.body;
+      if (!phone) return res.status(400).json({ error: 'Número de teléfono requerido' });
+      const securityInfo = loyaltyService.checkPhoneSecurity(phone);
+      res.json(securityInfo);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Validar PIN de 4 dígitos para ingresar a /micuenta
+  router.post('/loyalty/portal/verify-pin', (req, res) => {
+    try {
+      const { phone, pin } = req.body;
+      if (!phone || !pin) return res.status(400).json({ error: 'Teléfono y PIN requeridos' });
+      const result = loyaltyService.verifyCustomerPin(phone, pin);
+      res.json(result);
+    } catch (err) {
+      res.status(401).json({ error: err.message });
+    }
+  });
+
+  // Configurar o cambiar PIN de seguridad
+  router.post('/loyalty/portal/set-pin', (req, res) => {
+    try {
+      const { phone, pin, currentPin } = req.body;
+      if (!phone || !pin) return res.status(400).json({ error: 'Teléfono y PIN requeridos' });
+      const result = loyaltyService.setCustomerPin(phone, pin, currentPin);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Solicitar código de verificación de 6 dígitos por WhatsApp
+  router.post('/loyalty/portal/request-otp', async (req, res) => {
+    try {
+      const { phone } = req.body;
+      if (!phone) return res.status(400).json({ error: 'Número de teléfono requerido' });
+      const result = await loyaltyService.sendSecurityOtp(phone);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Validar código OTP para acceso directo a /micuenta
+  router.post('/loyalty/portal/verify-otp', (req, res) => {
+    try {
+      const { phone, code } = req.body;
+      if (!phone || !code) return res.status(400).json({ error: 'Teléfono y código requeridos' });
+      const result = loyaltyService.verifySecurityOtp(phone, code);
+      res.json(result);
+    } catch (err) {
+      res.status(401).json({ error: err.message });
+    }
+  });
+
+  // Restablecer PIN utilizando código OTP de WhatsApp
+  router.post('/loyalty/portal/reset-pin-otp', (req, res) => {
+    try {
+      const { phone, code, newPin } = req.body;
+      if (!phone || !code || !newPin) return res.status(400).json({ error: 'Teléfono, código y nuevo PIN requeridos' });
+      const result = loyaltyService.resetPinWithOtp(phone, code, newPin);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Refrescar datos de la sesión activa
+  router.post('/loyalty/portal/refresh', (req, res) => {
+    try {
+      const { customerId } = req.body;
+      if (!customerId) return res.status(400).json({ error: 'ID de cliente requerido' });
+      const loyalty = loyaltyService.getCustomerLoyalty(customerId);
+      if (!loyalty) return res.status(404).json({ error: 'Cliente no encontrado' });
+      res.json({ success: true, customer: loyalty });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Registrar o actualizar cliente desde el formulario de /micuenta
+  router.post('/loyalty/portal/register', async (req, res) => {
+    try {
+      const customer = await loyaltyService.registerOrUpdateCustomer(req.body);
+      res.json({ success: true, customer });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // GESTIÓN DE STOCK MULTI-SUCURSAL & MOVIMIENTOS
+  // =========================================================================
+  router.get('/inventory/stock', (req, res) => {
+    try {
+      const branchId = req.query.branchId || null;
+      const stock = inventoryService.getBranchStockOverview(branchId);
+      res.json({ success: true, stock });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/stock/adjust', (req, res) => {
+    try {
+      const { productId, branchId, quantity, type, reason, cost, user } = req.body;
+      if (!productId) return res.status(400).json({ error: 'ID de producto requerido' });
+      if (quantity === undefined || isNaN(Number(quantity))) {
+        return res.status(400).json({ error: 'Cantidad numérica requerida' });
+      }
+
+      const result = inventoryService.adjustStock({
+        productId,
+        branchId,
+        quantity: Number(quantity),
+        type: type || 'manual_adjustment',
+        reason: reason || 'Ajuste manual desde panel de Stock',
+        cost: Number(cost) || 0,
+        user: user || 'Operador'
+      });
+
+      if (!result) return res.status(404).json({ error: 'Producto no encontrado' });
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/inventory/stock/movements', (req, res) => {
+    try {
+      const filter = {
+        branchId: req.query.branchId,
+        productId: req.query.productId,
+        type: req.query.type,
+        limit: req.query.limit ? parseInt(req.query.limit, 10) : 200
+      };
+      const movements = inventoryService.getStockMovements(filter);
+      res.json({ success: true, movements });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // TRASPASOS DE MERCADERÍA INTER-SUCURSAL
+  // =========================================================================
+  router.get('/inventory/transfers', (req, res) => {
+    try {
+      const filter = {
+        fromBranchId: req.query.fromBranchId,
+        toBranchId: req.query.toBranchId,
+        status: req.query.status
+      };
+      const transfers = inventoryService.getBranchTransfers(filter);
+      res.json({ success: true, transfers });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/inventory/transfers/:id', (req, res) => {
+    try {
+      const transfer = inventoryService.getBranchTransfer(req.params.id);
+      if (!transfer) return res.status(404).json({ error: 'Traspaso no encontrado' });
+      res.json({ success: true, transfer });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/transfers', (req, res) => {
+    try {
+      const { fromBranchId, toBranchId, items, notes, dispatchedBy, driverId } = req.body;
+      const transfer = inventoryService.createBranchTransfer({
+        fromBranchId,
+        toBranchId,
+        items,
+        notes,
+        dispatchedBy,
+        driverId
+      });
+      res.json({ success: true, transfer });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/transfers/:id/confirm', (req, res) => {
+    try {
+      const { receivedBy, notes } = req.body;
+      const transfer = inventoryService.confirmBranchTransfer(req.params.id, { receivedBy, notes });
+      res.json({ success: true, transfer });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/transfers/:id/cancel', (req, res) => {
+    try {
+      const { cancelledBy, reason } = req.body;
+      const transfer = inventoryService.cancelBranchTransfer(req.params.id, { cancelledBy, reason });
+      res.json({ success: true, transfer });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // PROVEEDORES
+  // =========================================================================
+  router.get('/inventory/suppliers', (req, res) => {
+    try {
+      const suppliers = inventoryService.getSuppliers();
+      res.json({ success: true, suppliers });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/suppliers', (req, res) => {
+    try {
+      const supplier = inventoryService.saveSupplier(req.body);
+      res.json({ success: true, supplier });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/inventory/suppliers/:id', (req, res) => {
+    try {
+      const success = inventoryService.deleteSupplier(req.params.id);
+      res.json({ success });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // FACTURAS, BOLETAS & TICKETSCAN OCR
+  // =========================================================================
+  router.get('/inventory/invoices', (req, res) => {
+    try {
+      const filter = {
+        supplierId: req.query.supplierId,
+        branchId: req.query.branchId,
+        status: req.query.status
+      };
+      const invoices = inventoryService.getSupplierInvoices(filter);
+      res.json({ success: true, invoices });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/invoices', (req, res) => {
+    try {
+      const invoice = inventoryService.registerSupplierInvoice(req.body);
+      res.json({ success: true, invoice });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/invoices/:id/confirm', (req, res) => {
+    try {
+      const { operator } = req.body;
+      const invoice = inventoryService.confirmDraftInvoice(req.params.id, operator);
+      res.json({ success: true, invoice });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/inventory/invoices/:id', (req, res) => {
+    try {
+      const invoice = inventoryService.updateSupplierInvoice(req.params.id, req.body, req.body.operator || 'Admin');
+      res.json({ success: true, invoice });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.delete('/inventory/invoices/:id', (req, res) => {
+    try {
+      const { operator } = req.body || {};
+      const success = inventoryService.deleteSupplierInvoice(req.params.id, operator || 'Admin');
+      res.json({ success });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Escaneo OCR inteligente de comprobantes con Gemini Vision (TicketScan integrado)
+  router.post('/inventory/invoices/scan', upload.single('invoiceFile'), async (req, res) => {
+    try {
+      let imageSource = null;
+      let mimeType = 'image/jpeg';
+      let mediaUrl = null;
+
+      if (req.file) {
+        imageSource = req.file.path;
+        mimeType = req.file.mimetype || 'image/jpeg';
+        mediaUrl = `/media/${path.basename(req.file.path)}`;
+      } else if (req.body.imageBase64) {
+        imageSource = req.body.imageBase64;
+        mimeType = req.body.mimeType || 'image/jpeg';
+      } else {
+        return res.status(400).json({ error: 'Debe subir un archivo o enviar imagen en base64' });
+      }
+
+      const ocrResult = await invoiceOcrService.analyzeInvoice(imageSource, mimeType);
+      if (!ocrResult.success) {
+        return res.status(422).json({ error: ocrResult.error });
+      }
+
+      res.json({
+        success: true,
+        mediaUrl,
+        extractedData: ocrResult.data
+      });
+    } catch (err) {
+      console.error('Error en escaneo de factura:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // BALANZAS SYSTEL & KRETZ
+  // =========================================================================
+  router.post('/scales/parse-barcode', (req, res) => {
+    try {
+      const { barcode, mode } = req.body;
+      if (!barcode) return res.status(400).json({ error: 'Código de barras requerido' });
+      const parsed = scaleService.parseScaleBarcode(barcode, mode || 'weight');
+      res.json({ success: true, parsed });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/scales/export/systel', (req, res) => {
+    try {
+      const csv = scaleService.exportSystelQendraCatalog();
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="catalogo_systel_qendra.csv"');
+      res.send(csv);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/scales/export/kretz', (req, res) => {
+    try {
+      const txt = scaleService.exportKretziTegraCatalog();
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="PLU_kretz_itegra.txt"');
+      res.send(txt);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // GRUPO SILENCIOSO DE WHATSAPP (FACTURAS & COMPRAS AUTOMÁTICAS)
+  // =========================================================================
+  router.get('/whatsapp/groups', async (req, res) => {
+    try {
+      const groups = await whatsappService.getParticipatingGroups();
+      res.json({ success: true, groups });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/whatsapp/groups/join', async (req, res) => {
+    try {
+      const { inviteUrl } = req.body;
+      if (!inviteUrl) return res.status(400).json({ error: 'Enlace o código de invitación requerido' });
+      const result = await whatsappService.joinGroupViaInvite(inviteUrl);
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.get('/inventory/silent-group-settings', (req, res) => {
+    try {
+      const settings = db.getSettings();
+      let silentGroups = Array.isArray(settings.silentGroups) ? settings.silentGroups : [];
+      if (silentGroups.length === 0 && settings.supplierScanGroupId) {
+        silentGroups = [{
+          id: 'grp-legacy-default',
+          groupId: settings.supplierScanGroupId,
+          groupName: 'Grupo Proveedores Principal',
+          branchId: settings.defaultSupplierBranchId || 'br-1',
+          expenseCategory: 'mercaderia',
+          autoConfirm: Boolean(settings.autoConfirmGroupInvoices),
+          active: settings.supplierScanGroupEnabled !== false,
+          createdAt: new Date().toISOString()
+        }];
+      }
+
+      res.json({
+        success: true,
+        settings: {
+          supplierScanGroupEnabled: settings.supplierScanGroupEnabled !== false,
+          supplierScanGroupId: settings.supplierScanGroupId || '',
+          defaultSupplierBranchId: settings.defaultSupplierBranchId || 'br-1',
+          autoConfirmGroupInvoices: Boolean(settings.autoConfirmGroupInvoices),
+          notifyAdminOnGroupInvoice: Boolean(settings.notifyAdminOnGroupInvoice),
+          adminNotifyPhone: settings.adminNotifyPhone || '',
+          silentGroups
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/silent-group-settings', (req, res) => {
+    try {
+      const current = db.getSettings();
+      const updated = {
+        ...current,
+        supplierScanGroupEnabled: req.body.supplierScanGroupEnabled !== false,
+        supplierScanGroupId: req.body.supplierScanGroupId || '',
+        defaultSupplierBranchId: req.body.defaultSupplierBranchId || 'br-1',
+        autoConfirmGroupInvoices: Boolean(req.body.autoConfirmGroupInvoices),
+        notifyAdminOnGroupInvoice: Boolean(req.body.notifyAdminOnGroupInvoice),
+        adminNotifyPhone: req.body.adminNotifyPhone || '',
+        silentGroups: Array.isArray(req.body.silentGroups) ? req.body.silentGroups : (current.silentGroups || [])
+      };
+      db.saveSettings(updated);
+      res.json({ success: true, settings: updated });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.get('/inventory/silent-groups', (req, res) => {
+    try {
+      const settings = db.getSettings();
+      let groups = Array.isArray(settings.silentGroups) ? settings.silentGroups : [];
+      if (groups.length === 0 && settings.supplierScanGroupId) {
+        groups = [{
+          id: 'grp-legacy-default',
+          groupId: settings.supplierScanGroupId,
+          groupName: 'Grupo Proveedores Principal',
+          branchId: settings.defaultSupplierBranchId || 'br-1',
+          expenseCategory: 'mercaderia',
+          autoConfirm: Boolean(settings.autoConfirmGroupInvoices),
+          active: settings.supplierScanGroupEnabled !== false,
+          createdAt: new Date().toISOString()
+        }];
+      }
+      res.json({ success: true, groups });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.post('/inventory/silent-groups', (req, res) => {
+    try {
+      const { id, groupId, groupName, branchId, expenseCategory, autoConfirm, active } = req.body;
+      if (!groupId) return res.status(400).json({ error: 'ID de grupo de WhatsApp requerido' });
+
+      const current = db.getSettings();
+      let groups = Array.isArray(current.silentGroups) ? [...current.silentGroups] : [];
+
+      const existingIndex = groups.findIndex(g => (id && g.id === id) || g.groupId === groupId);
+      const groupRecord = {
+        id: id || `grp-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        groupId,
+        groupName: groupName || 'Grupo WhatsApp',
+        branchId: branchId || 'br-1',
+        expenseCategory: expenseCategory || 'mercaderia', // 'mercaderia' | 'insumos' | 'mantenimiento' | 'servicios' | 'otros'
+        autoConfirm: Boolean(autoConfirm),
+        active: active !== false,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (existingIndex >= 0) {
+        groups[existingIndex] = { ...groups[existingIndex], ...groupRecord };
+      } else {
+        groupRecord.createdAt = new Date().toISOString();
+        groups.push(groupRecord);
+      }
+
+      current.silentGroups = groups;
+      db.saveSettings(current);
+      res.json({ success: true, group: groupRecord, groups });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.delete('/inventory/silent-groups/:id', (req, res) => {
+    try {
+      const { id } = req.params;
+      const current = db.getSettings();
+      let groups = Array.isArray(current.silentGroups) ? current.silentGroups : [];
+      groups = groups.filter(g => g.id !== id && g.groupId !== id);
+      current.silentGroups = groups;
+      db.saveSettings(current);
+      res.json({ success: true, groups });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   return router;

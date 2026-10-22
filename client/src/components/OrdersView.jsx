@@ -1715,7 +1715,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-y-auto p-4 sm:p-6 space-y-6 relative">
+    <div className="flex-1 flex flex-col h-full min-h-0 bg-[#0b141a] overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-6 relative">
       {/* Toast flotante de notificaciones de WhatsApp */}
       {notificationToast && (
         <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold shadow-2xl animate-fade-in backdrop-blur-md border ${
@@ -1966,10 +1966,10 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         </div>
       ) : viewMode === 'table' ? (
         /* VISTA EN FORMATO LISTA / TABLA DETALLADA */
-        <div className="bg-[#182229] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px]">
+        <div className="bg-[#182229] border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex flex-col">
+          <div className="overflow-x-auto custom-scrollbar w-full">
+            <table className="w-full text-left text-xs text-slate-300 relative border-collapse">
+              <thead className="bg-[#111b21] text-slate-400 uppercase tracking-wider font-bold border-b border-slate-800 text-[11px] sticky top-0 z-20 shadow-md backdrop-blur-md">
                 <tr>
                   <th className="py-3 px-3 w-8 text-center">
                     <input

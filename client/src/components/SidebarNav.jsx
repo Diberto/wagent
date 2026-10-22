@@ -30,7 +30,12 @@ import {
   X,
   ShieldCheck,
   UserCheck,
-  Receipt
+  Receipt,
+  Boxes,
+  ArrowRightLeft,
+  VolumeX,
+  Cpu,
+  TrendingUp
 } from 'lucide-react';
 
 export default function SidebarNav({
@@ -72,6 +77,8 @@ export default function SidebarNav({
       label: 'Operaciones',
       items: [
         { id: 'inbox', label: 'WhatsApp Chats', icon: MessageSquare, badge: unreadCount, badgeColor: 'bg-emerald-500 text-slate-950' },
+        { id: 'silent-group', label: 'Grupo Silencioso (OCR)', icon: VolumeX, badge: 'WhatsApp' },
+        { id: 'stock-transfers', label: 'Stock & Traspasos', icon: Boxes, badge: 'Scan' },
         { id: 'orders', label: 'Pedidos & Ventas', icon: PackageCheck },
         { id: 'pos', label: 'POS Mostrador', icon: Calculator },
         { id: 'catalog', label: 'Cortes & PLU', icon: ShoppingBag },
@@ -85,11 +92,13 @@ export default function SidebarNav({
       label: 'Comercial & Tienda',
       items: [
         { id: 'storefront', label: 'Tienda Online Web', icon: Globe, isSpecial: true },
+        { id: 'loyalty', label: 'Club de Fidelización', icon: Sparkles, highlight: true },
         { id: 'coupons', label: 'Cupones & Promos', icon: Tag },
         { id: 'recipes', label: 'Recetas Tradicionales', icon: ChefHat },
         { id: 'branches', label: '6 Sucursales', icon: Store },
         { id: 'media-gallery', label: 'Galería de Medios', icon: ImageIcon, isAction: true, onClick: onOpenMediaGallery },
-        { id: 'analytics', label: 'Reportes & KPIs', icon: BarChart3 }
+        { id: 'analytics', label: 'Reportes & KPIs', icon: BarChart3 },
+        { id: 'meat-market', label: 'Mercado Ganadero & Precios', icon: TrendingUp, badge: 'MAG/IPC', highlight: true }
       ]
     },
     {
@@ -118,6 +127,12 @@ export default function SidebarNav({
           id: 'arca',
           label: 'ARCA (AFIP) Facturación',
           icon: Receipt
+        },
+        {
+          id: 'api-mcp',
+          label: 'Conectividad API & MCP',
+          icon: Cpu,
+          badge: 'REST/MCP'
         }
       ]
     }

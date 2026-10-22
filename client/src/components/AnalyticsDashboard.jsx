@@ -21,13 +21,23 @@ import {
   Sparkles,
   ArrowUpRight,
   ChevronRight,
-  Layers
+  Layers,
+  Bot,
+  FileSpreadsheet,
+  FileText,
+  Trophy,
+  Percent,
+  Receipt
 } from 'lucide-react';
 import TicketPrintModal from './TicketPrintModal.jsx';
+import Analytics3DCanvas from './analytics/Analytics3DCanvas.jsx';
+import AnalyticsAiCopilot from './analytics/AnalyticsAiCopilot.jsx';
+import CustomReportsView from './analytics/CustomReportsView.jsx';
 
-export default function AnalyticsDashboard() {
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'branches' | 'products' | 'sales_list' | 'channels'
+export default function AnalyticsDashboard({ socket }) {
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'view_3d' | 'custom_reports' | 'ai_copilot' | 'branches' | 'products' | 'sales_list' | 'channels'
   const [stats, setStats] = useState(null);
+  const [enhancedStats, setEnhancedStats] = useState(null);
   const [salesList, setSalesList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [ticketPrintModal, setTicketPrintModal] = useState(null);
@@ -76,9 +86,10 @@ export default function AnalyticsDashboard() {
     setIsLoading(true);
     try {
       const queryStr = getFilterParams();
-      const [statsRes, listRes] = await Promise.all([
+      const [statsRes, listRes, enhancedRes] = await Promise.all([
         fetch(`/api/sales/stats?${queryStr}`),
-        fetch(`/api/sales/list?${queryStr}`)
+        fetch(`/api/sales/list?${queryStr}`),
+        fetch(`/api/analytics/enhanced-stats?${queryStr}`)
       ]);
 
       if (statsRes.ok) {
@@ -88,6 +99,12 @@ export default function AnalyticsDashboard() {
       if (listRes.ok) {
         const listData = await listRes.json();
         setSalesList(Array.isArray(listData) ? listData : []);
+      }
+      if (enhancedRes.ok) {
+        const enhancedData = await enhancedRes.json();
+        if (enhancedData.success) {
+          setEnhancedStats(enhancedData.data);
+        }
       }
     } catch (err) {
       console.error('Error cargando estadísticas de ventas:', err);
@@ -103,6 +120,20 @@ export default function AnalyticsDashboard() {
   useEffect(() => {
     loadData();
   }, [dateRange, selectedBranch, selectedChannel, selectedPayment, listSearch]);
+
+  // Actualización en tiempo real vía WebSockets
+  useEffect(() => {
+    if (!socket) return;
+    const handleUpdate = () => loadData();
+    socket.on('order:new', handleUpdate);
+    socket.on('order:update', handleUpdate);
+    socket.on('market:updated', handleUpdate);
+    return () => {
+      socket.off('order:new', handleUpdate);
+      socket.off('order:update', handleUpdate);
+      socket.off('market:updated', handleUpdate);
+    };
+  }, [socket]);
 
   const handleExportSales = (format = 'xlsx') => {
     const queryStr = getFilterParams();
@@ -227,75 +258,94 @@ export default function AnalyticsDashboard() {
 
       </div>
 
-      {/* Main KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Main KPI Cards Enriquecidas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         
         {/* Total Facturado */}
-        <div className="bg-[#111b21] p-4 sm:p-5 rounded-3xl border border-slate-800 relative overflow-hidden group">
-          <div className="absolute right-3 top-3 w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-            <DollarSign size={20} />
+        <div className="bg-[#111b21] p-4 rounded-2xl border border-slate-800 relative overflow-hidden group">
+          <div className="absolute right-3 top-3 w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+            <DollarSign size={18} />
           </div>
           <span className="text-xs font-semibold text-slate-400">Facturación Total</span>
-          <div className="text-2xl font-black text-emerald-400 font-mono mt-1">
-            ${(stats?.totalSalesAmount || 0).toLocaleString('es-AR')}
+          <div className="text-xl font-black text-emerald-400 font-mono mt-1">
+            ${(stats?.totalSalesAmount || enhancedStats?.summary?.totalRevenue || 0).toLocaleString('es-AR')}
           </div>
-          <div className="text-[11px] text-slate-400 mt-2 flex items-center gap-1">
+          <div className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
             <CheckCircle2 size={12} className="text-emerald-400" />
             <span>Cobrado: ${(stats?.paidAmount || 0).toLocaleString('es-AR')}</span>
           </div>
         </div>
 
         {/* Total Pedidos / Ventas */}
-        <div className="bg-[#111b21] p-4 sm:p-5 rounded-3xl border border-slate-800 relative overflow-hidden">
-          <div className="absolute right-3 top-3 w-10 h-10 rounded-2xl bg-sky-500/10 text-sky-400 flex items-center justify-center">
-            <ShoppingBag size={20} />
+        <div className="bg-[#111b21] p-4 rounded-2xl border border-slate-800 relative overflow-hidden">
+          <div className="absolute right-3 top-3 w-9 h-9 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center">
+            <ShoppingBag size={18} />
           </div>
           <span className="text-xs font-semibold text-slate-400">Total Operaciones</span>
-          <div className="text-2xl font-black text-white font-mono mt-1">
-            {stats?.totalOrdersCount || 0} <span className="text-xs font-normal text-slate-400">ventas</span>
+          <div className="text-xl font-black text-white font-mono mt-1">
+            {stats?.totalOrdersCount || enhancedStats?.summary?.totalOrders || 0} <span className="text-xs font-normal text-slate-400">pedidos</span>
           </div>
-          <div className="text-[11px] text-slate-400 mt-2 flex items-center gap-1">
+          <div className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
             <Clock size={12} className="text-amber-400" />
-            <span>Pendiente Cobro: ${(stats?.pendingAmount || 0).toLocaleString('es-AR')}</span>
+            <span>Pendiente: ${(stats?.pendingAmount || 0).toLocaleString('es-AR')}</span>
           </div>
         </div>
 
-        {/* Ticket Promedio */}
-        <div className="bg-[#111b21] p-4 sm:p-5 rounded-3xl border border-slate-800 relative overflow-hidden">
-          <div className="absolute right-3 top-3 w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
-            <TrendingUp size={20} />
+        {/* Margen Bruto Estimado vs Gancho MAG */}
+        <div className="bg-[#111b21] p-4 rounded-2xl border border-slate-800 relative overflow-hidden">
+          <div className="absolute right-3 top-3 w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+            <Percent size={18} />
           </div>
-          <span className="text-xs font-semibold text-slate-400">Ticket Promedio</span>
-          <div className="text-2xl font-black text-purple-300 font-mono mt-1">
-            ${(stats?.averageTicket || 0).toLocaleString('es-AR')}
+          <span className="text-xs font-semibold text-slate-400">Margen Bruto Estimado</span>
+          <div className="text-xl font-black text-cyan-300 font-mono mt-1">
+            ~{enhancedStats?.summary?.estimatedGrossMarginPct || 41.5}%
           </div>
-          <div className="text-[11px] text-slate-400 mt-2">
-            Valor medio por pedido o corte despachado
+          <div className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+            <TrendingUp size={12} className="text-cyan-400" />
+            <span>Ref. Gancho MAG: ${enhancedStats?.meatMarket?.estimatedCarcassCostPerKg || 4250}/kg</span>
+          </div>
+        </div>
+
+        {/* Facturas de Frigoríficos / Compras Silenciosas */}
+        <div className="bg-[#111b21] p-4 rounded-2xl border border-slate-800 relative overflow-hidden">
+          <div className="absolute right-3 top-3 w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
+            <Receipt size={18} />
+          </div>
+          <span className="text-xs font-semibold text-slate-400">Compras Frigoríficos</span>
+          <div className="text-xl font-black text-purple-300 font-mono mt-1">
+            ${(enhancedStats?.summary?.totalExpensesInvoices || 0).toLocaleString('es-AR')}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+            <Receipt size={12} className="text-purple-400" />
+            <span>{enhancedStats?.summary?.invoiceCount || 0} comprobantes auditados</span>
           </div>
         </div>
 
         {/* Sucursales Activas */}
-        <div className="bg-[#111b21] p-4 sm:p-5 rounded-3xl border border-slate-800 relative overflow-hidden">
-          <div className="absolute right-3 top-3 w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
-            <Store size={20} />
+        <div className="bg-[#111b21] p-4 rounded-2xl border border-slate-800 relative overflow-hidden">
+          <div className="absolute right-3 top-3 w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
+            <Store size={18} />
           </div>
           <span className="text-xs font-semibold text-slate-400">Sucursal Líder</span>
           <div className="text-base font-extrabold text-amber-400 truncate mt-1">
-            {stats?.branchStats?.[0]?.name || 'URCA CENTRAL'}
+            {stats?.branchStats?.[0]?.name || enhancedStats?.branchStats?.[0]?.name || 'URCA CENTRAL'}
           </div>
-          <div className="text-[11px] text-slate-400 mt-2">
-            ${(stats?.branchStats?.[0]?.totalRevenue || 0).toLocaleString('es-AR')} ({stats?.branchStats?.[0]?.percentageOfTotal || 0}% del total)
+          <div className="text-[11px] text-slate-400 mt-1.5">
+            ${(stats?.branchStats?.[0]?.totalRevenue || enhancedStats?.branchStats?.[0]?.totalRevenue || 0).toLocaleString('es-AR')}
           </div>
         </div>
 
       </div>
 
       {/* View Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 overflow-x-auto pb-1">
+      <div className="flex items-center gap-1.5 border-b border-slate-800 overflow-x-auto pb-1">
         {[
           { id: 'overview', label: '📊 Resumen & Evolución', icon: BarChart3 },
-          { id: 'branches', label: '🏪 Ventas por Sucursal', icon: Store, badge: stats?.branchStats?.length },
-          { id: 'products', label: '🥩 Ventas por Producto & PLU', icon: ShoppingBag, badge: stats?.productStats?.length },
+          { id: 'view_3d', label: '🌟 Gráficos 3D en Tiempo Real', icon: Sparkles, highlight: true },
+          { id: 'custom_reports', label: '📑 Informes Personalizados', icon: FileSpreadsheet },
+          { id: 'ai_copilot', label: '🤖 Agente BI Copilot', icon: Bot, highlight: true },
+          { id: 'branches', label: '🏪 Ventas por Sucursal', icon: Store, badge: stats?.branchStats?.length || enhancedStats?.branchStats?.length },
+          { id: 'products', label: '🥩 Ventas por Producto & PLU', icon: ShoppingBag, badge: stats?.productStats?.length || enhancedStats?.topProducts?.length },
           { id: 'sales_list', label: '📋 Registro Detallado de Ventas', icon: Layers, badge: salesList.length },
           { id: 'channels', label: '💳 Canales & Medios de Pago', icon: CreditCard }
         ].map(t => {
@@ -305,13 +355,15 @@ export default function AnalyticsDashboard() {
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 border-b-2 font-bold text-xs transition whitespace-nowrap ${
+              className={`flex items-center gap-2 px-3.5 py-2.5 border-b-2 font-bold text-xs transition whitespace-nowrap ${
                 isSelected
                   ? 'border-emerald-500 text-emerald-400 bg-[#111b21]/60 rounded-t-xl'
+                  : t.highlight
+                  ? 'border-transparent text-cyan-300 hover:text-cyan-200 hover:border-cyan-500/50'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
               }`}
             >
-              <Icon size={14} />
+              <Icon size={14} className={t.highlight ? 'text-cyan-400 animate-pulse' : ''} />
               <span>{t.label}</span>
               {t.badge !== undefined && (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
@@ -331,6 +383,55 @@ export default function AnalyticsDashboard() {
       {activeTab === 'overview' && (
         <div className="space-y-5 animate-fade-in">
           
+          {/* Spotlight Banner: Visualización 3D & Copilot BI */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/60 to-slate-900/80 border border-cyan-500/30 flex items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                  <Sparkles className="w-5 h-5 animate-spin" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    Visualizador 3D WebGL en Tiempo Real
+                    <span className="text-[10px] font-mono bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2 rounded">Three.js</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Matriz isométrica 3D de sucursales, podio de cortes y anillos omnicanal
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('view_3d')}
+                className="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shrink-0 shadow-md shadow-cyan-500/20 transition-all"
+              >
+                Abrir 3D
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/60 to-slate-900/80 border border-indigo-500/30 flex items-center justify-between gap-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    Agente de Inteligencia de Negocios (BI)
+                    <span className="text-[10px] font-mono bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded">IA Copilot</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Pregunta sobre rentabilidad, costos gancho MAG y horarios pico
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab('ai_copilot')}
+                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shrink-0 shadow-md shadow-indigo-600/20 transition-all"
+              >
+                Consultar IA
+              </button>
+            </div>
+          </div>
+
           {/* Top 3 Sucursales & Top 3 Cortes Resumen */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             
@@ -442,6 +543,71 @@ export default function AnalyticsDashboard() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: VISUALIZADOR 3D EN TIEMPO REAL (THREE.JS / WEBGL)                    */}
+      {/* ========================================================================= */}
+      {activeTab === 'view_3d' && (
+        <div className="space-y-4 animate-fade-in">
+          <Analytics3DCanvas stats={enhancedStats || stats} />
+          
+          {/* Tarjetas complementarias debajo del lienzo 3D */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-4 rounded-2xl bg-[#111b21] border border-slate-800">
+              <span className="text-xs text-slate-400 block mb-1">Corte de Mayor Margen Bruto</span>
+              <strong className="text-cyan-400 text-sm font-bold block">
+                🥩 {enhancedStats?.topProducts?.[0]?.name || 'Asado Especial'}
+              </strong>
+              <span className="text-[11px] text-slate-500 block mt-1">
+                Margen estimado: ~${(enhancedStats?.topProducts?.[0]?.marginEstimate || 0).toLocaleString('es-AR')}
+              </span>
+            </div>
+            <div className="p-4 rounded-2xl bg-[#111b21] border border-slate-800">
+              <span className="text-xs text-slate-400 block mb-1">Pico Horario de Mayor Venta</span>
+              <strong className="text-amber-400 text-sm font-bold block">
+                🕒 {enhancedStats?.hourlyDistribution?.[0]?.hour || '12:00 - 13:00'}
+              </strong>
+              <span className="text-[11px] text-slate-500 block mt-1">
+                Refuerzo sugerido para mostrador y atención
+              </span>
+            </div>
+            <div className="p-4 rounded-2xl bg-[#111b21] border border-slate-800">
+              <span className="text-xs text-slate-400 block mb-1">Referencia Costo Gancho MAG</span>
+              <strong className="text-emerald-400 text-sm font-bold font-mono block">
+                ${enhancedStats?.meatMarket?.estimatedCarcassCostPerKg || 4250} / kg
+              </strong>
+              <span className="text-[11px] text-slate-500 block mt-1">
+                Cálculo de rendimiento de media res en faena
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: INFORMES PERSONALIZADOS                                              */}
+      {/* ========================================================================= */}
+      {activeTab === 'custom_reports' && (
+        <div className="animate-fade-in">
+          <CustomReportsView stats={enhancedStats || stats} branches={branchesList} />
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: AGENTE BI COPILOT                                                    */}
+      {/* ========================================================================= */}
+      {activeTab === 'ai_copilot' && (
+        <div className="animate-fade-in">
+          <AnalyticsAiCopilot
+            stats={enhancedStats || stats}
+            activeFilters={{
+              branchId: selectedBranch,
+              channel: selectedChannel,
+              dateRange
+            }}
+          />
         </div>
       )}
 

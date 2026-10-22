@@ -14,6 +14,12 @@ import { BackupService } from './services/backup.js';
 import { UpdateService } from './services/updater.js';
 import { auditLogger } from './services/auditLogger.js';
 import { createApiRouter } from './routes/api.js';
+import { createExternalApiRouter, setupMcpHttpEndpoints } from './routes/externalApi.js';
+import externalConnectorsRouter from './routes/externalConnectorsRoutes.js';
+import { externalConnectorService } from './services/externalConnectorService.js';
+import meatMarketRouter from './routes/meatMarketRoutes.js';
+import { meatMarketService } from './services/meatMarketService.js';
+import { analyticsRouter } from './routes/analyticsRoutes.js';
 import { connectDB } from '../db.js';
 
 const app = express();
@@ -59,6 +65,8 @@ const io = new SocketIOServer(server, {
 db.setIo(io);
 auditLogger.setIo(io);
 UpdateService.setSocketIO(io);
+externalConnectorService.setIo(io);
+meatMarketService.setIo(io);
 
 // Middleware estándar
 app.use(cors());
@@ -88,8 +96,21 @@ app.use('/media', express.static(CONFIG.MEDIA_DIR, {
 // Instanciar Gestor Multi-Instancia de WhatsApp con Baileys
 const whatsapp = new WhatsAppManager(io);
 
-// Rutas de API REST
+// Rutas de API REST Interna
 app.use('/api', createApiRouter(whatsapp, io));
+
+// Rutas de API REST Externa v1 y Protocolo MCP (Model Context Protocol)
+app.use('/api/v1/external', createExternalApiRouter());
+setupMcpHttpEndpoints(app);
+
+// Conectores Salientes y Clientes MCP hacia otros sistemas
+app.use('/api/connectors', externalConnectorsRouter);
+
+// Inteligencia de Mercado de Carnes (MAG, Retail Benchmark, IPC Inflación, FOB)
+app.use('/api/market', meatMarketRouter);
+
+// Estadísticas 360, Informes Personalizados y Copilot BI de Negocio
+app.use('/api/analytics', analyticsRouter);
 
 // Gestión de conexiones WebSockets
 io.on('connection', (socket) => {
