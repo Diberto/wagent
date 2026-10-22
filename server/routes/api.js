@@ -6246,7 +6246,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       if (provider === 'carto') {
         const key = String(cartoApiKey || '').trim();
         const style = cartoStyle || 'voyager';
-        const testTileUrl = `https://a.basemaps.cartocdn.com/rastertiles/${style}/14/5269/10332.png${key ? '?api_key=' + encodeURIComponent(key) : ''}`;
+        const keyParam = key ? `?key=${encodeURIComponent(key)}&api_key=${encodeURIComponent(key)}` : '';
+        const testTileUrl = `https://a.basemaps.cartocdn.com/rastertiles/${style}/14/5269/10332.png${keyParam}`;
 
         const cRes = await fetch(testTileUrl, { headers: { 'User-Agent': userAgent } });
         if (!cRes.ok) {
@@ -6256,11 +6257,17 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
           });
         }
 
+        const etag = cRes.headers.get('etag') || '';
+        const isWatermarked = etag.includes('wm-');
+
         return res.json({
           success: true,
           provider: 'carto',
-          message: `¡CARTO Basemap conectado con éxito! Mosaicos raster estilo "${style}" validados ${key ? 'con API Key Pro' : 'en modo público'}.`,
-          style
+          message: isWatermarked
+            ? `Atención: CARTO requiere un API Key válido. Los mosaicos devueltos contienen marca de agua. Por favor ingresa tu API Key de CARTO activa.`
+            : `¡CARTO Basemap conectado con éxito! Mosaicos raster estilo "${style}" validados y limpios ${key ? 'con API Key Pro' : ''}.`,
+          style,
+          isWatermarked
         });
       }
 
@@ -6291,15 +6298,22 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       }
 
       if (provider === 'carto_free') {
-        const testTileUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/14/5269/10332.png';
+        const key = String(cartoApiKey || '').trim();
+        const keyParam = key ? `?key=${encodeURIComponent(key)}&api_key=${encodeURIComponent(key)}` : '';
+        const testTileUrl = `https://a.basemaps.cartocdn.com/rastertiles/voyager/14/5269/10332.png${keyParam}`;
         const cRes = await fetch(testTileUrl, { headers: { 'User-Agent': userAgent } });
         if (!cRes.ok) {
           return res.status(400).json({ success: false, error: 'No se pudo conectar con los servidores de CARTO Basemaps.' });
         }
+        const etag = cRes.headers.get('etag') || '';
+        const isWatermarked = etag.includes('wm-');
         return res.json({
           success: true,
           provider: 'carto_free',
-          message: '¡CARTO Gratuito conectado con éxito! Capas Voyager públicas activas sin necesidad de API Key.'
+          message: isWatermarked
+            ? 'Los servidores de CARTO requieren una API Key para eliminar marcas de agua. Te sugerimos usar OpenStreetMap o ingresar tu API Key de CARTO.'
+            : '¡CARTO conectado con éxito! Capas Voyager activas y limpias.',
+          isWatermarked
         });
       }
 

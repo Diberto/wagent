@@ -27,6 +27,13 @@ const DEFAULT_BRANCHES = [
   { id: 'br-6', name: 'Country San Isidro', address: 'Av. Padre Luchesse km 2', lat: -31.3120, lng: -64.2750, phone: '+54 9 3518 769099' }
 ];
 
+// Memoria caché local para mapConfig para evitar montar mosaicos sin credenciales
+let cachedMapConfig = null;
+try {
+  const saved = typeof window !== 'undefined' ? localStorage.getItem('wagent_map_config') : null;
+  if (saved) cachedMapConfig = JSON.parse(saved);
+} catch (e) {}
+
 export function getTileLayerConfig(mapConfig = {}) {
   const provider = mapConfig?.provider || 'carto';
 
@@ -82,12 +89,32 @@ export function getTileLayerConfig(mapConfig = {}) {
     case 'carto_free': {
       const style = mapConfig?.cartoStyle || 'voyager';
       const styleLabels = { voyager: 'Voyager Color', light_all: 'Positron Claro', dark_all: 'Dark Matter Elegante' };
+      const key = (mapConfig?.cartoApiKey || '').trim();
+
+      // Si no hay API Key de CARTO, CARTO estampa marca de agua "API KEY REQUIRED".
+      // Usamos OpenStreetMap como fallback 100% limpio sin marcas de agua.
+      if (!key) {
+        return {
+          provider: 'carto_free',
+          label: 'OpenStreetMap (Fallback Limpio)',
+          sublabel: 'Sin marca de agua',
+          badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          options: {
+            subdomains: 'abc',
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
+          }
+        };
+      }
+
+      const keyParam = `?key=${encodeURIComponent(key)}&api_key=${encodeURIComponent(key)}`;
       return {
         provider: 'carto_free',
         label: 'CARTO Basemap',
-        sublabel: `${styleLabels[style] || 'Voyager'} (Público)`,
+        sublabel: `${styleLabels[style] || 'Voyager'} (Con API Key)`,
         badgeColor: 'border-teal-500/30 text-teal-400 bg-teal-500/10',
-        url: `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png`,
+        url: `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png${keyParam}`,
         options: {
           subdomains: 'abcd',
           maxZoom: 20,
@@ -100,12 +127,31 @@ export function getTileLayerConfig(mapConfig = {}) {
     default: {
       const style = mapConfig?.cartoStyle || 'voyager';
       const key = (mapConfig?.cartoApiKey || '').trim();
-      const keyParam = key ? `?api_key=${encodeURIComponent(key)}` : '';
       const styleLabels = { voyager: 'Voyager Color', light_all: 'Positron Claro', dark_all: 'Dark Matter Elegante' };
+
+      // Si no hay API Key configurada, CARTO inyecta la marca de agua 'API KEY REQUIRED' repetida en cada mosaico.
+      // En ese caso recurrimos a OpenStreetMap para mantener la pantalla 100% limpia y profesional sin marcas.
+      if (!key) {
+        return {
+          provider: 'carto',
+          label: 'OpenStreetMap (Sin clave CARTO)',
+          sublabel: 'Mosaicos libres sin marca de agua',
+          badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          options: {
+            subdomains: 'abc',
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
+          }
+        };
+      }
+
+      // CARTO CDN requiere específicamente el parámetro ?key= para validar la API Key y suprimir la marca de agua.
+      const keyParam = `?key=${encodeURIComponent(key)}&api_key=${encodeURIComponent(key)}`;
       return {
         provider: 'carto',
         label: 'CARTO Pro',
-        sublabel: `${styleLabels[style] || 'Voyager'} ${key ? '• API Key' : '• Estándar'}`,
+        sublabel: `${styleLabels[style] || 'Voyager'} • API Key Activa`,
         badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
         url: `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png${keyParam}`,
         options: {
@@ -133,7 +179,7 @@ export default function ClientLocationMap({
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [isRouting, setIsRouting] = useState(false);
-  const [activeMapConfig, setActiveMapConfig] = useState(mapConfig);
+  const [activeMapConfig, setActiveMapConfig] = useState(mapConfig || cachedMapConfig);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -146,12 +192,16 @@ export default function ClientLocationMap({
   useEffect(() => {
     if (mapConfig) {
       setActiveMapConfig(mapConfig);
+      cachedMapConfig = mapConfig;
+      try { localStorage.setItem('wagent_map_config', JSON.stringify(mapConfig)); } catch (e) {}
     } else {
       fetch('/api/settings')
         .then(res => res.json())
         .then(data => {
           if (data?.settings?.mapConfig) {
             setActiveMapConfig(data.settings.mapConfig);
+            cachedMapConfig = data.settings.mapConfig;
+            try { localStorage.setItem('wagent_map_config', JSON.stringify(data.settings.mapConfig)); } catch (e) {}
           }
         })
         .catch(err => console.warn('No se pudo cargar mapConfig en ClientLocationMap:', err));
@@ -238,13 +288,14 @@ export default function ClientLocationMap({
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
+      const configToUse = activeMapConfig || cachedMapConfig;
       const map = L.map(mapContainerRef.current, {
         center: [coords.lat, coords.lng],
-        zoom: activeMapConfig?.defaultZoom || 14,
+        zoom: configToUse?.defaultZoom || 14,
         zoomControl: true
       });
 
-      const tileConfig = getTileLayerConfig(activeMapConfig);
+      const tileConfig = getTileLayerConfig(configToUse);
       tileLayerRef.current = L.tileLayer(tileConfig.url, tileConfig.options).addTo(map);
 
       // Evento de Click en el mapa para marcar ubicación del cliente
