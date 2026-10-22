@@ -114,36 +114,55 @@ class RapilogService {
   }
 
   /**
-   * Cotiza un viaje bajo demanda (OnDemandSmart / Food)
-   * @param {Object} params
-   * @param {Object} params.originCoords { lat, lng }
-   * @param {Object} params.destinationCoords { lat, lng }
-   * @param {string} [params.modality] 'OnDemandSmart' | 'Food'
+   * Catálogo de sucursales origen en Córdoba para retiro de pedidos por Rapilog
    */
-  async cotizar({ originCoords, destinationCoords, modality = null } = {}) {
+  getBranches() {
+    try {
+      const list = db.getBranches() || [];
+      if (list.length > 0) return list;
+    } catch {}
+    return [
+      { id: 'br-1', name: 'Sucursal Funes (Urca)', address: 'Av. José Roque Funes 1115, Córdoba', lat: -31.3828, lng: -64.2372, phone: '+5493513906947' },
+      { id: 'br-2', name: 'Sucursal Gauss (Villa Belgrano)', address: 'Av. Carlos Gauss 5670, Córdoba', lat: -31.3654, lng: -64.2541, phone: '+5493516801234' },
+      { id: 'br-3', name: 'Sucursal Recta Martinoli (Argüello)', address: 'Av. Recta Martinoli 7890, Córdoba', lat: -31.3491, lng: -64.2698, phone: '+5493517105678' },
+      { id: 'br-4', name: 'Sucursal Tejeda (Cerro de las Rosas)', address: 'Luis de Tejeda 4100, Córdoba', lat: -31.3789, lng: -64.2415, phone: '+5493518209012' },
+      { id: 'br-5', name: 'Sucursal Valparaíso (Tejas del Sur)', address: 'Av. Valparaíso 3500, Córdoba', lat: -31.4512, lng: -64.1956, phone: '+5493519303456' },
+      { id: 'br-6', name: 'Sucursal O\'Higgins (San Fernando)', address: 'Av. Bernardo O\'Higgins 4200, Córdoba', lat: -31.4634, lng: -64.1823, phone: '+5493514407890' }
+    ];
+  }
+
+  /**
+   * Cotiza un viaje bajo demanda (OnDemandSmart / Food)
+   */
+  async cotizar(params = {}) {
     const config = this.getConfig();
     if (!config.token) {
       throw new Error('Rapilog no está configurado con un Token válido.');
     }
 
-    if (!originCoords?.lat || !originCoords?.lng || !destinationCoords?.lat || !destinationCoords?.lng) {
-      throw new Error('Coordenadas de origen y destino requeridas para cotizar con Rapilog.');
+    const branches = this.getBranches();
+    const branch = branches.find(b => b.id === (params.branchId || config.originBranchId)) || branches[0];
+
+    const latOrig = params.latOrigen ?? params.originCoords?.lat ?? branch?.lat ?? -31.3828;
+    const lngOrig = params.lngOrigen ?? params.originCoords?.lng ?? branch?.lng ?? -64.2372;
+    const latDest = params.latDestino ?? params.destinationCoords?.lat;
+    const lngDest = params.lngDestino ?? params.destinationCoords?.lng;
+
+    if (!latDest || !lngDest) {
+      throw new Error('Coordenadas de destino requeridas para cotizar con Rapilog.');
     }
 
     const baseUrl = this.getBaseUrl();
-    const activeModality = modality || config.defaultModality;
+    const activeModality = params.modalidad || params.modality || config.defaultModality;
 
     const payload = {
-      LatitudOrigen: Number(originCoords.lat),
-      LongitudOrigen: Number(originCoords.lng),
-      LatitudDestino: Number(destinationCoords.lat),
-      LongitudDestino: Number(destinationCoords.lng)
+      LatitudOrigen: Number(latOrig),
+      LongitudOrigen: Number(lngOrig),
+      LatitudDestino: Number(latDest),
+      LongitudDestino: Number(lngDest)
     };
 
-    const endpoint = activeModality === 'Food'
-      ? `${baseUrl}/v1/OnDemandSmart/Cotizar` // Food comparte cotización OnDemand
-      : `${baseUrl}/v1/OnDemandSmart/Cotizar`;
-
+    const endpoint = `${baseUrl}/v1/OnDemandSmart/Cotizar`;
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -151,7 +170,6 @@ class RapilogService {
     });
 
     const data = await res.json();
-
     if (!res.ok) {
       const errMsg = data.Message || data.error || 'No se pudo cotizar el viaje en Rapilog.';
       throw new Error(errMsg);
@@ -164,21 +182,39 @@ class RapilogService {
       precio,
       precioFormateado: `$ ${precio.toLocaleString('es-AR')}`,
       vigenciaMinutos: 3,
-      origen: originCoords,
-      destino: destinationCoords,
+      distanciaKm: data.Distancia || data.Km || null,
+      duracionMin: data.Duracion || null,
+      origen: { lat: latOrig, lng: lngOrig },
+      destino: { lat: latDest, lng: lngDest },
       modality: activeModality
     };
   }
 
   /**
    * Despacha un pedido creando el viaje en Rapilog
-   * @param {Object} params
-   * @param {Object} params.order Pedido de WAgent
-   * @param {Object} [params.branch] Sucursal de origen
-   * @param {string} [params.modality] Modalidad
-   * @param {string} [params.observation] Indicaciones para el cadete
    */
-  async crearPedidoEnvio({ order, branch = null, modality = null, observation = '' } = {}) {
+  async crearPedidoEnvio(orderOrParams, options = {}) {
+    let order, branch, modality, observation, vehicleType, notes, packageCount, branchId;
+    if (orderOrParams && orderOrParams.order) {
+      order = orderOrParams.order;
+      branch = orderOrParams.branch;
+      branchId = orderOrParams.branchId;
+      modality = orderOrParams.modality;
+      observation = orderOrParams.observation;
+      vehicleType = orderOrParams.vehicleType;
+      notes = orderOrParams.notes;
+      packageCount = orderOrParams.packageCount;
+    } else {
+      order = orderOrParams;
+      branch = options.branch;
+      branchId = options.branchId;
+      modality = options.modality;
+      observation = options.observation || options.notes;
+      vehicleType = options.vehicleType;
+      notes = options.notes;
+      packageCount = options.packageCount;
+    }
+
     const config = this.getConfig();
     if (!config.token) {
       throw new Error('Rapilog no cuenta con un Token configurado en el sistema.');
@@ -192,19 +228,12 @@ class RapilogService {
     const activeModality = modality || config.defaultModality;
 
     // Resolver sucursal de origen
-    const branches = db.getBranches() || [];
-    const originBranch = branch || branches.find(b => b.id === (order.branchId || config.originBranchId)) || branches[0] || {
-      id: 'br-1',
-      name: 'República de la Carne - Sucursal Central Urca',
-      address: 'Av. José Roque Funes 1115, Córdoba',
-      phone: '+5493513906947',
-      lat: -31.3828,
-      lng: -64.2372
-    };
+    const branches = this.getBranches();
+    const originBranch = branch || branches.find(b => b.id === (branchId || order.branchId || config.originBranchId)) || branches[0];
 
     // Coordenadas de destino del cliente
-    const destLat = Number(order.lat || order.coordinates?.lat || -31.3828);
-    const destLng = Number(order.lng || order.coordinates?.lng || -64.2372);
+    const destLat = Number(order.destinationLat || order.lat || order.coordinates?.lat || -31.3828);
+    const destLng = Number(order.destinationLng || order.lng || order.coordinates?.lng || -64.2372);
     const destAddress = order.address || order.deliveryAddress || 'Córdoba, Argentina';
     const customerName = order.customerName || order.customer?.name || 'Cliente';
     const customerPhone = order.customerPhone || order.phone || '';

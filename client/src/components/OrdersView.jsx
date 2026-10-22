@@ -2308,8 +2308,8 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                             }`}
                             title={
                               order.rapilogShipment && order.rapilogShipment.idPedidoRapilog && order.rapilogShipment.status !== 'cancelado'
-                                ? `Rapilog #${order.rapilogShipment.idPedidoRapilog} (${order.rapilogShipment.estadoNombre || 'Despachado'})`
-                                : 'Despachar con Rapilog Cadetería'
+                                ? `Rapilog / Rapiboy #${order.rapilogShipment.idPedidoRapilog} (${order.rapilogShipment.estadoNombre || 'Despachado'})`
+                                : 'Despachar con Rapilog / Rapiboy'
                             }
                           >
                             <Truck size={13} />
@@ -2679,8 +2679,8 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                     }`}
                     title={
                       order.rapilogShipment && order.rapilogShipment.idPedidoRapilog && order.rapilogShipment.status !== 'cancelado'
-                        ? `Rapilog #${order.rapilogShipment.idPedidoRapilog} (${order.rapilogShipment.estadoNombre || 'Despachado'})`
-                        : 'Despachar con Rapilog Cadetería'
+                        ? `Rapilog / Rapiboy #${order.rapilogShipment.idPedidoRapilog} (${order.rapilogShipment.estadoNombre || 'Despachado'})`
+                        : 'Despachar con Rapilog / Rapiboy'
                     }
                   >
                     <Truck size={13} />
@@ -4626,7 +4626,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-white">Despacho Rapilog Cadetería</h3>
+                    <h3 className="text-base font-bold text-white">Despacho Rapilog / Rapiboy</h3>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
                       API Oficial
                     </span>

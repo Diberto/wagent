@@ -766,6 +766,7 @@ export default function DriversView({ socket }) {
                       }}
                       className="px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-rose-500 text-xs"
                     >
+                      <option value="Rapilog">Rapilog (API Oficial)</option>
                       <option value="Rapiboy">Rapiboy</option>
                       <option value="PedidosYa">PedidosYa</option>
                       <option value="Uber Flash">Uber Flash</option>

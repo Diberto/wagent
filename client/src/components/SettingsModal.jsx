@@ -3108,7 +3108,7 @@ export default function SettingsModal({ isOpen, onClose }) {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        Rapilog Argentina — Cadetería & Logística
+                        Rapilog / Rapiboy — Cadetería & Logística API Oficial
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
                           settings?.rapilogConfig?.enabled 
                             ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
