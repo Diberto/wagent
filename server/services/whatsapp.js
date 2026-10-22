@@ -190,11 +190,13 @@ export class WhatsAppService {
     // 1. Estado marcado como 'connected': Verificar que el WebSocket realmente esté vivo
     if (this.status === 'connected') {
       const ws = this.sock?.ws;
-      // readyState de WebSocket: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
-      const isWsAlive = ws && ws.readyState === 1;
+      // En Baileys sock.ws es un WebSocketClient (.isOpen: boolean, ws.socket?.readyState: 1 = OPEN, 0 = CONNECTING)
+      const isWsAlive = ws ? (ws.isOpen === true || ws.socket?.readyState === 1 || ws.socket?.readyState === 0) : false;
 
-      if (!isWsAlive) {
-        console.warn(`🚨 [Watchdog ${this.sessionId}] Socket zombie o cerrado detectado (ws readyState: ${ws?.readyState ?? 'null'}). Forzando auto-reconexión inmediata...`);
+      // Solo declarar zombie si ha pasado gracia inicial de 30s y el socket realmente se cerró
+      const connectedDuration = this.lastConnectedAt ? (Date.now() - this.lastConnectedAt) : 0;
+      if (!isWsAlive && connectedDuration > 30000) {
+        console.warn(`🚨 [Watchdog ${this.sessionId}] Socket zombie o cerrado detectado (isOpen: ${ws?.isOpen}, readyState: ${ws?.socket?.readyState ?? 'null'}). Forzando auto-reconexión...`);
         this.status = 'disconnected';
         this.emitStatus();
         this.isInitializing = false;
@@ -202,17 +204,16 @@ export class WhatsAppService {
         return;
       }
 
-      // Enviar presencia activa cada 35s para mantener abierta la tabla de NAT del router / ISP
+      // Enviar presencia activa cada 60s para mantener abierta la tabla de NAT del router / ISP (solo tras >30s conectado estable)
       const now = Date.now();
-      const connectedDuration = this.lastConnectedAt ? (now - this.lastConnectedAt) : 0;
-      if (connectedDuration > 15000 && (!this.lastPingAt || (now - this.lastPingAt) >= 35000)) {
+      if (connectedDuration > 30000 && (!this.lastPingAt || (now - this.lastPingAt) >= 60000)) {
         this.lastPingAt = now;
         try {
           if (this.sock && typeof this.sock.sendPresenceUpdate === 'function') {
             await this.sock.sendPresenceUpdate('available');
           }
         } catch (pingErr) {
-          console.warn(`⚠️ [Watchdog ${this.sessionId}] Ping de presencia falló (${pingErr.message}).`);
+          // No-op
         }
       }
       return;
@@ -416,14 +417,14 @@ export class WhatsAppService {
         logger,
         printQRInTerminal: false,
         auth: state,
-        browser: Browsers.windows('Desktop'),
+        browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: true,
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
-        keepAliveIntervalMs: 25000,
-        retryRequestDelayMs: 2000,
-        markOnlineOnConnect: true,
+        keepAliveIntervalMs: 30000,
+        retryRequestDelayMs: 2500,
+        markOnlineOnConnect: false,
         getMessage: async () => undefined
       });
 
@@ -2213,6 +2214,11 @@ export class WhatsAppManager {
       return this.metaService.isConfigured();
     }
     return this.status === 'connected';
+  }
+
+  get sock() {
+    const session = this.getActiveConnectedSession() || this.primarySession;
+    return session?.sock || null;
   }
 
   /**

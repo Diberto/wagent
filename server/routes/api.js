@@ -6711,7 +6711,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     try {
       const { inviteUrl } = req.body;
       if (!inviteUrl) return res.status(400).json({ error: 'Enlace o código de invitación requerido' });
-      if (!whatsappService || !whatsappService.sock) {
+      if (!whatsappService || !whatsappService.isAnyConnected) {
         return res.status(400).json({ error: 'WhatsApp no está conectado actualmente. Verifique la conexión antes de unir al grupo.' });
       }
       const result = await whatsappService.joinGroupViaInvite(inviteUrl);
