@@ -36,7 +36,12 @@ import {
   QrCode,
   Copy,
   ExternalLink,
-  VolumeX
+  VolumeX,
+  Truck,
+  MessageSquare,
+  Compass,
+  Layers,
+  MapPin
 } from 'lucide-react';
 import UsersView from './UsersView';
 import DatabaseView from './DatabaseView';
@@ -161,6 +166,70 @@ export default function AdminHubView({
     } else if (type === 'verify') {
       setCopiedVerifyToken(true);
       setTimeout(() => setCopiedVerifyToken(false), 2000);
+    }
+  };
+
+  // Rapilog / Rapiboy Logistics State
+  const [isTestingRapilog, setIsTestingRapilog] = useState(false);
+  const [rapilogTestResult, setRapilogTestResult] = useState(null);
+  const [showRapilogToken, setShowRapilogToken] = useState(false);
+
+  const handleTestRapilog = async () => {
+    setIsTestingRapilog(true);
+    setRapilogTestResult(null);
+    try {
+      const res = await fetch('/api/rapilog/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: settings?.rapilogConfig?.token || '',
+          environment: settings?.rapilogConfig?.environment || 'uat'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setRapilogTestResult({ success: false, error: data.error || 'Error conectando con la API de Rapilog' });
+      } else {
+        setRapilogTestResult({ success: true, ...data });
+      }
+    } catch (err) {
+      setRapilogTestResult({ success: false, error: err.message || 'Error de conexión con el servidor' });
+    } finally {
+      setIsTestingRapilog(false);
+    }
+  };
+
+  // Map Providers & CARTO/Google Maps State
+  const [isTestingMap, setIsTestingMap] = useState(false);
+  const [mapTestResult, setMapTestResult] = useState(null);
+  const [showCartoKey, setShowCartoKey] = useState(false);
+  const [showGoogleKey, setShowGoogleKey] = useState(false);
+
+  const handleTestMapProvider = async () => {
+    setIsTestingMap(true);
+    setMapTestResult(null);
+    try {
+      const res = await fetch('/api/maps/test-provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: settings?.mapConfig?.provider || 'carto',
+          cartoApiKey: settings?.mapConfig?.cartoApiKey || '',
+          cartoStyle: settings?.mapConfig?.cartoStyle || 'voyager',
+          googleMapsApiKey: settings?.mapConfig?.googleMapsApiKey || '',
+          googleMapsType: settings?.mapConfig?.googleMapsType || 'm'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setMapTestResult({ success: false, error: data.error || 'Error probando proveedor de mapas' });
+      } else {
+        setMapTestResult({ success: true, ...data });
+      }
+    } catch (err) {
+      setMapTestResult({ success: false, error: err.message || 'Error de conexión' });
+    } finally {
+      setIsTestingMap(false);
     }
   };
 
@@ -357,7 +426,7 @@ export default function AdminHubView({
     { id: 'silentGroup', label: 'Grupo Silencioso (OCR)', icon: VolumeX, desc: 'Agente pasivo en WhatsApp para facturas y remitos' },
     { id: 'metaWhatsapp', label: 'Meta WhatsApp API', icon: Smartphone, desc: 'API Oficial Cloud de Meta, Webhooks y credenciales' },
     { id: 'ai', label: 'Modelos IA & Prompts', icon: Bot, desc: 'Gemini, OpenAI, Llama local y personalidad' },
-    { id: 'logistics', label: 'Logística & Despachos', icon: Bike, desc: 'Franjas horarias, costos y radios de envío' },
+    { id: 'logistics', label: 'Logística & Despachos', icon: Bike, desc: 'Rapilog/Rapiboy, Maps & CARTO, costos' },
     { id: 'payments', label: 'Mercado Pago', icon: CreditCard, desc: 'Pasarelas de cobro y Alias digital' },
     { id: 'arca', label: 'ARCA (AFIP) Facturación', icon: Receipt, desc: 'Multi-Razón Social, CUITs, puntos de venta y WSFE' },
     { id: 'apiMcp', label: 'Conectividad API & MCP', icon: Cpu, desc: 'API REST, Keys de acceso y Servidor MCP para Agentes' },
@@ -1671,62 +1740,588 @@ export default function AdminHubView({
         {activeSection === 'logistics' && settings && (
           <div className="p-6 max-w-4xl mx-auto space-y-6">
             <div className="border-b border-[#202c33] pb-4">
-              <h2 className="text-lg font-extrabold text-white">Logística, Franjas & Envíos</h2>
-              <p className="text-xs text-slate-400">Costos de delivery, franjas horarias y reglas de despacho en Córdoba</p>
+              <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+                <Bike className="text-emerald-400" size={20} />
+                Logística, Franjas & Envíos
+              </h2>
+              <p className="text-xs text-slate-400">Costos de delivery, franjas horarias, integración con Rapilog / Rapiboy y servicios de mapas en Córdoba</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Costo Envío Estándar ($)</label>
-                <input
-                  type="number"
-                  value={settings.deliveryStandardCost || 3500}
-                  onChange={(e) => setSettings({ ...settings, deliveryStandardCost: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
-                />
+            {/* Reglas Generales de Envío */}
+            <div className="p-4 rounded-2xl bg-[#182229] border border-[#2a3942] space-y-4">
+              <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                Tarifas y Reglas Generales de Despacho
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Costo Envío Estándar ($)</label>
+                  <input
+                    type="number"
+                    value={settings.deliveryStandardCost || 3500}
+                    onChange={(e) => setSettings({ ...settings, deliveryStandardCost: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Costo Envío Express ($)</label>
+                  <input
+                    type="number"
+                    value={settings.deliveryExpressCost || 6500}
+                    onChange={(e) => setSettings({ ...settings, deliveryExpressCost: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Monto Mínimo Envío Gratis ($)</label>
+                  <input
+                    type="number"
+                    value={settings.deliveryFreeThreshold || 45000}
+                    onChange={(e) => setSettings({ ...settings, deliveryFreeThreshold: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Costo Envío Express ($)</label>
-                <input
-                  type="number"
-                  value={settings.deliveryExpressCost || 6500}
-                  onChange={(e) => setSettings({ ...settings, deliveryExpressCost: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
-                />
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Hora Límite de Corte (Cutoff)</label>
+                  <input
+                    type="number"
+                    value={settings.deliveryCutoffHour || 12}
+                    onChange={(e) => setSettings({ ...settings, deliveryCutoffHour: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400">Ej: 12 (12:00 hs mediodía)</span>
+                </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Monto Mínimo Envío Gratis ($)</label>
-                <input
-                  type="number"
-                  value={settings.deliveryFreeThreshold || 45000}
-                  onChange={(e) => setSettings({ ...settings, deliveryFreeThreshold: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
-                />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300">Radio de Cobertura (Km)</label>
+                  <input
+                    type="number"
+                    value={settings.deliveryCoverageRadiusKm || 15}
+                    onChange={(e) => setSettings({ ...settings, deliveryCoverageRadiusKm: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Hora Límite de Corte (Cutoff)</label>
-                <input
-                  type="number"
-                  value={settings.deliveryCutoffHour || 12}
-                  onChange={(e) => setSettings({ ...settings, deliveryCutoffHour: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
-                />
-                <span className="text-[10px] text-slate-400">Ej: 12 (12:00 hs mediodía)</span>
+            {/* Card Rapilog Argentina / Rapiboy API Oficial */}
+            <div className="p-5 rounded-2xl bg-[#182229] border border-amber-500/30 space-y-4 shadow-xl shadow-amber-500/5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30 shrink-0">
+                    <Truck size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                      Rapilog / Rapiboy — Cadetería & Logística API Oficial
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                        settings?.rapilogConfig?.enabled 
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                          : 'bg-slate-700/50 text-slate-400 border-slate-600'
+                      }`}>
+                        {settings?.rapilogConfig?.enabled ? 'ACTIVO' : 'DESACTIVADO'}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20">
+                        {settings?.rapilogConfig?.environment === 'production' ? 'PRODUCCIÓN' : 'UAT / SANDBOX'}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Despacho automático de pedidos, cotización en tiempo real y seguimiento satelital de cadetes en Córdoba.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <a
+                    href="https://rapilog.com.ar/documentacionapi/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 transition"
+                  >
+                    <ExternalLink size={12} />
+                    Docs API
+                  </a>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(settings?.rapilogConfig?.enabled)}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        rapilogConfig: {
+                          ...(settings?.rapilogConfig || {}),
+                          enabled: e.target.checked
+                        }
+                      })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Radio de Cobertura (Km)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Entorno API */}
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-2">
+                  <label className="block text-xs font-bold text-white">Ambiente de Operación</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSettings({
+                        ...settings,
+                        rapilogConfig: {
+                          ...(settings?.rapilogConfig || {}),
+                          environment: 'uat'
+                        }
+                      })}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-center ${
+                        (settings?.rapilogConfig?.environment || 'uat') === 'uat'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
+                          : 'bg-[#182229] border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🧪 UAT (Sandbox)
+                      <span className="block text-[10px] font-normal text-slate-400">Pruebas sin costo</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSettings({
+                        ...settings,
+                        rapilogConfig: {
+                          ...(settings?.rapilogConfig || {}),
+                          environment: 'production'
+                        }
+                      })}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-center ${
+                        settings?.rapilogConfig?.environment === 'production'
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm'
+                          : 'bg-[#182229] border-slate-700 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🚀 Producción
+                      <span className="block text-[10px] font-normal text-slate-400">Cadetes en vivo</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    Endpoint activo: <code className="text-amber-300">{(settings?.rapilogConfig?.environment === 'production') ? 'https://rapilog.com.ar' : 'https://uat.rapilog.com.ar'}</code>
+                  </span>
+                </div>
+
+                {/* API Token */}
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-white">Token de Autenticación (Header Token)</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowRapilogToken(!showRapilogToken)}
+                      className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      {showRapilogToken ? <EyeOff size={11} /> : <Eye size={11} />}
+                      {showRapilogToken ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showRapilogToken ? 'text' : 'password'}
+                      placeholder="Ej: eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                      value={settings?.rapilogConfig?.token || ''}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        rapilogConfig: {
+                          ...(settings?.rapilogConfig || {}),
+                          token: e.target.value
+                        }
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    Token provisto por el equipo comercial de Rapilog Argentina para República de la Carne.
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Modalidad de Envio */}
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                  <label className="block text-xs font-bold text-white">Modalidad Predeterminada</label>
+                  <select
+                    value={settings?.rapilogConfig?.defaultModality || 'OnDemandSmart'}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      rapilogConfig: {
+                        ...(settings?.rapilogConfig || {}),
+                        defaultModality: e.target.value
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="OnDemandSmart">OnDemandSmart (Cadete Inmediato)</option>
+                    <option value="Food">Food (Alimentos & Gastronomía)</option>
+                    <option value="NextDaySmart">NextDaySmart (Programado 24h)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 block">
+                    Tipo de servicio utilizado para solicitar el cadete.
+                  </span>
+                </div>
+
+                {/* Sucursal Origen Predeterminada */}
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                  <label className="block text-xs font-bold text-white">Sucursal de Retiro Principal</label>
+                  <select
+                    value={settings?.rapilogConfig?.originBranchId || 'br-1'}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      rapilogConfig: {
+                        ...(settings?.rapilogConfig || {}),
+                        originBranchId: e.target.value
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="br-1">Sucursal Funes (Urca)</option>
+                    <option value="br-2">Sucursal Gauss (Villa Belgrano)</option>
+                    <option value="br-3">Sucursal Recta Martinoli (Argüello)</option>
+                    <option value="br-4">Sucursal Tejeda (Cerro de las Rosas)</option>
+                    <option value="br-5">Sucursal Valparaíso (Tejas del Sur)</option>
+                    <option value="br-6">Sucursal O'Higgins (San Fernando)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 block">
+                    Punto donde Rapilog retira el pedido fresco.
+                  </span>
+                </div>
+
+                {/* Tipo de Vehículo */}
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                  <label className="block text-xs font-bold text-white">Vehículo Solicitado</label>
+                  <select
+                    value={settings?.rapilogConfig?.vehicleType || 1}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      rapilogConfig: {
+                        ...(settings?.rapilogConfig || {}),
+                        vehicleType: Number(e.target.value) || 1
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value={1}>🛵 Moto / Cadete Express</option>
+                    <option value={2}>🚗 Auto / Utilitario Refrigerado</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 block">
+                    Moto para bultos pequeños o auto para combos.
+                  </span>
+                </div>
+              </div>
+
+              {/* Switch de Auto-notificación por WhatsApp */}
+              <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                    <MessageSquare size={16} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white">Notificar Link de Seguimiento por WhatsApp Automáticamente</div>
+                    <div className="text-[10px] text-slate-400">
+                      Al despachar con un clic en Rapilog, el bot envía automáticamente al cliente el link oficial de seguimiento en vivo (<span className="text-amber-300 font-mono">https://rapilog.com.ar/seguimientoPedido?id=...</span>).
+                    </div>
+                  </div>
+                </div>
                 <input
-                  type="number"
-                  value={settings.deliveryCoverageRadiusKm || 15}
-                  onChange={(e) => setSettings({ ...settings, deliveryCoverageRadiusKm: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-xl bg-[#182229] border border-[#2a3942] text-white text-xs focus:border-emerald-500 outline-none"
+                  type="checkbox"
+                  checked={settings?.rapilogConfig?.autoNotifyCustomer !== false}
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    rapilogConfig: {
+                      ...(settings?.rapilogConfig || {}),
+                      autoNotifyCustomer: e.target.checked
+                    }
+                  })}
+                  className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-[#182229] border-slate-700 cursor-pointer"
                 />
+              </div>
+
+              {/* Botón de Test de Conexión & Feedback */}
+              <div className="pt-2 border-t border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleTestRapilog}
+                  disabled={isTestingRapilog || !settings?.rapilogConfig?.token}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+                >
+                  {isTestingRapilog ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      Validando con Rapilog Argentina...
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={14} />
+                      Probar Conexión con Rapilog
+                    </>
+                  )}
+                </button>
+
+                {rapilogTestResult && (
+                  <div className={`text-xs px-3 py-2 rounded-xl border flex items-center gap-2 flex-1 ${
+                    rapilogTestResult.success
+                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                      : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                  }`}>
+                    {rapilogTestResult.success ? (
+                      <>
+                        <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                        <span>¡Conexión exitosa con Rapilog ({rapilogTestResult.environment?.toUpperCase()})! Token activo y validado.</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle size={16} className="text-rose-400 shrink-0" />
+                        <span className="truncate">{rapilogTestResult.error || 'Error de conexión'}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Card Proveedor de Mapas & Geocodificación (CARTO / Google Maps / OSM) */}
+            <div className="p-5 rounded-2xl bg-[#182229] border border-cyan-500/30 space-y-4 shadow-xl shadow-cyan-500/5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 text-cyan-400 flex items-center justify-center font-bold border border-cyan-500/30 shrink-0">
+                    <Compass size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      Servicio Cartográfico & Mapas (CARTO / Google Maps / OSM)
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 font-bold border border-cyan-500/20 uppercase">
+                        {settings?.mapConfig?.provider || 'carto'}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Proveedor para geocodificación de direcciones de clientes, radios de entrega y cálculo de distancias en Córdoba.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selector de Proveedor */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* CARTO Pro */}
+                <button
+                  type="button"
+                  onClick={() => setSettings({
+                    ...settings,
+                    mapConfig: {
+                      ...(settings?.mapConfig || {}),
+                      provider: 'carto'
+                    }
+                  })}
+                  className={`p-3 rounded-xl border text-left transition ${
+                    (settings?.mapConfig?.provider || 'carto') === 'carto'
+                      ? 'bg-cyan-500/15 border-cyan-500 text-white shadow-sm'
+                      : 'bg-[#111b21] border-slate-700 text-slate-300 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                      <Layers size={13} /> CARTO (Con API Key)
+                    </span>
+                    {(settings?.mapConfig?.provider || 'carto') === 'carto' && (
+                      <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Mosaicos raster de alta velocidad. Soporta tu API Key de CARTO y estilos Voyager, Positron y Dark Matter.
+                  </p>
+                </button>
+
+                {/* Google Maps */}
+                <button
+                  type="button"
+                  onClick={() => setSettings({
+                    ...settings,
+                    mapConfig: {
+                      ...(settings?.mapConfig || {}),
+                      provider: 'google'
+                    }
+                  })}
+                  className={`p-3 rounded-xl border text-left transition ${
+                    settings?.mapConfig?.provider === 'google'
+                      ? 'bg-blue-500/15 border-blue-500 text-white shadow-sm'
+                      : 'bg-[#111b21] border-slate-700 text-slate-300 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                      <Globe size={13} /> Google Maps
+                    </span>
+                    {settings?.mapConfig?.provider === 'google' && (
+                      <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Mosaicos oficiales de Google (Roadmap, Satélite). Soporta Google Geocoding y Directions API.
+                  </p>
+                </button>
+
+                {/* OpenStreetMap */}
+                <button
+                  type="button"
+                  onClick={() => setSettings({
+                    ...settings,
+                    mapConfig: {
+                      ...(settings?.mapConfig || {}),
+                      provider: 'osm'
+                    }
+                  })}
+                  className={`p-3 rounded-xl border text-left transition ${
+                    settings?.mapConfig?.provider === 'osm'
+                      ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-sm'
+                      : 'bg-[#111b21] border-slate-700 text-slate-300 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      <MapPin size={13} /> OpenStreetMap Libre
+                    </span>
+                    {settings?.mapConfig?.provider === 'osm' && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Servicio cartográfico colaborativo 100% gratuito. Sin API Key, sin tarjetas ni límites.
+                  </p>
+                </button>
+              </div>
+
+              {/* Parámetros según proveedor seleccionado */}
+              {(settings?.mapConfig?.provider || 'carto') === 'carto' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl bg-[#111b21] border border-slate-700">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-white">CARTO API Key</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCartoKey(!showCartoKey)}
+                        className="text-[10px] text-cyan-400 hover:underline flex items-center gap-1"
+                      >
+                        {showCartoKey ? <EyeOff size={11} /> : <Eye size={11} />}
+                        {showCartoKey ? 'Ocultar' : 'Mostrar'}
+                      </button>
+                    </div>
+                    <input
+                      type={showCartoKey ? 'text' : 'password'}
+                      placeholder="Ingresa tu CARTO API Key..."
+                      value={settings?.mapConfig?.cartoApiKey || ''}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        mapConfig: {
+                          ...(settings?.mapConfig || {}),
+                          cartoApiKey: e.target.value
+                        }
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    />
+                    <span className="text-[10px] text-slate-400 block">Si la dejas vacía, se usan basemaps públicos de CARTO sin costo.</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-white">Estilo Visual CARTO</label>
+                    <select
+                      value={settings?.mapConfig?.cartoStyle || 'voyager'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        mapConfig: {
+                          ...(settings?.mapConfig || {}),
+                          cartoStyle: e.target.value
+                        }
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="voyager">Voyager (Moderno, balanceado, colores vivos)</option>
+                      <option value="positron">Positron (Claro, minimalista, limpio)</option>
+                      <option value="dark_matter">Dark Matter (Modo Oscuro elegante)</option>
+                    </select>
+                    <span className="text-[10px] text-slate-400 block">Estilo de los mosaicos vectoriales en los mapas.</span>
+                  </div>
+                </div>
+              )}
+
+              {settings?.mapConfig?.provider === 'google' && (
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white">Google Maps API Key</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleKey(!showGoogleKey)}
+                      className="text-[10px] text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      {showGoogleKey ? <EyeOff size={11} /> : <Eye size={11} />}
+                      {showGoogleKey ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </div>
+                  <input
+                    type={showGoogleKey ? 'text' : 'password'}
+                    placeholder="AIzaSy..."
+                    value={settings?.mapConfig?.googleMapsApiKey || ''}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      mapConfig: {
+                        ...(settings?.mapConfig || {}),
+                        googleMapsApiKey: e.target.value
+                      }
+                    })}
+                    className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                  />
+                  <span className="text-[10px] text-slate-400 block">Habilita Maps JavaScript API y Geocoding API en Google Cloud Console.</span>
+                </div>
+              )}
+
+              {/* Botón de Test de Proveedor de Mapas */}
+              <div className="pt-2 border-t border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleTestMapProvider}
+                  disabled={isTestingMap}
+                  className="px-4 py-2.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
+                >
+                  {isTestingMap ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      Validando proveedor cartográfico...
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={14} />
+                      Probar Servicio de Mapas
+                    </>
+                  )}
+                </button>
+
+                {mapTestResult && (
+                  <div className={`text-xs px-3 py-2 rounded-xl border flex items-center gap-2 flex-1 ${
+                    mapTestResult.success
+                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                      : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                  }`}>
+                    {mapTestResult.success ? (
+                      <>
+                        <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                        <span>¡Proveedor de Mapas validado ({mapTestResult.provider?.toUpperCase()})! Mosaicos disponibles y geocodificación activa.</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle size={16} className="text-rose-400 shrink-0" />
+                        <span className="truncate">{mapTestResult.error || 'Error probando proveedor'}</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
