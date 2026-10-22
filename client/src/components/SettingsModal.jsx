@@ -56,8 +56,14 @@ import {
   BarChart3,
   Terminal,
   Activity,
-  Gauge
+  Gauge,
+  Eye,
+  EyeOff,
+  Map
 } from 'lucide-react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { getTileLayerConfig } from './ClientLocationMap.jsx';
 import AudioPlayer from './AudioPlayer';
 import { 
   SYSTEM_AI_PROVIDERS, 
@@ -118,6 +124,116 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [copiedVerifyToken, setCopiedVerifyToken] = useState(false);
   const [showMetaToken, setShowMetaToken] = useState(false);
   const [showMetaSecret, setShowMetaSecret] = useState(false);
+
+  // Map Providers & CARTO/Google Maps State
+  const [isTestingMap, setIsTestingMap] = useState(false);
+  const [mapTestResult, setMapTestResult] = useState(null);
+  const [showCartoKey, setShowCartoKey] = useState(false);
+  const [showGoogleKey, setShowGoogleKey] = useState(false);
+
+  const mapPreviewRef = useRef(null);
+  const mapPreviewInstanceRef = useRef(null);
+  const mapPreviewTileLayerRef = useRef(null);
+
+  const handleTestMapProvider = async () => {
+    setIsTestingMap(true);
+    setMapTestResult(null);
+    try {
+      const res = await fetch('/api/maps/test-provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: settings?.mapConfig?.provider || 'carto',
+          cartoApiKey: settings?.mapConfig?.cartoApiKey || '',
+          cartoStyle: settings?.mapConfig?.cartoStyle || 'voyager',
+          googleMapsApiKey: settings?.mapConfig?.googleMapsApiKey || '',
+          googleMapsType: settings?.mapConfig?.googleMapsType || 'm'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setMapTestResult({ success: false, error: data.error || 'Error probando proveedor de mapas' });
+      } else {
+        setMapTestResult({ success: true, ...data });
+      }
+    } catch (err) {
+      setMapTestResult({ success: false, error: err.message || 'Error de conexión' });
+    } finally {
+      setIsTestingMap(false);
+    }
+  };
+
+  // Preview Map lifecycle effect
+  useEffect(() => {
+    if (activeTab !== 'maps' || !mapPreviewRef.current) {
+      if (mapPreviewInstanceRef.current) {
+        mapPreviewInstanceRef.current.remove();
+        mapPreviewInstanceRef.current = null;
+        mapPreviewTileLayerRef.current = null;
+      }
+      return;
+    }
+
+    let timer;
+    if (!mapPreviewInstanceRef.current && mapPreviewRef.current) {
+      const centerCoords = settings?.mapConfig?.defaultCenter || { lat: -31.3828, lng: -64.2372 };
+      const zoom = settings?.mapConfig?.defaultZoom || 13;
+      const previewMap = L.map(mapPreviewRef.current, {
+        center: [centerCoords.lat, centerCoords.lng],
+        zoom: zoom,
+        zoomControl: false,
+        attributionControl: false
+      });
+
+      const tileConfig = getTileLayerConfig(settings?.mapConfig);
+      mapPreviewTileLayerRef.current = L.tileLayer(tileConfig.url, tileConfig.options).addTo(previewMap);
+
+      const previewIcon = L.divIcon({
+        className: 'custom-preview-pin',
+        html: `
+          <div style="background-color: #10b981; color: #022c22; font-weight: 800; font-size: 10px; padding: 2px 6px; border-radius: 9999px; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 3px; transform: translate(-50%, -100%);">
+            <span>🥩 Sucursal Central Córdoba</span>
+          </div>
+        `,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      });
+      L.marker([centerCoords.lat, centerCoords.lng], { icon: previewIcon }).addTo(previewMap);
+
+      mapPreviewInstanceRef.current = previewMap;
+
+      timer = setTimeout(() => {
+        if (mapPreviewInstanceRef.current) {
+          mapPreviewInstanceRef.current.invalidateSize();
+        }
+      }, 250);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (mapPreviewInstanceRef.current) {
+        mapPreviewInstanceRef.current.remove();
+        mapPreviewInstanceRef.current = null;
+        mapPreviewTileLayerRef.current = null;
+      }
+    };
+  }, [activeTab]);
+
+  // Dynamic tile switch in preview
+  useEffect(() => {
+    if (!mapPreviewInstanceRef.current) return;
+    const tileConfig = getTileLayerConfig(settings?.mapConfig);
+    if (mapPreviewTileLayerRef.current) {
+      mapPreviewInstanceRef.current.removeLayer(mapPreviewTileLayerRef.current);
+    }
+    mapPreviewTileLayerRef.current = L.tileLayer(tileConfig.url, tileConfig.options).addTo(mapPreviewInstanceRef.current);
+  }, [
+    settings?.mapConfig?.provider,
+    settings?.mapConfig?.cartoApiKey,
+    settings?.mapConfig?.cartoStyle,
+    settings?.mapConfig?.googleMapsApiKey,
+    settings?.mapConfig?.googleMapsType
+  ]);
 
   const handleTestMetaWhatsApp = async () => {
     setIsTestingMeta(true);
@@ -790,6 +906,7 @@ export default function SettingsModal({ isOpen, onClose }) {
     { id: 'tokens', label: '📊 Consumo & Tokens IA', icon: Zap },
     { id: 'store', label: '🎨 Tienda Online (Apple UI)', icon: Store },
     { id: 'logistics', label: 'Logística & Franjas', icon: Bike },
+    { id: 'maps', label: '🗺️ Mapas, CARTO & GPS', icon: Compass },
     { id: 'orderFilters', label: 'Filtros de Pedidos', icon: Filter },
     { id: 'mercadopago', label: 'Mercado Pago', icon: CreditCard },
     { id: 'arca', label: 'ARCA / Facturación', icon: Receipt },
@@ -2947,6 +3064,594 @@ export default function SettingsModal({ isOpen, onClose }) {
                     <span className="text-xs text-slate-400 font-bold">Km</span>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: MAPAS, CARTO & GPS */}
+          {activeTab === 'maps' && (
+            <div className="space-y-4 animate-in fade-in">
+              {/* Header Card con Badge de Proveedor Activo */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
+                      <Compass size={22} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        Configuración de Proveedores de Mapas & GPS
+                        {(() => {
+                          const currentLayer = getTileLayerConfig(settings?.mapConfig);
+                          return (
+                            <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border flex items-center gap-1 ${currentLayer.badgeColor}`}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+                              {currentLayer.label}: {currentLayer.sublabel}
+                            </span>
+                          );
+                        })()}
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Elige y personaliza el servicio cartográfico para los mapas de clientes, sucursales y cálculo de rutas en Córdoba.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selector Visual de Proveedores (5 Tarjetas) */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-300">
+                  Seleccionar Servicio de Mapa Principal:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {/* CARTO Pro */}
+                  <button
+                    type="button"
+                    onClick={() => setSettings({
+                      ...settings,
+                      mapConfig: {
+                        ...(settings?.mapConfig || {}),
+                        provider: 'carto'
+                      }
+                    })}
+                    className={`p-3 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                      (settings?.mapConfig?.provider || 'carto') === 'carto'
+                        ? 'bg-cyan-500/10 border-cyan-500 text-white shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500'
+                        : 'bg-[#182229] hover:bg-[#1f2c35] border-slate-700/80 text-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-cyan-400">
+                          <Layers size={14} />
+                          CARTO (Con API Key)
+                        </span>
+                        {(settings?.mapConfig?.provider || 'carto') === 'carto' && (
+                          <span className="w-2 h-2 rounded-full bg-cyan-400 ring-4 ring-cyan-400/20"></span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Mosaicos raster de alta velocidad. Soporta tu API Key de CARTO y estilos Voyager, Positron y Dark Matter.
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px]">
+                      <span className="text-cyan-300 font-semibold">Recomendado</span>
+                      <span className="text-slate-400">{settings?.mapConfig?.cartoApiKey ? '🔑 Con API Key' : '🔓 Sin clave'}</span>
+                    </div>
+                  </button>
+
+                  {/* Google Maps */}
+                  <button
+                    type="button"
+                    onClick={() => setSettings({
+                      ...settings,
+                      mapConfig: {
+                        ...(settings?.mapConfig || {}),
+                        provider: 'google'
+                      }
+                    })}
+                    className={`p-3 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                      settings?.mapConfig?.provider === 'google'
+                        ? 'bg-blue-500/10 border-blue-500 text-white shadow-lg shadow-blue-500/10 ring-1 ring-blue-500'
+                        : 'bg-[#182229] hover:bg-[#1f2c35] border-slate-700/80 text-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-blue-400">
+                          <Globe size={14} />
+                          Google Maps
+                        </span>
+                        {settings?.mapConfig?.provider === 'google' && (
+                          <span className="w-2 h-2 rounded-full bg-blue-400 ring-4 ring-blue-400/20"></span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Mosaicos oficiales de Google (Roadmap, Satélite, Híbrido, Terreno). Soporta Geocoding y Directions API.
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px]">
+                      <span className="text-blue-300 font-semibold">Oficial Google Cloud</span>
+                      <span className="text-slate-400">Requiere API Key</span>
+                    </div>
+                  </button>
+
+                  {/* OpenStreetMap (Gratis) */}
+                  <button
+                    type="button"
+                    onClick={() => setSettings({
+                      ...settings,
+                      mapConfig: {
+                        ...(settings?.mapConfig || {}),
+                        provider: 'osm'
+                      }
+                    })}
+                    className={`p-3 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                      settings?.mapConfig?.provider === 'osm'
+                        ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-500'
+                        : 'bg-[#182229] hover:bg-[#1f2c35] border-slate-700/80 text-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-emerald-400">
+                          <MapPin size={14} />
+                          OpenStreetMap
+                        </span>
+                        {settings?.mapConfig?.provider === 'osm' && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 ring-4 ring-emerald-400/20"></span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Servicio cartográfico colaborativo libre y gratuito. Sin API Key, sin tarjetas de crédito y sin límites.
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px]">
+                      <span className="text-emerald-400 font-semibold">100% Gratuito</span>
+                      <span className="text-slate-400">Sin API Key</span>
+                    </div>
+                  </button>
+
+                  {/* ESRI World Imagery (Satélite Gratuito) */}
+                  <button
+                    type="button"
+                    onClick={() => setSettings({
+                      ...settings,
+                      mapConfig: {
+                        ...(settings?.mapConfig || {}),
+                        provider: 'esri_satellite'
+                      }
+                    })}
+                    className={`p-3 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                      settings?.mapConfig?.provider === 'esri_satellite'
+                        ? 'bg-purple-500/10 border-purple-500 text-white shadow-lg shadow-purple-500/10 ring-1 ring-purple-500'
+                        : 'bg-[#182229] hover:bg-[#1f2c35] border-slate-700/80 text-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-purple-400">
+                          <Compass size={14} />
+                          ESRI Satélite HD
+                        </span>
+                        {settings?.mapConfig?.provider === 'esri_satellite' && (
+                          <span className="w-2 h-2 rounded-full bg-purple-400 ring-4 ring-purple-400/20"></span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Fotografía satelital mundial de alta definición provista por satélites ESRI. Vista aérea realista de Córdoba.
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px]">
+                      <span className="text-purple-400 font-semibold">Satélite Gratuito</span>
+                      <span className="text-slate-400">Sin API Key</span>
+                    </div>
+                  </button>
+
+                  {/* CARTO Basemap Público (Gratuito) */}
+                  <button
+                    type="button"
+                    onClick={() => setSettings({
+                      ...settings,
+                      mapConfig: {
+                        ...(settings?.mapConfig || {}),
+                        provider: 'carto_free'
+                      }
+                    })}
+                    className={`p-3 rounded-2xl border text-left transition relative flex flex-col justify-between ${
+                      settings?.mapConfig?.provider === 'carto_free'
+                        ? 'bg-teal-500/10 border-teal-500 text-white shadow-lg shadow-teal-500/10 ring-1 ring-teal-500'
+                        : 'bg-[#182229] hover:bg-[#1f2c35] border-slate-700/80 text-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold flex items-center gap-1.5 text-teal-400">
+                          <Layers size={14} />
+                          CARTO Basemap Libre
+                        </span>
+                        {settings?.mapConfig?.provider === 'carto_free' && (
+                          <span className="w-2 h-2 rounded-full bg-teal-400 ring-4 ring-teal-400/20"></span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Mosaicos vectoriales limpios de CARTO de acceso público. Ideal para comenzar sin registrar credenciales.
+                      </p>
+                    </div>
+                    <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[10px]">
+                      <span className="text-teal-400 font-semibold">Público / Libre</span>
+                      <span className="text-slate-400">Sin API Key</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Formulario de Configuración Específico por Proveedor */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/80 space-y-4">
+                {/* 1. CARTO CONFIGURATION */}
+                {(settings?.mapConfig?.provider || 'carto') === 'carto' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Key size={14} className="text-cyan-400" />
+                        Configuración de CARTO
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Autenticación por parámetro <code className="bg-slate-800 px-1 py-0.5 rounded text-cyan-300">?api_key=</code>
+                      </span>
+                    </div>
+
+                    {/* API Key */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        CARTO API Key (Master Key o Access Token):
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCartoKey ? 'text' : 'password'}
+                          placeholder="Ingresa tu CARTO API Key (ej: default_public o tu Master Key privada)..."
+                          value={settings?.mapConfig?.cartoApiKey || ''}
+                          onChange={(e) => setSettings({
+                            ...settings,
+                            mapConfig: {
+                              ...(settings?.mapConfig || {}),
+                              cartoApiKey: e.target.value
+                            }
+                          })}
+                          className="w-full pl-3 pr-20 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
+                        />
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowCartoKey(!showCartoKey)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                            title={showCartoKey ? 'Ocultar' : 'Mostrar'}
+                          >
+                            {showCartoKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const text = await navigator.clipboard.readText();
+                                if (text) {
+                                  setSettings({
+                                    ...settings,
+                                    mapConfig: {
+                                      ...(settings?.mapConfig || {}),
+                                      cartoApiKey: text.trim()
+                                    }
+                                  });
+                                }
+                              } catch (err) {}
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition"
+                            title="Pegar desde portapapeles"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        💡 Tu API Key de CARTO asegura cuota privada para tu negocio. Si la dejas vacía, se utilizarán los mosaicos públicos de CARTO sin interrupción.
+                      </p>
+                    </div>
+
+                    {/* Estilo CARTO */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                        Estilo Visual de los Mosaicos CARTO:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          { id: 'voyager', name: 'Voyager', desc: 'Colorido y detallado (Recomendado para reparto)', badge: 'Predeterminado' },
+                          { id: 'light_all', name: 'Positron', desc: 'Claro, minimalista y elegante', badge: 'Light Mode' },
+                          { id: 'dark_all', name: 'Dark Matter', desc: 'Oscuro de alto contraste nocturno', badge: 'Dark Mode' }
+                        ].map(st => (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => setSettings({
+                              ...settings,
+                              mapConfig: {
+                                ...(settings?.mapConfig || {}),
+                                cartoStyle: st.id
+                              }
+                            })}
+                            className={`p-2.5 rounded-xl border text-left transition ${
+                              (settings?.mapConfig?.cartoStyle || 'voyager') === st.id
+                                ? 'bg-cyan-500/10 border-cyan-500 text-white ring-1 ring-cyan-500'
+                                : 'bg-[#111b21] hover:bg-slate-800 border-slate-700/80 text-slate-400'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-200">
+                              <span>{st.name}</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">{st.badge}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-1 leading-snug">{st.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. GOOGLE MAPS CONFIGURATION */}
+                {settings?.mapConfig?.provider === 'google' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Key size={14} className="text-blue-400" />
+                        Credenciales de Google Maps
+                      </span>
+                      <a
+                        href="https://console.cloud.google.com/google/maps-apis/credentials"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
+                      >
+                        Obtener clave en Google Cloud <ExternalLink size={10} />
+                      </a>
+                    </div>
+
+                    {/* Google Maps API Key */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Google Maps API Key:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showGoogleKey ? 'text' : 'password'}
+                          placeholder="AIzaSy..."
+                          value={settings?.mapConfig?.googleMapsApiKey || ''}
+                          onChange={(e) => setSettings({
+                            ...settings,
+                            mapConfig: {
+                              ...(settings?.mapConfig || {}),
+                              googleMapsApiKey: e.target.value
+                            }
+                          })}
+                          className="w-full pl-3 pr-20 py-2 bg-[#111b21] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-mono"
+                        />
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowGoogleKey(!showGoogleKey)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                            title={showGoogleKey ? 'Ocultar' : 'Mostrar'}
+                          >
+                            {showGoogleKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const text = await navigator.clipboard.readText();
+                                if (text) {
+                                  setSettings({
+                                    ...settings,
+                                    mapConfig: {
+                                      ...(settings?.mapConfig || {}),
+                                      googleMapsApiKey: text.trim()
+                                    }
+                                  });
+                                }
+                              } catch (err) {}
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition"
+                            title="Pegar desde portapapeles"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tipo de Capa Google Maps */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                        Tipo de Visualización Google Maps:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: 'm', name: 'Roadmap', desc: 'Calles vectoriales estándar' },
+                          { id: 'y', name: 'Híbrido', desc: 'Satélite con calles y nombres' },
+                          { id: 's', name: 'Satélite', desc: 'Fotografía aérea limpia' },
+                          { id: 'p', name: 'Terreno', desc: 'Topografía y elevación' }
+                        ].map(t => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSettings({
+                              ...settings,
+                              mapConfig: {
+                                ...(settings?.mapConfig || {}),
+                                googleMapsType: t.id
+                              }
+                            })}
+                            className={`p-2.5 rounded-xl border text-left transition ${
+                              (settings?.mapConfig?.googleMapsType || 'm') === t.id
+                                ? 'bg-blue-500/10 border-blue-500 text-white ring-1 ring-blue-500'
+                                : 'bg-[#111b21] hover:bg-slate-800 border-slate-700/80 text-slate-400'
+                            }`}
+                          >
+                            <div className="text-xs font-bold text-slate-200">{t.name}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">{t.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Google APIs Avanzadas */}
+                    <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-2">
+                      <span className="text-xs font-bold text-slate-200 block mb-1">
+                        Servicios Complementarios de Google Maps (Opcional):
+                      </span>
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={settings?.mapConfig?.googleGeocodingEnabled || false}
+                          onChange={(e) => setSettings({
+                            ...settings,
+                            mapConfig: {
+                              ...(settings?.mapConfig || {}),
+                              googleGeocodingEnabled: e.target.checked
+                            }
+                          })}
+                          className="mt-0.5 rounded text-blue-500 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="text-xs font-semibold text-slate-200">Google Geocoding API</span>
+                          <span className="text-[11px] text-slate-400 block">Búsqueda de direcciones exactas con el motor de Google (fallback a Nominatim si falla o no está habilitada).</span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-2.5 cursor-pointer pt-1 border-t border-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={settings?.mapConfig?.googleDirectionsEnabled || false}
+                          onChange={(e) => setSettings({
+                            ...settings,
+                            mapConfig: {
+                              ...(settings?.mapConfig || {}),
+                              googleDirectionsEnabled: e.target.checked
+                            }
+                          })}
+                          className="mt-0.5 rounded text-blue-500 focus:ring-blue-500"
+                        />
+                        <div>
+                          <span className="text-xs font-semibold text-slate-200">Google Directions API</span>
+                          <span className="text-[11px] text-slate-400 block">Cálculo de rutas de entrega en vivo considerando giros vehiculares (fallback a OSRM).</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. OPENSTREETMAP INFO */}
+                {settings?.mapConfig?.provider === 'osm' && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-start gap-2.5">
+                    <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-emerald-400" />
+                    <div>
+                      <span className="font-bold text-emerald-200">Proveedor Gratuito & Comunitario:</span>
+                      <p className="mt-0.5 text-[11px] text-slate-300 leading-relaxed">
+                        OpenStreetMap está 100% activo sin costo alguno. La geocodificación se realiza a través de Nominatim con soporte para los barrios y puntos de referencia de Córdoba Capital.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. ESRI SATELLITE INFO */}
+                {settings?.mapConfig?.provider === 'esri_satellite' && (
+                  <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-xs text-purple-300 flex items-start gap-2.5">
+                    <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-purple-400" />
+                    <div>
+                      <span className="font-bold text-purple-200">Imágenes Satelitales de Alta Definición:</span>
+                      <p className="mt-0.5 text-[11px] text-slate-300 leading-relaxed">
+                        ESRI World Imagery provee cobertura fotográfica satelital de clase mundial sin requerir suscripción ni API Key. Ideal para validar fachadas y accesos de delivery.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. CARTO FREE INFO */}
+                {settings?.mapConfig?.provider === 'carto_free' && (
+                  <div className="p-3 bg-teal-500/10 border border-teal-500/30 rounded-xl text-xs text-teal-300 flex items-start gap-2.5">
+                    <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-teal-400" />
+                    <div>
+                      <span className="font-bold text-teal-200">CARTO Basemaps de Acceso Libre:</span>
+                      <p className="mt-0.5 text-[11px] text-slate-300 leading-relaxed">
+                        Mosaicos raster Voyager servidos de manera pública. No necesitas crear ninguna cuenta ni ingresar credenciales.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Mini Mapa Interactivo de Vista Previa & Botón de Prueba */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-slate-700/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Map size={14} className="text-cyan-400" />
+                      Vista Previa Interactiva en Vivo (Córdoba Capital)
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Verifica la resolución, nitidez y carga de mosaicos en tiempo real
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleTestMapProvider}
+                    disabled={isTestingMap}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={isTestingMap ? 'animate-spin' : ''} />
+                    {isTestingMap ? 'Verificando...' : '🧪 Probar Conexión'}
+                  </button>
+                </div>
+
+                {/* Container Leaflet de Vista Previa */}
+                <div className="h-44 w-full rounded-2xl overflow-hidden border border-slate-700/80 shadow-inner relative bg-[#111b21]">
+                  <div ref={mapPreviewRef} className="w-full h-full z-0" />
+                  
+                  {/* Floating Pill sobre el mapa */}
+                  <div className="absolute top-2 left-2 z-10 pointer-events-none">
+                    {(() => {
+                      const currentLayer = getTileLayerConfig(settings?.mapConfig);
+                      return (
+                        <div className="px-2.5 py-1 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-[10px] font-bold text-white shadow-lg flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                          <span>{currentLayer.label}</span>
+                          <span className="text-slate-300 font-normal">({currentLayer.sublabel})</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Resultado de la prueba */}
+                {mapTestResult && (
+                  <div className={`p-3 rounded-xl border text-xs flex items-start gap-2 animate-in fade-in ${
+                    mapTestResult.success
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                  }`}>
+                    {mapTestResult.success ? (
+                      <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="leading-snug">
+                      <div className="font-bold">{mapTestResult.message || mapTestResult.error}</div>
+                      {mapTestResult.success && mapTestResult.status && (
+                        <div className="text-[10px] text-emerald-400/80 mt-0.5">Google Cloud Status: {mapTestResult.status}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -27,10 +27,102 @@ const DEFAULT_BRANCHES = [
   { id: 'br-6', name: 'Country San Isidro', address: 'Av. Padre Luchesse km 2', lat: -31.3120, lng: -64.2750, phone: '+54 9 3518 769099' }
 ];
 
+export function getTileLayerConfig(mapConfig = {}) {
+  const provider = mapConfig?.provider || 'carto';
+
+  switch (provider) {
+    case 'google': {
+      const key = (mapConfig?.googleMapsApiKey || '').trim();
+      const type = mapConfig?.googleMapsType || 'm'; // m: Roadmap, y: Hybrid, s: Satellite, p: Terrain
+      const keyParam = key ? `&key=${encodeURIComponent(key)}` : '';
+      const typeLabels = { m: 'Roadmap (Vectorial)', y: 'Híbrido (Satélite + Calles)', s: 'Satélite Puro', p: 'Terreno / Topográfico' };
+      return {
+        provider: 'google',
+        label: 'Google Maps',
+        sublabel: typeLabels[type] || 'Roadmap',
+        badgeColor: 'border-blue-500/30 text-blue-400 bg-blue-500/10',
+        url: `https://mt{s}.google.com/vt/lyrs=${type}&x={x}&y={y}&z={z}${keyParam}`,
+        options: {
+          subdomains: ['0', '1', '2', '3'],
+          maxZoom: 21,
+          attribution: '&copy; <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer">Google Maps</a>'
+        }
+      };
+    }
+
+    case 'osm': {
+      return {
+        provider: 'osm',
+        label: 'OpenStreetMap',
+        sublabel: 'Comunidad Libre (Gratis)',
+        badgeColor: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10',
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        options: {
+          subdomains: 'abc',
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
+        }
+      };
+    }
+
+    case 'esri_satellite': {
+      return {
+        provider: 'esri_satellite',
+        label: 'ESRI World Imagery',
+        sublabel: 'Satélite HD (Gratis)',
+        badgeColor: 'border-purple-500/30 text-purple-400 bg-purple-500/10',
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        options: {
+          maxZoom: 19,
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }
+      };
+    }
+
+    case 'carto_free': {
+      const style = mapConfig?.cartoStyle || 'voyager';
+      const styleLabels = { voyager: 'Voyager Color', light_all: 'Positron Claro', dark_all: 'Dark Matter Elegante' };
+      return {
+        provider: 'carto_free',
+        label: 'CARTO Basemap',
+        sublabel: `${styleLabels[style] || 'Voyager'} (Público)`,
+        badgeColor: 'border-teal-500/30 text-teal-400 bg-teal-500/10',
+        url: `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png`,
+        options: {
+          subdomains: 'abcd',
+          maxZoom: 20,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>'
+        }
+      };
+    }
+
+    case 'carto':
+    default: {
+      const style = mapConfig?.cartoStyle || 'voyager';
+      const key = (mapConfig?.cartoApiKey || '').trim();
+      const keyParam = key ? `?api_key=${encodeURIComponent(key)}` : '';
+      const styleLabels = { voyager: 'Voyager Color', light_all: 'Positron Claro', dark_all: 'Dark Matter Elegante' };
+      return {
+        provider: 'carto',
+        label: 'CARTO Pro',
+        sublabel: `${styleLabels[style] || 'Voyager'} ${key ? '• API Key' : '• Estándar'}`,
+        badgeColor: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10',
+        url: `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png${keyParam}`,
+        options: {
+          subdomains: 'abcd',
+          maxZoom: 20,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>'
+        }
+      };
+    }
+  }
+}
+
 export default function ClientLocationMap({ 
   address = '', 
   customerName = 'Cliente', 
   initialCoords = null,
+  mapConfig = null,
   onClose, 
   onConfirmLocation 
 }) {
@@ -41,12 +133,30 @@ export default function ClientLocationMap({
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [isRouting, setIsRouting] = useState(false);
+  const [activeMapConfig, setActiveMapConfig] = useState(mapConfig);
 
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const tileLayerRef = useRef(null);
   const customerMarkerRef = useRef(null);
   const branchMarkersRef = useRef([]);
   const routeLayerRef = useRef(null);
+
+  // Cargar configuración de mapas si no se pasó como prop
+  useEffect(() => {
+    if (mapConfig) {
+      setActiveMapConfig(mapConfig);
+    } else {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(data => {
+          if (data?.settings?.mapConfig) {
+            setActiveMapConfig(data.settings.mapConfig);
+          }
+        })
+        .catch(err => console.warn('No se pudo cargar mapConfig en ClientLocationMap:', err));
+    }
+  }, [mapConfig]);
 
   // 1. Geocodificar Dirección Escrita
   const geocodeAddress = async (addrToSearch) => {
@@ -130,15 +240,12 @@ export default function ClientLocationMap({
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
         center: [coords.lat, coords.lng],
-        zoom: 14,
+        zoom: activeMapConfig?.defaultZoom || 14,
         zoomControl: true
       });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>',
-        subdomains: 'abcd',
-        maxZoom: 20
-      }).addTo(map);
+      const tileConfig = getTileLayerConfig(activeMapConfig);
+      tileLayerRef.current = L.tileLayer(tileConfig.url, tileConfig.options).addTo(map);
 
       // Evento de Click en el mapa para marcar ubicación del cliente
       map.on('click', (e) => {
@@ -162,9 +269,27 @@ export default function ClientLocationMap({
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
+        tileLayerRef.current = null;
       }
     };
   }, []);
+
+  // Actualizar capa de mosaicos dinámicamente si cambia el proveedor o estilo
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const tileConfig = getTileLayerConfig(activeMapConfig);
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+    tileLayerRef.current = L.tileLayer(tileConfig.url, tileConfig.options).addTo(map);
+  }, [
+    activeMapConfig?.provider,
+    activeMapConfig?.cartoApiKey,
+    activeMapConfig?.cartoStyle,
+    activeMapConfig?.googleMapsApiKey,
+    activeMapConfig?.googleMapsType
+  ]);
 
   // 5. Dibujar Marcadores y Ruta en el Mapa
   const drawRouteOnMap = (geoJson, clientCoords, branch) => {
@@ -277,24 +402,53 @@ export default function ClientLocationMap({
               <MapPin size={22} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                Mapa Interactivo de Entrega & Mejor Recorrido
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  Mapa Interactivo & GPS
+                </h2>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                   Córdoba
                 </span>
-              </h2>
-              <p className="text-xs text-slate-400">
+                {(() => {
+                  const currentLayer = getTileLayerConfig(activeMapConfig);
+                  return (
+                    <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border flex items-center gap-1.5 ${currentLayer.badgeColor}`}>
+                      <Compass size={12} />
+                      <span>{currentLayer.label}</span>
+                      <span className="opacity-75 font-normal">({currentLayer.sublabel})</span>
+                    </span>
+                  );
+                })()}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
                 Seleccioná en el mapa o buscá la dirección de: <span className="text-slate-200 font-semibold">{customerName}</span>
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Quick Provider Switcher */}
+            <select
+              value={activeMapConfig?.provider || 'carto'}
+              onChange={(e) => setActiveMapConfig(prev => ({ ...(prev || {}), provider: e.target.value }))}
+              className="hidden sm:block text-xs bg-[#182229] border border-slate-700 text-slate-300 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-emerald-500"
+              title="Cambiar capa de mapa al vuelo"
+            >
+              <option value="carto">CARTO Pro (Voyager)</option>
+              <option value="carto_free">CARTO Basemap (Gratis)</option>
+              <option value="google">Google Maps</option>
+              <option value="osm">OpenStreetMap (Gratis)</option>
+              <option value="esri_satellite">ESRI Satélite HD (Gratis)</option>
+            </select>
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              title="Cerrar mapa"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Search Bar & Instructions */}

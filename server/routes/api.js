@@ -3982,6 +3982,18 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         }
       }
     }
+    if (clean.mapConfig && typeof clean.mapConfig === 'object') {
+      clean.mapConfig = { ...clean.mapConfig };
+      const currentMapConfig = existingSettings.mapConfig || {};
+      ['cartoApiKey', 'googleMapsApiKey'].forEach(k => {
+        if (clean.mapConfig[k] !== undefined) {
+          const val = String(clean.mapConfig[k]).trim();
+          if (val.includes('••••') || val.includes('****')) {
+            clean.mapConfig[k] = currentMapConfig[k] || '';
+          }
+        }
+      });
+    }
     return clean;
   }
 
@@ -5760,6 +5772,36 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     return Number((R * c).toFixed(2));
   }
 
+  function decodePolyline(encoded) {
+    if (!encoded) return [];
+    const poly = [];
+    let index = 0, len = encoded.length;
+    let lat = 0, lng = 0;
+    while (index < len) {
+      let b, shift = 0, result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      poly.push([lng * 1e-5, lat * 1e-5]); // GeoJSON is [lng, lat]
+    }
+    return poly;
+  }
+
   router.post('/geocode', async (req, res) => {
     const { address } = req.body;
     const rawAddr = (address || '').trim();
@@ -5768,29 +5810,55 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     let lat = -31.3828;
     let lng = -64.2372;
     let matchedName = rawAddr;
+    let resolvedByGoogle = false;
 
-    // 1. Check local Córdoba landmarks first
-    const lower = rawAddr.toLowerCase();
-    const localMatch = CORDOBA_LANDMARKS.find(l => lower.includes(l.name));
-    if (localMatch) {
-      lat = localMatch.lat;
-      lng = localMatch.lng;
-      matchedName = localMatch.address;
-    } else {
-      // 2. Try Nominatim OpenStreetMap
+    const settings = db.getSettings() || {};
+    const mapConfig = settings.mapConfig || {};
+    const googleApiKey = (mapConfig.googleMapsApiKey || '').trim();
+    const useGoogleGeocoding = Boolean(mapConfig.googleGeocodingEnabled && googleApiKey);
+
+    // 0. Si Google Geocoding está activo y configurado con API Key, consultar Google Maps primero
+    if (useGoogleGeocoding) {
       try {
         const query = encodeURIComponent(`${rawAddr}, Cordoba, Argentina`);
-        const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
-          headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
-        });
-        const osmData = await osmRes.json();
-        if (osmData && osmData[0]) {
-          lat = parseFloat(osmData[0].lat);
-          lng = parseFloat(osmData[0].lon);
-          matchedName = osmData[0].display_name;
+        const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${googleApiKey}`);
+        const gData = await gRes.json();
+        if (gData.status === 'OK' && gData.results && gData.results[0]) {
+          const loc = gData.results[0].geometry.location;
+          lat = loc.lat;
+          lng = loc.lng;
+          matchedName = gData.results[0].formatted_address;
+          resolvedByGoogle = true;
         }
       } catch (e) {
-        console.error('Error geocodificando con Nominatim:', e.message);
+        console.error('Error geocodificando con Google Maps API:', e.message);
+      }
+    }
+
+    if (!resolvedByGoogle) {
+      // 1. Check local Córdoba landmarks first
+      const lower = rawAddr.toLowerCase();
+      const localMatch = CORDOBA_LANDMARKS.find(l => lower.includes(l.name));
+      if (localMatch) {
+        lat = localMatch.lat;
+        lng = localMatch.lng;
+        matchedName = localMatch.address;
+      } else {
+        // 2. Try Nominatim OpenStreetMap
+        try {
+          const query = encodeURIComponent(`${rawAddr}, Cordoba, Argentina`);
+          const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
+            headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
+          });
+          const osmData = await osmRes.json();
+          if (osmData && osmData[0]) {
+            lat = parseFloat(osmData[0].lat);
+            lng = parseFloat(osmData[0].lon);
+            matchedName = osmData[0].display_name;
+          }
+        } catch (e) {
+          console.error('Error geocodificando con Nominatim:', e.message);
+        }
       }
     }
 
@@ -5809,7 +5877,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       formattedAddress: matchedName,
       coordinates: { lat, lng },
       closestBranch,
-      allBranches: branchesWithDist
+      allBranches: branchesWithDist,
+      providerUsed: resolvedByGoogle ? 'google' : 'nominatim_local'
     });
   });
 
@@ -5818,16 +5887,38 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     if (lat === undefined || lng === undefined) return res.status(400).json({ error: 'Lat y Lng requeridos' });
 
     let detectedAddress = `Ubicación (${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}), Córdoba`;
-    try {
-      const osmRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
-        headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
-      });
-      const osmData = await osmRes.json();
-      if (osmData && osmData.display_name) {
-        const parts = osmData.display_name.split(',');
-        detectedAddress = parts.slice(0, 3).join(', ').trim();
+    let resolvedByGoogle = false;
+
+    const settings = db.getSettings() || {};
+    const mapConfig = settings.mapConfig || {};
+    const googleApiKey = (mapConfig.googleMapsApiKey || '').trim();
+    const useGoogleGeocoding = Boolean(mapConfig.googleGeocodingEnabled && googleApiKey);
+
+    if (useGoogleGeocoding) {
+      try {
+        const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`);
+        const gData = await gRes.json();
+        if (gData.status === 'OK' && gData.results && gData.results[0]) {
+          detectedAddress = gData.results[0].formatted_address;
+          resolvedByGoogle = true;
+        }
+      } catch (e) {
+        console.error('Error en geocodificación inversa con Google Maps API:', e.message);
       }
-    } catch (e) {}
+    }
+
+    if (!resolvedByGoogle) {
+      try {
+        const osmRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+          headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
+        });
+        const osmData = await osmRes.json();
+        if (osmData && osmData.display_name) {
+          const parts = osmData.display_name.split(',');
+          detectedAddress = parts.slice(0, 3).join(', ').trim();
+        }
+      } catch (e) {}
+    }
 
     const branches = db.getBranches();
     const branchesWithDist = branches.map(b => {
@@ -5840,7 +5931,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       address: detectedAddress,
       coordinates: { lat: Number(lat), lng: Number(lng) },
       closestBranch: branchesWithDist[0] || null,
-      allBranches: branchesWithDist
+      allBranches: branchesWithDist,
+      providerUsed: resolvedByGoogle ? 'google' : 'nominatim'
     });
   });
 
@@ -5857,19 +5949,57 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     let routeGeoJson = null;
     let distanceKm = Number((directDist * 1.25).toFixed(2)); // Factor de curvas de calle en ciudad
     let durationMin = Math.max(10, Math.round(distanceKm * 3 + 5));
+    let routeResolved = false;
+    let routeProvider = 'osrm';
 
-    try {
-      const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson`;
-      const r = await fetch(osrmUrl, { headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' } });
-      const data = await r.json();
-      if (data.code === 'Ok' && data.routes && data.routes[0]) {
-        const route = data.routes[0];
-        distanceKm = Number((route.distance / 1000).toFixed(2));
-        durationMin = Math.max(8, Math.round(route.duration / 60));
-        routeGeoJson = route.geometry;
+    const settings = db.getSettings() || {};
+    const mapConfig = settings.mapConfig || {};
+    const googleApiKey = (mapConfig.googleMapsApiKey || '').trim();
+    const useGoogleDirections = Boolean(mapConfig.googleDirectionsEnabled && googleApiKey);
+
+    if (useGoogleDirections) {
+      try {
+        const gUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${oLat},${oLng}&destination=${dLat},${dLng}&mode=driving&key=${googleApiKey}`;
+        const gRes = await fetch(gUrl);
+        const gData = await gRes.json();
+        if (gData.status === 'OK' && gData.routes && gData.routes[0]) {
+          const route = gData.routes[0];
+          const leg = route.legs && route.legs[0];
+          if (leg) {
+            distanceKm = Number((leg.distance.value / 1000).toFixed(2));
+            durationMin = Math.max(8, Math.round(leg.duration.value / 60));
+          }
+          if (route.overview_polyline && route.overview_polyline.points) {
+            const decodedCoords = decodePolyline(route.overview_polyline.points);
+            routeGeoJson = {
+              type: 'LineString',
+              coordinates: decodedCoords
+            };
+          }
+          routeResolved = true;
+          routeProvider = 'google';
+        }
+      } catch (e) {
+        console.error('Error calculando ruta con Google Directions:', e.message);
       }
-    } catch (e) {
-      console.error('Error calculando ruta OSRM:', e.message);
+    }
+
+    if (!routeResolved) {
+      try {
+        const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson`;
+        const r = await fetch(osrmUrl, { headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' } });
+        const data = await r.json();
+        if (data.code === 'Ok' && data.routes && data.routes[0]) {
+          const route = data.routes[0];
+          distanceKm = Number((route.distance / 1000).toFixed(2));
+          durationMin = Math.max(8, Math.round(route.duration / 60));
+          routeGeoJson = route.geometry;
+          routeResolved = true;
+          routeProvider = 'osrm';
+        }
+      } catch (e) {
+        console.error('Error calculando ruta OSRM:', e.message);
+      }
     }
 
     res.json({
@@ -5878,8 +6008,125 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       durationMin,
       routeGeoJson,
       origin: { lat: oLat, lng: oLng },
-      destination: { lat: dLat, lng: dLng }
+      destination: { lat: dLat, lng: dLng },
+      providerUsed: routeProvider
     });
+  });
+
+  // --- 14.5 MAP PROVIDERS TEST & VALIDATION API ---
+  router.post('/maps/test-provider', async (req, res) => {
+    try {
+      const {
+        provider = 'carto',
+        cartoApiKey = '',
+        cartoStyle = 'voyager',
+        googleMapsApiKey = '',
+        googleMapsType = 'm'
+      } = req.body;
+
+      const userAgent = 'WAgent-CRM-MapTester/1.0';
+
+      if (provider === 'google') {
+        const key = String(googleMapsApiKey || '').trim();
+        if (!key) {
+          return res.status(400).json({
+            success: false,
+            error: 'Debes ingresar una API Key de Google Maps para probar la conexión.'
+          });
+        }
+
+        // Test Google Maps API via Geocoding probe
+        try {
+          const probeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=Cordoba,Argentina&key=${encodeURIComponent(key)}`;
+          const gRes = await fetch(probeUrl);
+          const gData = await gRes.json();
+
+          if (gData.status === 'REQUEST_DENIED') {
+            return res.status(400).json({
+              success: false,
+              error: gData.error_message || 'Google Maps API Key rechazada. Verifica las credenciales y facturación en Google Cloud Console.'
+            });
+          }
+
+          return res.json({
+            success: true,
+            provider: 'google',
+            message: `¡Google Maps conectado con éxito! API Key validada correctamente (Estado: ${gData.status}). Mosaicos tipo "${googleMapsType}" activos.`,
+            status: gData.status
+          });
+        } catch (err) {
+          return res.status(400).json({
+            success: false,
+            error: `Error al conectar con Google Maps: ${err.message}`
+          });
+        }
+      }
+
+      if (provider === 'carto') {
+        const key = String(cartoApiKey || '').trim();
+        const style = cartoStyle || 'voyager';
+        const testTileUrl = `https://a.basemaps.cartocdn.com/rastertiles/${style}/14/5269/10332.png${key ? '?api_key=' + encodeURIComponent(key) : ''}`;
+
+        const cRes = await fetch(testTileUrl, { headers: { 'User-Agent': userAgent } });
+        if (!cRes.ok) {
+          return res.status(400).json({
+            success: false,
+            error: `CARTO devolvió estado HTTP ${cRes.status} (${cRes.statusText}). Verifica el estilo o tu API Key de CARTO.`
+          });
+        }
+
+        return res.json({
+          success: true,
+          provider: 'carto',
+          message: `¡CARTO Basemap conectado con éxito! Mosaicos raster estilo "${style}" validados ${key ? 'con API Key Pro' : 'en modo público'}.`,
+          style
+        });
+      }
+
+      if (provider === 'osm') {
+        const testTileUrl = 'https://tile.openstreetmap.org/14/5269/10332.png';
+        const oRes = await fetch(testTileUrl, { headers: { 'User-Agent': userAgent } });
+        if (!oRes.ok) {
+          return res.status(400).json({ success: false, error: 'No se pudo conectar con los servidores de OpenStreetMap.' });
+        }
+        return res.json({
+          success: true,
+          provider: 'osm',
+          message: '¡OpenStreetMap conectado con éxito! Mosaicos estándar funcionando sin costo ni límites de cuota.'
+        });
+      }
+
+      if (provider === 'esri_satellite') {
+        const testTileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/14/10332/5269';
+        const eRes = await fetch(testTileUrl, { headers: { 'User-Agent': userAgent } });
+        if (!eRes.ok) {
+          return res.status(400).json({ success: false, error: 'No se pudo conectar con el servicio satelital ESRI.' });
+        }
+        return res.json({
+          success: true,
+          provider: 'esri_satellite',
+          message: '¡ESRI World Imagery conectado con éxito! Fotografía satelital de alta resolución activa sin necesidad de API Key.'
+        });
+      }
+
+      if (provider === 'carto_free') {
+        const testTileUrl = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/14/5269/10332.png';
+        const cRes = await fetch(testTileUrl, { headers: { 'User-Agent': userAgent } });
+        if (!cRes.ok) {
+          return res.status(400).json({ success: false, error: 'No se pudo conectar con los servidores de CARTO Basemaps.' });
+        }
+        return res.json({
+          success: true,
+          provider: 'carto_free',
+          message: '¡CARTO Gratuito conectado con éxito! Capas Voyager públicas activas sin necesidad de API Key.'
+        });
+      }
+
+      return res.status(400).json({ success: false, error: `Proveedor desconocido: ${provider}` });
+    } catch (err) {
+      console.error('Error probando proveedor de mapas:', err);
+      res.status(500).json({ success: false, error: err.message || 'Error de conexión' });
+    }
   });
 
   // =========================================================================

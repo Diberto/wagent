@@ -313,6 +313,10 @@ class DatabaseService {
       },
       arcaConfig: {
         ...(rawSettings.arcaConfig || {})
+      },
+      mapConfig: {
+        ...(CONFIG.DEFAULT_SETTINGS.mapConfig || {}),
+        ...(rawSettings.mapConfig || {})
       }
     };
   }
@@ -337,6 +341,10 @@ class DatabaseService {
       arcaConfig: {
         ...(current.arcaConfig || {}),
         ...(newSettings.arcaConfig || {})
+      },
+      mapConfig: {
+        ...(current.mapConfig || {}),
+        ...(newSettings.mapConfig || {})
       }
     };
     db.settings = merged;

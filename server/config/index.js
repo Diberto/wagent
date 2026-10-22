@@ -118,6 +118,19 @@ export const CONFIG = {
       enableOrdersOnClosed: true // Permitir recepción de pedidos fuera de horario para preparación a primera hora
     },
 
+    // Configuración de Proveedores de Mapas & GPS (CARTO, Google Maps, OpenStreetMap, ESRI)
+    mapConfig: {
+      provider: 'carto', // 'carto' | 'google' | 'osm' | 'carto_free' | 'esri_satellite'
+      cartoApiKey: process.env.CARTO_API_KEY || '',
+      cartoStyle: 'voyager', // 'voyager' | 'light_all' | 'dark_all'
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
+      googleMapsType: 'm', // 'm' (Roadmap) | 'y' (Hybrid) | 's' (Satellite) | 'p' (Terrain)
+      googleGeocodingEnabled: false,
+      googleDirectionsEnabled: false,
+      defaultZoom: 14,
+      defaultCenter: { lat: -31.3828, lng: -64.2372 }
+    },
+
     // Modos de Inteligencia y Personalidad del Agente
     agentPersonalityMode: 'balanced', // 'strict_sales' (Bot Estricto) | 'balanced' (Asesor Equilibrado) | 'human_empathetic' (Empático con Encauce)
     casualTalkTurnsAllowed: 2, // Cantidad máxima de intercambios informales antes de encauzar firmemente a la venta
