@@ -581,7 +581,9 @@ export function formatProductQuantityPrompt(matchedProducts, clientName) {
     const u = (p.unit || 'kg').toLowerCase();
     const name = p.name;
     const priceFormatted = `$${Number(p.price || 0).toLocaleString('es-AR')}`;
-    const pluTag = p.plu ? ` [PLU ${p.plu}]` : '';
+    const settings = db.getSettings();
+    const showPlu = Boolean(settings.mentionPluInChat);
+    const pluTag = (showPlu && p.plu) ? ` [PLU ${p.plu}]` : '';
 
     // 1. Combos o Promociones
     if (u === 'combo' || /combo/i.test(name)) {
@@ -2117,9 +2119,10 @@ export function buildFullSystemPrompt(settings, catalog = null) {
     }
   }
 
+  const mentionPlu = Boolean(settings.mentionPluInChat);
   const activeProducts = Array.from(selectedProductsMap.values())
     .map(p => {
-      let line = `• [PLU ${p.plu || '-'}] ${p.name}: `;
+      let line = mentionPlu ? `• [PLU ${p.plu || '-'}] ${p.name}: ` : `• ${p.name}: `;
       if (p.priceDiscount && p.priceDiscount < p.price) {
         line += `¡OFERTA ${p.discountPercent ? `-${p.discountPercent}%` : ''}! $${Number(p.priceDiscount).toLocaleString('es-AR')}/${p.unit || 'kg'} (Precio regular: $${Number(p.price).toLocaleString('es-AR')})`;
       } else {
@@ -2200,7 +2203,7 @@ Reglas de Oro y Asesoramiento de Élite:
 - Modificaciones y Reemplazos de Ítems en el Pedido ("cambia eso", "en vez de", "reemplazá"):
   * Si el cliente pide modificar o cambiar un corte previamente propuesto (ej: "quiero 2 kilos de milanesas de carne ya hechas, cambia eso"), retira de inmediato el ítem reemplazado (ej: quita la Bola de Lomo cruda y pon las Milanesas ya hechas) y re-emite el detalle completo consolidado ("📋 Detalle actualizado de tu pedido:") con todos los ítems vigentes y el nuevo total recalculado con exactitud matemática.
   * Para "milanesas ya hechas", "listas" o "empanadas de carne", utiliza siempre **Milanesa Tradicional (PLU 160)**. Para carne para hacer en casa utiliza Bola de Lomo (PLU 2010) o Nalga.
-  * PRECISIÓN DE PLU: El PLU entre paréntesis debe corresponder exactamente al producto del catálogo oficial (ej: Milanesa Tradicional es PLU 160; Morcilla Vasca es PLU 161; Bola de Lomo es PLU 2010; Asado Surtido Premium es PLU 2016). NUNCA cruces códigos PLU entre productos distintos.
+  * PRECISIÓN DE PLU: ${mentionPlu ? 'El PLU entre paréntesis o corchetes debe corresponder exactamente al producto del catálogo oficial (ej: Milanesa Tradicional es PLU 160; Morcilla Vasca es PLU 161; Bola de Lomo es PLU 2010; Asado Surtido Premium es PLU 2016). NUNCA cruces códigos PLU entre productos distintos.' : 'La opción de mencionar códigos PLU en el chat está DESACTIVADA. NUNCA menciones códigos PLU, ni números técnicos entre corchetes o paréntesis como [PLU 2008] o (PLU 160) en tus respuestas al cliente. Menciona únicamente el nombre comercial del corte (ej: "Vacío", "Asado de tira", "Milanesas") y su precio.'}
 - Sustitución de Cortes Agotados o Fuera de Catálogo: Si el cliente solicita un producto que no está disponible, ofrécele de inmediato una alternativa similar del catálogo con su precio por kilo.
 - Desambiguación: Si el cliente pide un corte general o ambiguo con múltiples variedades, ofrece opciones numeradas con precios claros para que elija.
 - Fraccionamiento por Unidades: Cuando el cliente pida productos que se venden por unidad (chorizos, morcillas, costeletas, milanesas) indicando unidades (ej: "6 chorizos", "4 costeletas"), en el detalle del pedido SIEMPRE muestra "X Unidades de [Nombre]" y NUNCA "kg".
@@ -3196,6 +3199,12 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
     let audioOggPath = null;
     let audioMp3Path = null;
     let audioDuration = 0;
+
+    // Sanitizar códigos PLU si la opción está desactivada (default)
+    const showPluInChat = Boolean(settings.mentionPluInChat);
+    if (replyText && !showPluInChat) {
+      replyText = replyText.replace(/\s*\[PLU\s*#?\d+\]/gi, '').replace(/\s*\(PLU\s*#?\d+\)/gi, '');
+    }
 
     if (shouldSendAudio && replyText) {
       try {
@@ -5263,8 +5272,9 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
 
       let catProducts = searchKey ? getCatalogByCategory(searchKey, products, 8) : getCatalogByCategory(targetCategory, products, 8);
       if (catProducts.length > 0) {
+        const showPluInQuick = Boolean(settings.mentionPluInChat);
         const productLines = catProducts.map((cp, idx) => {
-          const pluInfo = cp.plu ? ` [PLU ${cp.plu}]` : '';
+          const pluInfo = (showPluInQuick && cp.plu) ? ` [PLU ${cp.plu}]` : '';
           return `${idx + 1}️⃣ *${cp.name}*${pluInfo} ➔ *$${Number(cp.price).toLocaleString('es-AR')}* / ${cp.unit || 'kg'}`;
         }).join('\n');
 
@@ -5280,8 +5290,9 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
     if (isOffersQuery) {
       // Generar ofertas DINÁMICAMENTE desde db.getProducts() — fuente única de verdad
       const featuredProducts = getFeaturedWhatsAppOffers(products);
+      const showPluInFeatured = Boolean(settings.mentionPluInChat);
       const productLines = featuredProducts.map((cp, idx) => {
-        const pluInfo = cp.plu ? ` [PLU ${cp.plu}]` : '';
+        const pluInfo = (showPluInFeatured && cp.plu) ? ` [PLU ${cp.plu}]` : '';
         const promoTag = /promo|x \$/i.test(cp.name) ? ' 🔥' : '';
         return `• **${cp.name}${pluInfo}:** $${Number(cp.price).toLocaleString('es-AR')} / ${cp.unit || 'kg'}${promoTag}`;
       }).join('\n');

@@ -64,10 +64,11 @@ export function isCredsValid(credsPath) {
     const content = JSON.parse(raw);
     if (!content) return false;
 
-    // Una sesión SOLO es válida si el usuario ya vinculó el teléfono exitosamente:
-    // 1. Debe estar explícitamente registrada (registered: true)
-    // 2. Debe poseer identidad asignada 'me' con JID telefónico real de WhatsApp
+    // Una sesión SOLO es válida si el usuario ya vinculó el teléfono exitosamente
     if (content.registered !== true) {
+      // Si el archivo fue escrito en los últimos 90 segundos durante el proceso activo de handshake QR
+      const isFresh = (Date.now() - stat.mtimeMs) < 90000;
+      if (isFresh && content.me?.id) return true;
       return false;
     }
     if (!content.me || !content.me.id) {
@@ -200,10 +201,10 @@ export class WhatsAppService {
         return;
       }
 
-      // Enviar presencia activa cada 45s para mantener abierta la tabla de NAT del router / ISP (solo si lleva >30s conectado estable)
+      // Enviar presencia activa cada 35s para mantener abierta la tabla de NAT del router / ISP
       const now = Date.now();
       const connectedDuration = this.lastConnectedAt ? (now - this.lastConnectedAt) : 0;
-      if (connectedDuration > 30000 && (!this.lastPingAt || (now - this.lastPingAt) >= 45000)) {
+      if (connectedDuration > 15000 && (!this.lastPingAt || (now - this.lastPingAt) >= 35000)) {
         this.lastPingAt = now;
         try {
           if (this.sock && typeof this.sock.sendPresenceUpdate === 'function') {
@@ -295,7 +296,7 @@ export class WhatsAppService {
   /**
    * Limpia archivos de autenticación tanto activos como de respaldo para evitar resurrección de credenciales inválidas
    */
-  async clearAuthFiles({ clearBackup = true } = {}) {
+  async clearAuthFiles({ clearBackup = false } = {}) {
     try {
       if (fs.existsSync(this.authDir)) {
         const files = fs.readdirSync(this.authDir);
@@ -320,8 +321,8 @@ export class WhatsAppService {
         }
       }
 
-      // Si es la sesión default o admin central, limpiar también directorios legados para evitar resurrección de sesiones inválidas
-      if (this.sessionId === 'default' || this.sessionId === 'usr-central-admin') {
+      // Si es la sesión default o admin central, limpiar directorios legados solo si clearBackup es true
+      if (clearBackup && (this.sessionId === 'default' || this.sessionId === 'usr-central-admin')) {
         const legacyDirs = [
           path.join(CONFIG.DATA_DIR, 'auth_info_baileys_usr-central-admin'),
           path.join(CONFIG.DATA_DIR, 'backups', 'auth_backup_usr-central-admin')
@@ -414,21 +415,22 @@ export class WhatsAppService {
         logger,
         printQRInTerminal: false,
         auth: state,
-        browser: Browsers.ubuntu('Chrome'),
+        browser: Browsers.windows('Desktop'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: true,
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
-        keepAliveIntervalMs: 30000,
-        retryRequestDelayMs: 2500,
-        markOnlineOnConnect: false,
+        keepAliveIntervalMs: 25000,
+        retryRequestDelayMs: 2000,
+        markOnlineOnConnect: true,
         getMessage: async () => undefined
       });
 
-      // Guardar credenciales y respaldar únicamente si la sesión está conectada
+      // Guardar credenciales y respaldar automáticamente ante credenciales válidas
       this.sock.ev.on('creds.update', async () => {
         await saveCreds();
-        if (this.status === 'connected' && this.sock?.user) {
+        const credsActive = path.join(this.authDir, 'creds.json');
+        if (isCredsValid(credsActive)) {
           this.backupAuthFiles();
         }
       });
@@ -498,7 +500,9 @@ export class WhatsAppService {
           console.log(`Conexión de WhatsApp cerrada [${this.sessionId}]. Motivo: ${statusCode} (${errorMsg}). LoggedOut: ${isLoggedOut}, Replaced: ${isReplaced}`);
 
           const credsActive = path.join(this.authDir, 'creds.json');
-          const hasSavedSession = isCredsValid(credsActive);
+          const backupDir = path.join(CONFIG.DATA_DIR, 'backups', `auth_backup_${this.sessionId}`);
+          const credsBackup = path.join(backupDir, 'creds.json');
+          const hasSavedSession = isCredsValid(credsActive) || isCredsValid(credsBackup);
 
           // Si el socket se cerró durante la espera o rotación del QR y aún NO hay sesión registrada por el teléfono:
           // WhatsApp refresca el token de vinculación cada 30-40 segundos.
@@ -542,10 +546,19 @@ export class WhatsAppService {
             return;
           }
 
-          // 3. Sesión revocada explícitamente por WhatsApp (401, loggedOut)
+          // 3. Sesión con error de autorización o revocada por WhatsApp (401, loggedOut)
           if (isLoggedOut) {
-            console.log(`⚠️ Sesión [${this.sessionId}] cerrada definitivamente por WhatsApp (${statusCode}). Purgando credenciales y backup para emitir nuevo QR...`);
-            await this.clearAuthFiles({ clearBackup: true });
+            const canRestore = isCredsValid(credsBackup);
+            if (canRestore && !this._triedBackupRestore) {
+              this._triedBackupRestore = true;
+              console.warn(`⚠️ [${this.sessionId}] Desconexión de socket (código ${statusCode}). Restaurando credenciales desde backup de seguridad...`);
+              this.restoreAuthFromBackup();
+              this.scheduleReconnect(3000);
+              return;
+            }
+            this._triedBackupRestore = false;
+            console.log(`⚠️ Sesión [${this.sessionId}] desvinculada por WhatsApp (${statusCode}). Purgando credenciales activas para emitir nuevo QR...`);
+            await this.clearAuthFiles({ clearBackup: false });
             this.reconnectAttempts = 0;
             this.rapidDisconnectCount = 0;
             this.scheduleReconnect(2500, { resetAuth: true });
@@ -566,6 +579,7 @@ export class WhatsAppService {
           this.reconnectAttempts = 0;
           this.rapidDisconnectCount = 0;
           this.connectingStartedAt = 0;
+          this._triedBackupRestore = false;
           this.lastConnectedAt = Date.now();
           this.lastPingAt = Date.now();
           this.explicitlyDisconnected = false;
@@ -1183,6 +1197,14 @@ export class WhatsAppService {
 
           // Sanitizar COMPLETAMENTE cualquier etiqueta técnica interna [[...]] antes de enviar al cliente
           let cleanClientResponse = (responseText || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
+
+          // Si la opción de mencionar códigos PLU en el chat está desactivada (default), removerlos para el cliente
+          const currentSettings = db.getSettings();
+          if (currentSettings.mentionPluInChat === false || !currentSettings.mentionPluInChat) {
+            cleanClientResponse = cleanClientResponse
+              .replace(/\s*\[PLU\s*#?\d+\]/gi, '')
+              .replace(/\s*\(PLU\s*#?\d+\)/gi, '');
+          }
 
           // Fallback seguro si la IA devolvió una cadena vacía
           if (!cleanClientResponse) {

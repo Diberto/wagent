@@ -4509,6 +4509,25 @@ export default function SettingsModal({ isOpen, onClose }) {
                 />
               </label>
 
+              {/* MENCIÓN DE CÓDIGOS PLU EN CHAT */}
+              <label className="flex items-center justify-between p-3 rounded-2xl bg-[#182229] border border-slate-700/60 cursor-pointer">
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <Sliders size={14} className="text-emerald-400" />
+                    Mencionar Códigos PLU en Respuestas de WhatsApp
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Si está desactivado (por defecto), el bot solo menciona el nombre del corte y precio (ej: "Vacío a $14.990/kg"). Si está activado, incluye el código técnico [PLU 2008].
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.mentionPluInChat)}
+                  onChange={(e) => setSettings({ ...settings, mentionPluInChat: e.target.checked })}
+                  className="w-4 h-4 text-emerald-500 rounded bg-slate-800 border-slate-700 focus:ring-0"
+                />
+              </label>
+
               {/* AUTO-ATENCIÓN DE LLAMADAS ENTRANTES */}
               <div className="p-3.5 rounded-2xl bg-[#182229] border border-slate-700/60 space-y-3">
                 <label className="flex items-center justify-between cursor-pointer">

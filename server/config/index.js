@@ -64,6 +64,7 @@ export const CONFIG = {
     voiceRepliesEnabled: true, // Si el usuario manda audio, responder con audio
     autoCallFollowUp: true,    // Enviar nota de voz automática cuando entra una llamada
     callFollowUpMessage: '¡Hola! Gracias por comunicarte con República de la Carne. Carlos por acá, maestro carnicero. En este momento estoy atendiendo en mostrador, pero decime qué cortes o asado te gustaría que te preparemos y te lo dejo listo al instante. 🥩🛵',
+    mentionPluInChat: false,   // Controla si el agente de IA menciona los códigos PLU [PLU 2008] en mensajes a clientes
     
     // Horarios de Atención y Logística de Reparto
     businessHours: {
