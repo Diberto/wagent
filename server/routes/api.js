@@ -1226,12 +1226,16 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       // Si WhatsApp debe enviar el mensaje real
       if (sendViaWhatsApp) {
         const isConnected = whatsappService && (whatsappService.isAnyConnected || whatsappService.status === 'connected');
-        if (isConnected) {
+        const isConnecting = whatsappService && (whatsappService.isAnyConnecting || whatsappService.status === 'connecting' || (typeof whatsappService.hasSavedSession === 'function' && whatsappService.hasSavedSession()));
+        if (isConnected || isConnecting) {
           try {
             const operatorUserId = userId || req.user?.id || 'default';
             const sent = await whatsappService.sendTextMessage(jid, text, operatorUserId);
-            sentKeyId = sent?.key?.id || null;
-            deliveryStatus = 'sent';
+            sentKeyId = sent?.key?.id || sent?.id || null;
+            deliveryStatus = sent?.status === 'pending' ? 'pending' : 'sent';
+            if (sent?.status === 'pending') {
+              deliveryWarning = 'WhatsApp se encuentra reconectando. El mensaje quedó encolado en Outbox y se enviará automáticamente en segundos.';
+            }
           } catch (sendErr) {
             console.error(`❌ Error transmitiendo mensaje WhatsApp a ${jid}:`, sendErr.message);
             deliveryStatus = 'failed';
