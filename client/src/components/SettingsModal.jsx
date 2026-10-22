@@ -59,7 +59,10 @@ import {
   Gauge,
   Eye,
   EyeOff,
-  Map
+  Map,
+  Truck,
+  Package,
+  Navigation
 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -160,6 +163,36 @@ export default function SettingsModal({ isOpen, onClose }) {
       setMapTestResult({ success: false, error: err.message || 'Error de conexión' });
     } finally {
       setIsTestingMap(false);
+    }
+  };
+
+  // Rapilog Argentina Logistics State
+  const [isTestingRapilog, setIsTestingRapilog] = useState(false);
+  const [rapilogTestResult, setRapilogTestResult] = useState(null);
+  const [showRapilogToken, setShowRapilogToken] = useState(false);
+
+  const handleTestRapilog = async () => {
+    setIsTestingRapilog(true);
+    setRapilogTestResult(null);
+    try {
+      const res = await fetch('/api/rapilog/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: settings?.rapilogConfig?.token || '',
+          environment: settings?.rapilogConfig?.environment || 'uat'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setRapilogTestResult({ success: false, error: data.error || 'Error conectando con la API de Rapilog' });
+      } else {
+        setRapilogTestResult({ success: true, ...data });
+      }
+    } catch (err) {
+      setRapilogTestResult({ success: false, error: err.message || 'Error de conexión con el servidor' });
+    } finally {
+      setIsTestingRapilog(false);
     }
   };
 
@@ -3063,6 +3096,286 @@ export default function SettingsModal({ isOpen, onClose }) {
                     />
                     <span className="text-xs text-slate-400 font-bold">Km</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Card 5: Integración Logística Rapilog Argentina (API Oficial) */}
+              <div className="p-4 rounded-2xl bg-[#182229] border border-amber-500/30 space-y-4 shadow-lg shadow-amber-500/5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30">
+                      <Truck size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        Rapilog Argentina — Cadetería & Logística
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                          settings?.rapilogConfig?.enabled 
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                            : 'bg-slate-700/50 text-slate-400 border-slate-600'
+                        }`}>
+                          {settings?.rapilogConfig?.enabled ? 'ACTIVO' : 'DESACTIVADO'}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20">
+                          {settings?.rapilogConfig?.environment === 'production' ? 'PRODUCCIÓN' : 'UAT / SANDBOX'}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Despacho automático de pedidos, cotización en tiempo real y seguimiento satelital de cadetes en Córdoba.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="https://rapilog.com.ar/documentacionapi/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 px-2.5 py-1 rounded-lg border border-amber-500/30 transition"
+                    >
+                      <ExternalLink size={12} />
+                      Docs API
+                    </a>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(settings?.rapilogConfig?.enabled)}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          rapilogConfig: {
+                            ...(settings?.rapilogConfig || {}),
+                            enabled: e.target.checked
+                          }
+                        })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Entorno API */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-2">
+                    <label className="block text-xs font-bold text-white">Ambiente de Operación</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSettings({
+                          ...settings,
+                          rapilogConfig: {
+                            ...(settings?.rapilogConfig || {}),
+                            environment: 'uat'
+                          }
+                        })}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-center ${
+                          (settings?.rapilogConfig?.environment || 'uat') === 'uat'
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
+                            : 'bg-[#182229] border-slate-700 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        🧪 UAT (Sandbox)
+                        <span className="block text-[10px] font-normal text-slate-400">Pruebas sin costo</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSettings({
+                          ...settings,
+                          rapilogConfig: {
+                            ...(settings?.rapilogConfig || {}),
+                            environment: 'production'
+                          }
+                        })}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-center ${
+                          settings?.rapilogConfig?.environment === 'production'
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm'
+                            : 'bg-[#182229] border-slate-700 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        🚀 Producción
+                        <span className="block text-[10px] font-normal text-slate-400">Cadetes en vivo</span>
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block">
+                      Endpoint activo: <code className="text-amber-300">{(settings?.rapilogConfig?.environment === 'production') ? 'https://rapilog.com.ar' : 'https://uat.rapilog.com.ar'}</code>
+                    </span>
+                  </div>
+
+                  {/* API Token */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-white">Token de Autenticación (Header Token)</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowRapilogToken(!showRapilogToken)}
+                        className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
+                      >
+                        {showRapilogToken ? <EyeOff size={11} /> : <Eye size={11} />}
+                        {showRapilogToken ? 'Ocultar' : 'Mostrar'}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showRapilogToken ? 'text' : 'password'}
+                        placeholder="Ej: eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                        value={settings?.rapilogConfig?.token || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          rapilogConfig: {
+                            ...(settings?.rapilogConfig || {}),
+                            token: e.target.value
+                          }
+                        })}
+                        className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+                    <span className="text-[10px] text-slate-400 block">
+                      Token provisto por el equipo comercial de Rapilog Argentina para República de la Carne.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Modalidad de Envio */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                    <label className="block text-xs font-bold text-white">Modalidad Predeterminada</label>
+                    <select
+                      value={settings?.rapilogConfig?.defaultModality || 'OnDemandSmart'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        rapilogConfig: {
+                          ...(settings?.rapilogConfig || {}),
+                          defaultModality: e.target.value
+                        }
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="OnDemandSmart">OnDemandSmart (Cadete Inmediato)</option>
+                      <option value="Food">Food (Alimentos & Gastronomía)</option>
+                      <option value="NextDaySmart">NextDaySmart (Programado 24h)</option>
+                    </select>
+                    <span className="text-[10px] text-slate-400 block">
+                      Tipo de servicio utilizado para solicitar el cadete.
+                    </span>
+                  </div>
+
+                  {/* Sucursal Origen Predeterminada */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                    <label className="block text-xs font-bold text-white">Sucursal de Retiro Principal</label>
+                    <select
+                      value={settings?.rapilogConfig?.originBranchId || 'br-1'}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        rapilogConfig: {
+                          ...(settings?.rapilogConfig || {}),
+                          originBranchId: e.target.value
+                        }
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="br-1">Sucursal Funes (Urca)</option>
+                      <option value="br-2">Sucursal Gauss (Villa Belgrano)</option>
+                      <option value="br-3">Sucursal Recta Martinoli (Argüello)</option>
+                      <option value="br-4">Sucursal Tejeda (Cerro de las Rosas)</option>
+                      <option value="br-5">Sucursal Valparaíso (Tejas del Sur)</option>
+                      <option value="br-6">Sucursal O'Higgins (San Fernando)</option>
+                    </select>
+                    <span className="text-[10px] text-slate-400 block">
+                      Punto donde Rapilog retira el pedido fresco.
+                    </span>
+                  </div>
+
+                  {/* Tipo de Vehículo */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 space-y-1.5">
+                    <label className="block text-xs font-bold text-white">Vehículo Solicitado</label>
+                    <select
+                      value={settings?.rapilogConfig?.vehicleType || 1}
+                      onChange={(e) => setSettings({
+                        ...settings,
+                        rapilogConfig: {
+                          ...(settings?.rapilogConfig || {}),
+                          vehicleType: Number(e.target.value) || 1
+                        }
+                      })}
+                      className="w-full px-3 py-2 bg-[#182229] border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value={1}>🛵 Moto / Cadete Express</option>
+                      <option value={2}>🚗 Auto / Utilitario Refrigerado</option>
+                    </select>
+                    <span className="text-[10px] text-slate-400 block">
+                      Moto para bultos pequeños o auto para combos familiares.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Switch de Auto-notificación por WhatsApp */}
+                <div className="p-3 rounded-xl bg-[#111b21] border border-slate-700 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                      <MessageSquare size={16} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">Notificar Link de Seguimiento por WhatsApp Automáticamente</div>
+                      <div className="text-[10px] text-slate-400">
+                        Al despachar con un clic en Rapilog, el bot envía automáticamente al cliente el link oficial de seguimiento en vivo (<span className="text-amber-300">https://rapilog.com.ar/seguimientoPedido?id=...</span>).
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings?.rapilogConfig?.autoNotifyCustomer !== false}
+                    onChange={(e) => setSettings({
+                      ...settings,
+                      rapilogConfig: {
+                        ...(settings?.rapilogConfig || {}),
+                        autoNotifyCustomer: e.target.checked
+                      }
+                    })}
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-[#182229] border-slate-700 cursor-pointer"
+                  />
+                </div>
+
+                {/* Botón de Test de Conexión & Feedback */}
+                <div className="pt-2 border-t border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestRapilog}
+                    disabled={isTestingRapilog || !settings?.rapilogConfig?.token}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    {isTestingRapilog ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        Validando con Rapilog Argentina...
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={14} />
+                        Probar Conexión con Rapilog
+                      </>
+                    )}
+                  </button>
+
+                  {rapilogTestResult && (
+                    <div className={`text-xs px-3 py-2 rounded-xl border flex items-center gap-2 flex-1 ${
+                      rapilogTestResult.success
+                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                        : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                    }`}>
+                      {rapilogTestResult.success ? (
+                        <>
+                          <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                          <span>¡Conexión exitosa con Rapilog ({rapilogTestResult.environment?.toUpperCase()})! Token activo y validado.</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle size={16} className="text-rose-400 shrink-0" />
+                          <span className="truncate">{rapilogTestResult.error || 'Error de conexión'}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

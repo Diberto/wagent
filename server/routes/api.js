@@ -37,6 +37,7 @@ import { loyaltyService } from '../services/loyalty.js';
 import { inventoryService } from '../services/inventoryService.js';
 import { invoiceOcrService } from '../services/invoiceOcrService.js';
 import { scaleService } from '../services/scaleService.js';
+import { rapilogService } from '../services/rapilogService.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -5268,6 +5269,186 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     try {
       const result = await arcaService.testConnection(req.params.id);
       res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // =========================================================================
+  // --- RAPILOG ARGENTINA LOGISTICS API (OFICIAL) ---
+  // =========================================================================
+
+  // Obtener estado de configuración y sucursales origen disponibles
+  router.get('/rapilog/config', (req, res) => {
+    try {
+      const config = rapilogService.getConfig();
+      const branches = rapilogService.getBranches();
+      res.json({
+        success: true,
+        config: {
+          ...config,
+          hasToken: Boolean(config.token)
+        },
+        branches
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Test de conexión con la API de Rapilog (valida Token y ambiente)
+  router.post('/rapilog/test-connection', async (req, res) => {
+    try {
+      const { token, environment } = req.body || {};
+      const result = await rapilogService.testConnection({ token, environment });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Cotizar envío punto a punto (admite coordenadas directas o orderId)
+  router.post('/rapilog/quote', async (req, res) => {
+    try {
+      let { latOrigen, lngOrigen, latDestino, lngDestino, modalidad, branchId, orderId } = req.body || {};
+      if (orderId && (!latDestino || !lngDestino)) {
+        const order = db.getOrder(orderId);
+        if (order) {
+          latDestino = order.destinationLat || order.lat || (order.shippingAddressCoords && order.shippingAddressCoords.lat);
+          lngDestino = order.destinationLng || order.lng || (order.shippingAddressCoords && order.shippingAddressCoords.lng);
+          if (order.branchId && !branchId) branchId = order.branchId;
+        }
+      }
+      const quote = await rapilogService.cotizar({ latOrigen, lngOrigen, latDestino, lngDestino, modalidad, branchId });
+      res.json({ success: true, quote });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Despachar pedido a través de Rapilog Cadetería
+  router.post('/rapilog/dispatch-order', async (req, res) => {
+    try {
+      const { orderId, branchId, modality, vehicleType, notes, packageCount } = req.body || {};
+      if (!orderId) {
+        return res.status(400).json({ success: false, error: 'orderId es requerido para despachar' });
+      }
+
+      const order = db.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ success: false, error: `Pedido #${orderId} no encontrado` });
+      }
+
+      // Validar si ya tiene un envío activo
+      if (order.rapilogShipment && order.rapilogShipment.idPedidoRapilog && order.rapilogShipment.status !== 'cancelado') {
+        return res.status(400).json({
+          success: false,
+          error: `El pedido ya fue despachado previamente con Rapilog (ID #${order.rapilogShipment.idPedidoRapilog}).`,
+          shipment: order.rapilogShipment
+        });
+      }
+
+      const shipment = await rapilogService.crearPedidoEnvio(order, { branchId, modality, vehicleType, notes, packageCount });
+
+      // Actualizar pedido en la base de datos
+      const updatedOrder = db.updateOrder(orderId, {
+        rapilogShipment: shipment,
+        deliveryStatus: 'en_camino',
+        status: (order.status === 'pending' || order.status === 'confirmed') ? 'dispatched' : order.status
+      });
+
+      // Si está configurada la auto-notificación al cliente vía WhatsApp
+      const config = rapilogService.getConfig();
+      let notified = false;
+      if (config.autoNotifyCustomer && shipment.trackingLink) {
+        try {
+          let targetPhone = order.customerPhone || order.phone || order.chatId || '';
+          if (targetPhone && !targetPhone.includes('@')) {
+            const cleanDigits = targetPhone.replace(/\D/g, '');
+            if (cleanDigits) targetPhone = `${cleanDigits}@s.whatsapp.net`;
+          }
+          if (targetPhone && whatsappService && typeof whatsappService.sendMessage === 'function') {
+            const clientMsg = `🛵 *¡Tu pedido de República de la Carne va en camino!* 🥩💨\n\nDespachado con cadetería Rapilog.\n\n📍 *Seguí a la moto en tiempo real acá:* \n${shipment.trackingLink}\n\n¡Muchas gracias por elegirnos!`;
+            await whatsappService.sendMessage(targetPhone, clientMsg);
+            notified = true;
+          }
+        } catch (notifErr) {
+          console.warn('[Rapilog] Error notificando WhatsApp al comprador:', notifErr.message);
+        }
+      }
+
+      io.emit('order:updated', updatedOrder);
+      io.emit('orders_changed');
+
+      res.json({
+        success: true,
+        message: `Pedido #${orderId} despachado exitosamente con Rapilog (Tracking #${shipment.idPedidoRapilog})`,
+        shipment,
+        order: updatedOrder,
+        notified
+      });
+    } catch (err) {
+      console.error('[Rapilog API] Error despachando pedido:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Consultar estado en vivo de un envío Rapilog
+  router.get('/rapilog/order-status/:orderId', async (req, res) => {
+    try {
+      const order = db.getOrder(req.params.orderId);
+      if (!order) return res.status(404).json({ success: false, error: 'Pedido no encontrado' });
+      if (!order.rapilogShipment || !order.rapilogShipment.idPedidoRapilog) {
+        return res.status(400).json({ success: false, error: 'El pedido no tiene un despacho Rapilog registrado' });
+      }
+
+      const statusRes = await rapilogService.consultarEnvio({
+        idPedido: order.rapilogShipment.idPedidoRapilog,
+        trackingEncriptado: order.rapilogShipment.trackingEncriptado,
+        modality: order.rapilogShipment.modalidad
+      });
+
+      // Si Rapilog retornó datos de estado, sincronizamos
+      if (statusRes.raw && statusRes.raw.Estado !== undefined) {
+        const currentShipment = order.rapilogShipment || {};
+        currentShipment.estado = statusRes.raw.Estado;
+        currentShipment.estadoNombre = statusRes.raw.EstadoNombre || currentShipment.estadoNombre;
+        db.updateOrder(order.id, { rapilogShipment: currentShipment });
+        io.emit('order:updated', { ...order, rapilogShipment: currentShipment });
+      }
+
+      res.json({ success: true, status: statusRes });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Cancelar despacho de envío en Rapilog
+  router.post('/rapilog/cancel-shipment', async (req, res) => {
+    try {
+      const { orderId, reason } = req.body || {};
+      const order = db.getOrder(orderId);
+      if (!order || !order.rapilogShipment) {
+        return res.status(404).json({ success: false, error: 'Pedido o envío Rapilog no encontrado' });
+      }
+
+      const cancelRes = await rapilogService.cancelarEnvio({
+        idPedido: order.rapilogShipment.idPedidoRapilog,
+        modality: order.rapilogShipment.modalidad,
+        reason
+      });
+
+      const currentShipment = {
+        ...order.rapilogShipment,
+        status: 'cancelado',
+        cancelReason: reason || 'Cancelado desde panel de control'
+      };
+
+      const updated = db.updateOrder(orderId, { rapilogShipment: currentShipment });
+      io.emit('order:updated', updated);
+      io.emit('orders_changed');
+
+      res.json({ success: true, result: cancelRes, order: updated });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }

@@ -317,6 +317,10 @@ class DatabaseService {
       mapConfig: {
         ...(CONFIG.DEFAULT_SETTINGS.mapConfig || {}),
         ...(rawSettings.mapConfig || {})
+      },
+      rapilogConfig: {
+        ...(CONFIG.DEFAULT_SETTINGS.rapilogConfig || {}),
+        ...(rawSettings.rapilogConfig || {})
       }
     };
   }
@@ -345,6 +349,10 @@ class DatabaseService {
       mapConfig: {
         ...(current.mapConfig || {}),
         ...(newSettings.mapConfig || {})
+      },
+      rapilogConfig: {
+        ...(current.rapilogConfig || {}),
+        ...(newSettings.rapilogConfig || {})
       }
     };
     db.settings = merged;

@@ -131,6 +131,17 @@ export const CONFIG = {
       defaultCenter: { lat: -31.3828, lng: -64.2372 }
     },
 
+    // Configuración de Integración con Rapilog Argentina (API Oficial)
+    rapilogConfig: {
+      enabled: false,
+      environment: 'uat', // 'uat' | 'production'
+      token: process.env.RAPILOG_API_TOKEN || '',
+      defaultModality: 'OnDemandSmart', // 'OnDemandSmart' | 'Food' | 'NextDaySmart'
+      originBranchId: 'br-1',
+      autoNotifyCustomer: true,
+      vehicleType: 1
+    },
+
     // Modos de Inteligencia y Personalidad del Agente
     agentPersonalityMode: 'balanced', // 'strict_sales' (Bot Estricto) | 'balanced' (Asesor Equilibrado) | 'human_empathetic' (Empático con Encauce)
     casualTalkTurnsAllowed: 2, // Cantidad máxima de intercambios informales antes de encauzar firmemente a la venta

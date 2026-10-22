@@ -430,6 +430,9 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
   // Driver Assignment Modal State
   const [assignDriverModal, setAssignDriverModal] = useState(null); // null | { order, driverId, notes, notifyClient, isAssigning, assignSuccess }
 
+  // Rapilog Argentina Cadetería & Logistics Modal State
+  const [rapilogModal, setRapilogModal] = useState(null); // null | { order, branchId, modality, vehicleType, notes, packageCount, quote, isQuoting, isDispatching, error, success }
+
   // Thermal & Multi-format Ticket Print Modal
   const [ticketPrintModal, setTicketPrintModal] = useState(null); // null | order object
 
@@ -1598,6 +1601,160 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     }
   };
 
+  // --- Rapilog Argentina Handlers ---
+  const handleOpenRapilogModal = async (order) => {
+    if (!order) return;
+    const branchId = order.branchId || 'br-1';
+    const modality = 'OnDemandSmart';
+    const vehicleType = 1;
+
+    setRapilogModal({
+      order,
+      branchId,
+      modality,
+      vehicleType,
+      notes: order.notes || 'Carne fresca refrigerada. Entregar en mano.',
+      packageCount: 1,
+      quote: null,
+      isQuoting: true,
+      isDispatching: false,
+      error: null,
+      success: null
+    });
+
+    try {
+      const res = await fetch('/api/rapilog/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          branchId,
+          modalidad: modality,
+          latDestino: order.destinationLat || order.lat,
+          lngDestino: order.destinationLng || order.lng
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.quote) {
+        setRapilogModal(prev => prev ? { ...prev, quote: data.quote, isQuoting: false } : null);
+      } else {
+        setRapilogModal(prev => prev ? { ...prev, isQuoting: false, quote: null } : null);
+      }
+    } catch {
+      setRapilogModal(prev => prev ? { ...prev, isQuoting: false, quote: null } : null);
+    }
+  };
+
+  const handleQuoteRapilog = async (branchId, modality) => {
+    if (!rapilogModal || !rapilogModal.order) return;
+    setRapilogModal(prev => ({ ...prev, isQuoting: true, branchId, modality, error: null }));
+    try {
+      const res = await fetch('/api/rapilog/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: rapilogModal.order.id,
+          branchId,
+          modalidad: modality,
+          latDestino: rapilogModal.order.destinationLat || rapilogModal.order.lat,
+          lngDestino: rapilogModal.order.destinationLng || rapilogModal.order.lng
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.quote) {
+        setRapilogModal(prev => prev ? { ...prev, quote: data.quote, isQuoting: false } : null);
+      } else {
+        setRapilogModal(prev => prev ? { ...prev, quote: null, isQuoting: false, error: data.error || 'No se pudo cotizar' } : null);
+      }
+    } catch (err) {
+      setRapilogModal(prev => prev ? { ...prev, quote: null, isQuoting: false, error: err.message } : null);
+    }
+  };
+
+  const handleDispatchRapilog = async () => {
+    if (!rapilogModal || !rapilogModal.order) return;
+    setRapilogModal(prev => ({ ...prev, isDispatching: true, error: null, success: null }));
+    try {
+      const res = await fetch('/api/rapilog/dispatch-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: rapilogModal.order.id,
+          branchId: rapilogModal.branchId,
+          modality: rapilogModal.modality,
+          vehicleType: rapilogModal.vehicleType,
+          notes: rapilogModal.notes,
+          packageCount: rapilogModal.packageCount
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setRapilogModal(prev => ({ ...prev, isDispatching: false, error: data.error || 'Error despachando con Rapilog' }));
+      } else {
+        setOrders(prev => prev.map(o => o.id === data.order.id ? data.order : o));
+        if (detailModal && detailModal.id === data.order.id) {
+          setDetailModal(data.order);
+        }
+        setRapilogModal(prev => ({
+          ...prev,
+          isDispatching: false,
+          success: `¡Despacho creado exitosamente en Rapilog! ID #${data.shipment.idPedidoRapilog}`,
+          order: data.order
+        }));
+        showNotificationToast('success', `🛵 Pedido #${data.order.id} despachado con Rapilog (ID #${data.shipment.idPedidoRapilog}).`);
+      }
+    } catch (err) {
+      setRapilogModal(prev => ({ ...prev, isDispatching: false, error: err.message || 'Error de conexión' }));
+    }
+  };
+
+  const handleRefreshRapilogStatus = async (orderId) => {
+    try {
+      const res = await fetch(`/api/rapilog/order-status/${orderId}`);
+      const data = await res.json();
+      if (data.success && data.status) {
+        const ordRes = await fetch(`/api/orders/${orderId}`);
+        if (ordRes.ok) {
+          const freshOrder = await ordRes.json();
+          setOrders(prev => prev.map(o => o.id === orderId ? freshOrder : o));
+          if (detailModal && detailModal.id === orderId) setDetailModal(freshOrder);
+          if (rapilogModal && rapilogModal.order && rapilogModal.order.id === orderId) {
+            setRapilogModal(prev => ({ ...prev, order: freshOrder }));
+          }
+        }
+        showNotificationToast('success', `Estado Rapilog actualizado: ${data.status.statusName || 'En viaje'}`);
+      } else {
+        showNotificationToast('error', data.error || 'No se pudo actualizar estado');
+      }
+    } catch (err) {
+      showNotificationToast('error', 'Error al consultar estado en Rapilog');
+    }
+  };
+
+  const handleCancelRapilogShipment = async (orderId) => {
+    if (!window.confirm('¿Estás seguro de cancelar este envío en Rapilog?')) return;
+    try {
+      const res = await fetch('/api/rapilog/cancel-shipment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, reason: 'Cancelado por el operador de carnicería' })
+      });
+      const data = await res.json();
+      if (data.success && data.order) {
+        setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+        if (detailModal && detailModal.id === orderId) setDetailModal(data.order);
+        if (rapilogModal && rapilogModal.order && rapilogModal.order.id === orderId) {
+          setRapilogModal(prev => ({ ...prev, order: data.order, success: 'Envío cancelado en Rapilog' }));
+        }
+        showNotificationToast('warning', `Envío #${orderId} cancelado en Rapilog.`);
+      } else {
+        alert(data.error || 'Error cancelando envío');
+      }
+    } catch (err) {
+      alert('Error de conexión cancelando envío');
+    }
+  };
+
 
   // Metrics
   const totalRevenue = orders.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
@@ -2140,6 +2297,24 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                         >
                           <Bike size={13} />
                         </button>
+                        {order.deliveryType !== 'pickup' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRapilogModal(order)}
+                            className={`p-1.5 rounded-lg border transition ${
+                              order.rapilogShipment && order.rapilogShipment.idPedidoRapilog && order.rapilogShipment.status !== 'cancelado'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 ring-1 ring-amber-500/30'
+                                : 'bg-[#111b21] hover:bg-amber-950/40 text-slate-400 hover:text-amber-400 border-slate-700/60'
+                            }`}
+                            title={
+                              order.rapilogShipment && order.rapilogShipment.idPedidoRapilog && order.rapilogShipment.status !== 'cancelado'
+                                ? `Rapilog #${order.rapilogShipment.idPedidoRapilog} (${order.rapilogShipment.estadoNombre || 'Despachado'})`
+                                : 'Despachar con Rapilog Cadetería'
+                            }
+                          >
+                            <Truck size={13} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenDeriveModal(order)}
                           className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
@@ -2474,8 +2649,8 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                   </button>
                 </div>
 
-                {/* Secondary Tools Row (7 Uniform Width Buttons Grid - Zero Overflow) */}
-                <div className="grid grid-cols-7 gap-1 w-full pt-1.5 border-t border-slate-800/80">
+                {/* Secondary Tools Row (8 Uniform Width Buttons Grid - Zero Overflow) */}
+                <div className="grid grid-cols-8 gap-1 w-full pt-1.5 border-t border-slate-800/80">
                   <button
                     type="button"
                     onClick={() => handleOpenMap(order.address, order.customerName)}
@@ -2492,6 +2667,23 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                     title="Asignar Repartidor y Despachar"
                   >
                     <Bike size={13} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRapilogModal(order)}
+                    className={`p-1.5 rounded-lg border flex items-center justify-center transition ${
+                      order.rapilogShipment && order.rapilogShipment.idPedidoRapilog && order.rapilogShipment.status !== 'cancelado'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30 ring-1 ring-amber-500/30'
+                        : 'bg-[#111b21] hover:bg-amber-950/40 text-slate-400 hover:text-amber-400 border-slate-800'
+                    }`}
+                    title={
+                      order.rapilogShipment && order.rapilogShipment.idPedidoRapilog && order.rapilogShipment.status !== 'cancelado'
+                        ? `Rapilog #${order.rapilogShipment.idPedidoRapilog} (${order.rapilogShipment.estadoNombre || 'Despachado'})`
+                        : 'Despachar con Rapilog Cadetería'
+                    }
+                  >
+                    <Truck size={13} />
                   </button>
 
                   <button
@@ -2834,6 +3026,104 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Card 4: Rapilog Cadetería & Logistics */}
+              <div className="bg-[#111b21] p-3.5 rounded-2xl border border-amber-500/30 space-y-2.5">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                      <Truck size={14} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        Rapilog Argentina Cadetería
+                        {detailModal.rapilogShipment && (
+                          <span className="text-[10px] px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                            #{detailModal.rapilogShipment.idPedidoRapilog || detailModal.rapilogShipment.trackingId}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  {detailModal.rapilogShipment ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleRefreshRapilogStatus(detailModal.id)}
+                        className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                        title="Actualizar estado en vivo desde Rapilog"
+                      >
+                        <RefreshCw size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCancelRapilogShipment(detailModal.id)}
+                        className="px-2 py-0.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30 transition"
+                      >
+                        Cancelar Envío
+                      </button>
+                    </div>
+                  ) : (
+                    detailModal.deliveryType !== 'pickup' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ord = detailModal;
+                          handleOpenRapilogModal(ord);
+                        }}
+                        className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                      >
+                        <Truck size={12} /> Despachar con Rapilog
+                      </button>
+                    )
+                  )}
+                </div>
+
+                {detailModal.rapilogShipment ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="p-2 rounded-xl bg-[#182229] border border-slate-700/60">
+                      <span className="text-[10px] text-slate-400 block">Estado en Vivo:</span>
+                      <span className="font-bold text-amber-300">
+                        {detailModal.rapilogShipment.estadoNombre || `Estado ${detailModal.rapilogShipment.estado}`}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-[#182229] border border-slate-700/60">
+                      <span className="text-[10px] text-slate-400 block">Modalidad & Retiro:</span>
+                      <span className="font-medium text-slate-200">
+                        {detailModal.rapilogShipment.modalidad || 'OnDemandSmart'} • {detailModal.rapilogShipment.sucursalOrigen || 'Urca'}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-[#182229] border border-slate-700/60 flex items-center justify-between gap-1">
+                      {detailModal.rapilogShipment.trackingLink && (
+                        <a
+                          href={detailModal.rapilogShipment.trackingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-center font-bold text-[10px] border border-amber-500/30 flex items-center justify-center gap-1"
+                        >
+                          <ExternalLink size={10} /> Seguimiento
+                        </a>
+                      )}
+                      {(detailModal.rapilogShipment.etiquetaUrl || detailModal.rapilogShipment.descargaEtiquetaUrl) && (
+                        <a
+                          href={detailModal.rapilogShipment.etiquetaUrl || detailModal.rapilogShipment.descargaEtiquetaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-1 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-center font-bold text-[10px] border border-slate-600 flex items-center justify-center gap-1"
+                        >
+                          <Printer size={10} /> Etiqueta
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-slate-400">
+                    {detailModal.deliveryType === 'pickup'
+                      ? 'Este pedido es para retiro en mostrador de sucursal (no requiere despacho con cadetería).'
+                      : 'El pedido aún no fue despachado con Rapilog. Podés cotizar en vivo y solicitar el cadete con un clic.'}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -4318,6 +4608,311 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
               </form>
             )}
 
+
+          </div>
+        </div>
+      )}
+
+      {/* Rapilog Argentina Cadetería & Logistics Modal */}
+      {rapilogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#182229] border border-amber-500/40 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30">
+                  <Truck size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">Despacho Rapilog Cadetería</h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                      API Oficial
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Pedido #{rapilogModal.order.id} — {rapilogModal.order.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRapilogModal(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="space-y-3.5 overflow-y-auto pr-1 text-xs">
+              {/* Si ya está despachado */}
+              {rapilogModal.order.rapilogShipment && rapilogModal.order.rapilogShipment.idPedidoRapilog && rapilogModal.order.rapilogShipment.status !== 'cancelado' ? (
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-bold text-white">
+                      <CheckCircle2 size={18} className="text-emerald-400" />
+                      <span>¡Envío Activo en Rapilog Argentina!</span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Este pedido ya fue transmitido a los cadetes de Rapilog. Podés monitorear la moto en vivo o imprimir la etiqueta térmica.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#111b21] border border-slate-700/80 space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase">ID Pedido Rapilog:</span>
+                        <span className="font-mono font-bold text-amber-300">
+                          #{rapilogModal.order.rapilogShipment.idPedidoRapilog}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Estado Actual:</span>
+                        <span className="font-bold text-white">
+                          {rapilogModal.order.rapilogShipment.estadoNombre || `Estado ${rapilogModal.order.rapilogShipment.estado}`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Sucursal Origen:</span>
+                        <span className="text-slate-200">
+                          {rapilogModal.order.rapilogShipment.sucursalOrigen || 'Sucursal Central'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block uppercase">Modalidad:</span>
+                        <span className="text-slate-200">
+                          {rapilogModal.order.rapilogShipment.modalidad || 'OnDemandSmart'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center gap-2">
+                      {rapilogModal.order.rapilogShipment.trackingLink && (
+                        <a
+                          href={rapilogModal.order.rapilogShipment.trackingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-center font-bold text-xs border border-amber-500/40 flex items-center justify-center gap-1.5 transition"
+                        >
+                          <ExternalLink size={13} />
+                          <span>Seguimiento Satelital en Vivo</span>
+                        </a>
+                      )}
+
+                      {(rapilogModal.order.rapilogShipment.etiquetaUrl || rapilogModal.order.rapilogShipment.descargaEtiquetaUrl) && (
+                        <a
+                          href={rapilogModal.order.rapilogShipment.etiquetaUrl || rapilogModal.order.rapilogShipment.descargaEtiquetaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2 px-3 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-600 flex items-center gap-1.5 transition"
+                        >
+                          <Printer size={13} />
+                          <span>Voucher / Etiqueta</span>
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleRefreshRapilogStatus(rapilogModal.order.id)}
+                        className="p-2 rounded-xl bg-[#182229] hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                        title="Actualizar estado en vivo"
+                      >
+                        <RefreshCw size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => handleCancelRapilogShipment(rapilogModal.order.id)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition"
+                    >
+                      Cancelar Envío en Rapilog
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRapilogModal(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Formulario de Despacho */
+                <div className="space-y-3.5">
+                  {/* Resumen Destino */}
+                  <div className="p-3 rounded-xl bg-[#111b21] border border-slate-800 space-y-1">
+                    <div className="flex items-center justify-between text-slate-400 text-[10px] uppercase font-bold">
+                      <span>Destino de Entrega</span>
+                      <span className="text-amber-400">Córdoba Capital</span>
+                    </div>
+                    <div className="text-white font-semibold text-xs flex items-center gap-1.5">
+                      <MapPin size={13} className="text-amber-400 shrink-0" />
+                      <span className="truncate">{rapilogModal.order.address || 'Sin dirección registrada'}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Cliente: {rapilogModal.order.customerName} • {rapilogModal.order.phone}
+                    </div>
+                  </div>
+
+                  {/* Sucursal Origen y Modalidad */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Sucursal de Retiro:</label>
+                      <select
+                        value={rapilogModal.branchId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleQuoteRapilog(val, rapilogModal.modality);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-amber-500 text-xs"
+                      >
+                        <option value="br-1">Sucursal Funes (Urca)</option>
+                        <option value="br-2">Sucursal Gauss (Villa Belgrano)</option>
+                        <option value="br-3">Sucursal Recta Martinoli (Argüello)</option>
+                        <option value="br-4">Sucursal Tejeda (Cerro de las Rosas)</option>
+                        <option value="br-5">Sucursal Valparaíso (Tejas del Sur)</option>
+                        <option value="br-6">Sucursal O'Higgins (San Fernando)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Modalidad de Servicio:</label>
+                      <select
+                        value={rapilogModal.modality}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          handleQuoteRapilog(rapilogModal.branchId, val);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-amber-500 text-xs"
+                      >
+                        <option value="OnDemandSmart">OnDemandSmart (Cadete Express)</option>
+                        <option value="Food">Food (Alimentos y Carne Fresca)</option>
+                        <option value="NextDaySmart">NextDaySmart (Programado)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Vehículo y Bultos */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Vehículo Solicitado:</label>
+                      <select
+                        value={rapilogModal.vehicleType}
+                        onChange={(e) => setRapilogModal({ ...rapilogModal, vehicleType: Number(e.target.value) || 1 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-amber-500 text-xs"
+                      >
+                        <option value={1}>🛵 Moto / Cadete</option>
+                        <option value={2}>🚗 Auto / Utilitario</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Bultos / Paquetes:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={rapilogModal.packageCount}
+                        onChange={(e) => setRapilogModal({ ...rapilogModal, packageCount: parseInt(e.target.value, 10) || 1 })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-amber-500 text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Notas */}
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Instrucciones para el Cadete:</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Pedido refrigerado en caja térmica / Tocar timbre"
+                      value={rapilogModal.notes}
+                      onChange={(e) => setRapilogModal({ ...rapilogModal, notes: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl bg-[#111b21] border border-slate-700 text-white focus:outline-none focus:border-amber-500 text-xs"
+                    />
+                  </div>
+
+                  {/* Live Quote Box */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-transparent border border-amber-500/30 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] font-bold text-amber-300 uppercase tracking-wide flex items-center gap-1">
+                        <Zap size={11} /> Cotización en Tiempo Real (Rapilog)
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleQuoteRapilog(rapilogModal.branchId, rapilogModal.modality)}
+                        className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
+                      >
+                        <RefreshCw size={10} className={rapilogModal.isQuoting ? 'animate-spin' : ''} />
+                        Recotizar
+                      </button>
+                    </div>
+
+                    {rapilogModal.isQuoting ? (
+                      <div className="flex items-center gap-2 py-1 text-slate-300">
+                        <RefreshCw size={14} className="animate-spin text-amber-400" />
+                        <span>Calculando tarifa exacta con Rapilog...</span>
+                      </div>
+                    ) : rapilogModal.quote ? (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-lg font-black text-white font-mono">
+                            ${Number(rapilogModal.quote.precio || 0).toLocaleString('es-AR')}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {rapilogModal.quote.distanciaKm ? `${rapilogModal.quote.distanciaKm} km • ` : ''}
+                            {rapilogModal.quote.duracionMin ? `~${rapilogModal.quote.duracionMin} min • ` : ''}
+                            Tarifa API
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                            Tarifa Confirmada
+                          </span>
+                          <span className="block text-[9px] text-slate-400 mt-0.5">Válida por 3 min</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-slate-400 py-0.5">
+                        {rapilogModal.error || 'La tarifa final se confirmará al momento de despachar el viaje.'}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Feedback Error / Success */}
+                  {rapilogModal.error && (
+                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle size={15} className="shrink-0 text-rose-400" />
+                      <span>{rapilogModal.error}</span>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setRapilogModal(null)}
+                      className="px-3.5 py-2 rounded-xl text-slate-400 hover:text-white bg-[#111b21] border border-slate-800 font-semibold text-xs"
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDispatchRapilog}
+                      disabled={rapilogModal.isDispatching}
+                      className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs transition disabled:opacity-50 shadow-lg shadow-amber-500/20"
+                    >
+                      <Truck size={14} className={rapilogModal.isDispatching ? 'animate-bounce' : ''} />
+                      <span>{rapilogModal.isDispatching ? 'Solicitando Cadete en Rapilog...' : '🚀 Confirmar y Solicitar Cadete Rapilog'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
           </div>
         </div>
