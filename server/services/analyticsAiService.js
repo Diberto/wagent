@@ -77,7 +77,9 @@ class AnalyticsAiService {
     const hourlyDistribution = Array.from({ length: 24 }, (_, hour) => ({
       hour: `${hour.toString().padStart(2, '0')}:00`,
       orders: 0,
-      revenue: 0
+      count: 0,
+      revenue: 0,
+      avgTicket: 0
     }));
 
     filteredOrders.forEach(o => {
@@ -85,8 +87,11 @@ class AnalyticsAiService {
         const d = new Date(o.createdAt || o.date);
         const h = d.getHours();
         if (h >= 0 && h < 24) {
+          const amt = Number(o.totalAmount || o.total) || 0;
           hourlyDistribution[h].orders += 1;
-          hourlyDistribution[h].revenue += Number(o.totalAmount || o.total) || 0;
+          hourlyDistribution[h].count += 1;
+          hourlyDistribution[h].revenue += amt;
+          hourlyDistribution[h].avgTicket = hourlyDistribution[h].count > 0 ? Math.round(hourlyDistribution[h].revenue / hourlyDistribution[h].count) : 0;
         }
       } catch {}
     });
@@ -124,13 +129,15 @@ class AnalyticsAiService {
             name,
             totalKgSold: 0,
             revenue: 0,
-            ordersCount: 0
+            ordersCount: 0,
+            unitPrice: price
           });
         }
         const record = productStatsMap.get(name);
         record.totalKgSold += qty;
         record.revenue += subtotal;
         record.ordersCount += 1;
+        if (price > 0) record.unitPrice = price;
       });
     });
 
@@ -146,14 +153,18 @@ class AnalyticsAiService {
         const estimatedCost = Math.round(p.revenue * 0.62);
         const estimatedGrossMargin = p.revenue - estimatedCost;
         const marginPct = p.revenue > 0 ? Number(((estimatedGrossMargin / p.revenue) * 100).toFixed(1)) : 38.0;
+        const roundedRevenue = Math.round(p.revenue);
 
         return {
           ...p,
           totalKgSold: Number(p.totalKgSold.toFixed(2)),
-          revenue: Math.round(p.revenue),
+          revenue: roundedRevenue,
+          totalRevenue: roundedRevenue,
           estimatedCost,
           estimatedGrossMargin,
-          marginPct
+          marginEstimate: estimatedGrossMargin,
+          marginPct,
+          unitPrice: p.unitPrice || (p.totalKgSold > 0 ? Math.round(roundedRevenue / p.totalKgSold) : 0)
         };
       });
 

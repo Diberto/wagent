@@ -17,6 +17,12 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3001" ^| findstr "LISTENING
     taskkill /F /PID %%a >nul 2>&1
 )
 
+echo Verificando compilacion del frontend...
+if not exist "client\dist\index.html" (
+    echo Compilando interfaz web frontend por primera vez con Vite...
+    call npm.cmd run build
+)
+
 echo.
 echo Iniciando servidor y abriendo navegador en http://localhost:3001 ...
 echo.

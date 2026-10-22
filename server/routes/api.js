@@ -2970,8 +2970,8 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
-  // Importar base de clientes desde CSV o JSON
-  router.post('/customers/import', (req, res) => {
+  // Importar base de clientes desde CSV, Excel o JSON con mapeo inteligente de columnas y puntos de fidelización
+  router.post('/customers/import', async (req, res) => {
     try {
       const { customers: inputCustomers, csvData } = req.body || {};
       let itemsToImport = [];
@@ -2980,18 +2980,42 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         itemsToImport = inputCustomers;
       } else if (typeof csvData === 'string') {
         const lines = csvData.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        if (lines.length > 1) {
-          const sep = lines[0].includes(';') ? ';' : ',';
-          for (let i = 1; i < lines.length; i++) {
-            const parts = lines[i].split(sep).map(p => p.replace(/^"|"$/g, '').trim());
-            if (parts.length >= 2) {
+        if (lines.length > 0) {
+          const sep = lines[0].includes(';') ? ';' : (lines[0].includes('\t') ? '\t' : ',');
+          const headers = lines[0].split(sep).map(h => h.replace(/^["']|["']$/g, '').trim().toLowerCase());
+          
+          const hasHeaders = headers.some(h => 
+            h.includes('nom') || h.includes('tel') || h.includes('cel') || h.includes('phone') || 
+            h.includes('mail') || h.includes('dir') || h.includes('punt') || h.includes('cli')
+          );
+
+          const startIndex = hasHeaders ? 1 : 0;
+          for (let i = startIndex; i < lines.length; i++) {
+            const parts = lines[i].split(sep).map(p => p.replace(/^["']|["']$/g, '').trim());
+            if (parts.length === 0 || parts.every(p => !p)) continue;
+
+            if (hasHeaders) {
+              const row = {};
+              headers.forEach((h, idx) => {
+                const val = parts[idx] || '';
+                if (/nom|name|cli|razon/i.test(h)) row.name = val;
+                else if (/tel|cel|phone|movil|whats/i.test(h)) row.phone = val;
+                else if (/mail|correo/i.test(h)) row.email = val;
+                else if (/dir|address|dom|calle/i.test(h)) row.address = val;
+                else if (/suc|branch|sede/i.test(h)) row.preferredBranch = val;
+                else if (/punt|point/i.test(h)) row.points = Number(val) || 0;
+                else if (/pref|coccion/i.test(h)) row.cookingPreference = val;
+                else if (/not|obs/i.test(h)) row.notes = val;
+              });
+              itemsToImport.push(row);
+            } else {
               itemsToImport.push({
-                name: parts[1] || parts[0],
-                phone: parts[2] || parts[1],
-                email: parts[3] || '',
-                address: parts[4] || '',
-                branchId: parts[5] || '',
-                notes: parts[6] || ''
+                name: parts[0] || '',
+                phone: parts[1] || '',
+                email: parts[2] || '',
+                address: parts[3] || '',
+                preferredBranch: parts[4] || '',
+                notes: parts[5] || ''
               });
             }
           }
@@ -2999,18 +3023,121 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
       }
 
       let imported = 0;
-      for (const c of itemsToImport) {
-        if (!c.phone && !c.name) continue;
-        const saved = db.findOrCreateLead(c);
+      let pointsAwarded = 0;
+      for (const raw of itemsToImport) {
+        if (!raw) continue;
+        const name = (raw.name || raw.nombre || raw.cliente || raw['Nombre Completo'] || '').trim();
+        const phone = (raw.phone || raw.telefono || raw.celular || raw.whatsapp || raw['Teléfono / WhatsApp'] || raw['Telefono'] || '').trim();
+        if (!name && !phone) continue;
+
+        const email = (raw.email || raw.mail || raw.correo || raw['Email'] || '').trim();
+        const address = (raw.address || raw.direccion || raw.domicilio || raw['Dirección'] || raw['Direccion'] || '').trim();
+        const preferredBranch = (raw.preferredBranch || raw.sucursal || raw.sede || raw['Sucursal Preferida'] || raw['Sucursal'] || '').trim();
+        const notes = (raw.notes || raw.notas || raw.observaciones || raw['Notas'] || '').trim();
+        const cookingPreference = (raw.cookingPreference || raw.preferencia || raw['Preferencia de Cocción'] || 'Parrilla').trim();
+        const points = Number(raw.points || raw.puntos || raw['Puntos Iniciales'] || raw['Puntos'] || 0);
+
+        const saved = db.findOrCreateLead({
+          name: name || phone,
+          phone,
+          email,
+          address,
+          preferredBranch,
+          tags: ['Importado / Excel'],
+          preferences: {
+            cookingPreference,
+            notes
+          }
+        });
+
         if (saved) {
           imported++;
+          if (points > 0 && loyaltyService && typeof loyaltyService.adjustPoints === 'function') {
+            try {
+              await loyaltyService.adjustPoints({
+                customerId: saved.id,
+                points,
+                type: 'BONUS',
+                reason: 'Carga inicial desde archivo modelo Excel'
+              });
+              pointsAwarded += points;
+            } catch (e) {
+              console.warn('[Import] Error acreditando puntos a cliente:', saved.id, e.message);
+            }
+          }
           io.emit('lead:update', saved);
         }
       }
 
-      res.json({ success: true, count: imported, message: `${imported} clientes procesados exitosamente.` });
+      res.json({
+        success: true,
+        count: imported,
+        pointsAwarded,
+        message: `${imported} clientes importados correctamente.${pointsAwarded > 0 ? ` Se acreditaron ${pointsAwarded} puntos en fidelización.` : ''}`
+      });
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Descargar plantilla Excel oficial (.xlsx) de fidelización de clientes
+  router.get('/customers/template', async (req, res) => {
+    try {
+      const XLSXModule = await import('xlsx');
+      const XLSX = XLSXModule.default || XLSXModule;
+      const templateData = [
+        {
+          "Nombre Completo": "Carlos Gómez",
+          "Teléfono / WhatsApp": "+54 9 351 555-1234",
+          "Email": "carlos.gomez@gmail.com",
+          "Dirección": "Av. Colón 2450, Barrio Alberdi",
+          "Sucursal Preferida": "Casa Central",
+          "Puntos Iniciales": 150,
+          "Preferencia de Cocción": "Parrilla",
+          "Notas": "Prefiere asado de tira ancho con poca grasa"
+        },
+        {
+          "Nombre Completo": "Mariana Rossi",
+          "Teléfono / WhatsApp": "+54 9 351 444-9876",
+          "Email": "mariana.rossi@hotmail.com",
+          "Dirección": "Recta Martinolli 7800, Villa Belgrano",
+          "Sucursal Preferida": "Sucursal Villa Belgrano",
+          "Puntos Iniciales": 200,
+          "Preferencia de Cocción": "Horno",
+          "Notas": "Compra vacío y matambre los fines de semana"
+        },
+        {
+          "Nombre Completo": "Juan Pablo Funes",
+          "Teléfono / WhatsApp": "+54 9 351 777-3322",
+          "Email": "jpfunes@empresa.com.ar",
+          "Dirección": "Rafael Núñez 4100, Cerro de las Rosas",
+          "Sucursal Preferida": "Sucursal Cerro de las Rosas",
+          "Puntos Iniciales": 500,
+          "Preferencia de Cocción": "Parrilla",
+          "Notas": "Cliente VIP para combos corporativos"
+        }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      ws['!cols'] = [
+        { wch: 25 },
+        { wch: 22 },
+        { wch: 28 },
+        { wch: 35 },
+        { wch: 25 },
+        { wch: 16 },
+        { wch: 22 },
+        { wch: 45 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, "Clientes Fidelización");
+
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      res.setHeader('Content-Disposition', 'attachment; filename="Plantilla_Fidelizacion_Clientes_WAgent.xlsx"');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.send(buffer);
+    } catch (err) {
+      res.status(500).json({ error: 'Error generando plantilla: ' + err.message });
     }
   });
 

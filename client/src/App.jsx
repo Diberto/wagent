@@ -92,7 +92,7 @@ export default function App() {
         const saved = localStorage.getItem('wagent_user');
         if (saved) return JSON.parse(saved);
       } catch {}
-      // Si el visitante entra directo a la tienda pública /tienda, permitir acceso de cliente
+      // Si el visitante entra directo a la tienda pública /tienda o al club de fidelización /micuenta, permitir acceso de cliente
       if (window.location.pathname.startsWith('/tienda')) {
         return {
           id: 'usr-cliente-publico',
@@ -100,8 +100,19 @@ export default function App() {
           username: 'cliente',
           role: 'cliente',
           roles: ['cliente'],
-          tabs: ['storefront'],
+          tabs: ['storefront', 'micuenta'],
           permissions: { canViewStore: true, canOrderWhatsApp: true }
+        };
+      }
+      if (window.location.pathname.startsWith('/micuenta') || window.location.pathname.startsWith('/club')) {
+        return {
+          id: 'usr-cliente-club',
+          name: 'Cliente Fidelización',
+          username: 'cliente_club',
+          role: 'cliente',
+          roles: ['cliente'],
+          tabs: ['micuenta', 'storefront'],
+          permissions: { canViewStore: true, canViewLoyalty: true }
         };
       }
     }
@@ -626,8 +637,8 @@ export default function App() {
   const totalUnreadCount = leads.reduce((sum, l) => sum + (l.unreadCount || 0), 0);
   const isPosStandalone = typeof window !== 'undefined' && window.location.pathname.startsWith('/pos');
 
-  // Si no hay usuario autenticado en la sesión, mostrar pantalla de inicio de sesión
-  if (!currentUser) {
+  // Si no hay usuario autenticado en la sesión y no es una ruta pública de clientes (/micuenta, /tienda), mostrar pantalla de login
+  if (!currentUser && currentTab !== 'micuenta' && currentTab !== 'storefront') {
     return (
       <LoginView
         onLoginSuccess={(user, token) => {

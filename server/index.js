@@ -153,6 +153,50 @@ if (fs.existsSync(clientDist)) {
     res.setHeader('Expires', '0');
     res.sendFile(path.join(clientDist, 'index.html'));
   });
+} else {
+  // Fallback si aún no se ha compilado el frontend
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/mcp') || req.path.startsWith('/media')) {
+      return res.status(404).json({ error: 'Endpoint no encontrado', path: req.path });
+    }
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>WAgent CRM - Servidor Activo</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0b141a; color: #e9edef; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1rem; }
+          .card { background: #111b21; border: 1px solid #202c33; padding: 2.5rem; border-radius: 1.25rem; max-width: 520px; width: 100%; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center; }
+          h1 { color: #25d366; margin-top: 0; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+          p { color: #8696a0; font-size: 0.95rem; line-height: 1.5; }
+          .cmd { background: #202c33; padding: 0.75rem 1rem; border-radius: 0.75rem; color: #53bdeb; font-family: monospace; font-size: 0.95rem; margin: 1.25rem 0; border: 1px solid #2a3942; }
+          .btn { display: inline-block; background: #25d366; color: #0b141a; text-decoration: none; font-weight: 700; padding: 0.75rem 1.5rem; border-radius: 0.75rem; margin-top: 1rem; font-size: 0.9rem; }
+          .endpoints { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid #202c33; font-size: 0.8rem; color: #8696a0; }
+          .endpoints a { color: #53bdeb; text-decoration: none; margin: 0 0.5rem; }
+          .endpoints a:hover { text-decoration: underline; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>🚀 WAgent CRM - Backend Activo</h1>
+          <p>El servidor Fullstack está ejecutándose con éxito en el puerto <strong>${CONFIG.PORT}</strong>.</p>
+          <p>Para visualizar la interfaz visual (React + Vite), compila el frontend ejecutando en la consola:</p>
+          <div class="cmd">npm run build</div>
+          <p>O inicia el entorno interactivo completo con:</p>
+          <div class="cmd">npm run dev</div>
+          <div class="endpoints">
+            <strong>Endpoints del Sistema:</strong><br>
+            <a href="/api/health">Salud API</a> •
+            <a href="/api/v1/external/health">API Externa</a> •
+            <a href="/mcp/info">Protocolo MCP</a>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+  });
 }
 
 // Iniciar servidor

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   Users, 
   Search, 
@@ -108,6 +109,7 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importRawText, setImportRawText] = useState('');
+  const [importParsedData, setImportParsedData] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -121,20 +123,45 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
     const file = e.target.files[0];
     if (!file) return;
     setImportFile(file);
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      setImportRawText(evt.target.result);
-    };
-    reader.readAsText(file);
+    setImportStatus(null);
+    setImportParsedData(null);
+
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+    if (isExcel) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const buffer = evt.target.result;
+          const wb = XLSX.read(buffer, { type: 'array' });
+          const firstSheetName = wb.SheetNames[0];
+          const ws = wb.Sheets[firstSheetName];
+          const jsonRows = XLSX.utils.sheet_to_json(ws);
+          setImportParsedData(jsonRows);
+          setImportRawText(`✅ Hoja "${firstSheetName}" procesada: ${jsonRows.length} registros listos para importar.`);
+        } catch (err) {
+          console.error('Error leyendo archivo Excel:', err);
+          setImportStatus({ success: false, message: 'Error procesando archivo Excel: ' + err.message });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        setImportRawText(evt.target.result);
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleExecuteImport = async () => {
-    if (!importRawText && !importFile) return;
+    if (!importRawText && !importFile && (!importParsedData || importParsedData.length === 0)) return;
     setIsImporting(true);
     setImportStatus(null);
     try {
       let payload = {};
-      if (importFile?.name?.endsWith('.json') || importRawText.trim().startsWith('[')) {
+      if (importParsedData && importParsedData.length > 0) {
+        payload.customers = importParsedData;
+      } else if (importFile?.name?.endsWith('.json') || importRawText.trim().startsWith('[')) {
         try {
           payload.customers = JSON.parse(importRawText);
         } catch (e) {
@@ -157,8 +184,9 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
           setImportModalOpen(false);
           setImportFile(null);
           setImportRawText('');
+          setImportParsedData(null);
           setImportStatus(null);
-        }, 1500);
+        }, 1800);
       } else {
         setImportStatus({ success: false, message: data.error || 'Error al importar clientes' });
       }
@@ -2090,8 +2118,8 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                   <Upload size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Importar Base de Datos de Clientes</h3>
-                  <p className="text-[11px] text-slate-400">Soporta archivos CSV (Excel) o JSON estructurado</p>
+                  <h3 className="text-sm font-bold text-white">Importar Base de Datos de Clientes & Fidelización</h3>
+                  <p className="text-[11px] text-slate-400">Soporta planillas Excel (.xlsx, .xls), CSV o JSON estructurado</p>
                 </div>
               </div>
               <button
@@ -2103,15 +2131,36 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
             </div>
 
             <div className="p-5 space-y-4">
+              {/* Botón de Descarga de Plantilla Oficial */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <FileSpreadsheet size={14} className="text-emerald-400" />
+                    ¿No tenés el formato adecuado?
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Descargá la planilla modelo con columnas de contacto y puntos.
+                  </div>
+                </div>
+                <a
+                  href="/api/customers/template"
+                  download="Plantilla_Fidelizacion_Clientes_WAgent.xlsx"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-extrabold shadow-sm transition shrink-0"
+                >
+                  <Download size={13} />
+                  Descargar Modelo (.xlsx)
+                </a>
+              </div>
+
               <div className="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center hover:border-emerald-500/60 transition bg-[#111b21]">
                 <Upload size={28} className="mx-auto text-emerald-400 mb-2" />
                 <label className="cursor-pointer">
-                  <span className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg transition">
-                    Seleccionar Archivo (.csv, .json)
+                  <span className="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 rounded-lg transition shadow-md">
+                    Seleccionar Archivo Excel o CSV
                   </span>
                   <input
                     type="file"
-                    accept=".csv, .json, text/csv, application/json"
+                    accept=".xlsx, .xls, .csv, .json, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv, application/json"
                     onChange={handleFileChange}
                     className="hidden"
                   />

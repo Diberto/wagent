@@ -84,11 +84,11 @@ analyticsRouter.post('/custom-report', (req, res) => {
         headers = ['Corte / Producto', 'Categoría', 'Kg Vendidos', 'Precio Promedio / Kg', 'Facturación Bruta', 'Margen Estimado ($)', 'Margen %'];
         rows = (stats.topProducts || []).map(p => [
           p.name,
-          p.category,
-          `${p.totalKgSold} kg`,
-          `$${p.unitPrice?.toLocaleString('es-AR') || 0}`,
-          `$${p.totalRevenue?.toLocaleString('es-AR') || 0}`,
-          `$${p.marginEstimate?.toLocaleString('es-AR') || 0}`,
+          p.category || 'Cortes y Envasados',
+          `${p.totalKgSold || 0} kg`,
+          `$${(p.unitPrice || 0).toLocaleString('es-AR')}`,
+          `$${(p.totalRevenue ?? p.revenue ?? 0).toLocaleString('es-AR')}`,
+          `$${(p.marginEstimate ?? p.estimatedGrossMargin ?? 0).toLocaleString('es-AR')}`,
           `${p.marginPct || 0}%`
         ]);
         break;
@@ -98,10 +98,10 @@ analyticsRouter.post('/custom-report', (req, res) => {
         headers = ['Sucursal', 'Facturación Total', 'Pedidos Despachados', 'Ticket Promedio', 'Cuota de Ventas %'];
         rows = (stats.branchStats || []).map(b => [
           b.name,
-          `$${b.totalRevenue?.toLocaleString('es-AR') || 0}`,
-          b.ordersCount,
-          `$${b.averageTicket?.toLocaleString('es-AR') || 0}`,
-          `${b.sharePct}%`
+          `$${(b.totalRevenue || 0).toLocaleString('es-AR')}`,
+          b.ordersCount || 0,
+          `$${(b.averageTicket || 0).toLocaleString('es-AR')}`,
+          `${b.sharePct || 0}%`
         ]);
         break;
 
@@ -110,9 +110,9 @@ analyticsRouter.post('/custom-report', (req, res) => {
         headers = ['Franja Horaria', 'Facturación ($)', 'Cantidad de Pedidos', 'Ticket Promedio'];
         rows = (stats.hourlyDistribution || []).map(h => [
           h.hour,
-          `$${h.revenue?.toLocaleString('es-AR') || 0}`,
-          h.count,
-          `$${h.avgTicket?.toLocaleString('es-AR') || 0}`
+          `$${(h.revenue || 0).toLocaleString('es-AR')}`,
+          h.count ?? h.orders ?? 0,
+          `$${(h.avgTicket ?? (h.count > 0 ? Math.round(h.revenue / h.count) : 0)).toLocaleString('es-AR')}`
         ]);
         break;
 
