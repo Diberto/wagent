@@ -509,15 +509,18 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
       });
       const data = await res.json();
       if (data.success) {
-        alert('🎉 ¡El agente se ha unido al grupo de WhatsApp exitosamente!');
+        if (data.alreadyMember) {
+          alert('ℹ️ ' + (data.message || 'El agente ya forma parte de este grupo. ¡Ya se encuentra listo para monitorear comprobantes!'));
+        } else {
+          alert('🎉 ' + (data.message || '¡El agente se ha unido al grupo de WhatsApp exitosamente!'));
+        }
         setGroupInviteUrl('');
-        loadParticipatingGroups();
+        await loadParticipatingGroups();
         if (data.groupId) {
-          // Auto-vincular a lista de grupos con la primera sucursal
-          handleAddGroupMapping({
-            preventDefault: () => {},
-            target: {}
-          });
+          setSilentGroupSettings(prev => ({
+            ...prev,
+            supplierScanGroupId: data.groupId
+          }));
         }
       } else {
         alert(data.error || 'No se pudo unir al grupo');

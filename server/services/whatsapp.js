@@ -1977,12 +1977,76 @@ export class WhatsAppService {
     if (!code) {
       throw new Error('Código o enlace de invitación no válido');
     }
+
+    // 1. Intentar obtener información del grupo previo a la unión
+    let groupInfo = null;
+    try {
+      if (typeof this.sock.groupGetInviteInfo === 'function') {
+        groupInfo = await this.sock.groupGetInviteInfo(code);
+      }
+    } catch (infoErr) {
+      console.warn(`[WhatsApp ${this.sessionId}] Pre-check de enlace de grupo:`, infoErr.message);
+    }
+
+    // 2. Si obtuvimos el ID del grupo, verificar si el bot ya es participante
+    if (groupInfo?.id) {
+      try {
+        const participating = await this.getParticipatingGroups();
+        const alreadyInGroup = participating.find(g => g.id === groupInfo.id);
+        if (alreadyInGroup) {
+          console.log(`ℹ️ [WhatsApp ${this.sessionId}] El bot ya es miembro de "${groupInfo.subject || alreadyInGroup.subject}" (${groupInfo.id})`);
+          return {
+            success: true,
+            alreadyMember: true,
+            groupId: groupInfo.id,
+            groupName: groupInfo.subject || alreadyInGroup.subject,
+            message: `El agente ya pertenece al grupo "${groupInfo.subject || alreadyInGroup.subject}". ¡Ya está listo para monitorear comprobantes!`
+          };
+        }
+      } catch (listErr) {
+        console.warn(`[WhatsApp ${this.sessionId}] Error revisando grupos actuales:`, listErr.message);
+      }
+    }
+
+    // 3. Proceder a unirse al grupo mediante groupAcceptInvite
     try {
       const groupId = await this.sock.groupAcceptInvite(code);
       console.log(`✅ [WhatsApp ${this.sessionId}] Bot se unió exitosamente al grupo: ${groupId}`);
-      return { success: true, groupId };
+      return {
+        success: true,
+        alreadyMember: false,
+        groupId,
+        groupName: groupInfo?.subject,
+        message: groupInfo?.subject
+          ? `¡El bot se unió con éxito al grupo "${groupInfo.subject}"!`
+          : '¡El bot se unió exitosamente al grupo de WhatsApp!'
+      };
     } catch (err) {
       console.error(`[WhatsApp ${this.sessionId}] Error uniéndose a grupo mediante enlace:`, err.message);
+
+      const errMsg = String(err.message || '').toLowerCase();
+      const errData = String(err.data || '');
+      const statusCode = err.output?.statusCode || err.status;
+
+      // Código 409 o "conflict" en WhatsApp indica que el usuario ya es miembro activo del grupo
+      if (errMsg.includes('conflict') || errData.includes('409') || statusCode === 409) {
+        const resolvedId = groupInfo?.id || null;
+        const resolvedName = groupInfo?.subject || 'Grupo de WhatsApp';
+        return {
+          success: true,
+          alreadyMember: true,
+          groupId: resolvedId,
+          groupName: resolvedName,
+          message: groupInfo?.subject
+            ? `El agente ya forma parte del grupo "${groupInfo.subject}". ¡Ya se encuentra activo y listo para monitorear!`
+            : 'El agente ya forma parte de este grupo de WhatsApp. ¡Ya se encuentra activo y listo para monitorear!'
+        };
+      }
+
+      if (errMsg.includes('not-authorized') || errMsg.includes('gone') || statusCode === 404 || statusCode === 410) {
+        throw new Error('El enlace de invitación ha expirado, fue revocado por el administrador o no tiene permisos para unirse.');
+      }
+
       throw new Error(`Error al unirse al grupo: ${err.message}`);
     }
   }
