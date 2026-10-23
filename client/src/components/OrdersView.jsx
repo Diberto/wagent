@@ -1384,7 +1384,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
 
     setManualPaymentModal({
       order,
-      paymentMethod: order.paymentMethod || 'Efectivo al Repartidor',
+      paymentMethod: order.paymentMethod || (order.deliveryType === 'pickup' ? 'Efectivo en Sucursal' : 'Efectivo al Repartidor'),
       paymentStatus: order.paymentStatus || 'paid',
       paidAmount: defaultPaid,
       cashReceived: defaultReceived,
@@ -2240,11 +2240,18 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                       </select>
                     </td>
                     <td className="py-3.5 px-4 max-w-[180px]">
-                      <div className="text-slate-300 truncate font-medium flex items-center gap-1" title={order.address || 'A convenir'}>
-                        <MapPin size={11} className="text-rose-400 shrink-0" />
-                        <span className="truncate">{order.address || 'A convenir'}</span>
-                      </div>
-                      {(order.branchName || order.branch) && (
+                      {order.deliveryType === 'pickup' ? (
+                        <div className="text-purple-300 truncate font-semibold flex items-center gap-1" title={order.branchName || order.branch || 'Retiro en Sucursal'}>
+                          <Store size={11} className="text-purple-400 shrink-0" />
+                          <span className="truncate">Retiro: {order.branchName || order.branch || 'Sucursal'}</span>
+                        </div>
+                      ) : (
+                        <div className="text-slate-300 truncate font-medium flex items-center gap-1" title={order.address || 'A convenir'}>
+                          <MapPin size={11} className="text-rose-400 shrink-0" />
+                          <span className="truncate">{order.address || 'A convenir'}</span>
+                        </div>
+                      )}
+                      {order.deliveryType !== 'pickup' && (order.branchName || order.branch) && (
                         <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5 truncate">
                           <Store size={10} className="shrink-0" />
                           <span className="truncate">{order.branchName || order.branch}</span>
@@ -2258,7 +2265,11 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                       )}
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap text-[11px]">
-                      <div className="text-slate-300 font-semibold">{order.paymentMethod || 'Efectivo'}</div>
+                      <div className="text-slate-300 font-semibold">
+                        {order.deliveryType === 'pickup' && (order.paymentMethod === 'Efectivo al Repartidor' || order.paymentMethod === 'Efectivo' || !order.paymentMethod)
+                          ? 'Efectivo en Sucursal'
+                          : (order.paymentMethod || 'Efectivo')}
+                      </div>
                       {order.mpPaymentId ? (
                         <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
                           <CheckCircle2 size={10} /> MP Pagado
@@ -2430,13 +2441,27 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 </div>
               </div>
 
-              {/* Destination Address */}
+              {/* Destination Address or Pickup Branch */}
               <div className="p-2.5 rounded-xl bg-[#111b21] border border-slate-800/80 space-y-1 text-xs">
-                <div className="flex items-center gap-1.5 text-slate-400 font-semibold text-[11px]">
-                  <MapPin size={13} className="text-rose-400 shrink-0" />
-                  <span>Dirección de Entrega:</span>
-                </div>
-                <div className="text-slate-200 font-medium pl-5 truncate">{order.address || 'A convenir'}</div>
+                {order.deliveryType === 'pickup' ? (
+                  <>
+                    <div className="flex items-center gap-1.5 text-purple-400 font-semibold text-[11px]">
+                      <Store size={13} className="shrink-0" />
+                      <span>Retiro por Sucursal:</span>
+                    </div>
+                    <div className="text-purple-200 font-bold pl-5 truncate">
+                      {order.branchName || order.branch || 'Sucursal a convenir'}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1.5 text-slate-400 font-semibold text-[11px]">
+                      <MapPin size={13} className="text-rose-400 shrink-0" />
+                      <span>Dirección de Entrega:</span>
+                    </div>
+                    <div className="text-slate-200 font-medium pl-5 truncate">{order.address || 'A convenir'}</div>
+                  </>
+                )}
               </div>
 
               {/* Items List */}
@@ -2474,7 +2499,21 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Store size={13} className="text-emerald-400 shrink-0" />
                   <select
-                    value={order.branchId || branches.find(b => b.name === order.branchName || b.name === order.branch)?.id || ''}
+                    value={
+                      order.branchId ||
+                      branches.find(b => {
+                        const bName = (b.name || '').toLowerCase();
+                        const oName = (order.branchName || order.branch || '').toLowerCase();
+                        if (!oName) return false;
+                        return bName === oName || bName.includes(oName) || oName.includes(bName) ||
+                          (/allende|figueroa|mercadito/i.test(oName) && /allende/i.test(bName)) ||
+                          (/urca/i.test(oName) && !/tejeda/i.test(oName) && bName === 'urca central') ||
+                          (/tejeda/i.test(oName) && /tejeda/i.test(bName)) ||
+                          (/duarte/i.test(oName) && /duarte/i.test(bName)) ||
+                          (/intercountry|corteza/i.test(oName) && /intercountry|corteza/i.test(bName)) ||
+                          (/san isidro/i.test(oName) && /san isidro/i.test(bName));
+                      })?.id || ''
+                    }
                     onChange={(e) => handleQuickAssignBranch(order.id, e.target.value)}
                     className="w-full bg-transparent text-slate-200 font-semibold text-xs focus:outline-none cursor-pointer truncate appearance-none"
                     title="Cambiar sucursal asignada (clic para seleccionar)"
@@ -2545,12 +2584,20 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <Wallet size={13} className="text-emerald-400 shrink-0" />
                   <select
-                    value={order.paymentMethod || 'Efectivo al Repartidor'}
+                    value={
+                      order.deliveryType === 'pickup' && (!order.paymentMethod || order.paymentMethod === 'Efectivo' || order.paymentMethod === 'Efectivo al Repartidor' || order.paymentMethod === 'Efectivo al repartidor' || order.paymentMethod === 'Efectivo en Sucursal')
+                        ? 'Efectivo en Sucursal'
+                        : (order.paymentMethod || 'Efectivo al Repartidor')
+                    }
                     onChange={(e) => handleQuickUpdatePaymentMethod(order.id, e.target.value)}
                     className="w-full bg-transparent text-slate-200 font-semibold text-xs focus:outline-none cursor-pointer truncate appearance-none"
                     title="Cambiar medio de pago acordado (clic para seleccionar)"
                   >
-                    <option value="Efectivo al Repartidor" className="bg-[#111b21] text-slate-200">💵 Efectivo al Repartidor</option>
+                    {order.deliveryType === 'pickup' ? (
+                      <option value="Efectivo en Sucursal" className="bg-[#111b21] text-emerald-300 font-semibold">💵 Efectivo en Sucursal / Caja</option>
+                    ) : (
+                      <option value="Efectivo al Repartidor" className="bg-[#111b21] text-slate-200">💵 Efectivo al Repartidor</option>
+                    )}
                     <option value="Transferencia Bancaria (Alias)" className="bg-[#111b21] text-slate-200">📱 Transferencia MP / Bancaria</option>
                     <option value="Mercado Pago (Manual / POS)" className="bg-[#111b21] text-slate-200">💳 Mercado Pago (QR / Link)</option>
                     <option value="Tarjeta Débito en Sucursal" className="bg-[#111b21] text-slate-200">💳 Tarjeta Débito</option>
@@ -4086,7 +4133,11 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         if (roundHundred > orderTotal && !suggestedBills.some(b => b.val === roundHundred)) suggestedBills.push({ label: `$${roundHundred.toLocaleString('es-AR')}`, val: roundHundred });
 
         const paymentOptions = [
-          { id: 'Efectivo al Repartidor', label: '💵 Efectivo', icon: '💵' },
+          {
+            id: manualPaymentModal.order.deliveryType === 'pickup' ? 'Efectivo en Sucursal' : 'Efectivo al Repartidor',
+            label: manualPaymentModal.order.deliveryType === 'pickup' ? '💵 Efectivo en Caja' : '💵 Efectivo',
+            icon: '💵'
+          },
           { id: 'Transferencia Bancaria (Alias)', label: '📱 Transferencia MP', icon: '📱' },
           { id: 'Mercado Pago (Manual / POS)', label: '💳 Mercado Pago', icon: '💳' },
           { id: 'Tarjeta Débito en Sucursal', label: '💳 Tarjeta Débito', icon: '💳' },

@@ -2387,6 +2387,14 @@ class DatabaseService {
       }
     }
 
+    // Normalizar sucursal de forma canónica si se actualiza branch, branchId o branchName
+    if (updateData.branch || updateData.branchId || updateData.branchName) {
+      const bObj = this.resolveBranch(updateData.branchId || updateData.branch || updateData.branchName);
+      updateData.branch = bObj.name;
+      updateData.branchName = bObj.name;
+      updateData.branchId = bObj.id;
+    }
+
     // Auto-finalizado y archivado cuando un pedido está entregado y pagado (salvo desarchivo explícito)
     const nextStatus = updateData.status || order.status;
     const nextPaymentStatus = updateData.paymentStatus || order.paymentStatus;

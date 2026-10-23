@@ -157,38 +157,64 @@ export class OrderSyncEngine {
         }).catch(() => {});
       }
 
-      // 5. Detección de Sucursal para retiro
-      const isBranchPickup = /(?:sucursal|retiro|pasar a buscar|retiro por|urca|pidal|tejeda|intercountry|alamos|quiros|allende|san isidro)/i.test(userMsg);
-      let branchName = activeOrder?.branch || clientLead?.preferredBranch || '';
-      let deliveryType = activeOrder?.deliveryType || clientLead?.deliveryType || (isBranchPickup ? 'pickup' : 'delivery');
+      // 5. Detección de Modalidad (Retiro en Sucursal vs Envío a Domicilio) y Sucursal Específica
+      const turnContext = `${userMsg || ''} ${replyMsg || ''}`;
+      const recentHistoryContext = Array.isArray(history) 
+        ? history.slice(-6).map(h => typeof h === 'string' ? h : (h.content || h.text || '')).join(' ') 
+        : '';
+      const fullContext = `${turnContext} ${recentHistoryContext}`;
+
+      const isBranchPickup = /(?:sucursal|retiro|retirar|pasar\s+a\s+buscar|retiro\s+por|retiro\s+en|en\s+el\s+local|por\s+el\s+local|sede)/i.test(turnContext) ||
+        /(?:sucursal|retiro|retirar|pasar\s+a\s+buscar)/i.test(recentHistoryContext) ||
+        activeOrder?.deliveryType === 'pickup' ||
+        clientLead?.deliveryType === 'pickup';
+
+      let deliveryType = isBranchPickup ? 'pickup' : (activeOrder?.deliveryType || clientLead?.deliveryType || 'delivery');
+
+      let branchCandidate = '';
+      if (/allende|figueroa|mercadito/i.test(turnContext) || /allende|figueroa|mercadito/i.test(recentHistoryContext)) {
+        branchCandidate = 'br-5';
+      } else if (/pidal|tejeda|urca\s*2/i.test(turnContext) || /pidal|tejeda|urca\s*2/i.test(recentHistoryContext)) {
+        branchCandidate = 'br-2';
+      } else if (/intercountry|corteza|alamos|álamos/i.test(turnContext) || /intercountry|corteza/i.test(recentHistoryContext)) {
+        branchCandidate = 'br-3';
+      } else if (/quiros|quirós|duarte/i.test(turnContext) || /quiros|quirós|duarte/i.test(recentHistoryContext)) {
+        branchCandidate = 'br-4';
+      } else if (/san\s+isidro|luchesse/i.test(turnContext) || /san\s+isidro|luchesse/i.test(recentHistoryContext)) {
+        branchCandidate = 'br-6';
+      } else if (/urca/i.test(turnContext) || /urca/i.test(recentHistoryContext)) {
+        branchCandidate = 'br-1';
+      } else if (activeOrder?.branchId || activeOrder?.branch) {
+        branchCandidate = activeOrder.branchId || activeOrder.branch;
+      } else if (clientLead?.preferredBranch) {
+        branchCandidate = clientLead.preferredBranch;
+      } else {
+        branchCandidate = isBranchPickup ? 'br-5' : 'br-1';
+      }
+
+      const branchObj = db.resolveBranch(branchCandidate);
+      const branchName = branchObj.name;
+      const branchId = branchObj.id;
 
       if (isBranchPickup) {
         deliveryType = 'pickup';
-        const branches = db.getBranches() || [];
-        let matchedBranch = branches.find(b =>
-          b.name && userMsg.includes(b.name.toLowerCase().split(' ')[0].toLowerCase())
-        );
-        branchName = matchedBranch?.name || 'URCA CENTRAL';
-        if (!matchedBranch) {
-          if (/pidal|tejeda|urca 2/i.test(userMsg)) branchName = 'URCA 2 – ALTO TEJEDA';
-          else if (/intercountry|alamos|corteza/i.test(userMsg)) branchName = 'INTERCOUNTRY – CORTEZA MALL';
-          else if (/quiros|duarte/i.test(userMsg)) branchName = 'DUARTE QUIRÓS';
-          else if (/allende|figueroa|mercadito/i.test(userMsg)) branchName = 'VILLA ALLENDE';
-          else if (/san isidro|luchesse/i.test(userMsg)) branchName = 'COUNTRY SAN ISIDRO';
-        }
-        if (cleanAddr && /(?:retiro|sucursal|pasar\s+a\s+buscar|voy\s+a\s+retirar)/i.test(cleanAddr)) {
+        if (cleanAddr && /(?:retiro|sucursal|pasar\s+a\s+buscar|voy\s+a\s+retirar|villa\s+allende|urca)/i.test(cleanAddr)) {
           cleanAddr = '';
         }
-      } else if (cleanAddr) {
+      } else if (cleanAddr && !isBranchPickup) {
         deliveryType = 'delivery';
       }
 
       // 6. Detección de Medio de Pago
-      let paymentMethod = activeOrder?.paymentMethod || 'Efectivo contraentrega';
-      if (/(?:efectivo|transferencia|mercado pago|mp|alias)/i.test(userMsg)) {
-        if (/transferencia|alias/i.test(userMsg)) paymentMethod = 'Transferencia';
-        else if (/mercado pago|mp/i.test(userMsg)) paymentMethod = 'Mercado Pago';
-        else paymentMethod = 'Efectivo';
+      let paymentMethod = activeOrder?.paymentMethod || (deliveryType === 'pickup' ? 'Efectivo en Sucursal' : 'Efectivo al Repartidor');
+      if (/(?:efectivo|cash|pesos|billete)/i.test(userMsg) || /(?:en\s+efectivo|pago\s+en\s+efectivo)/i.test(replyMsg)) {
+        paymentMethod = deliveryType === 'pickup' ? 'Efectivo en Sucursal' : 'Efectivo al Repartidor';
+      } else if (/(?:transferencia|alias|cbu|cvu)/i.test(userMsg) || /transferencia/i.test(replyMsg)) {
+        paymentMethod = 'Transferencia Bancaria (Alias)';
+      } else if (/(?:mercado\s*pago|mp|link\s+de\s+pago|qr)/i.test(userMsg) || /mercado\s*pago/i.test(replyMsg)) {
+        paymentMethod = 'Mercado Pago (Link / QR)';
+      } else if (/(?:tarjeta|debito|débito|credito|crédito)/i.test(userMsg)) {
+        paymentMethod = deliveryType === 'pickup' ? 'Tarjeta Débito en Sucursal' : 'Mercado Pago';
       }
 
       // 7. Si se detectaron ítems, crear o actualizar la orden
@@ -302,6 +328,8 @@ export class OrderSyncEngine {
               missingFields: profileGate.missing
             },
             branch: branchName || activeOrder.branch || '',
+            branchName: branchName || activeOrder.branchName || '',
+            branchId: branchId || activeOrder.branchId || '',
             paymentMethod,
             updatedAt: new Date().toISOString()
           });
@@ -329,6 +357,8 @@ export class OrderSyncEngine {
               missingFields: profileGate.missing
             },
             branch: branchName || '',
+            branchName: branchName || '',
+            branchId: branchId || '',
             paymentMethod
           });
         }
@@ -348,7 +378,11 @@ export class OrderSyncEngine {
         // actualizar dirección, sucursal o pago en la orden activa
         const updates = {};
         if (cleanAddr && cleanAddr !== activeOrder.address) updates.address = cleanAddr;
-        if (branchName && branchName !== activeOrder.branch) updates.branch = branchName;
+        if (branchName && (branchName !== activeOrder.branch || branchId !== activeOrder.branchId)) {
+          updates.branch = branchName;
+          updates.branchName = branchName;
+          updates.branchId = branchId;
+        }
         if (deliveryType && deliveryType !== activeOrder.deliveryType) updates.deliveryType = deliveryType;
         if (paymentMethod && paymentMethod !== activeOrder.paymentMethod) updates.paymentMethod = paymentMethod;
 
