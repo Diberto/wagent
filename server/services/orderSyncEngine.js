@@ -466,10 +466,11 @@ export class OrderSyncEngine {
         .replace(/^(?:🥩|🍖|🔥|🌭|🥓|🍗|🍔|📦|🍷|⭐|👉|📋|📝|🛒|🍽️|💰|💵)\s*/u, '')
         .replace(/^[\s•*\-+]+/, '');
 
-      // Solo quitar numeración de lista ("1) ", "1. ") si es un número de lista y NO un decimal de peso (ej: "1.5 kg", "0.8 kg")
+      // Quitar numeración de lista ("1) ", "1. ", "1.  ") al inicio si es índice de ítem.
+      // Un decimal de peso nunca tiene espacio tras el punto ("1.5 kg", "0.800 kg"), mientras que un ítem de lista sí ("1. 1 kg", "2. Asado", "3) 500 gr").
       clean = clean
-        .replace(/^\d+\)\s*/, '')
-        .replace(/^\d+\.\s+(?!\d)/, '')
+        .replace(/^\d+[\.\)]\s+/, '')
+        .replace(/^[\s•*\-+]+/, '')
         .trim();
 
       if (!clean) continue;

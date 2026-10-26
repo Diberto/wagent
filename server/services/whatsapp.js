@@ -110,6 +110,8 @@ export class WhatsAppService {
     this.isDrainingOutbox = false;
     this.activeReplyDebounce = new Map();
     this.processingChats = new Set();
+    this.pendingPostProcessing = new Map();
+    this.chatProcessingTimeouts = new Map();
     this.recoveredMsgIds = new Set();
     this.isRecoveringUnanswered = false;
     this.startWatchdog();
@@ -261,9 +263,9 @@ export class WhatsAppService {
         return;
       }
 
-      // Enviar presencia activa cada 60s para mantener abierta la tabla de NAT del router / ISP (solo tras >30s conectado estable)
+      // Enviar presencia activa cada 25s para mantener abierta la tabla de NAT del router / ISP (solo tras >15s conectado estable)
       const now = Date.now();
-      if (connectedDuration > 30000 && (!this.lastPingAt || (now - this.lastPingAt) >= 60000)) {
+      if (connectedDuration > 15000 && (!this.lastPingAt || (now - this.lastPingAt) >= 25000)) {
         this.lastPingAt = now;
         try {
           if (this.sock && typeof this.sock.sendPresenceUpdate === 'function') {
@@ -474,15 +476,21 @@ export class WhatsAppService {
         logger,
         printQRInTerminal: false,
         auth: state,
-        browser: Browsers.ubuntu('Chrome'),
+        browser: Browsers.windows('Desktop'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: true,
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
-        keepAliveIntervalMs: 30000,
-        retryRequestDelayMs: 2500,
-        markOnlineOnConnect: false,
-        getMessage: async () => undefined
+        keepAliveIntervalMs: 20000,
+        retryRequestDelayMs: 2000,
+        markOnlineOnConnect: true,
+        getMessage: async (key) => {
+          try {
+            const msg = db.getMessageById ? db.getMessageById(key.id) : null;
+            if (msg) return { conversation: msg.content };
+          } catch (_) {}
+          return undefined;
+        }
       });
 
       // Guardar credenciales y respaldar automáticamente ante credenciales válidas
@@ -617,11 +625,11 @@ export class WhatsAppService {
               return;
             }
             this._triedBackupRestore = false;
-            console.log(`⚠️ Sesión [${this.sessionId}] desvinculada por WhatsApp (${statusCode}). Purgando credenciales activas para emitir nuevo QR...`);
+            console.log(`⚠️ Sesión [${this.sessionId}] desvinculada por WhatsApp (${statusCode}). Purgando credenciales activas (preservando backup) para emitir nuevo QR...`);
             await this.clearAuthFiles({ clearBackup: false });
             this.reconnectAttempts = 0;
             this.rapidDisconnectCount = 0;
-            this.scheduleReconnect(2500, { resetAuth: true });
+            this.scheduleReconnect(2500, { resetAuth: false });
             return;
           }
 
@@ -1252,6 +1260,36 @@ export class WhatsAppService {
    * Evita llamadas simultáneas en paralelo al LLM y protege la integridad del carrito de compras.
    */
   scheduleDebouncedReply(jid, data) {
+    // Si el chat ya se encuentra procesando activamente una respuesta en el LLM,
+    // acumular los nuevos textos en una cola diferida por chat (pendingPostProcessing)
+    // para que se evalúen como un solo turno continuo una vez que el actual finalice.
+    if (this.processingChats.has(jid)) {
+      let pending = this.pendingPostProcessing.get(jid);
+      if (!pending) {
+        pending = {
+          texts: [],
+          isAudio: false,
+          isImage: false,
+          downloadedImagePath: null,
+          targetJid: data.targetJid || jid,
+          pushName: data.pushName
+        };
+        this.pendingPostProcessing.set(jid, pending);
+      }
+      if (data.incomingText && data.incomingText.trim()) {
+        pending.texts.push(data.incomingText.trim());
+      }
+      if (data.isAudio) pending.isAudio = true;
+      if (data.isImage && data.downloadedImagePath) {
+        pending.isImage = true;
+        pending.downloadedImagePath = data.downloadedImagePath;
+      }
+      if (data.targetJid) pending.targetJid = data.targetJid;
+      if (data.pushName) pending.pushName = data.pushName;
+      console.log(`📥 [WhatsApp ${this.sessionId}] Chat ${jid} ocupado en LLM. Encolando mensaje adicional para turno posterior: "${(data.incomingText || '').slice(0, 50)}..."`);
+      return;
+    }
+
     const existing = this.activeReplyDebounce.get(jid);
     if (existing) {
       if (existing.timer) clearTimeout(existing.timer);
@@ -1298,12 +1336,25 @@ export class WhatsAppService {
    * Ejecuta la generación y despacho seguro de la respuesta de IA para un chat consolidado
    */
   async executeAutoReply(jid, entry) {
+    const lockStarted = this.chatProcessingTimeouts.get(jid) || 0;
     if (this.processingChats.has(jid)) {
-      console.log(`⏳ [WhatsApp ${this.sessionId}] Chat ${jid} ya se encuentra procesando respuesta. Reintentando en 1s...`);
-      setTimeout(() => this.executeAutoReply(jid, entry), 1000);
-      return;
+      if (Date.now() - lockStarted > 25000) {
+        console.warn(`⚠️ [WhatsApp ${this.sessionId}] Lock de procesamiento estancado para ${jid} (>25s). Liberando para procesar nuevo mensaje...`);
+        this.processingChats.delete(jid);
+        this.chatProcessingTimeouts.delete(jid);
+      } else {
+        // Encolar mensaje en pendingPostProcessing para procesar apenas se libere el turno
+        let pending = this.pendingPostProcessing.get(jid);
+        if (!pending) {
+          pending = { texts: [], isAudio: false, isImage: false, downloadedImagePath: null, targetJid: entry.targetJid || jid, pushName: entry.pushName };
+          this.pendingPostProcessing.set(jid, pending);
+        }
+        if (entry.texts) pending.texts.push(...entry.texts);
+        return;
+      }
     }
     this.processingChats.add(jid);
+    this.chatProcessingTimeouts.set(jid, Date.now());
 
     const targetJid = (await this.formatRecipientJid(entry.targetJid || jid)) || jid;
     const consolidatedText = entry.texts.length > 0 ? entry.texts.join('\n') : (entry.isAudio ? '🎤 [Nota de voz]' : 'Hola');
@@ -1419,6 +1470,16 @@ export class WhatsAppService {
     } finally {
       await clearTypingPresence();
       this.processingChats.delete(jid);
+      this.chatProcessingTimeouts.delete(jid);
+
+      // Si llegaron nuevos mensajes del usuario mientras la IA estaba pensando, procesarlos ordenadamente
+      const pending = this.pendingPostProcessing.get(jid);
+      if (pending && pending.texts && pending.texts.length > 0) {
+        this.pendingPostProcessing.delete(jid);
+        setTimeout(() => {
+          this.scheduleDebouncedReply(jid, pending);
+        }, 800);
+      }
     }
   }
 
@@ -1511,14 +1572,15 @@ export class WhatsAppService {
       for (const lead of leads) {
         if (!lead || !lead.jid) continue;
         if (lead.aiEnabled === false) continue;
-        if (this.activeReplyDebounce.has(lead.jid) || this.processingChats.has(lead.jid)) continue;
+        // Si el chat tiene procesamiento activo o encolado pendiente, omitir
+        if (this.pendingPostProcessing.has(lead.jid) || this.activeReplyDebounce.has(lead.jid) || this.processingChats.has(lead.jid)) continue;
         if (this.outboxQueue.some(m => m.chatId === lead.jid || m.jid === lead.jid)) continue;
 
         // Omitir sucursales o repartidores registrados
         if (db.getBranchByPhone(lead.jid) || (lead.phone && db.getBranchByPhone(lead.phone))) continue;
         if (db.getDriverByPhone(lead.jid) || (lead.phone && db.getDriverByPhone(lead.phone))) continue;
 
-        const msgs = db.getMessages(lead.jid, 6);
+        const msgs = db.getMessages(lead.jid, 8);
         if (!msgs || msgs.length === 0) continue;
 
         const lastMsg = msgs[msgs.length - 1];
@@ -1527,8 +1589,18 @@ export class WhatsAppService {
         const msgTime = new Date(lastMsg.timestamp).getTime();
         const msgAge = now - msgTime;
 
-        // Si el último mensaje del cliente fue en los últimos 15 minutos y hace más de 3 segundos
-        if (msgAge > 3000 && msgAge < MAX_UNANSWERED_AGE_MS) {
+        // Verificar si ya hubo respuesta del bot posterior al mensaje del cliente
+        const lastAgentMsg = msgs.slice().reverse().find(m => m.sender === 'agent' || m.sender === 'bot');
+        if (lastAgentMsg) {
+          const agentTime = new Date(lastAgentMsg.timestamp).getTime();
+          if (agentTime >= msgTime - 2000) {
+            // Ya fue respondido, no duplicar respuesta
+            continue;
+          }
+        }
+
+        // Si el último mensaje del cliente fue en los últimos 15 minutos y hace más de 8 segundos sin respuesta
+        if (msgAge > 8000 && msgAge < MAX_UNANSWERED_AGE_MS) {
           if (this.recoveredMsgIds && this.recoveredMsgIds.has(lastMsg.id)) continue;
           if (!this.recoveredMsgIds) this.recoveredMsgIds = new Set();
           this.recoveredMsgIds.add(lastMsg.id);

@@ -1756,11 +1756,12 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
           const histContent = histMsg.content || '';
           if (/Detalle de tu pedido|Detalle de cortes/i.test(histContent)) {
             const lines = histContent.split('\n');
-            for (const line of lines) {
-              if (line.trim().startsWith('•') || line.trim().startsWith('*')) {
-                const prod = matchBestProduct(line, catalog);
+            for (const rawLine of lines) {
+              const cleanLine = rawLine.trim().replace(/^\d+[\.\)]\s+/, '').replace(/^[\s•*\-+]+/, '').trim();
+              if (rawLine.trim().startsWith('•') || rawLine.trim().startsWith('*') || /^\d+[\.\)]\s+/.test(rawLine.trim())) {
+                const prod = matchBestProduct(cleanLine, catalog);
                 if (prod && !activeItemsMap.has(prod.name)) {
-                  const parsed = parseQuantityAndMode(line, prod);
+                  const parsed = parseQuantityAndMode(cleanLine, prod);
                   activeItemsMap.set(prod.name, { prod, ...parsed });
                 }
               }
