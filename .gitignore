@@ -33,3 +33,5 @@ Thumbs.db
 credentials.json
 token.json
 .codebase-memory/
+__pycache__/
+*.pyc

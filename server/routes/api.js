@@ -4705,6 +4705,76 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }, 1000);
   });
 
+  // --- 8.1 Sistema de Vaciado y Reseteo Seguro de Datos y Configuración ---
+  // Vaciar datos operativos (chats, clientes, pedidos, comprobantes y stock)
+  router.post('/system/reset-data', (req, res) => {
+    try {
+      const { preserveCatalog, preserveBranches, preserveUsers, preserveSuppliers, confirmation } = req.body;
+      const cleanConf = String(confirmation || '').trim().toUpperCase();
+      if (cleanConf !== 'VACIAR_DATOS' && cleanConf !== 'RESET' && cleanConf !== 'VACIAR') {
+        return res.status(400).json({ error: 'Confirmación requerida. Escribe "VACIAR_DATOS" o "RESET" para proceder.' });
+      }
+
+      const result = db.resetOperationalData({
+        preserveCatalog: preserveCatalog !== false,
+        preserveBranches: preserveBranches !== false,
+        preserveUsers: preserveUsers !== false,
+        preserveSuppliers: preserveSuppliers !== false,
+        user: req.user?.username || 'Panel de Administración'
+      });
+
+      // Notificar a todos los paneles conectados
+      io.emit('system:data-reset', result);
+      res.json(result);
+    } catch (err) {
+      console.error('Error al vaciar datos operativos:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Restablecer configuraciones a los valores de fábrica
+  router.post('/system/reset-settings', (req, res) => {
+    try {
+      const { preserveCompanyInfo, confirmation } = req.body;
+      const cleanConf = String(confirmation || '').trim().toUpperCase();
+      if (cleanConf !== 'RESTABLECER_CONFIGURACION' && cleanConf !== 'RESET' && cleanConf !== 'RESTABLECER') {
+        return res.status(400).json({ error: 'Confirmación requerida. Escribe "RESTABLECER" o "RESET" para proceder.' });
+      }
+
+      const result = db.resetConfiguration({
+        preserveCompanyInfo: Boolean(preserveCompanyInfo),
+        user: req.user?.username || 'Panel de Administración'
+      });
+
+      io.emit('settings:updated', result.settings);
+      res.json(result);
+    } catch (err) {
+      console.error('Error restableciendo configuración:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Reinicio total de fábrica (Hard Reset completo)
+  router.post('/system/factory-reset', (req, res) => {
+    try {
+      const { confirmation } = req.body;
+      const cleanConf = String(confirmation || '').trim().toUpperCase();
+      if (cleanConf !== 'REINICIO_TOTAL_FABRICA' && cleanConf !== 'HARD_RESET') {
+        return res.status(400).json({ error: 'Confirmación estricta requerida. Escribe "REINICIO_TOTAL_FABRICA" para proceder.' });
+      }
+
+      const result = db.factoryReset({
+        user: req.user?.username || 'Panel de Administración'
+      });
+
+      io.emit('system:factory-reset', result);
+      res.json(result);
+    } catch (err) {
+      console.error('Error en reinicio de fábrica:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // --- 9. Backup & Restore System ---
   // Listar respaldos
   router.get('/backups', (req, res) => {

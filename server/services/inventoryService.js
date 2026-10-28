@@ -114,6 +114,116 @@ export class InventoryService {
     return true;
   }
 
+  /**
+   * Busca un proveedor existente por CUIT o por coincidencia de nombre (normalizado o por palabras clave).
+   * Si no existe, lo agrega automáticamente al sistema y lo asocia de inmediato.
+   */
+  findOrCreateSupplier({
+    name = '',
+    cuit = '',
+    category = 'General',
+    paymentTerms = 'Cuenta Corriente',
+    phone = '',
+    email = '',
+    address = '',
+    notes = ''
+  } = {}) {
+    const suppliers = this.getSuppliers();
+    const cleanName = String(name || '').trim();
+    const cleanCuit = String(cuit || '').replace(/\D/g, '');
+
+    const isGeneric = !cleanName || 
+      /^(proveedor\s*(general|de\s*grupo|desconocido)?|ticket|factura|comprobante|recibo|sin\s*nombre)$/i.test(cleanName);
+
+    let matched = null;
+
+    // 1. Coincidencia por CUIT si se cuenta con él
+    if (cleanCuit && cleanCuit.length >= 10) {
+      matched = suppliers.find(s => {
+        const sCuit = String(s.cuit || '').replace(/\D/g, '');
+        return sCuit && sCuit === cleanCuit;
+      });
+    }
+
+    // 2. Coincidencia por nombre (normalizado o por tokens)
+    if (!matched && cleanName && !isGeneric) {
+      const normalize = (str) => String(str || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s]/gi, '')
+        .replace(/\b(s\.?a\.?|s\.?r\.?l\.?|s\.?a\.?s\.?|distribuidora|frigorifico|avicola|carnes?|almacen)\b/g, '')
+        .trim();
+
+      const targetNorm = normalize(cleanName);
+
+      if (targetNorm.length >= 3) {
+        matched = suppliers.find(s => {
+          const sNorm = normalize(s.name);
+          if (!sNorm || sNorm.length < 3) return false;
+          if (sNorm === targetNorm) return true;
+          if (sNorm.includes(targetNorm) || targetNorm.includes(sNorm)) return true;
+
+          const targetTokens = targetNorm.split(/\s+/).filter(t => t.length >= 4);
+          const sTokens = sNorm.split(/\s+/).filter(t => t.length >= 4);
+          const common = targetTokens.filter(t => sTokens.includes(t));
+          return common.length > 0 && common.length >= Math.min(targetTokens.length, sTokens.length);
+        });
+      }
+    }
+
+    // Si ya existe el proveedor
+    if (matched) {
+      let needsUpdate = false;
+      if (cuit && !matched.cuit) {
+        matched.cuit = String(cuit).trim();
+        needsUpdate = true;
+      }
+      if (category && category !== 'General' && (!matched.category || matched.category === 'General')) {
+        matched.category = category;
+        needsUpdate = true;
+      }
+      if (needsUpdate) {
+        this.saveSupplier(matched);
+      }
+      return {
+        id: matched.id,
+        name: matched.name,
+        isNew: false,
+        supplier: matched
+      };
+    }
+
+    // Si NO existe y el nombre es válido, agregarlo automáticamente al sistema
+    if (!isGeneric && cleanName.length >= 2) {
+      const created = this.saveSupplier({
+        name: cleanName,
+        cuit: cuit ? String(cuit).trim() : '',
+        category: category || 'General',
+        paymentTerms: paymentTerms || 'Cuenta Corriente',
+        phone: phone || '',
+        email: email || '',
+        address: address || '',
+        notes: notes || 'Proveedor agregado automáticamente al detectar comprobante',
+        isActive: true
+      });
+      console.log(`✨ [InventoryService] Proveedor detectado y agregado automáticamente: "${created.name}" (ID: ${created.id})`);
+      return {
+        id: created.id,
+        name: created.name,
+        isNew: true,
+        supplier: created
+      };
+    }
+
+    return {
+      id: null,
+      name: cleanName || 'Proveedor General',
+      isNew: false,
+      supplier: null
+    };
+  }
+
   // ==========================================
   // 2. STOCK MULTI-SUCURSAL & MOVIMIENTOS
   // ==========================================
@@ -488,7 +598,10 @@ export class InventoryService {
     rawOcrData = null,
     status = 'confirmed', // 'draft' | 'confirmed'
     notes = '',
-    operator = 'Admin'
+    operator = 'Admin',
+    paymentSource = 'administracion', // 'administracion' | 'caja_sucursal' | 'cuenta_corriente'
+    paidBy = '',
+    chatComment = ''
   }) {
     const database = db.readDb();
     if (!Array.isArray(database.supplierInvoices)) database.supplierInvoices = [];
@@ -502,10 +615,27 @@ export class InventoryService {
 
     const calculatedTotal = Number(totalAmount) || items.reduce((sum, it) => sum + (Number(it.totalPrice) || (Number(it.quantity) * Number(it.unitPrice)) || 0), 0);
 
+    const finalPaymentSource = paymentSource || 'administracion';
+    const finalPaidBy = paidBy || (
+      finalPaymentSource === 'caja_sucursal' ? 'Caja Sucursal' :
+      finalPaymentSource === 'cuenta_corriente' ? 'Cuenta Corriente' :
+      'Administración Central'
+    );
+
+    // Auto-resolución y asignación de proveedor (si existe lo asigna automáticamente, si no lo agrega al sistema)
+    const matchedSupplier = this.findOrCreateSupplier({
+      name: supplierName || rawOcrData?.merchant || '',
+      cuit: rawOcrData?.cuit || '',
+      category: expenseCategory === 'mercaderia' ? (rawOcrData?.category || 'Carne Vacuna') : (expenseCategory || 'General'),
+      paymentTerms: rawOcrData?.paymentMethod || (finalPaymentSource === 'cuenta_corriente' ? 'Cuenta Corriente' : 'Contado')
+    });
+    const resolvedSupplierId = supplierId || matchedSupplier.id;
+    const resolvedSupplierName = matchedSupplier.name || supplierName || 'Proveedor General';
+
     const newInvoice = {
       id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      supplierId: supplierId || null,
-      supplierName: supplierName || 'Proveedor General',
+      supplierId: resolvedSupplierId || null,
+      supplierName: resolvedSupplierName,
       invoiceNumber: cleanInvoiceNumber,
       invoiceType,
       date: invoiceDate,
@@ -527,6 +657,9 @@ export class InventoryService {
       rawOcrData,
       notes,
       operator,
+      paymentSource: finalPaymentSource,
+      paidBy: finalPaidBy,
+      chatComment: chatComment || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -625,10 +758,34 @@ export class InventoryService {
       });
     }
 
+    const newPaymentSource = updateData.paymentSource !== undefined ? updateData.paymentSource : (prevInvoice.paymentSource || 'administracion');
+    const newPaidBy = updateData.paidBy !== undefined ? updateData.paidBy : (
+      updateData.paymentSource ? (
+        updateData.paymentSource === 'caja_sucursal' ? 'Caja Sucursal' :
+        updateData.paymentSource === 'cuenta_corriente' ? 'Cuenta Corriente' :
+        'Administración Central'
+      ) : (prevInvoice.paidBy || 'Administración Central')
+    );
+    const newChatComment = updateData.chatComment !== undefined ? updateData.chatComment : (prevInvoice.chatComment || '');
+
+    let updatedSupplierId = updateData.supplierId !== undefined ? updateData.supplierId : prevInvoice.supplierId;
+    let updatedSupplierName = updateData.supplierName !== undefined ? updateData.supplierName : prevInvoice.supplierName;
+
+    if (updateData.supplierName && updateData.supplierName !== prevInvoice.supplierName) {
+      const matched = this.findOrCreateSupplier({
+        name: updateData.supplierName,
+        category: newExpenseCategory
+      });
+      if (matched.id) {
+        updatedSupplierId = matched.id;
+        updatedSupplierName = matched.name;
+      }
+    }
+
     const updatedInvoice = {
       ...prevInvoice,
-      supplierId: updateData.supplierId !== undefined ? updateData.supplierId : prevInvoice.supplierId,
-      supplierName: updateData.supplierName !== undefined ? updateData.supplierName : prevInvoice.supplierName,
+      supplierId: updatedSupplierId,
+      supplierName: updatedSupplierName,
       invoiceNumber: updateData.invoiceNumber !== undefined ? updateData.invoiceNumber : prevInvoice.invoiceNumber,
       invoiceType: updateData.invoiceType !== undefined ? updateData.invoiceType : prevInvoice.invoiceType,
       date: updateData.date !== undefined ? updateData.date : prevInvoice.date,
@@ -638,6 +795,9 @@ export class InventoryService {
       items: newItems,
       totalAmount: calculatedTotal,
       status: newStatus,
+      paymentSource: newPaymentSource,
+      paidBy: newPaidBy,
+      chatComment: newChatComment,
       notes: updateData.notes !== undefined ? updateData.notes : prevInvoice.notes,
       mediaUrl: updateData.mediaUrl !== undefined ? updateData.mediaUrl : prevInvoice.mediaUrl,
       updatedAt: new Date().toISOString()
@@ -715,3 +875,71 @@ export class InventoryService {
 }
 
 export const inventoryService = new InventoryService();
+
+/**
+ * Analiza el comentario o texto adjunto al comprobante o enviado con posterioridad en el chat de WhatsApp.
+ * Extrae:
+ * - Quién abona / Modalidad: 'administracion', 'caja_sucursal', 'cuenta_corriente'
+ * - Sucursal mencionada (si aplica)
+ * - Comentario normalizado
+ */
+export function parsePaymentAndBranchFromComment(text = '', branches = []) {
+  if (!text || typeof text !== 'string') {
+    return { paymentSource: null, paidBy: null, branchId: null, branchName: null, chatComment: '' };
+  }
+
+  const clean = text.trim();
+  const lower = clean.toLowerCase();
+
+  let paymentSource = null;
+  let paidBy = null;
+
+  // 1. Detectar quién abona / modalidad de pago
+  if (/(admin|administraci[oó]n|oficina|central|transferencia|transferir|tesorer[ií]a|abona\s+admin|paga\s+admin|desde\s+admin)/i.test(lower)) {
+    paymentSource = 'administracion';
+    paidBy = 'Administración Central';
+  } else if (/(caja|cajero|sucursal|efectivo|pag[oó]\s+caja|pag[oó]\s+en\s+sucursal|abona\s+caja|paga\s+cajero|caja\s+chica)/i.test(lower)) {
+    paymentSource = 'caja_sucursal';
+    paidBy = 'Caja Sucursal';
+  } else if (/(cuenta\s*corriente|cta\s*cte|cta\.?\s*cte|a\s+cuenta|corriente|saldo\s+pendiente|fiado|anotar|a\s+pagar|queda\s+debilitado)/i.test(lower)) {
+    paymentSource = 'cuenta_corriente';
+    paidBy = 'Cuenta Corriente';
+  }
+
+  // 2. Detectar sucursal si fue nombrada en el mensaje
+  let branchId = null;
+  let branchName = null;
+
+  if (Array.isArray(branches) && branches.length > 0) {
+    const normalizeStr = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const cleanLower = normalizeStr(lower);
+
+    for (const b of branches) {
+      const bNorm = normalizeStr(b.name || '');
+      // Palabras clave significativas de la sede
+      const rawWords = bNorm
+        .replace(/republica|sucursal|de la carne|carniceria|nueva|alto|mall/gi, '')
+        .split(/[\s–\-\/]+/)
+        .map(w => w.trim())
+        .filter(w => w.length >= 4 || w === 'urca');
+
+      const matches = rawWords.some(w => cleanLower.includes(w)) ||
+                      (cleanLower.includes('urca') && bNorm.includes('urca')) ||
+                      (cleanLower.includes('cerro') && (bNorm.includes('cerro') || bNorm.includes('tejeda')));
+
+      if (matches) {
+        branchId = b.id;
+        branchName = b.name;
+        break;
+      }
+    }
+  }
+
+  return {
+    paymentSource,
+    paidBy,
+    branchId,
+    branchName,
+    chatComment: clean
+  };
+}

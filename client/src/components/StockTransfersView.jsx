@@ -23,6 +23,7 @@ import {
   Package,
   Layers,
   ChevronRight,
+  ChevronLeft,
   Sparkles,
   Eye,
   X,
@@ -117,6 +118,26 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
   const [isEditInvoiceModalOpen, setIsEditInvoiceModalOpen] = useState(false);
   const [editingInvoiceData, setEditingInvoiceData] = useState(null);
   const [isSavingInvoiceEdit, setIsSavingInvoiceEdit] = useState(false);
+
+  // Filters & Pagination for Silent Groups Ingested Invoices Table
+  const [silentSearch, setSilentSearch] = useState('');
+  const [silentBranchFilter, setSilentBranchFilter] = useState('all');
+  const [silentPaymentFilter, setSilentPaymentFilter] = useState('all');
+  const [silentStatusFilter, setSilentStatusFilter] = useState('all');
+  const [silentPage, setSilentPage] = useState(1);
+  const [silentPageSize, setSilentPageSize] = useState(10);
+
+  // Filters & Pagination for Main Invoices Tab
+  const [invoicesSearch, setInvoicesSearch] = useState('');
+  const [invoicesBranchFilter, setInvoicesBranchFilter] = useState('all');
+  const [invoicesPaymentFilter, setInvoicesPaymentFilter] = useState('all');
+  const [invoicesStatusFilter, setInvoicesStatusFilter] = useState('all');
+  const [invoicesPage, setInvoicesPage] = useState(1);
+  const [invoicesPageSize, setInvoicesPageSize] = useState(10);
+
+  // Pagination for Transfers Tab
+  const [transfersPage, setTransfersPage] = useState(1);
+  const [transfersPageSize, setTransfersPageSize] = useState(10);
 
   // Modals state
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
@@ -381,6 +402,9 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
       date: inv.date || new Date().toISOString().slice(0, 10),
       branchId: inv.branchId || (branches[0]?.id || 'br-1'),
       expenseCategory: inv.expenseCategory || 'mercaderia',
+      paymentSource: inv.paymentSource || 'administracion',
+      paidBy: inv.paidBy || (inv.paymentSource === 'caja_sucursal' ? 'Caja Sucursal' : inv.paymentSource === 'cuenta_corriente' ? 'Cuenta Corriente' : 'Administración Central'),
+      chatComment: inv.chatComment || '',
       items: Array.isArray(inv.items) ? JSON.parse(JSON.stringify(inv.items)) : [],
       totalAmount: inv.totalAmount || 0,
       status: inv.status || 'draft',
@@ -897,6 +921,188 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
 
   const categories = ['all', ...new Set(stockList.map(p => p.category).filter(Boolean))];
 
+  // Helper: Badge de Quién Abona / Imputación
+  const getPaymentSourceBadge = (source, paidBy) => {
+    switch (source) {
+      case 'caja_sucursal':
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30" title="Abonado por el cajero en la sucursal">
+            <span>🏪</span>
+            <span>{paidBy || 'Caja Sucursal'}</span>
+          </span>
+        );
+      case 'cuenta_corriente':
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30" title="Imputado a saldo pendiente / cuenta corriente proveedor">
+            <span>📑</span>
+            <span>{paidBy || 'Cuenta Corriente'}</span>
+          </span>
+        );
+      case 'administracion':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30" title="Abonado desde Administración Central / Transferencia">
+            <span>🏛️</span>
+            <span>{paidBy || 'Administración'}</span>
+          </span>
+        );
+    }
+  };
+
+  // Helper: Controles de Paginación Reutilizables
+  const renderPaginationControls = (currentPage, totalPages, totalItems, pageSize, onPageChange, onPageSizeChange) => {
+    if (totalItems === 0) return null;
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 bg-[#182229] border-t border-[#202c33] text-xs text-slate-300 rounded-b-xl">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400">Mostrar</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              onPageSizeChange(Number(e.target.value));
+              onPageChange(1);
+            }}
+            className="bg-[#111b21] border border-[#2a3942] rounded px-2 py-1 text-white text-xs font-semibold focus:outline-none focus:border-emerald-500"
+          >
+            <option value={5}>5 por pág.</option>
+            <option value={10}>10 por pág.</option>
+            <option value={25}>25 por pág.</option>
+            <option value={50}>50 por pág.</option>
+          </select>
+          <span className="text-slate-400">
+            Total: <strong className="text-white font-mono">{totalItems}</strong> comprobante{totalItems !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 font-mono text-[11px]">
+            Página <strong className="text-white">{currentPage}</strong> de <strong className="text-white">{totalPages}</strong>
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage <= 1}
+              className="p-1 rounded-lg bg-[#111b21] hover:bg-[#202c33] disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 hover:text-white border border-[#2a3942] transition"
+              title="Página anterior"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, idx) => {
+              let pageNum = idx + 1;
+              if (totalPages > 5) {
+                if (currentPage > 3 && currentPage < totalPages - 1) {
+                  pageNum = currentPage - 2 + idx;
+                } else if (currentPage >= totalPages - 1) {
+                  pageNum = totalPages - 4 + idx;
+                }
+              }
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => onPageChange(pageNum)}
+                  className={`w-7 h-7 rounded-lg text-xs font-semibold transition ${
+                    currentPage === pageNum
+                      ? 'bg-emerald-600 text-white font-bold shadow'
+                      : 'bg-[#111b21] text-slate-400 hover:text-white hover:bg-[#202c33] border border-[#2a3942]'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage >= totalPages}
+              className="p-1 rounded-lg bg-[#111b21] hover:bg-[#202c33] disabled:opacity-40 disabled:cursor-not-allowed text-slate-300 hover:text-white border border-[#2a3942] transition"
+              title="Página siguiente"
+            >
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Filtrado y Paginación para Comprobantes Ingeridos desde Grupos Silenciosos
+  const silentInvoicesList = invoices.filter(i => 
+    (i.notes || '').toLowerCase().includes('grupo') || 
+    (i.operator || '').toLowerCase().includes('silencioso') || 
+    Boolean(i.chatComment)
+  );
+
+  const filteredSilentInvoices = silentInvoicesList.filter(inv => {
+    if (silentSearch) {
+      const q = silentSearch.toLowerCase().trim();
+      const matchSupplier = (inv.supplierName || '').toLowerCase().includes(q);
+      const matchNumber = (inv.invoiceNumber || '').toLowerCase().includes(q);
+      const matchType = (inv.invoiceType || '').toLowerCase().includes(q);
+      const matchBranch = (inv.branchName || '').toLowerCase().includes(q);
+      const matchPaidBy = (inv.paidBy || '').toLowerCase().includes(q);
+      const matchComment = (inv.chatComment || '').toLowerCase().includes(q);
+      const matchNotes = (inv.notes || '').toLowerCase().includes(q);
+      const matchItems = (inv.items || []).some(it => 
+        (it.description || '').toLowerCase().includes(q) || 
+        (it.name || '').toLowerCase().includes(q)
+      );
+      if (!matchSupplier && !matchNumber && !matchType && !matchBranch && !matchPaidBy && !matchComment && !matchNotes && !matchItems) {
+        return false;
+      }
+    }
+    if (silentBranchFilter !== 'all' && inv.branchId !== silentBranchFilter) return false;
+    if (silentPaymentFilter !== 'all' && (inv.paymentSource || 'administracion') !== silentPaymentFilter) return false;
+    if (silentStatusFilter !== 'all' && inv.status !== silentStatusFilter) return false;
+    return true;
+  });
+
+  const totalSilentPages = Math.ceil(filteredSilentInvoices.length / silentPageSize) || 1;
+  const paginatedSilentInvoices = filteredSilentInvoices.slice(
+    (silentPage - 1) * silentPageSize,
+    silentPage * silentPageSize
+  );
+
+  // Filtrado y Paginación para Facturas de Compras Generales
+  const filteredInvoices = invoices.filter(inv => {
+    if (invoicesSearch) {
+      const q = invoicesSearch.toLowerCase().trim();
+      const matchSupplier = (inv.supplierName || '').toLowerCase().includes(q);
+      const matchNumber = (inv.invoiceNumber || '').toLowerCase().includes(q);
+      const matchType = (inv.invoiceType || '').toLowerCase().includes(q);
+      const matchBranch = (inv.branchName || '').toLowerCase().includes(q);
+      const matchPaidBy = (inv.paidBy || '').toLowerCase().includes(q);
+      const matchComment = (inv.chatComment || '').toLowerCase().includes(q);
+      const matchNotes = (inv.notes || '').toLowerCase().includes(q);
+      const matchItems = (inv.items || []).some(it => 
+        (it.description || '').toLowerCase().includes(q) || 
+        (it.name || '').toLowerCase().includes(q)
+      );
+      if (!matchSupplier && !matchNumber && !matchType && !matchBranch && !matchPaidBy && !matchComment && !matchNotes && !matchItems) {
+        return false;
+      }
+    }
+    if (invoicesBranchFilter !== 'all' && inv.branchId !== invoicesBranchFilter) return false;
+    if (invoicesPaymentFilter !== 'all' && (inv.paymentSource || 'administracion') !== invoicesPaymentFilter) return false;
+    if (invoicesStatusFilter !== 'all' && inv.status !== invoicesStatusFilter) return false;
+    return true;
+  });
+
+  const totalInvoicesPages = Math.ceil(filteredInvoices.length / invoicesPageSize) || 1;
+  const paginatedInvoices = filteredInvoices.slice(
+    (invoicesPage - 1) * invoicesPageSize,
+    invoicesPage * invoicesPageSize
+  );
+
+  // Paginación para Traspasos entre Sucursales
+  const totalTransfersPages = Math.ceil(transfers.length / transfersPageSize) || 1;
+  const paginatedTransfers = transfers.slice(
+    (transfersPage - 1) * transfersPageSize,
+    transfersPage * transfersPageSize
+  );
+
+
   return (
     <div className="flex flex-col h-full bg-[#0b141a] text-slate-100 overflow-hidden">
       {/* Top Header Bar */}
@@ -1206,7 +1412,7 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {transfers.map(t => (
+              {paginatedTransfers.map(t => (
                 <div key={t.id} className="bg-[#111b21] rounded-xl border border-[#202c33] p-4 flex flex-col justify-between hover:border-slate-700 transition space-y-3">
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1323,6 +1529,16 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                 </div>
               )}
             </div>
+
+            {/* Paginación de Traspasos */}
+            {renderPaginationControls(
+              transfersPage,
+              totalTransfersPages,
+              transfers.length,
+              transfersPageSize,
+              setTransfersPage,
+              setTransfersPageSize
+            )}
           </div>
         )}
 
@@ -1331,34 +1547,138 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
         {/* ================================================================= */}
         {activeTab === 'invoices' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-bold text-white">Comprobantes & Boletas de Compras</h2>
-                <p className="text-xs text-slate-400">Facturas A, B, C y remitos digitalizados con TicketScan</p>
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Receipt size={17} className="text-emerald-400" />
+                  Comprobantes & Boletas de Compras
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Facturas A, B, C y remitos digitalizados con TicketScan, asignación de pagos y control de sucursales
+                </p>
               </div>
-              <button
-                onClick={() => {
-                  setScanStep('upload');
-                  setExtractedInvoiceData(null);
-                  setScannedImagePreview(null);
-                  setIsScannerModalOpen(true);
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-xs flex items-center gap-1.5 transition shadow"
-              >
-                <Scan size={15} />
-                <span>Escanear Nuevo Comprobante</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-[#182229] text-emerald-400 border border-emerald-500/20 font-bold">
+                  {filteredInvoices.length} comprobantes ({invoices.length} total)
+                </span>
+                <button
+                  onClick={() => {
+                    setScanStep('upload');
+                    setExtractedInvoiceData(null);
+                    setScannedImagePreview(null);
+                    setIsScannerModalOpen(true);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-xs flex items-center gap-1.5 transition shadow"
+                >
+                  <Scan size={15} />
+                  <span>Escanear Nuevo Comprobante</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Toolbar de Filtros para Facturas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 bg-[#182229] p-3 rounded-xl border border-[#202c33]">
+              {/* 1. Buscar por datos / texto libre */}
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={invoicesSearch}
+                  onChange={(e) => {
+                    setInvoicesSearch(e.target.value);
+                    setInvoicesPage(1);
+                  }}
+                  placeholder="Buscar proveedor, N°, corte, comentario..."
+                  className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg pl-8 pr-3 py-1.5 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+                {invoicesSearch && (
+                  <button
+                    onClick={() => { setInvoicesSearch(''); setInvoicesPage(1); }}
+                    className="absolute right-2 top-2 text-slate-500 hover:text-white"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+
+              {/* 2. Filtro por Sucursal */}
+              <div>
+                <select
+                  value={invoicesBranchFilter}
+                  onChange={(e) => {
+                    setInvoicesBranchFilter(e.target.value);
+                    setInvoicesPage(1);
+                  }}
+                  className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="all">🏢 Todas las Sucursales</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Filtro por Quién Abona / Imputación */}
+              <div>
+                <select
+                  value={invoicesPaymentFilter}
+                  onChange={(e) => {
+                    setInvoicesPaymentFilter(e.target.value);
+                    setInvoicesPage(1);
+                  }}
+                  className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="all">💳 Quién Abona (Todos)</option>
+                  <option value="administracion">🏛️ Administración Central</option>
+                  <option value="caja_sucursal">🏪 Caja Sucursal / Cajero</option>
+                  <option value="cuenta_corriente">📑 Cuenta Corriente</option>
+                </select>
+              </div>
+
+              {/* 4. Filtro por Estado */}
+              <div className="flex gap-1.5">
+                <select
+                  value={invoicesStatusFilter}
+                  onChange={(e) => {
+                    setInvoicesStatusFilter(e.target.value);
+                    setInvoicesPage(1);
+                  }}
+                  className="flex-1 bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="all">⚡ Estado (Todos)</option>
+                  <option value="confirmed">Ingresado a Stock</option>
+                  <option value="draft">Borrador Pendiente</option>
+                </select>
+                {(invoicesSearch || invoicesBranchFilter !== 'all' || invoicesPaymentFilter !== 'all' || invoicesStatusFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoicesSearch('');
+                      setInvoicesBranchFilter('all');
+                      setInvoicesPaymentFilter('all');
+                      setInvoicesStatusFilter('all');
+                      setInvoicesPage(1);
+                    }}
+                    className="px-2 py-1 bg-[#202c33] hover:bg-[#2a3942] text-slate-300 rounded-lg text-xs"
+                    title="Limpiar Filtros"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="bg-[#111b21] rounded-xl border border-[#202c33] overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[950px]">
                   <thead className="bg-[#182229] text-slate-400 border-b border-[#202c33] uppercase text-[10px] tracking-wider font-semibold">
                     <tr>
                       <th className="py-3 px-3">Fecha</th>
                       <th className="py-3 px-3">Proveedor</th>
                       <th className="py-3 px-3">Comprobante</th>
                       <th className="py-3 px-3">Sucursal Destino</th>
+                      <th className="py-3 px-3">Quién Abona</th>
+                      <th className="py-3 px-3">Comentario Chat</th>
                       <th className="py-3 px-3">Rubro / Caso</th>
                       <th className="py-3 px-3">Ítems</th>
                       <th className="py-3 px-3">Monto Total</th>
@@ -1367,34 +1687,47 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#202c33] text-slate-200">
-                    {invoices.map(inv => {
+                    {paginatedInvoices.map(inv => {
                       const expCategory = EXPENSE_CATEGORIES.find(c => c.id === (inv.expenseCategory || 'mercaderia'));
                       return (
                         <tr key={inv.id} className="hover:bg-[#182229]/50 transition">
-                          <td className="py-3 px-3 font-mono text-slate-300">
+                          <td className="py-3 px-3 font-mono text-slate-300 whitespace-nowrap">
                             {inv.date}
                           </td>
                           <td className="py-3 px-3 font-semibold text-white">
                             {inv.supplierName}
                           </td>
-                          <td className="py-3 px-3 font-mono text-slate-400">
+                          <td className="py-3 px-3 font-mono text-slate-400 whitespace-nowrap">
                             {inv.invoiceType} #{inv.invoiceNumber}
                           </td>
-                          <td className="py-3 px-3 text-slate-300">
+                          <td className="py-3 px-3 text-emerald-400 font-medium">
                             {inv.branchName}
+                          </td>
+                          <td className="py-3 px-3">
+                            {getPaymentSourceBadge(inv.paymentSource, inv.paidBy)}
+                          </td>
+                          <td className="py-3 px-3 max-w-[180px]">
+                            {inv.chatComment ? (
+                              <div className="flex items-center gap-1 text-[11px] text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 truncate" title={inv.chatComment}>
+                                <MessageSquare size={12} className="shrink-0" />
+                                <span className="truncate">{inv.chatComment}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-600 text-[10px] italic">Sin nota</span>
+                            )}
                           </td>
                           <td className="py-3 px-3">
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${expCategory?.badge || 'bg-slate-800 text-slate-300'}`}>
                               {expCategory?.label ? expCategory.label.split(' ')[1] || expCategory.label : 'Mercadería'}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-slate-400">
+                          <td className="py-3 px-3 text-slate-400 whitespace-nowrap">
                             {inv.items?.length || 0} ítems
                           </td>
-                          <td className="py-3 px-3 font-mono font-bold text-emerald-400 text-sm">
+                          <td className="py-3 px-3 font-mono font-bold text-emerald-400 text-sm whitespace-nowrap">
                             ${Number(inv.totalAmount || 0).toLocaleString('es-AR')}
                           </td>
-                          <td className="py-3 px-3">
+                          <td className="py-3 px-3 whitespace-nowrap">
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
                               inv.status === 'confirmed'
                                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
@@ -1403,7 +1736,7 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                               {inv.status === 'confirmed' ? 'Ingresado a Stock' : 'Borrador'}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-right">
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => handleOpenEditInvoice(inv)}
@@ -1422,15 +1755,13 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                                 </button>
                               )}
                               {inv.mediaUrl && (
-                                <a
-                                  href={inv.mediaUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  onClick={() => setPreviewImageModal(inv.mediaUrl)}
                                   className="p-1.5 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-slate-300 hover:text-white transition"
                                   title="Ver Foto Comprobante"
                                 >
-                                  <ExternalLink size={13} />
-                                </a>
+                                  <Eye size={13} />
+                                </button>
                               )}
                               <button
                                 onClick={() => handleDeleteInvoice(inv.id)}
@@ -1444,16 +1775,28 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                         </tr>
                       );
                     })}
-                    {invoices.length === 0 && (
+                    {paginatedInvoices.length === 0 && (
                       <tr>
-                        <td colSpan="9" className="py-8 text-center text-slate-500 text-xs">
-                          No se han registrado facturas de compra aún.
+                        <td colSpan="11" className="py-8 text-center text-slate-500 text-xs">
+                          {invoicesSearch || invoicesBranchFilter !== 'all' || invoicesPaymentFilter !== 'all' || invoicesStatusFilter !== 'all'
+                            ? 'No se encontraron comprobantes que coincidan con los filtros aplicados.'
+                            : 'No se han registrado facturas de compra aún.'}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {/* Controles de Paginación */}
+              {renderPaginationControls(
+                invoicesPage,
+                totalInvoicesPages,
+                filteredInvoices.length,
+                invoicesPageSize,
+                setInvoicesPage,
+                setInvoicesPageSize
+              )}
             </div>
           </div>
         )}
@@ -2059,82 +2402,244 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
               </div>
             </div>
 
-            {/* Invoices Received via WhatsApp Groups Table */}
-            <div className="bg-[#111b21] rounded-2xl border border-[#202c33] p-5 space-y-3">
-              <div className="flex items-center justify-between">
+            {/* Invoices Received via WhatsApp Groups Table with Filters & Pagination */}
+            <div className="bg-[#111b21] rounded-2xl border border-[#202c33] p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <Receipt size={17} className="text-emerald-400" />
                     Comprobantes Ingeridos desde Grupos de WhatsApp
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Historial de imágenes y remitos recibidos silenciosamente sin interacción en el chat
+                    Historial de imágenes, remitos y facturas con detección de quién abona y comentarios del chat
                   </p>
                 </div>
-                <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-[#182229] text-slate-300 border border-[#202c33]">
-                  {invoices.filter(i => (i.notes || '').includes('grupo') || (i.operator || '').includes('Silencioso')).length} facturas
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-[#182229] text-emerald-400 border border-emerald-500/20 font-bold">
+                    {filteredSilentInvoices.length} filtrados ({silentInvoicesList.length} total)
+                  </span>
+                </div>
               </div>
 
+              {/* Toolbar de Filtros Multi-Criterio */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 bg-[#182229] p-3 rounded-xl border border-[#202c33]">
+                {/* 1. Búsqueda por texto libre / datos */}
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={silentSearch}
+                    onChange={(e) => {
+                      setSilentSearch(e.target.value);
+                      setSilentPage(1);
+                    }}
+                    placeholder="Buscar proveedor, N°, corte, comentario..."
+                    className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg pl-8 pr-3 py-1.5 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  {silentSearch && (
+                    <button
+                      onClick={() => { setSilentSearch(''); setSilentPage(1); }}
+                      className="absolute right-2 top-2 text-slate-500 hover:text-white"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* 2. Filtro por Sucursal */}
+                <div>
+                  <select
+                    value={silentBranchFilter}
+                    onChange={(e) => {
+                      setSilentBranchFilter(e.target.value);
+                      setSilentPage(1);
+                    }}
+                    className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="all">🏢 Todas las Sucursales</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Filtro por Quién Abona / Imputación */}
+                <div>
+                  <select
+                    value={silentPaymentFilter}
+                    onChange={(e) => {
+                      setSilentPaymentFilter(e.target.value);
+                      setSilentPage(1);
+                    }}
+                    className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="all">💳 Quién Abona (Todos)</option>
+                    <option value="administracion">🏛️ Administración Central</option>
+                    <option value="caja_sucursal">🏪 Caja Sucursal / Cajero</option>
+                    <option value="cuenta_corriente">📑 Cuenta Corriente</option>
+                  </select>
+                </div>
+
+                {/* 4. Filtro por Estado Stock */}
+                <div className="flex gap-1.5">
+                  <select
+                    value={silentStatusFilter}
+                    onChange={(e) => {
+                      setSilentStatusFilter(e.target.value);
+                      setSilentPage(1);
+                    }}
+                    className="flex-1 bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="all">⚡ Estado (Todos)</option>
+                    <option value="confirmed">Ingresado a Stock</option>
+                    <option value="draft">Borrador Pendiente</option>
+                  </select>
+                  {(silentSearch || silentBranchFilter !== 'all' || silentPaymentFilter !== 'all' || silentStatusFilter !== 'all') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSilentSearch('');
+                        setSilentBranchFilter('all');
+                        setSilentPaymentFilter('all');
+                        setSilentStatusFilter('all');
+                        setSilentPage(1);
+                      }}
+                      className="px-2 py-1 bg-[#202c33] hover:bg-[#2a3942] text-slate-300 rounded-lg text-xs"
+                      title="Limpiar Filtros"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Tabla con Acciones Completas y Detalles */}
               <div className="overflow-x-auto rounded-xl border border-[#202c33]">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[900px]">
                   <thead className="bg-[#182229] text-slate-400 text-[10px] uppercase tracking-wider font-semibold">
                     <tr>
                       <th className="py-2.5 px-3">Fecha</th>
                       <th className="py-2.5 px-3">Proveedor Detectado</th>
                       <th className="py-2.5 px-3">Comprobante</th>
-                      <th className="py-2.5 px-3">Sucursal Asignada</th>
-                      <th className="py-2.5 px-3">Cortes Extraídos</th>
+                      <th className="py-2.5 px-3">Sucursal</th>
+                      <th className="py-2.5 px-3">Quién Abona</th>
+                      <th className="py-2.5 px-3">Comentario Chat</th>
+                      <th className="py-2.5 px-3">Cortes</th>
                       <th className="py-2.5 px-3">Monto Total</th>
                       <th className="py-2.5 px-3">Estado Stock</th>
-                      <th className="py-2.5 px-3 text-right">Comprobante</th>
+                      <th className="py-2.5 px-3 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#202c33] text-slate-200">
-                    {invoices
-                      .filter(i => (i.notes || '').includes('grupo') || (i.operator || '').includes('Silencioso'))
-                      .map(inv => (
-                        <tr key={inv.id} className="hover:bg-[#182229]/60 transition">
-                          <td className="py-2.5 px-3 font-mono text-slate-300">{inv.date}</td>
-                          <td className="py-2.5 px-3 font-semibold text-white">{inv.supplierName}</td>
-                          <td className="py-2.5 px-3 font-mono text-slate-400">{inv.invoiceType} #{inv.invoiceNumber}</td>
-                          <td className="py-2.5 px-3 text-emerald-400 font-medium">{inv.branchName}</td>
-                          <td className="py-2.5 px-3 text-slate-300">{inv.items?.length || 0} cortes</td>
-                          <td className="py-2.5 px-3 font-mono font-bold text-emerald-400">
-                            ${Number(inv.totalAmount || 0).toLocaleString('es-AR')}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                              {inv.status === 'confirmed' ? 'Ingresado al Stock' : 'Borrador'}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            {inv.mediaUrl ? (
-                              <a
-                                href={inv.mediaUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                    {paginatedSilentInvoices.map(inv => (
+                      <tr key={inv.id} className="hover:bg-[#182229]/60 transition">
+                        <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap">{inv.date}</td>
+                        <td className="py-2.5 px-3 font-semibold text-white">
+                          <div>{inv.supplierName}</div>
+                          {inv.notes && inv.notes.includes('[Caso:') && (
+                            <div className="text-[10px] text-slate-400 font-normal">
+                              {inv.notes.split('[Caso:')[1]?.split(']')[0] || ''}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-slate-400">
+                          {inv.invoiceType} #{inv.invoiceNumber}
+                        </td>
+                        <td className="py-2.5 px-3 text-emerald-400 font-medium">
+                          {inv.branchName}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          {getPaymentSourceBadge(inv.paymentSource, inv.paidBy)}
+                        </td>
+                        <td className="py-2.5 px-3 max-w-[200px]">
+                          {inv.chatComment ? (
+                            <div className="flex items-center gap-1 text-[11px] text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 truncate" title={inv.chatComment}>
+                              <MessageSquare size={12} className="shrink-0" />
+                              <span className="truncate">{inv.chatComment}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-600 text-[10px] italic">Sin comentario</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-300 whitespace-nowrap">
+                          {inv.items?.length || 0} cortes
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">
+                          ${Number(inv.totalAmount || 0).toLocaleString('es-AR')}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                            inv.status === 'confirmed'
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                              : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          }`}>
+                            {inv.status === 'confirmed' ? 'En Stock' : 'Borrador'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Editar / Ver Detalle Completo */}
+                            <button
+                              onClick={() => handleOpenEditInvoice(inv)}
+                              className="p-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 hover:text-white transition"
+                              title="Editar Comprobante y Ver Todos los Datos"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                            {/* Confirmar si está en borrador */}
+                            {inv.status === 'draft' && (
+                              <button
+                                onClick={() => handleConfirmInvoice(inv.id)}
+                                className="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[10px] transition"
+                                title="Confirmar e Ingresar a Stock"
                               >
-                                <ExternalLink size={13} />
-                                <span>Ver Foto</span>
-                              </a>
-                            ) : (
-                              <span className="text-slate-600">-</span>
+                                Confirmar
+                              </button>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    {invoices.filter(i => (i.notes || '').includes('grupo') || (i.operator || '').includes('Silencioso')).length === 0 && (
+                            {/* Ver Foto / Zoom */}
+                            {inv.mediaUrl && (
+                              <button
+                                onClick={() => setPreviewImageModal(inv.mediaUrl)}
+                                className="p-1.5 rounded-lg bg-[#202c33] hover:bg-[#2a3942] text-slate-300 hover:text-white transition"
+                                title="Ver Foto Completa"
+                              >
+                                <Eye size={13} />
+                              </button>
+                            )}
+                            {/* Eliminar Comprobante */}
+                            <button
+                              onClick={() => handleDeleteInvoice(inv.id)}
+                              className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 hover:text-white transition"
+                              title="Eliminar Comprobante"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {paginatedSilentInvoices.length === 0 && (
                       <tr>
-                        <td colSpan="8" className="py-8 text-center text-slate-500 text-xs">
-                          Aún no se han recibido comprobantes automáticos desde grupos de WhatsApp. Una vez que el bot esté en el grupo, cada imagen enviada aparecerá aquí al instante.
+                        <td colSpan="10" className="py-8 text-center text-slate-500 text-xs">
+                          {silentSearch || silentBranchFilter !== 'all' || silentPaymentFilter !== 'all' || silentStatusFilter !== 'all'
+                            ? 'No se encontraron comprobantes que coincidan con los filtros aplicados.'
+                            : 'Aún no se han recibido comprobantes automáticos desde grupos de WhatsApp. Una vez que el bot esté en el grupo, cada imagen enviada aparecerá aquí al instante.'}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {/* Controles de Paginación */}
+              {renderPaginationControls(
+                silentPage,
+                totalSilentPages,
+                filteredSilentInvoices.length,
+                silentPageSize,
+                setSilentPage,
+                setSilentPageSize
+              )}
             </div>
           </div>
         )}
@@ -3357,6 +3862,82 @@ export default function StockTransfersView({ socket, currentUser, initialTab = '
                       <option value="draft">Borrador</option>
                     </select>
                   </div>
+                </div>
+              </div>
+
+              {/* Quién Abona / Imputación y Comentarios de WhatsApp */}
+              <div className="bg-[#182229] p-3.5 rounded-xl border border-blue-500/30 space-y-3">
+                <div className="font-bold text-white text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">💳</span>
+                    <span>Quién Abona / Imputación Financiera</span>
+                  </div>
+                  {editingInvoiceData.paymentSource && (
+                    <span className="text-[10px] font-semibold">
+                      {getPaymentSourceBadge(editingInvoiceData.paymentSource, editingInvoiceData.paidBy)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold text-[11px]">
+                      Modalidad / Responsable de Pago:
+                    </label>
+                    <select
+                      value={editingInvoiceData.paymentSource || 'administracion'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const defaultPaidBy = val === 'caja_sucursal' 
+                          ? 'Caja Sucursal' 
+                          : val === 'cuenta_corriente' 
+                          ? 'Cuenta Corriente' 
+                          : 'Administración Central';
+                        setEditingInvoiceData({
+                          ...editingInvoiceData,
+                          paymentSource: val,
+                          paidBy: defaultPaidBy
+                        });
+                      }}
+                      className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white font-semibold text-xs"
+                    >
+                      <option value="administracion">🏛️ Administración Central (Transferencia / Tesorería)</option>
+                      <option value="caja_sucursal">🏪 Caja Sucursal / Cajero Mostrador</option>
+                      <option value="cuenta_corriente">📑 Cuenta Corriente (Saldo pendiente Proveedor)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold text-[11px]">
+                      Detalle de quién abona o imputa:
+                    </label>
+                    <input
+                      type="text"
+                      value={editingInvoiceData.paidBy || ''}
+                      onChange={(e) => setEditingInvoiceData({ ...editingInvoiceData, paidBy: e.target.value })}
+                      placeholder="Ej: Administración Central, Sofía (Caja Urca), etc."
+                      className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-white text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold text-[11px] flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <MessageSquare size={13} className="text-amber-400" />
+                      <span>Comentario del Chat de WhatsApp / Aclaraciones:</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      Texto enviado junto a la foto o escrito en el grupo
+                    </span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editingInvoiceData.chatComment || ''}
+                    onChange={(e) => setEditingInvoiceData({ ...editingInvoiceData, chatComment: e.target.value })}
+                    placeholder="Instrucciones o comentarios recibidos por WhatsApp (ej: 'abona admin', 'paga el cajero en Urca', 'cuenta corriente')..."
+                    className="w-full bg-[#111b21] border border-[#2a3942] rounded-lg px-2.5 py-1.5 text-amber-200 placeholder:text-slate-500 text-xs resize-none"
+                  />
                 </div>
               </div>
 

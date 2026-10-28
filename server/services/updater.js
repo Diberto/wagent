@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { CONFIG } from '../config/index.js';
 import { BackupService } from './backup.js';
+import { db } from './database.js';
 
 const getAppVersion = () => {
   try {
@@ -183,11 +184,12 @@ export class UpdateService {
     try {
       pushLog(`🚀 [Auto-Deploy] Iniciando actualización de WAgent (Origen: ${trigger})...`);
 
-      // 0. Respaldo preventivo completo de la base de datos
-      pushLog('💾 Paso 0/5: Creando respaldo preventivo completo de la base de datos...');
+      // 0. Sincronizar memoria a disco y crear respaldo preventivo completo
+      pushLog('💾 Paso 0/5: Sincronizando datos en memoria a disco y creando respaldo preventivo...');
       try {
+        if (typeof db.flushSync === 'function') db.flushSync();
         const backup = BackupService.createBackup('pre-update-auto');
-        pushLog(`✅ Respaldo creado con éxito: ${backup.filename}`);
+        pushLog(`✅ Respaldo preventivo creado con éxito: ${backup.filename}`);
       } catch (bkpErr) {
         pushLog(`⚠️ Advertencia creando respaldo: ${bkpErr.message}`);
       }
@@ -197,6 +199,11 @@ export class UpdateService {
 
       // 1. Configurar git safe.directory para evitar bloqueos de permisos en Linux/Docker
       await runCommand('git config --global --add safe.directory "*"');
+
+      // Resguardar modificaciones locales no sincronizadas antes de actualizar árbol git
+      try {
+        await runCommand('git stash push -u -m "auto-updater-pre-sync"');
+      } catch (_) {}
 
       // 2. Sincronización limpia con GitHub (git fetch & reset)
       pushLog('📥 Paso 1/5: Sincronizando con rama main de GitHub...');
@@ -213,6 +220,9 @@ export class UpdateService {
         let pullResult = await runCommand('git pull origin main');
         pushLog(`✅ Git pull resultado: ${pullResult.output || 'OK'}`);
       }
+
+      // Asegurar que la base de datos y configuraciones activas permanezcan sincronizadas
+      if (typeof db.flushSync === 'function') db.flushSync();
 
       // Guardar commit hash actualizado en caché
       try {

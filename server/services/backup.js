@@ -133,21 +133,31 @@ export class BackupService {
     // 2. Aplicar restauración asegurando todas las colecciones del sistema
     const currentDb = db.readDb();
     const newDb = {
+      ...currentDb,
+      ...dataToRestore,
       settings: { ...currentDb.settings, ...(dataToRestore.settings || {}) },
-      knowledgeBase: Array.isArray(dataToRestore.knowledgeBase) ? dataToRestore.knowledgeBase : currentDb.knowledgeBase,
-      products: Array.isArray(dataToRestore.products) ? dataToRestore.products : currentDb.products,
-      leads: Array.isArray(dataToRestore.leads) ? dataToRestore.leads : currentDb.leads,
-      messages: Array.isArray(dataToRestore.messages) ? dataToRestore.messages : currentDb.messages,
-      calls: Array.isArray(dataToRestore.calls) ? dataToRestore.calls : currentDb.calls,
-      orders: Array.isArray(dataToRestore.orders) ? dataToRestore.orders : currentDb.orders,
-      branches: Array.isArray(dataToRestore.branches) ? dataToRestore.branches : currentDb.branches,
-      drivers: Array.isArray(dataToRestore.drivers) ? dataToRestore.drivers : currentDb.drivers,
-      users: Array.isArray(dataToRestore.users) ? dataToRestore.users : currentDb.users,
-      automations: Array.isArray(dataToRestore.automations) ? dataToRestore.automations : currentDb.automations,
-      broadcastCampaigns: Array.isArray(dataToRestore.broadcastCampaigns) ? dataToRestore.broadcastCampaigns : currentDb.broadcastCampaigns
+      knowledgeBase: Array.isArray(dataToRestore.knowledgeBase) ? dataToRestore.knowledgeBase : (currentDb.knowledgeBase || []),
+      products: Array.isArray(dataToRestore.products) ? dataToRestore.products : (currentDb.products || []),
+      leads: Array.isArray(dataToRestore.leads) ? dataToRestore.leads : (currentDb.leads || []),
+      messages: Array.isArray(dataToRestore.messages) ? dataToRestore.messages : (currentDb.messages || []),
+      calls: Array.isArray(dataToRestore.calls) ? dataToRestore.calls : (currentDb.calls || []),
+      orders: Array.isArray(dataToRestore.orders) ? dataToRestore.orders : (currentDb.orders || []),
+      branches: Array.isArray(dataToRestore.branches) ? dataToRestore.branches : (currentDb.branches || []),
+      drivers: Array.isArray(dataToRestore.drivers) ? dataToRestore.drivers : (currentDb.drivers || []),
+      users: Array.isArray(dataToRestore.users) ? dataToRestore.users : (currentDb.users || []),
+      automations: Array.isArray(dataToRestore.automations) ? dataToRestore.automations : (currentDb.automations || []),
+      broadcastCampaigns: Array.isArray(dataToRestore.broadcastCampaigns) ? dataToRestore.broadcastCampaigns : (currentDb.broadcastCampaigns || []),
+      suppliers: Array.isArray(dataToRestore.suppliers) ? dataToRestore.suppliers : (currentDb.suppliers || []),
+      supplierInvoices: Array.isArray(dataToRestore.supplierInvoices) ? dataToRestore.supplierInvoices : (currentDb.supplierInvoices || []),
+      branchTransfers: Array.isArray(dataToRestore.branchTransfers) ? dataToRestore.branchTransfers : (currentDb.branchTransfers || []),
+      stockMovements: Array.isArray(dataToRestore.stockMovements) ? dataToRestore.stockMovements : (currentDb.stockMovements || []),
+      roles: Array.isArray(dataToRestore.roles) ? dataToRestore.roles : (currentDb.roles || []),
+      cashRegisters: Array.isArray(dataToRestore.cashRegisters) ? dataToRestore.cashRegisters : (currentDb.cashRegisters || []),
+      groupRules: Array.isArray(dataToRestore.groupRules) ? dataToRestore.groupRules : (currentDb.groupRules || [])
     };
 
     db.writeDb(newDb);
+    if (typeof db.flushSync === 'function') db.flushSync();
     console.log('✅ Base de datos restaurada exitosamente.');
 
     return {
@@ -160,6 +170,9 @@ export class BackupService {
         orders: (newDb.orders || []).length,
         branches: (newDb.branches || []).length,
         drivers: (newDb.drivers || []).length,
+        suppliers: (newDb.suppliers || []).length,
+        invoices: (newDb.supplierInvoices || []).length,
+        transfers: (newDb.branchTransfers || []).length,
         calls: (newDb.calls || []).length,
         knowledgeBase: (newDb.knowledgeBase || []).length
       }

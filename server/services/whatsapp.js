@@ -10,7 +10,7 @@ import { AIService } from './ai.js';
 import { AudioConverter } from './audioConverter.js';
 import { SpeechService } from './speech.js';
 import { MetaWhatsAppService } from './metaWhatsApp.js';
-import { inventoryService } from './inventoryService.js';
+import { inventoryService, parsePaymentAndBranchFromComment } from './inventoryService.js';
 import { invoiceOcrService } from './invoiceOcrService.js';
 import { imageService } from './imageService.js';
 
@@ -114,6 +114,7 @@ export class WhatsAppService {
     this.chatProcessingTimeouts = new Map();
     this.recoveredMsgIds = new Set();
     this.isRecoveringUnanswered = false;
+    this.recentGroupInvoices = new Map();
     this.startWatchdog();
   }
 
@@ -946,10 +947,57 @@ export class WhatsAppService {
       const isImage = Boolean(messageContent.imageMessage);
       const isDocument = Boolean(messageContent.documentMessage);
 
-      // Solo procesar si contiene archivo multimedia (foto de factura, remito o PDF)
-      if (!isImage && !isDocument) return;
+      // Si no es imagen ni documento, verificar si es un mensaje de texto aclaratorio posterior al comprobante
+      if (!isImage && !isDocument) {
+        const textContent = (messageContent.conversation || messageContent.extendedTextMessage?.text || '').trim();
+        if (!textContent) return;
+
+        // Comprobar si hay un comprobante reciente recibido en este grupo en los últimos 15 minutos
+        const recent = this.recentGroupInvoices?.get(groupJid);
+        if (recent && (Date.now() - recent.timestamp < 15 * 60 * 1000)) {
+          console.log(`💬 [Grupo WhatsApp "${matchedGroup.groupName || groupJid}"] Comentario aclaratorio posterior para factura ${recent.invoiceId}: "${textContent}"`);
+          const branches = db.getBranches();
+          const parsed = parsePaymentAndBranchFromComment(textContent, branches);
+          const currentInv = inventoryService.getSupplierInvoice(recent.invoiceId);
+          if (currentInv) {
+            const updates = {};
+            if (parsed.paymentSource) {
+              updates.paymentSource = parsed.paymentSource;
+              updates.paidBy = parsed.paidBy;
+            }
+            if (parsed.branchId) {
+              updates.branchId = parsed.branchId;
+              updates.branchName = parsed.branchName;
+            }
+            const prevChatComment = currentInv.chatComment || '';
+            updates.chatComment = prevChatComment ? `${prevChatComment} | ${textContent}` : textContent;
+            const prevNotes = currentInv.notes || '';
+            updates.notes = prevNotes ? `${prevNotes}\n[WhatsApp]: ${textContent}` : `[WhatsApp]: ${textContent}`;
+
+            const updated = inventoryService.updateSupplierInvoice(recent.invoiceId, updates, 'WhatsApp Chat');
+            console.log(`✅ [Grupo WhatsApp] Factura ${recent.invoiceId} actualizada con comentario: quién abona -> ${updated.paidBy}, sucursal -> ${updated.branchName}`);
+
+            if (this.io) {
+              this.io.emit('invoices:sync', inventoryService.getSupplierInvoices());
+              this.io.emit('notification:new', {
+                title: `📝 Imputación / Pago Detectado`,
+                message: `En "${matchedGroup.groupName || groupJid}": "${textContent}" -> ${updated.supplierName} (${updated.paidBy} / ${updated.branchName})`,
+                type: 'inventory',
+                tab: 'stock-transfers',
+                data: updated
+              });
+            }
+          }
+        }
+        return;
+      }
 
       console.log(`🧾 [Grupo WhatsApp "${matchedGroup.groupName || groupJid}"] Comprobante recibido. Iniciando análisis OCR TicketScan en modo pasivo...`);
+
+      // Extraer comentario o pie de foto (caption) si la imagen lo incluye directamente
+      const caption = (messageContent.imageMessage?.caption || messageContent.documentMessage?.caption || '').trim();
+      const branches = db.getBranches();
+      const parsedComment = parsePaymentAndBranchFromComment(caption, branches);
 
       const buffer = await downloadMediaMessage(msg, 'buffer', {});
       let localPath;
@@ -988,9 +1036,12 @@ export class WhatsAppService {
 
         const autoConfirm = matchedGroup.autoConfirm !== undefined ? Boolean(matchedGroup.autoConfirm) : Boolean(settings.autoConfirmGroupInvoices);
         const expenseCategory = matchedGroup.expenseCategory || 'mercaderia';
-        const targetBranchId = matchedGroup.branchId || settings.defaultSupplierBranchId || 'br-1';
+        // Si el comentario del chat indica una sucursal específica, priorizarla; sino usar la configurada en el grupo
+        const targetBranchId = parsedComment.branchId || matchedGroup.branchId || settings.defaultSupplierBranchId || 'br-1';
+        const paymentSource = parsedComment.paymentSource || 'administracion';
+        const paidBy = parsedComment.paidBy || 'Administración Central';
 
-        // Registrar factura en el sistema con sucursal y rubro de gastos asignado a este grupo
+        // Registrar factura en el sistema con sucursal, rubro y quién abona detectado
         const registered = inventoryService.registerSupplierInvoice({
           supplierId: extData.supplierId,
           supplierName: extData.merchant || 'Proveedor de Grupo',
@@ -1004,15 +1055,29 @@ export class WhatsAppService {
           mediaUrl,
           rawOcrData: extData,
           status: autoConfirm ? 'confirmed' : 'draft',
-          notes: `Recibido automáticamente desde grupo WhatsApp "${matchedGroup.groupName || groupJid}" [Caso: ${expenseCategory}]`,
-          operator: 'Bot Escáner Silencioso'
+          notes: caption 
+            ? `Recibido automáticamente desde grupo WhatsApp "${matchedGroup.groupName || groupJid}" [Caso: ${expenseCategory}] - Nota: ${caption}`
+            : `Recibido automáticamente desde grupo WhatsApp "${matchedGroup.groupName || groupJid}" [Caso: ${expenseCategory}]`,
+          operator: 'Bot Escáner Silencioso',
+          paymentSource,
+          paidBy,
+          chatComment: caption
         });
+
+        // Registrar en memoria para asociar comentarios subsiguientes en el chat (hasta 15 minutos después)
+        if (this.recentGroupInvoices) {
+          this.recentGroupInvoices.set(groupJid, {
+            invoiceId: registered.id,
+            timestamp: Date.now(),
+            groupName: matchedGroup.groupName || groupJid
+          });
+        }
 
         // Emitir notificación visual al panel web
         if (this.io) {
           this.io.emit('notification:new', {
             title: `🧾 Factura Proveedor Detectada`,
-            message: `${extData.merchant || 'Proveedor'} - $${Number(extData.total || 0).toLocaleString('es-AR')} en ${registered.branchName} (${expenseCategory})`,
+            message: `${extData.merchant || 'Proveedor'} - $${Number(extData.total || 0).toLocaleString('es-AR')} en ${registered.branchName} (${registered.paidBy})`,
             type: 'inventory',
             tab: 'stock-transfers',
             data: registered
@@ -1032,6 +1097,8 @@ export class WhatsAppService {
             `💰 *Monto Total:* $${Number(extData.total || 0).toLocaleString('es-AR')}\n` +
             `📦 *Ítems/Cortes:* ${extData.items?.length || 0} detectados\n` +
             `🏪 *Sucursal Asignada:* ${registered.branchName}\n` +
+            `💳 *Quién Abona:* ${registered.paidBy}\n` +
+            (caption ? `💬 *Comentario Chat:* ${caption}\n` : '') +
             `⚡ *Estado:* ${registered.status === 'confirmed' ? 'Confirmado e ingresado a Stock' : 'Borrador pendiente de confirmación'}\n\n` +
             `Podés revisarlo o editarlo en la sección de Stock y Facturas del sistema.`;
 

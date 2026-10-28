@@ -105,6 +105,13 @@ export default function SettingsModal({ isOpen, onClose }) {
   const [backupStatusMessage, setBackupStatusMessage] = useState(null);
   const fileInputRef = useRef(null);
 
+  // System Reset & Purge State
+  const [resetModalType, setResetModalType] = useState(null); // 'data' | 'settings' | 'factory'
+  const [resetConfirmationInput, setResetConfirmationInput] = useState('');
+  const [isExecutingReset, setIsExecutingReset] = useState(false);
+  const [preserveCatalogCheck, setPreserveCatalogCheck] = useState(true);
+  const [preserveBranchesCheck, setPreserveBranchesCheck] = useState(true);
+
   // Token Tracker & Usage State
   const [tokenStats, setTokenStats] = useState(null);
   const [isLoadingTokens, setIsLoadingTokens] = useState(false);
@@ -684,6 +691,63 @@ export default function SettingsModal({ isOpen, onClose }) {
       }
     } catch (err) {
       console.error('Error eliminando respaldo:', err);
+    }
+  };
+
+  const handleOpenResetModal = (type) => {
+    setResetModalType(type);
+    setResetConfirmationInput('');
+  };
+
+  const handleExecuteReset = async () => {
+    if (!resetModalType) return;
+    setIsExecutingReset(true);
+    setBackupStatusMessage(null);
+
+    try {
+      let endpoint = '';
+      let body = {};
+
+      if (resetModalType === 'data') {
+        endpoint = '/api/system/reset-data';
+        body = {
+          confirmation: resetConfirmationInput,
+          preserveCatalog: preserveCatalogCheck,
+          preserveBranches: preserveBranchesCheck
+        };
+      } else if (resetModalType === 'settings') {
+        endpoint = '/api/system/reset-settings';
+        body = {
+          confirmation: resetConfirmationInput
+        };
+      } else if (resetModalType === 'factory') {
+        endpoint = '/api/system/factory-reset';
+        body = {
+          confirmation: resetConfirmationInput
+        };
+      }
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setBackupStatusMessage({
+          type: 'success',
+          text: `¡${data.message}! (Se generó respaldo de seguridad: ${data.backup}). Recargando aplicación...`
+        });
+        setResetModalType(null);
+        setTimeout(() => window.location.reload(), 2500);
+      } else {
+        alert(data.error || 'Error ejecutando la operación de reseteo.');
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsExecutingReset(false);
     }
   };
 
@@ -6125,6 +6189,188 @@ Contexto y Reglas de Negocio:
                 <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold text-slate-200">Protección Automática 24/7:</span> WAgent genera copias de seguridad automáticas diarias y antes de cada restauración. Puedes descargar los archivos `.json` en cualquier momento para mantener una copia física en tu computadora o migrar a otro servidor.
+                </div>
+              </div>
+
+              {/* Reset & Purge Management Card */}
+              <div className="p-4 rounded-2xl bg-rose-950/15 border border-rose-900/40 space-y-3 mt-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      Zona de Control y Vaciado del Sistema
+                      <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-semibold border border-rose-500/30">
+                        Respaldo automático garantizado
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Opciones avanzadas para vaciar historial o restablecer ajustes. Siempre se genera una copia de seguridad previa.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                  {/* Option 1: Vaciar Datos Operativos */}
+                  <div className="p-3 rounded-xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between space-y-3 hover:border-amber-500/40 transition">
+                    <div>
+                      <div className="flex items-center gap-2 text-amber-400 font-bold text-xs mb-1">
+                        <Trash2 size={14} />
+                        Vaciar Datos Operativos
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Elimina chats, mensajes, clientes/leads, pedidos, comprobantes y stock. Conserva catálogo y configuración.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenResetModal('data')}
+                      className="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-xs transition active:scale-95"
+                    >
+                      Vaciar Chats y Operaciones
+                    </button>
+                  </div>
+
+                  {/* Option 2: Restablecer Configuración */}
+                  <div className="p-3 rounded-xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between space-y-3 hover:border-sky-500/40 transition">
+                    <div>
+                      <div className="flex items-center gap-2 text-sky-400 font-bold text-xs mb-1">
+                        <RotateCcw size={14} />
+                        Restablecer Ajustes
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Restablece todos los parámetros (IA, horarios, tienda y reglas) a los valores de fábrica. Conserva chats y clientes.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenResetModal('settings')}
+                      className="w-full py-2 px-3 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold text-xs transition active:scale-95"
+                    >
+                      Restablecer Configuración
+                    </button>
+                  </div>
+
+                  {/* Option 3: Reinicio Total de Fábrica */}
+                  <div className="p-3 rounded-xl bg-[#182229] border border-slate-700/60 flex flex-col justify-between space-y-3 hover:border-rose-500/40 transition">
+                    <div>
+                      <div className="flex items-center gap-2 text-rose-400 font-bold text-xs mb-1">
+                        <AlertTriangle size={14} />
+                        Reinicio de Fábrica
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Vacía todos los datos y restablece las configuraciones a cero. Mantiene los usuarios administradores y sucursales base.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenResetModal('factory')}
+                      className="w-full py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition active:scale-95 shadow-md shadow-rose-950/50"
+                    >
+                      Reinicio Total
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal de Confirmación de Reseteo */}
+          {resetModalType && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-[#182229] border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl text-slate-200">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className={resetModalType === 'factory' ? 'text-rose-500' : resetModalType === 'data' ? 'text-amber-500' : 'text-sky-500'} size={20} />
+                    <h3 className="font-bold text-white text-sm">
+                      {resetModalType === 'data' && 'Confirmar Vaciado de Datos Operativos'}
+                      {resetModalType === 'settings' && 'Confirmar Restablecimiento de Ajustes'}
+                      {resetModalType === 'factory' && '⚠️ Confirmar Reinicio Total de Fábrica'}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setResetModalType(null)}
+                    disabled={isExecutingReset}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="text-xs text-slate-300 space-y-2">
+                  <p>
+                    {resetModalType === 'data' && 'Estás a punto de vaciar todos los mensajes de chats, prospectos/leads, pedidos registrados, comprobantes de proveedores y movimientos de stock.'}
+                    {resetModalType === 'settings' && 'Estás a punto de restablecer todas las configuraciones del sistema (prompts de IA, modelos, horarios, delivery y tienda) a los valores predeterminados.'}
+                    {resetModalType === 'factory' && 'Esta acción vaciará TODOS los datos operativos y restablecerá la configuración completa a valores iniciales de fábrica.'}
+                  </p>
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 flex items-center gap-2">
+                    <ShieldCheck size={16} className="shrink-0" />
+                    <span>Se generará automáticamente un respaldo previo para que puedas restaurar todo en caso necesario.</span>
+                  </div>
+
+                  {resetModalType === 'data' && (
+                    <div className="space-y-1.5 pt-2">
+                      <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={preserveCatalogCheck}
+                          onChange={(e) => setPreserveCatalogCheck(e.target.checked)}
+                          className="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0"
+                        />
+                        <span>Preservar catálogo de productos y precios</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={preserveBranchesCheck}
+                          onChange={(e) => setPreserveBranchesCheck(e.target.checked)}
+                          className="rounded border-slate-700 bg-slate-800 text-emerald-500 focus:ring-0"
+                        />
+                        <span>Preservar sucursales configuradas</span>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <label className="block text-[11px] font-bold text-slate-400 mb-1">
+                      Escribe <span className="text-white font-mono">{resetModalType === 'data' ? 'VACIAR' : resetModalType === 'settings' ? 'RESTABLECER' : 'REINICIO_TOTAL_FABRICA'}</span> para confirmar:
+                    </label>
+                    <input
+                      type="text"
+                      value={resetConfirmationInput}
+                      onChange={(e) => setResetConfirmationInput(e.target.value)}
+                      placeholder={resetModalType === 'data' ? 'VACIAR' : resetModalType === 'settings' ? 'RESTABLECER' : 'REINICIO_TOTAL_FABRICA'}
+                      className="w-full bg-[#111b21] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setResetModalType(null)}
+                    disabled={isExecutingReset}
+                    className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteReset}
+                    disabled={
+                      isExecutingReset ||
+                      (resetModalType === 'data' && resetConfirmationInput.trim().toUpperCase() !== 'VACIAR' && resetConfirmationInput.trim().toUpperCase() !== 'RESET') ||
+                      (resetModalType === 'settings' && resetConfirmationInput.trim().toUpperCase() !== 'RESTABLECER' && resetConfirmationInput.trim().toUpperCase() !== 'RESET') ||
+                      (resetModalType === 'factory' && resetConfirmationInput.trim() !== 'REINICIO_TOTAL_FABRICA')
+                    }
+                    className={`px-4 py-2 rounded-xl text-xs font-bold text-white transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
+                      resetModalType === 'factory' ? 'bg-rose-600 hover:bg-rose-500' : resetModalType === 'data' ? 'bg-amber-600 hover:bg-amber-500' : 'bg-sky-600 hover:bg-sky-500'
+                    }`}
+                  >
+                    {isExecutingReset ? 'Ejecutando...' : 'Confirmar y Ejecutar'}
+                  </button>
                 </div>
               </div>
             </div>
