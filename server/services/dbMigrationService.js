@@ -225,6 +225,7 @@ export class DbMigrationService {
               const errText = await res.text().catch(() => '');
               throw new Error(`Respuesta de MongoDB Atlas (HTTP ${res.status}): ${errText.slice(0, 140)}`);
             }
+          } else {
             const uri = config?.uri || process.env.MONGODB_URI || 'mongodb://dmovil_db_user:quQ7BwGCjqhnflro@ac-vkpxxx5-shard-00-00.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-01.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-02.qndfojh.mongodb.net:27017/cluster0?ssl=true&replicaSet=atlas-cwmn3y-shard-0&authSource=admin&compressors=zlib';
             if (!uri) throw new Error('Se requiere la URI de conexión de MongoDB');
 
