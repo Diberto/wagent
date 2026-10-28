@@ -43,8 +43,8 @@ class AnalyticsAiService {
         if (b !== branchId) return false;
       }
 
-      const orderChannel = o.channel || (o.notes?.includes('[POS Mostrador]') ? 'pos' : (o.notes?.includes('[WooCommerce]') ? 'web' : 'whatsapp'));
-      if (channel && channel !== 'all' && orderChannel !== channel) return false;
+      const orderChannel = (o.channel || (o.notes?.includes('[POS Mostrador]') ? 'pos' : (o.notes?.includes('[WooCommerce]') ? 'web' : 'whatsapp'))).toLowerCase();
+      if (channel && channel !== 'all' && orderChannel !== channel.toLowerCase()) return false;
 
       return true;
     });
@@ -62,7 +62,7 @@ class AnalyticsAiService {
     };
 
     filteredOrders.forEach(o => {
-      const ch = o.channel || (o.notes?.includes('[POS Mostrador]') ? 'pos' : (o.notes?.includes('[WooCommerce]') ? 'web' : 'whatsapp'));
+      const ch = (o.channel || (o.notes?.includes('[POS Mostrador]') ? 'pos' : (o.notes?.includes('[WooCommerce]') ? 'web' : 'whatsapp'))).toLowerCase();
       const amt = Number(o.totalAmount || o.total) || 0;
       if (channelBreakdown[ch]) {
         channelBreakdown[ch].count += 1;
@@ -117,12 +117,12 @@ class AnalyticsAiService {
     // 5. Cortes Más Vendidos y Estimación de Rentabilidad
     const productStatsMap = new Map();
     filteredOrders.forEach(o => {
-      const items = Array.isArray(o.products) ? o.products : (Array.isArray(o.items) ? o.items : []);
+      const items = (Array.isArray(o.products) && o.products.length > 0) ? o.products : (Array.isArray(o.items) ? o.items : []);
       items.forEach(it => {
         const name = typeof it === 'string' ? it : (it.name || it.productName || 'Corte');
         const qty = Number(it.quantity || 1);
-        const price = Number(it.unitPrice || it.price || (it.totalPrice ? it.totalPrice / qty : 0));
-        const subtotal = Number(it.totalPrice || (qty * price));
+        const price = Number(it.unitPrice || it.price || (it.subtotal ? it.subtotal / qty : (it.totalPrice ? it.totalPrice / qty : 0)));
+        const subtotal = Number(it.subtotal || it.totalPrice || (qty * price)) || 0;
 
         if (!productStatsMap.has(name)) {
           productStatsMap.set(name, {

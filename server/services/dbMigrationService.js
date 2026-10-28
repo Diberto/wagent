@@ -260,9 +260,11 @@ export class DbMigrationService {
                 tls: true
               });
               await client.connect();
-              const pingRes = await client.db(config?.dbName || 'cluster0').command({ ping: 1 });
+              const targetDbName = config?.dbName || 'cluster0';
+              const dbRef = client.db(targetDbName);
+              const pingRes = await dbRef.command({ ping: 1 });
               const latencyMs = Date.now() - startTime;
-              const collections = await client.db().listCollections().toArray();
+              const collections = await dbRef.listCollections().toArray();
               await client.close();
 
               return {
@@ -271,7 +273,7 @@ export class DbMigrationService {
                 latencyMs,
                 details: {
                   ping: pingRes?.ok === 1 ? 'OK' : 'Respondido',
-                  database: client.db().databaseName || config.dbName || 'wagent',
+                  database: dbRef.databaseName || targetDbName,
                   existingCollections: collections.map(c => c.name)
                 }
               };
@@ -497,6 +499,8 @@ export class DbMigrationService {
       'orders',
       'messages',
       'products',
+      'recipes',
+      'knowledgeBase',
       'agents',
       'users',
       'settings',
@@ -601,10 +605,16 @@ export class DbMigrationService {
 
           const Mongo = await getMongoClientClass();
           if (!Mongo) throw new Error('El driver de MongoDB no está disponible');
-          const uri = targetConfig?.uri || 'mongodb://77.37.127.103:27017/wagent';
-          const client = new Mongo(uri, { serverSelectionTimeoutMS: 8000 });
+          const activeCfg = this.getActiveConfig();
+          const uri = unmaskValue(targetConfig?.uri, activeCfg.mongodb?.uri) || process.env.MONGODB_URI || 'mongodb://dmovil_db_user:quQ7BwGCjqhnflro@ac-vkpxxx5-shard-00-00.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-01.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-02.qndfojh.mongodb.net:27017/cluster0?ssl=true&replicaSet=atlas-cwmn3y-shard-0&authSource=admin&compressors=zlib';
+          const targetDbName = targetConfig?.dbName || activeCfg.mongodb?.dbName || 'cluster0';
+          const client = new Mongo(uri, {
+            serverSelectionTimeoutMS: 8000,
+            connectTimeoutMS: 15000,
+            tls: uri.includes('ssl=true') || uri.includes('mongodb+srv')
+          });
           await client.connect();
-          const targetDb = client.db();
+          const targetDb = client.db(targetDbName);
 
           for (const colName of collectionsToMigrate) {
             const records = Array.isArray(rawData[colName]) ? rawData[colName] : (rawData[colName] ? [rawData[colName]] : []);

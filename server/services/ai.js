@@ -256,7 +256,12 @@ export function findAmbiguousProducts(chunk, dynamicCatalog = null) {
  * garantizando que NUNCA se seleccionen productos con precio $0, snacks o artículos de verdulería por error.
  */
 export function matchBestProduct(chunk, dynamicCatalog = null) {
-  const c = (chunk || '').toLowerCase().trim();
+  const c = (chunk || '')
+    .toLowerCase()
+    .replace(/\bmorc+illas?\b/gi, 'morcilla')
+    .replace(/\bchorr+izos?\b/gi, 'chorizo')
+    .replace(/\bchorizos?\s+de\s+cero\b/gi, 'chorizos de cerdo')
+    .trim();
   if (!c) return null;
 
   const rawList = (dynamicCatalog && dynamicCatalog.length > 0) ? dynamicCatalog : getDynamicCatalog();
@@ -365,9 +370,11 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
       score += 400;
     }
 
-    // Costillar / Asado de Tira Novillito
+    // Costillar / Asado de Tira Novillito / Asado Surtido
     if (isCostillaQuery) {
-      if (pName.includes('asado de tira') || pName.includes('costillar / asado de tira') || pName.includes('costillar') || (pName.includes('costilla') && !pName.includes('entraña'))) {
+      if (c.includes('surtido') && pName.includes('surtido')) {
+        score += 950;
+      } else if (pName.includes('asado de tira') || pName.includes('costillar / asado de tira') || pName.includes('costillar') || (pName.includes('costilla') && !pName.includes('entraña'))) {
         score += 500;
         if (c.includes('asado') && pName.includes('asado')) score += 300;
         if (c.includes('novillito') && pName.includes('novillito')) score += 200;
@@ -395,9 +402,9 @@ export function matchBestProduct(chunk, dynamicCatalog = null) {
     const cleanPName = pName.replace(/\(.*?\)/g, '').replace(/[“”"']/g, '').trim();
     const basePName = cleanPName.replace(/\b(?:seleccionad[oa]|premium|tiernizad[oa]|especial|preparad[oa]s?|fresc[oa]s?)\b/gi, '').trim();
     if (cleanPName.length >= 3 && c.includes(cleanPName)) {
-      score += cleanPName.length * 12;
+      score += 700 + cleanPName.length * 15;
     } else if (basePName.length >= 3 && c.includes(basePName)) {
-      score += basePName.length * 10;
+      score += 500 + basePName.length * 12;
     }
 
     // Check keywords
@@ -516,6 +523,8 @@ export function cleanAndSplitMultiProductMessage(text) {
   
   // Normalizar errores tipográficos frecuentes
   s = s.replace(/\bchorizos?\s+de\s+cero\b/gi, 'chorizos de cerdo')
+       .replace(/\bmorc+illas?\b/gi, 'morcilla')
+       .replace(/\bchorr+izos?\b/gi, 'chorizo')
        .replace(/\bperonas\b/gi, 'personas')
        .replace(/\b(costillas?|tira\s+de\s+asado)\b/gi, 'costillar')
        .replace(/\bcarb[oó]n\b/gi, 'carbón');
@@ -713,6 +722,8 @@ export function parseQuantityAndMode(str, prod = null) {
   let num = 1;
   // Si dice "1 pieza de 2 kilos", "1 matambre de 2 kg", el peso en balanza a cotizar son 2 kilos
   const explicitWeightMatch = s.match(/(?:de|por)\s+([0-9]+(?:[\.,][0-9]+)?)\s*(?:kg|kilos?|kgs?)\b/i);
+  const peopleCountMatch = s.match(/(?:para\s+)?([0-9]+)\s*(?:personas?|comensales?|invitados?|amigos?)\b/i);
+  const sWithoutPeople = s.replace(/(?:para\s+)?[0-9]+\s*(?:personas?|comensales?|invitados?|amigos?)\b/gi, ' ').trim();
 
   if (/(?:medio\s+kilo|1\/2\s*kg|medio\b)/i.test(s)) {
     return { quantity: 0.5, isUnitMode: false, unitCount: 0, label: '0.5 kg' };
@@ -720,24 +731,27 @@ export function parseQuantityAndMode(str, prod = null) {
     num = 1;
   } else if (explicitWeightMatch) {
     num = parseFloat(explicitWeightMatch[1].replace(',', '.'));
-  } else if (s.match(/([0-9]+(?:[\.,][0-9]+)?)/)) {
-    const numMatch = s.match(/([0-9]+(?:[\.,][0-9]+)?)/);
+  } else if (sWithoutPeople.match(/([0-9]+(?:[\.,][0-9]+)?)/)) {
+    const numMatch = sWithoutPeople.match(/([0-9]+(?:[\.,][0-9]+)?)/);
     const val = parseFloat(numMatch[1].replace(',', '.'));
-    if (val <= 30 || /(?:kg|kilo|kilos|unidades|chorizo|morcilla|bife|costeleta)/i.test(s)) {
+    if (val <= 30 || /(?:kg|kilo|kilos|unidades|chorizo|morcilla|bife|costeleta)/i.test(sWithoutPeople)) {
       num = val;
     }
-  } else if (/(?:dos\s+solos|2\s+solos|\bdos\b)/i.test(s)) num = 2;
+  } else if (peopleCountMatch && !isUnitMention) {
+    const people = Math.min(parseInt(peopleCountMatch[1], 10) || 4, 30);
+    num = Number((people * 0.375).toFixed(1));
+  } else if (/(?:dos\s+solos|2\s+solos|\bdos\b)/i.test(sWithoutPeople)) num = 2;
 
-  else if (/(?:tres\b)/i.test(s)) num = 3;
-  else if (/(?:cuatro\b)/i.test(s)) num = 4;
-  else if (/(?:cinco\b)/i.test(s)) num = 5;
-  else if (/(?:seis\b)/i.test(s)) num = 6;
-  else if (/(?:siete\b)/i.test(s)) num = 7;
-  else if (/(?:ocho\b)/i.test(s)) num = 8;
-  else if (/(?:nueve\b)/i.test(s)) num = 9;
-  else if (/(?:diez\b)/i.test(s)) num = 10;
-  else if (/(?:doce\b)/i.test(s)) num = 12;
-  else if (/(?:un\s+solo|una\s+sola|1\s+solo|uno\s+solo|solo\s+un|solo\s+1|\bun\b|\buno\b|\buna\b)/i.test(s)) num = 1;
+  else if (/(?:tres\b)/i.test(sWithoutPeople)) num = 3;
+  else if (/(?:cuatro\b)/i.test(sWithoutPeople)) num = 4;
+  else if (/(?:cinco\b)/i.test(sWithoutPeople)) num = 5;
+  else if (/(?:seis\b)/i.test(sWithoutPeople)) num = 6;
+  else if (/(?:siete\b)/i.test(sWithoutPeople)) num = 7;
+  else if (/(?:ocho\b)/i.test(sWithoutPeople)) num = 8;
+  else if (/(?:nueve\b)/i.test(sWithoutPeople)) num = 9;
+  else if (/(?:diez\b)/i.test(sWithoutPeople)) num = 10;
+  else if (/(?:doce\b)/i.test(sWithoutPeople)) num = 12;
+  else if (/(?:un\s+solo|una\s+sola|1\s+solo|uno\s+solo|solo\s+un|solo\s+1|\bun\b|\buno\b|\buna\b)/i.test(sWithoutPeople)) num = 1;
 
   // Si se pidió por unidades y el producto se calcula por kg (ej: chorizos, morcillas)
   if (isUnitMention && unitsPerKg > 1 && prod?.unit !== 'combo' && prod?.unit !== 'bolsa' && prod?.unit !== 'botella') {
@@ -1347,8 +1361,57 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
         ? historyArr.slice(boundaryIsUserStart ? lastBoundaryIdx : lastBoundaryIdx + 1) 
         : historyArr.slice(-8));
 
+  const activeItemsMap = new Map(); // name -> { prod, quantity, isUnitMode, unitCount, label }
+
+  // Si en el historial activo ya existe un resumen consolidado del bot ("Detalle de tu pedido", "Detalle actualizado de tu pedido", "FICHA DE REGISTRO"),
+  // sembrar activeItemsMap con ese estado consolidado y procesar únicamente los mensajes posteriores del usuario.
+  let startFromHistIdx = 0;
+  if (!isHardReset && relevantHistory.length > 0) {
+    for (let hIdx = relevantHistory.length - 1; hIdx >= 0; hIdx--) {
+      const hm = relevantHistory[hIdx];
+      if (hm.sender === 'bot' || hm.sender === 'agent' || hm.fromMe) {
+        const hContent = hm.content || '';
+        const hasConsolidatedHeader = /(?:(?:📋|📝|📦|🛒)?\s*\*?\s*(?:Detalle|Resumen)\s+(?:actualizado\s+)?(?:de\s+tu\s+pedido|del\s+pedido|de\s+cortes|de\s+tu\s+compra)|FICHA DE REGISTRO)/i.test(hContent);
+        const isMultiOptionMenu = /(?:(?:\bopci[oó]n|\bpropuesta|alternativa)\s*1\b|1️⃣\s*\*?(?:opci[oó]n|propuesta|combo\s*1))[\s\S]*(?:(?:\bopci[oó]n|\bpropuesta|alternativa)\s*2\b|2️⃣\s*\*?(?:opci[oó]n|propuesta|combo\s*2))/i.test(hContent);
+        if (hasConsolidatedHeader && !isMultiOptionMenu) {
+          const quoteExtract = OrderSyncEngine.extractItemsFromAgentReply(hContent, catalog);
+          if (quoteExtract && Array.isArray(quoteExtract.products) && quoteExtract.products.length > 0) {
+            for (const qp of quoteExtract.products) {
+              const unitsPerKg = qp.unitsPerKg || (
+                /chorizo|chori/i.test(qp.name) ? 5 :
+                /morcilla/i.test(qp.name) ? 5 :
+                /costeleta/i.test(qp.name) ? 4 :
+                /milanesa/i.test(qp.name) ? 5 :
+                /bife/i.test(qp.name) ? 3 : 1
+              );
+              activeItemsMap.set(qp.name, {
+                prod: {
+                  id: qp.id,
+                  plu: qp.plu,
+                  name: qp.name,
+                  price: qp.unitPrice || qp.price,
+                  unit: qp.unit,
+                  category: qp.category,
+                  unitsPerKg
+                },
+                quantity: qp.quantity,
+                isUnitMode: Boolean(qp.isUnitMode),
+                unitCount: qp.unitCount || 0,
+                unitsPerKg,
+                subtotal: qp.subtotal,
+                label: qp.isUnitMode && qp.unitCount > 0 ? `${qp.unitCount} Unidades` : `${qp.quantity} ${qp.unit || 'kg'}`
+              });
+            }
+            startFromHistIdx = hIdx + 1;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   const userMessagesWithContext = [];
-  for (let i = 0; i < relevantHistory.length; i++) {
+  for (let i = startFromHistIdx; i < relevantHistory.length; i++) {
     const m = relevantHistory[i];
     if (m.sender === 'user') {
       const prevMsg = i > 0 ? relevantHistory[i - 1] : null;
@@ -1360,8 +1423,9 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
   }
 
   if (text && text.trim()) {
-    const lastUserInContext = userMessagesWithContext[userMessagesWithContext.length - 1];
-    if (!lastUserInContext || lastUserInContext.content !== text.trim()) {
+    const lastInRelevant = relevantHistory[relevantHistory.length - 1];
+    const isAlreadyInHist = lastInRelevant && lastInRelevant.sender === 'user' && (lastInRelevant.content || '').trim() === text.trim();
+    if (!isAlreadyInHist) {
       const lastAgentInHist = relevantHistory.slice().reverse().find(m => m.sender === 'bot' || m.sender === 'agent' || m.fromMe);
       userMessagesWithContext.push({
         content: text.trim(),
@@ -1369,8 +1433,6 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
       });
     }
   }
-
-  const activeItemsMap = new Map(); // name -> { prod, quantity, isUnitMode, unitCount, label }
 
   for (let msgIdx = 0; msgIdx < userMessagesWithContext.length; msgIdx++) {
     const { content: msg, prevAgentMsg } = userMessagesWithContext[msgIdx];
@@ -1778,14 +1840,23 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
     }
 
     const isMsgCorrection = /corregi|corregí|corrije|corrijí|corregime|corrijeme|solo quiero|quiero solo|un solo|una sola|no, solo|nada mas/i.test(msg);
+    const isMsgAddition = /(?:^|\s)(?:agrega|agreg[aá]|agregar|agregame|agregale|suma|sum[aá]|sumar|sumale|sumame|ponele|poneme|adem[aá]s|tambien|tambi[eé]n)\b/i.test(msg);
     const chunks = cleanAndSplitMultiProductMessage(msg);
 
     for (const chunk of chunks) {
       if (!chunk || !chunk.trim()) continue;
       const isChunkRemoval = /(?:no\s+quiero|no\s+le\s+pongas|no\s+pongas|no\s+me\s+pongas|sacale|sacame|saca|sacá|sin\s+|sin\s+el|sin\s+la|sin\s+los|sin\s+las|quitale|quitame|quita|quitá|elimina|eliminame|borra|borrame|cancela\s+el|cancela\s+la)/i.test(chunk);
       const isChunkReplacement = /cambia|cambiame|en vez de|reemplaza/i.test(chunk);
-      const isChunkAddition = /agrega|agregá|suma|sumá|sumar|ponele|más|mas|y\b/i.test(chunk || '');
+      const isChunkAddition = isMsgAddition || /agrega|agregá|suma|sumá|sumar|sumale|sumame|ponele|más|mas|y\b/i.test(chunk || '');
       let prod = null;
+      if (isChunkAddition && /\b(?:chorizos?|choris?)\b/i.test(chunk) && !/\b(?:criollo|cerdo|cero|bife|colorado|bombon|bombón)\b/i.test(chunk)) {
+        for (const [existingName, existingItem] of activeItemsMap.entries()) {
+          if (/chorizo/i.test(existingName) && !/bife/i.test(existingName)) {
+            prod = existingItem.prod;
+            break;
+          }
+        }
+      }
       if (isChunkReplacement || isChunkRemoval) {
         for (const [existingName, existingItem] of activeItemsMap.entries()) {
           const lowerChunk = chunk.toLowerCase();
@@ -1899,7 +1970,8 @@ export function extractItemsFromHistoryAndText(history, text, products, lead = n
         const parsed = parseQuantityAndMode(chunk, prod);
         if (activeItemsMap.has(prod.name) && isChunkAddition) {
           const existing = activeItemsMap.get(prod.name);
-          existing.quantity += parsed.quantity;
+          existing.quantity = Number((existing.quantity + parsed.quantity).toFixed(3));
+          delete existing.subtotal;
           if (existing.isUnitMode && parsed.isUnitMode) {
             existing.unitCount += parsed.unitCount;
             existing.label = `${existing.unitCount} Unidades`;
@@ -2864,7 +2936,8 @@ Whenever the user asks about the current time, date, products count, orders, or 
         lead: activeLead,
         customerText: incomingText,
         aiReplyText: reply,
-        products: products || db.getProducts()
+        products: products || db.getProducts(),
+        history: activeHistory
       });
     } catch (orderSyncErr) {}
 
@@ -3164,7 +3237,8 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
         customerText: incomingText,
         aiReplyText: replyText,
         products,
-        stage: suggestedStage
+        stage: suggestedStage,
+        history
       });
     } catch (orderSyncErr) {
       console.warn('⚠️ [AIService] Error en sincronización de pedido:', orderSyncErr.message);

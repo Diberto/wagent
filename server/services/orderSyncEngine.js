@@ -18,7 +18,8 @@ export class OrderSyncEngine {
     customerText = '',
     aiReplyText = '',
     products = null,
-    stage = null
+    stage = null,
+    history = []
   }) {
     try {
       // Catálogo siempre desde la base de datos real
@@ -159,15 +160,29 @@ export class OrderSyncEngine {
 
       // 5. Detección de Modalidad (Retiro en Sucursal vs Envío a Domicilio) y Sucursal Específica
       const turnContext = `${userMsg || ''} ${replyMsg || ''}`;
-      const recentHistoryContext = Array.isArray(history) 
-        ? history.slice(-6).map(h => typeof h === 'string' ? h : (h.content || h.text || '')).join(' ') 
+      const effectiveHistory = (Array.isArray(history) && history.length > 0)
+        ? history
+        : (clientJid && typeof db.getMessages === 'function' ? (db.getMessages(clientJid) || []) : []);
+      const recentHistoryContext = Array.isArray(effectiveHistory) 
+        ? effectiveHistory.slice(-6).map(h => typeof h === 'string' ? h : (h.content || h.text || '')).join(' ') 
         : '';
       const fullContext = `${turnContext} ${recentHistoryContext}`;
 
-      const isBranchPickup = /(?:sucursal|retiro|retirar|pasar\s+a\s+buscar|retiro\s+por|retiro\s+en|en\s+el\s+local|por\s+el\s+local|sede)/i.test(turnContext) ||
-        /(?:sucursal|retiro|retirar|pasar\s+a\s+buscar)/i.test(recentHistoryContext) ||
+      // Limpiar opciones de menú numeradas para no confundir "2️⃣ Elegir Retiro por Sucursal" con una elección real
+      const stripMenuLines = (txt) => String(txt || '').replace(/^.*(?:1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|[1-5][\.\)]).*$/gm, '');
+      const cleanReplyForPickup = stripMenuLines(replyMsg);
+      const cleanHistoryForPickup = stripMenuLines(recentHistoryContext);
+
+      const isExplicitDelivery = Boolean(cleanAddr && !/(?:retiro|sucursal|pasar\s+a\s+buscar|voy\s+a\s+retirar)/i.test(userMsg)) ||
+        /(?:a\s+mi\s+casa|a\s+domicilio|env[ií]o\s+a\s+domicilio|mandamelo|enviamelo|llevamelo|delivery)/i.test(userMsg);
+
+      const isBranchPickup = !isExplicitDelivery && (
+        /(?:sucursal|retiro|retirar|pasar\s+a\s+buscar|retiro\s+por|retiro\s+en|en\s+el\s+local|por\s+el\s+local)/i.test(userMsg) ||
+        /(?:modalidad:\s*\*?retiro|retiro\s+(?:en|por)\s+sucursal|pasar\s+a\s+retirar|te\s+esperamos\s+en\s+(?:nuestra\s+)?sucursal|preparado\s+para\s+retirar)/i.test(cleanReplyForPickup) ||
+        /(?:sucursal|retiro|retirar|pasar\s+a\s+buscar)/i.test(cleanHistoryForPickup) ||
         activeOrder?.deliveryType === 'pickup' ||
-        clientLead?.deliveryType === 'pickup';
+        clientLead?.deliveryType === 'pickup'
+      );
 
       let deliveryType = isBranchPickup ? 'pickup' : (activeOrder?.deliveryType || clientLead?.deliveryType || 'delivery');
 

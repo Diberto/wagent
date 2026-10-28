@@ -307,6 +307,9 @@ export function createApiRouter(whatsappService, io) {
   router.post('/database/config', (req, res) => {
     try {
       const updated = DbMigrationService.saveConfig(req.body);
+      if (updated?.activeEngine === 'mongodb' && updated?.mongodb?.uri) {
+        connectDB(updated.mongodb.uri, updated.mongodb.dbName).catch(() => {});
+      }
       res.json({ success: true, config: updated });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
@@ -329,6 +332,10 @@ export function createApiRouter(whatsappService, io) {
       const { targetType, targetConfig } = req.body;
       if (!targetType) return res.status(400).json({ success: false, error: 'Motor destino requerido' });
       const result = await DbMigrationService.migrateData({ targetType, targetConfig, io });
+      if (result?.success && targetType === 'mongodb') {
+        const cfg = DbMigrationService.getActiveConfig();
+        connectDB(cfg.mongodb?.uri, cfg.mongodb?.dbName).catch(() => {});
+      }
       res.json(result);
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
@@ -341,7 +348,10 @@ export function createApiRouter(whatsappService, io) {
       if (!engine) return res.status(400).json({ success: false, error: 'Motor requerido' });
       const current = DbMigrationService.getActiveConfig();
       current.activeEngine = engine;
-      DbMigrationService.saveConfig(current);
+      const saved = DbMigrationService.saveConfig(current);
+      if (engine === 'mongodb' && saved?.mongodb?.uri) {
+        connectDB(saved.mongodb.uri, saved.mongodb.dbName).catch(() => {});
+      }
       res.json({ success: true, message: `Motor activo cambiado a ${engine}`, activeEngine: engine });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
