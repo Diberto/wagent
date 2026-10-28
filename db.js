@@ -43,7 +43,7 @@ export function getMongoConnectionDetails() {
   let dbName = process.env.MONGODB_DB_NAME;
 
   // 2. Check data/db_config.json if environment variable not set or contains invalid placeholder
-  if (!uri || uri.includes('<db_username>')) {
+  if (!uri || uri.includes('<db_username>') || uri.includes('******')) {
     try {
       const configPaths = [
         path.join(process.cwd(), 'data', 'db_config.json'),
@@ -52,7 +52,7 @@ export function getMongoConnectionDetails() {
       for (const p of configPaths) {
         if (fs.existsSync(p)) {
           const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-          if (cfg.mongodb?.uri && !cfg.mongodb.uri.includes('<db_username>')) {
+          if (cfg.mongodb?.uri && !cfg.mongodb.uri.includes('<db_username>') && !cfg.mongodb.uri.includes('******')) {
             uri = cfg.mongodb.uri;
             if (cfg.mongodb.dbName) dbName = cfg.mongodb.dbName;
             break;
@@ -63,7 +63,7 @@ export function getMongoConnectionDetails() {
   }
 
   // 3. Fallback to known active Atlas cluster credentials
-  if (!uri || uri.includes('localhost') || uri.includes('<db_username>')) {
+  if (!uri || uri.includes('localhost') || uri.includes('<db_username>') || uri.includes('******')) {
     uri = DEFAULT_ATLAS_URI;
   }
   if (!dbName || dbName === 'wagent') {

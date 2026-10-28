@@ -117,7 +117,7 @@ export default function DatabaseView({ socket = null }) {
         setTargetConfig(prev => ({
           ...prev,
           mongodbAuthMode: cfg.mongodb?.authMode || (cfg.mongodb?.apiKey ? 'apikey' : 'uri'),
-          mongodbUri: cfg.mongodb?.uri || prev.mongodbUri,
+          mongodbUri: (cfg.mongodb?.uri && !cfg.mongodb.uri.includes('******')) ? cfg.mongodb.uri : prev.mongodbUri,
           mongodbDbName: cfg.mongodb?.dbName || prev.mongodbDbName,
           mongodbApiKey: cfg.mongodb?.apiKey || '',
           mongodbEndpoint: cfg.mongodb?.endpoint || '',
@@ -1383,13 +1383,23 @@ export default function DatabaseView({ socket = null }) {
                             Cargar Cluster MongoDB Atlas (Hostinger Cloud)
                           </button>
                         </div>
-                        <input
-                          type="text"
-                          value={targetConfig.mongodbUri}
-                          onChange={e => setTargetConfig({ ...targetConfig, mongodbUri: e.target.value })}
-                          placeholder="mongodb://usuario:contraseña@servidor:27017/wagent o mongodb+srv://..."
-                          className="w-full bg-slate-950 border border-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-                        />
+                        <div className="relative">
+                          <input
+                            type={showSecretKey ? "text" : "password"}
+                            value={targetConfig.mongodbUri}
+                            onChange={e => setTargetConfig({ ...targetConfig, mongodbUri: e.target.value })}
+                            placeholder="mongodb://usuario:contraseña@servidor:27017/wagent o mongodb+srv://..."
+                            className="w-full bg-slate-950 border border-slate-800 pr-10 px-3.5 py-2.5 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSecretKey(!showSecretKey)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1 transition-colors"
+                            title={showSecretKey ? "Ocultar credenciales" : "Ver credenciales completas"}
+                          >
+                            {showSecretKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        </div>
 
                         <div>
                           <label className="text-xs font-semibold text-slate-300 block mb-1">

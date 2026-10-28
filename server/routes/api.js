@@ -298,24 +298,7 @@ export function createApiRouter(whatsappService, io) {
   router.get('/database/config', (req, res) => {
     try {
       const config = DbMigrationService.getActiveConfig();
-      // Enmascarar contraseñas en URLs para seguridad en el frontend
-      const masked = JSON.parse(JSON.stringify(config));
-      if (masked.mongodb?.uri) {
-        masked.mongodb.uri = masked.mongodb.uri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/, '$1******$3');
-      }
-      if (masked.supabase?.connectionString) {
-        masked.supabase.connectionString = masked.supabase.connectionString.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)/, '$1******$3');
-      }
-      if (masked.mongodb?.apiKey && masked.mongodb.apiKey.length > 8) {
-        masked.mongodb.apiKey = masked.mongodb.apiKey.slice(0, 4) + '******' + masked.mongodb.apiKey.slice(-4);
-      }
-      if (masked.supabase?.apiKey && masked.supabase.apiKey.length > 8) {
-        masked.supabase.apiKey = masked.supabase.apiKey.slice(0, 4) + '******' + masked.supabase.apiKey.slice(-4);
-      }
-      if (masked.firebase?.apiKey && masked.firebase.apiKey.length > 8) {
-        masked.firebase.apiKey = masked.firebase.apiKey.slice(0, 4) + '******' + masked.firebase.apiKey.slice(-4);
-      }
-      res.json({ success: true, config: masked });
+      res.json({ success: true, config });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message });
     }

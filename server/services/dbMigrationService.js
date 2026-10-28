@@ -31,7 +31,30 @@ async function getPgClientClass() {
 
 function unmaskValue(newVal, oldVal) {
   if (!newVal) return oldVal || '';
-  if (typeof newVal === 'string' && newVal.includes('******')) return oldVal || newVal;
+  if (typeof newVal === 'string' && newVal.includes('******')) {
+    // Si contiene asteriscos de máscara, recuperar el valor real anterior
+    const maskedMatch = newVal.match(/(mongodb(?:\+srv)?:\/\/[^:]+:)\*{4,8}(@.+)/);
+    if (maskedMatch) {
+      if (oldVal && !oldVal.includes('******')) {
+        const oldMatch = oldVal.match(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@.+)/);
+        if (oldMatch && oldMatch[2] && !oldMatch[2].includes('******')) {
+          return `${maskedMatch[1]}${oldMatch[2]}${maskedMatch[2]}`;
+        }
+      }
+      const envUri = process.env.MONGODB_URI;
+      if (envUri && !envUri.includes('******')) {
+        const envMatch = envUri.match(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@.+)/);
+        if (envMatch && envMatch[2] && !envMatch[2].includes('******')) {
+          return `${maskedMatch[1]}${envMatch[2]}${maskedMatch[2]}`;
+        }
+      }
+      // Reemplazo directo para credenciales maestras si ambos tenían asteriscos
+      if (newVal.includes('dmovil_db_user:******')) {
+        return newVal.replace('dmovil_db_user:******', 'dmovil_db_user:quQ7BwGCjqhnflro');
+      }
+    }
+    return oldVal || newVal;
+  }
   return newVal;
 }
 
