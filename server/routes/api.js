@@ -209,6 +209,52 @@ export function createApiRouter(whatsappService, io) {
     }
   });
 
+  router.get('/database/outbound-ip', async (req, res) => {
+    try {
+      const ipRes = await fetch('https://api.ipify.org?format=json', {
+        headers: { 'User-Agent': 'WAgent-IP-Check' },
+        signal: AbortSignal.timeout(5000)
+      });
+      const data = await ipRes.json();
+      res.json({
+        success: true,
+        outboundIp: data.ip,
+        mongoConnected: isMongoConnected(),
+        whitelistedConfigIp: '77.37.127.103',
+        isWhitelistedMatch: data.ip === '77.37.127.103'
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/database/connect-mongo', async (req, res) => {
+    try {
+      const { uri, dbName } = req.body || {};
+      const instance = await connectDB(uri, dbName);
+      const connected = isMongoConnected();
+      if (connected) {
+        try {
+          const cfg = DbMigrationService.getActiveConfig();
+          cfg.activeEngine = 'mongodb';
+          if (uri) cfg.mongodb.uri = uri;
+          if (dbName) cfg.mongodb.dbName = dbName;
+          DbMigrationService.saveConfig(cfg);
+        } catch (_) {}
+      }
+      res.json({
+        success: connected,
+        connected,
+        databaseName: instance?.databaseName || null,
+        message: connected
+          ? `Conexión establecida exitosamente con MongoDB Atlas (${instance?.databaseName})`
+          : 'No se pudo conectar a MongoDB Atlas. Verifica que la IP del servidor esté en Network Access (IP Access List) en MongoDB Atlas.'
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   router.post('/database/optimize', async (req, res) => {
     try {
       const sqliteResult = sqliteStorage.optimize();

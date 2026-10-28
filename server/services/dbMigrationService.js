@@ -61,8 +61,8 @@ export class DbMigrationService {
       },
       mongodb: {
         authMode: 'uri', // 'uri' | 'apikey'
-        uri: process.env.MONGODB_URI || 'mongodb://77.37.127.103:27017/wagent',
-        dbName: 'wagent',
+        uri: process.env.MONGODB_URI || 'mongodb://dmovil_db_user:quQ7BwGCjqhnflro@ac-vkpxxx5-shard-00-00.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-01.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-02.qndfojh.mongodb.net:27017/cluster0?ssl=true&replicaSet=atlas-cwmn3y-shard-0&authSource=admin&compressors=zlib',
+        dbName: process.env.MONGODB_DB_NAME || 'cluster0',
         apiKey: process.env.MONGODB_API_KEY || '',
         endpoint: process.env.MONGODB_DATA_API_ENDPOINT || '',
         dataSource: process.env.MONGODB_DATA_SOURCE || 'Cluster0'
@@ -225,18 +225,18 @@ export class DbMigrationService {
               const errText = await res.text().catch(() => '');
               throw new Error(`Respuesta de MongoDB Atlas (HTTP ${res.status}): ${errText.slice(0, 140)}`);
             }
-          } else {
-            const uri = config?.uri || process.env.MONGODB_URI || 'mongodb://77.37.127.103:27017/wagent';
+            const uri = config?.uri || process.env.MONGODB_URI || 'mongodb://dmovil_db_user:quQ7BwGCjqhnflro@ac-vkpxxx5-shard-00-00.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-01.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-02.qndfojh.mongodb.net:27017/cluster0?ssl=true&replicaSet=atlas-cwmn3y-shard-0&authSource=admin&compressors=zlib';
             if (!uri) throw new Error('Se requiere la URI de conexión de MongoDB');
 
             const Mongo = await getMongoClientClass();
             if (Mongo) {
               const client = new Mongo(uri, {
-                serverSelectionTimeoutMS: 5000,
-                connectTimeoutMS: 5000
+                serverSelectionTimeoutMS: 8000,
+                connectTimeoutMS: 15000,
+                tls: true
               });
               await client.connect();
-              const pingRes = await client.db().command({ ping: 1 });
+              const pingRes = await client.db(config?.dbName || 'cluster0').command({ ping: 1 });
               const latencyMs = Date.now() - startTime;
               const collections = await client.db().listCollections().toArray();
               await client.close();

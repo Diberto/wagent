@@ -10,6 +10,9 @@
  */
 
 import { createRequire } from 'module';
+import fs from 'fs';
+import path from 'path';
+
 const require = createRequire(import.meta.url);
 
 let MongoClient;
@@ -20,46 +23,97 @@ try {
   // If mongodb is not installed locally yet, will be installed automatically by Hostinger on build
 }
 
-const mongoUri = process.env.MONGODB_URI || 
-                 process.env.MONGO_URL || 
-                 process.env.DATABASE_URL || 
-                 process.env.MONGODB_URL || 
-                 'mongodb://localhost:27017/wagent';
-
-const dbName = process.env.MONGODB_DB_NAME || 'wagent';
-
 let client = null;
 let dbInstance = null;
 let isConnecting = false;
 
+// Default verified Atlas cluster replica set credentials
+const DEFAULT_ATLAS_URI = 'mongodb://dmovil_db_user:quQ7BwGCjqhnflro@ac-vkpxxx5-shard-00-00.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-01.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-02.qndfojh.mongodb.net:27017/cluster0?ssl=true&replicaSet=atlas-cwmn3y-shard-0&authSource=admin&compressors=zlib';
+const DEFAULT_DB_NAME = 'cluster0';
+
+/**
+ * Dynamically resolves the best MongoDB connection string and database name
+ */
+export function getMongoConnectionDetails() {
+  // 1. Check environment variables
+  let uri = process.env.MONGODB_URI || 
+            process.env.MONGO_URL || 
+            process.env.DATABASE_URL || 
+            process.env.MONGODB_URL;
+  let dbName = process.env.MONGODB_DB_NAME;
+
+  // 2. Check data/db_config.json if environment variable not set or contains invalid placeholder
+  if (!uri || uri.includes('<db_username>')) {
+    try {
+      const configPaths = [
+        path.join(process.cwd(), 'data', 'db_config.json'),
+        path.join(process.cwd(), 'server', 'data', 'db_config.json')
+      ];
+      for (const p of configPaths) {
+        if (fs.existsSync(p)) {
+          const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+          if (cfg.mongodb?.uri && !cfg.mongodb.uri.includes('<db_username>')) {
+            uri = cfg.mongodb.uri;
+            if (cfg.mongodb.dbName) dbName = cfg.mongodb.dbName;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3. Fallback to known active Atlas cluster credentials
+  if (!uri || uri.includes('localhost') || uri.includes('<db_username>')) {
+    uri = DEFAULT_ATLAS_URI;
+  }
+  if (!dbName || dbName === 'wagent') {
+    dbName = DEFAULT_DB_NAME;
+  }
+
+  return { uri, dbName };
+}
+
 /**
  * Connect to MongoDB Atlas
  */
-export async function connectDB() {
-  if (dbInstance) return dbInstance;
+export async function connectDB(customUri, customDbName) {
+  if (dbInstance && !customUri) return dbInstance;
   if (!MongoClient) {
     console.warn('⚠️ [MongoDB Atlas] El paquete mongodb no está instalado localmente. Se utilizará almacenamiento local SQLite/JSON.');
     return null;
   }
 
   if (isConnecting) {
-    // Wait briefly if connection is in progress
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 600));
     return dbInstance;
   }
 
   isConnecting = true;
   try {
-    console.log(`🔌 [MongoDB Atlas] Conectando a MongoDB en Hostinger... (IP Servidor: 77.37.127.103)`);
-    client = new MongoClient(mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
+    const { uri, dbName } = customUri 
+      ? { uri: customUri, dbName: customDbName || DEFAULT_DB_NAME }
+      : getMongoConnectionDetails();
+
+    const maskedUri = uri.replace(/(mongodb(?:\+srv)?:\/\/[^:]+:)([^@]+)(@)/, '$1******$3');
+    console.log(`🔌 [MongoDB Atlas] Conectando a MongoDB en Hostinger... (${maskedUri})`);
+
+    // Si ya había un cliente previo, cerrarlo limpiamente
+    if (client) {
+      try { await client.close(); } catch (_) {}
+      client = null;
+      dbInstance = null;
+    }
+
+    client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 15000,
+      tls: true,
+      maxPoolSize: 10
     });
 
     await client.connect();
     dbInstance = client.db(dbName);
-    console.log("Connected:", client.db().databaseName);
-    console.log(`✅ [MongoDB Atlas] Conexión establecida exitosamente a la base de datos "${client.db().databaseName}".`);
+    console.log(`✅ [MongoDB Atlas] Conexión establecida exitosamente a la base de datos "${dbInstance.databaseName}".`);
     isConnecting = false;
     return dbInstance;
   } catch (error) {
@@ -92,11 +146,9 @@ export function getCollection(collectionName) {
   return dbInstance.collection(collectionName);
 }
 
-// Auto-initialize connection if MONGODB_URI is provided
-if (process.env.MONGODB_URI || process.env.MONGO_URL) {
-  connectDB().catch(err => console.error("Connection error:", err));
-}
+// Auto-initialize connection
+connectDB().catch(err => console.error("Auto-connect notice:", err.message));
 
 export { MongoClient, client };
-export default client || { connectDB, getDb, isMongoConnected, getCollection };
+export default client || { connectDB, getDb, isMongoConnected, getCollection, getMongoConnectionDetails };
 

@@ -67,8 +67,8 @@ export default function DatabaseView({ socket = null }) {
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [targetConfig, setTargetConfig] = useState({
     mongodbAuthMode: 'uri', // 'uri' | 'apikey'
-    mongodbUri: 'mongodb://77.37.127.103:27017/wagent',
-    mongodbDbName: 'wagent',
+    mongodbUri: 'mongodb://dmovil_db_user:quQ7BwGCjqhnflro@ac-vkpxxx5-shard-00-00.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-01.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-02.qndfojh.mongodb.net:27017/cluster0?ssl=true&replicaSet=atlas-cwmn3y-shard-0&authSource=admin&compressors=zlib',
+    mongodbDbName: 'cluster0',
     mongodbApiKey: '',
     mongodbEndpoint: '',
     mongodbDataSource: 'Cluster0',
@@ -1374,13 +1374,13 @@ export default function DatabaseView({ socket = null }) {
                             onClick={() => {
                               setTargetConfig(prev => ({
                                 ...prev,
-                                mongodbUri: 'mongodb://admin:WAgent2026@77.37.127.103:27017/wagent?authSource=admin',
-                                mongodbDbName: 'wagent'
+                                mongodbUri: 'mongodb://dmovil_db_user:quQ7BwGCjqhnflro@ac-vkpxxx5-shard-00-00.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-01.qndfojh.mongodb.net:27017,ac-vkpxxx5-shard-00-02.qndfojh.mongodb.net:27017/cluster0?ssl=true&replicaSet=atlas-cwmn3y-shard-0&authSource=admin&compressors=zlib',
+                                mongodbDbName: 'cluster0'
                               }));
                             }}
-                            className="text-[11px] text-sky-400 hover:text-sky-300 underline font-mono"
+                            className="text-[11px] text-emerald-400 hover:text-emerald-300 underline font-mono"
                           >
-                            Cargar VPS Hostinger (77.37.127.103)
+                            Cargar Cluster MongoDB Atlas (Hostinger Cloud)
                           </button>
                         </div>
                         <input
