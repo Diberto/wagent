@@ -11,6 +11,7 @@
     "start": "node server/index.js",
     "start:prod": "node server/index.js",
     "mcp": "node server/mcp-server.js",
+    "mcp:hostinger": "node server/mcp-hostinger-client.js",
     "start:cluster": "node server/cluster.js",
     "dev:server": "node --watch server/index.js",
     "client": "npm run dev --workspace=client",

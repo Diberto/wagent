@@ -216,6 +216,10 @@ export function setupMcpHttpEndpoints(app) {
   // GET /mcp/sse: Conecta el flujo de eventos SSE del protocolo MCP
   app.get('/mcp/sse', requireApiKey, async (req, res) => {
     try {
+      // Desactivar buffering en proxies reversos (Nginx, Hostinger CDN, Cloudflare)
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+
       // Crear instancia de servidor MCP dedicada para esta conexión SSE
       const mcpServer = createMcpServerInstance();
       const transport = new SSEServerTransport('/mcp/messages', res);
@@ -223,8 +227,19 @@ export function setupMcpHttpEndpoints(app) {
       const sessionId = transport.sessionId;
       mcpSessions.set(sessionId, { mcpServer, transport });
 
+      // Ping periódico para mantener vivo el socket HTTP/2 en CDN (Hostinger / Cloudflare)
+      const keepAliveTimer = setInterval(() => {
+        try {
+          res.write(': keepalive\n\n');
+        } catch (_) {}
+      }, 15000);
+
       req.on('close', () => {
-        mcpSessions.delete(sessionId);
+        clearInterval(keepAliveTimer);
+        // Período de gracia para permitir procesar respuestas POST en tránsito
+        setTimeout(() => {
+          mcpSessions.delete(sessionId);
+        }, 30000);
       });
 
       await mcpServer.connect(transport);

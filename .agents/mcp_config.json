@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "wagent-hostinger": {
+      "command": "node",
+      "args": ["server/mcp-hostinger-client.js"],
+      "env": {
+        "HOSTINGER_URL": "https://bot.republicadelacarne.com",
+        "HOSTINGER_API_KEY": "wagent_live_c609bbf9bc07482254815e8759db73c922db145d17d4c2b7"
+      }
+    },
     "codebase-memory": {
       "command": "cmd.exe",
       "args": ["/c", "npx", "-y", "codebase-memory-mcp"]
