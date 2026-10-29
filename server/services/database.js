@@ -1100,6 +1100,19 @@ class DatabaseService {
   }
 
   // --- Messages ---
+  getMessageById(messageId) {
+    if (!messageId) return null;
+    const db = this.readDb();
+    const cleanId = String(messageId).trim();
+    const msgs = db.messages || [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i] && msgs[i].id === cleanId) {
+        return msgs[i];
+      }
+    }
+    return null;
+  }
+
   getMessages(chatId, limit = 50) {
     const db = this.readDb();
     const cleanId = String(chatId).trim();
@@ -1142,43 +1155,57 @@ class DatabaseService {
     const sender = msgData.sender || 'user';
     const now = Date.now();
 
+    const { replaceId, ...cleanMsgData } = msgData;
+
+    // 0. Si viene de promoción de cola Outbox (replaceId), actualizar registro pendiente en el lugar
+    if (replaceId) {
+      const pendingByOutbox = db.messages.find(m => m.id === replaceId);
+      if (pendingByOutbox) {
+        Object.assign(pendingByOutbox, cleanMsgData);
+        if (cleanMsgData.id) pendingByOutbox.id = cleanMsgData.id;
+        this.writeDb(db);
+        return { ...pendingByOutbox, _isDuplicate: true, _wasPromotedFromOutbox: true };
+      }
+    }
+
     // 1. Si ya existe un mensaje con el mismo ID exacto, actualizarlo sin duplicar
-    if (msgData.id) {
-      const existingById = db.messages.find(m => m.id === msgData.id);
+    if (cleanMsgData.id) {
+      const existingById = db.messages.find(m => m.id === cleanMsgData.id);
       if (existingById) {
-        Object.assign(existingById, msgData);
+        Object.assign(existingById, cleanMsgData);
         this.writeDb(db);
         return { ...existingById, _isDuplicate: true };
       }
     }
 
     // 2. Deduping inteligente para mensajes de salida (agent / bot):
-    // Si en los últimos 15 segundos ya se guardó un mensaje idéntico para este chatId, actualizar ID en lugar de duplicar
+    // Si en los últimos 15s (o 15 min si estaba 'pending' en Outbox) ya se guardó un mensaje idéntico, actualizar ID sin duplicar
     if (sender === 'agent' && content) {
-      const recentDuplicate = db.messages.slice(-20).reverse().find(m => {
+      const recentDuplicate = db.messages.slice(-40).reverse().find(m => {
         if (m.sender !== 'agent' || m.chatId !== chatId) return false;
         if ((m.content || '').trim() !== content) return false;
         const msgTime = new Date(m.timestamp).getTime();
-        return Math.abs(now - msgTime) < 15000;
+        const maxWindowMs = m.status === 'pending' ? 15 * 60 * 1000 : 15000;
+        return Math.abs(now - msgTime) < maxWindowMs;
       });
 
       if (recentDuplicate) {
-        if (msgData.id && !recentDuplicate.id.startsWith('true_') && !recentDuplicate.id.startsWith('BAE5')) {
-          recentDuplicate.id = msgData.id;
+        if (cleanMsgData.id && !recentDuplicate.id.startsWith('true_') && !recentDuplicate.id.startsWith('BAE5')) {
+          recentDuplicate.id = cleanMsgData.id;
         }
-        if (msgData.mediaUrl) recentDuplicate.mediaUrl = msgData.mediaUrl;
-        if (msgData.status) recentDuplicate.status = msgData.status;
+        if (cleanMsgData.mediaUrl) recentDuplicate.mediaUrl = cleanMsgData.mediaUrl;
+        if (cleanMsgData.status) recentDuplicate.status = cleanMsgData.status;
         this.writeDb(db);
         return { ...recentDuplicate, _isDuplicate: true };
       }
     }
 
     const newMsg = {
-      id: msgData.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      id: cleanMsgData.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       chatId: chatId,
-      timestamp: msgData.timestamp || new Date().toISOString(),
-      status: msgData.status || 'sent',
-      ...msgData
+      timestamp: cleanMsgData.timestamp || new Date().toISOString(),
+      status: cleanMsgData.status || 'sent',
+      ...cleanMsgData
     };
     newMsg.chatId = chatId;
 
@@ -3367,14 +3394,22 @@ class DatabaseService {
 
   getBranchByPhone(rawPhoneOrJid) {
     if (!rawPhoneOrJid) return null;
-    const branches = this.getBranches();
-    const core = extractCoreDigits(rawPhoneOrJid);
-    if (!core) return null;
+    if (String(rawPhoneOrJid).includes('@lid')) return null;
+    const toNational = (val) => {
+      let d = String(val || '').split('@')[0].replace(/\D/g, '');
+      if (d.startsWith('549') && d.length >= 12) d = d.slice(3);
+      else if (d.startsWith('54') && d.length >= 11) d = d.slice(2);
+      if (d.startsWith('0') && d.length >= 11) d = d.slice(1);
+      return d;
+    };
+    const inNat = toNational(rawPhoneOrJid);
+    if (inNat.length < 10) return null;
 
+    const branches = this.getBranches();
     return branches.find(b => {
       if (!b.isActive) return false;
-      const bCore = extractCoreDigits(b.phone || b.phoneNormalized);
-      return bCore && (bCore === core || bCore.endsWith(core) || core.endsWith(bCore));
+      const bNat = toNational(b.phone || b.phoneNormalized);
+      return bNat.length >= 10 && bNat === inNat;
     }) || null;
   }
 
@@ -3556,15 +3591,21 @@ class DatabaseService {
 
   getDriverByPhone(phoneOrJid) {
     if (!phoneOrJid) return null;
-    const db = this.readDb();
-    const clean = phoneOrJid.replace(/\D/g, '');
-    const core = clean.slice(-8);
+    if (String(phoneOrJid).includes('@lid')) return null;
+    const toNational = (val) => {
+      let d = String(val || '').split('@')[0].replace(/\D/g, '');
+      if (d.startsWith('549') && d.length >= 12) d = d.slice(3);
+      else if (d.startsWith('54') && d.length >= 11) d = d.slice(2);
+      if (d.startsWith('0') && d.length >= 11) d = d.slice(1);
+      return d;
+    };
+    const inNat = toNational(phoneOrJid);
+    if (inNat.length < 10) return null;
 
+    const db = this.readDb();
     return (db.drivers || []).find(d => {
-      const dClean = (d.phone || '').replace(/\D/g, '');
-      const dCore = dClean.slice(-8);
-      return (dClean && clean && (dClean === clean || dClean.includes(clean) || clean.includes(dClean))) ||
-             (core.length >= 7 && dCore.length >= 7 && (core === dCore || dClean.includes(core) || clean.includes(dCore)));
+      const dNat = toNational(d.phone || '');
+      return dNat.length >= 10 && dNat === inNat;
     }) || null;
   }
 

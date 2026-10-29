@@ -1,4 +1,4 @@
-import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser, Browsers } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, jidNormalizedUser, Browsers } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import QRCode from 'qrcode';
 import fs from 'fs';
@@ -107,6 +107,7 @@ export class WhatsAppService {
     this.watchdogTimer = null;
     this.reconnectTimer = null;
     this.outboxQueue = [];
+    this.outboxFilePath = path.join(CONFIG.DATA_DIR, `whatsapp_outbox_${this.sessionId}.json`);
     this.isDrainingOutbox = false;
     this.activeReplyDebounce = new Map();
     this.processingChats = new Set();
@@ -115,7 +116,114 @@ export class WhatsAppService {
     this.recoveredMsgIds = new Set();
     this.isRecoveringUnanswered = false;
     this.recentGroupInvoices = new Map();
+    this.backupDebounceTimer = null;
+    this.isBackingUpAuth = false;
+    this.sentProtoCache = new Map();
+    this.chatIngestionChains = new Map();
+    this.loadPersistedOutbox();
     this.startWatchdog();
+  }
+
+  /**
+   * Almacena en caché acotada (LRU 500) el proto original enviado para responder solicitudes Signal retry (getMessage)
+   */
+  cacheSentProto(sent) {
+    const id = sent?.key?.id;
+    if (!id || !sent?.message) return;
+    if (this.sentProtoCache.size >= 500) {
+      const oldestKey = this.sentProtoCache.keys().next().value;
+      if (oldestKey) this.sentProtoCache.delete(oldestKey);
+    }
+    this.sentProtoCache.set(id, sent.message);
+  }
+
+  /**
+   * Determina si un error al enviar un mensaje se debe a un micro-corte o caída transitoria del WebSocket / Stream
+   */
+  isTransientSocketError(err) {
+    const isWsAlive = Boolean(this.sock && this.status === 'connected' && (this.sock.ws?.isOpen === true || this.sock.ws?.socket?.readyState === 1));
+    if (!isWsAlive) return true;
+    if (!err) return false;
+
+    const statusCode = err?.output?.statusCode || err?.statusCode || err?.data?.statusCode;
+    if ([408, 428, 440, 500, 502, 503, 504, 515].includes(Number(statusCode))) {
+      return true;
+    }
+
+    const msg = String(err?.message || err?.output?.payload?.message || err || '');
+    return /closed|not open|connection|timed?\s*out|stream errored|websocket|restart required|aborted|precondition|eof|econnreset|etimedout|socket hang up|xml-not-well-formed/i.test(msg);
+  }
+
+  /**
+   * Restaura mensajes pendientes en Outbox que hayan sobrevivido a un reinicio (< 10 min de antigüedad)
+   */
+  loadPersistedOutbox() {
+    try {
+      if (!fs.existsSync(this.outboxFilePath)) return;
+      const raw = fs.readFileSync(this.outboxFilePath, 'utf8');
+      const items = JSON.parse(raw);
+      if (!Array.isArray(items)) return;
+      const now = Date.now();
+      const MAX_QUEUE_AGE_MS = 10 * 60 * 1000;
+      this.outboxQueue = items.filter(it => it && it.jid && (now - (it.createdAt || 0)) < MAX_QUEUE_AGE_MS);
+      if (this.outboxQueue.length > 0) {
+        console.log(`📦 [Outbox ${this.sessionId}] ${this.outboxQueue.length} mensaje(s) pendiente(s) restaurado(s) desde disco.`);
+      }
+    } catch (_) {}
+  }
+
+  /**
+   * Persiste de forma asíncrona la cola Outbox en disco para tolerar reinicios de proceso
+   */
+  persistOutboxQueue() {
+    try {
+      const serializable = (this.outboxQueue || [])
+        .filter(it => it && !it.audioBuffer && !it.imageBuffer)
+        .map(({ resolve, reject, ...rest }) => rest);
+      fs.promises.mkdir(path.dirname(this.outboxFilePath), { recursive: true })
+        .then(() => fs.promises.writeFile(this.outboxFilePath, JSON.stringify(serializable), 'utf8'))
+        .catch(() => {});
+    } catch (_) {}
+  }
+
+  /**
+   * Encola un mensaje saliente en Outbox evitando duplicados idénticos recientes para el mismo chat
+   */
+  enqueueOutboxItem(item) {
+    const cleanText = (item.text || item.caption || '').trim();
+    if (cleanText) {
+      const existing = this.outboxQueue.find(q =>
+        (q.chatId === item.chatId || q.jid === item.jid) &&
+        (q.type || 'text') === (item.type || 'text') &&
+        (q.text || q.caption || '').trim() === cleanText &&
+        Math.abs(Date.now() - (q.createdAt || 0)) < 15000
+      );
+      if (existing) return existing;
+    }
+    this.outboxQueue.push(item);
+    this.persistOutboxQueue();
+    return item;
+  }
+
+  /**
+   * Ejecuta tareas entrantes en serie POR CHAT (preservando orden por cliente) pero en paralelo ENTRE CHATS distintos
+   */
+  enqueueChatTask(chatKey, taskFn) {
+    const key = String(chatKey || 'global');
+    const prev = this.chatIngestionChains.get(key) || Promise.resolve();
+    const next = prev
+      .catch(() => {})
+      .then(() => taskFn())
+      .catch(err => {
+        console.warn(`⚠️ [WhatsApp Ingesta (${this.sessionId})] Error procesando evento de ${key}:`, err?.message || err);
+      })
+      .finally(() => {
+        if (this.chatIngestionChains.get(key) === next) {
+          this.chatIngestionChains.delete(key);
+        }
+      });
+    this.chatIngestionChains.set(key, next);
+    return next;
   }
 
   /**
@@ -264,16 +372,17 @@ export class WhatsAppService {
         return;
       }
 
-      // Enviar presencia activa cada 25s para mantener abierta la tabla de NAT del router / ISP (solo tras >15s conectado estable)
-      const now = Date.now();
-      if (connectedDuration > 15000 && (!this.lastPingAt || (now - this.lastPingAt) >= 25000)) {
-        this.lastPingAt = now;
-        try {
-          if (this.sock && typeof this.sock.sendPresenceUpdate === 'function') {
-            await this.sock.sendPresenceUpdate('available');
-          }
-        } catch (pingErr) {
-          // No-op
+      // Si el socket está saludable, vaciar Outbox rezagado y barrer mensajes sin responder de forma continua
+      if (isWsAlive && connectedDuration > 5000) {
+        if (this.outboxQueue.length > 0 && !this.isDrainingOutbox) {
+          this.drainOutboxQueue().catch(err => {
+            console.warn(`[Watchdog Outbox ${this.sessionId}] Error vaciando cola:`, err.message);
+          });
+        }
+        if (!this.isRecoveringUnanswered) {
+          this.recoverUnansweredMessages().catch(err => {
+            console.warn(`[Watchdog Recuperación ${this.sessionId}] Error revisando chats:`, err.message);
+          });
         }
       }
       return;
@@ -300,28 +409,75 @@ export class WhatsAppService {
   }
 
   /**
-   * Respalda las credenciales de Baileys ÚNICAMENTE cuando la sesión está verificada, conectada y válida
+   * Programa un respaldo incremental asíncrono con debounce para no bloquear el event loop durante ráfagas Signal
    */
-  backupAuthFiles() {
+  scheduleAuthBackup(delayMs = 12000) {
+    if (this.backupDebounceTimer) {
+      clearTimeout(this.backupDebounceTimer);
+    }
+    this.backupDebounceTimer = setTimeout(() => {
+      this.backupDebounceTimer = null;
+      this.backupAuthFiles().catch(err => {
+        console.warn(`Aviso en backup diferido de auth [${this.sessionId}]:`, err?.message || err);
+      });
+    }, delayMs);
+    if (this.backupDebounceTimer?.unref) {
+      this.backupDebounceTimer.unref();
+    }
+  }
+
+  /**
+   * Respalda las credenciales de Baileys de forma 100% asíncrona e incremental sin bloquear el event loop de WebSocket
+   */
+  async backupAuthFiles() {
+    if (this.isBackingUpAuth) return;
+    this.isBackingUpAuth = true;
     try {
       const credsActive = path.join(this.authDir, 'creds.json');
       if (!this.sock?.user || this.status !== 'connected' || !isCredsValid(credsActive)) {
         return;
       }
       const backupDir = path.join(CONFIG.DATA_DIR, 'backups', `auth_backup_${this.sessionId}`);
-      if (!fs.existsSync(backupDir)) {
-        fs.mkdirSync(backupDir, { recursive: true });
-      }
-      if (fs.existsSync(this.authDir)) {
-        const files = fs.readdirSync(this.authDir);
-        for (const file of files) {
-          if (file.endsWith('.json')) {
-            fs.copyFileSync(path.join(this.authDir, file), path.join(backupDir, file));
+      await fs.promises.mkdir(backupDir, { recursive: true });
+
+      // 1. Copia atómica prioritaria de creds.json
+      const credsTmp = path.join(backupDir, 'creds.json.tmp');
+      const credsDest = path.join(backupDir, 'creds.json');
+      await fs.promises.copyFile(credsActive, credsTmp);
+      await fs.promises.rename(credsTmp, credsDest);
+
+      // 2. Copia incremental no bloqueante de llaves Signal nuevas o modificadas
+      const files = await fs.promises.readdir(this.authDir);
+      let processed = 0;
+      for (const file of files) {
+        if (!file.endsWith('.json') || file === 'creds.json') continue;
+        const srcPath = path.join(this.authDir, file);
+        const dstPath = path.join(backupDir, file);
+        try {
+          const srcStat = await fs.promises.stat(srcPath);
+          let shouldCopy = true;
+          try {
+            const dstStat = await fs.promises.stat(dstPath);
+            if (dstStat.mtimeMs >= srcStat.mtimeMs && dstStat.size === srcStat.size) {
+              shouldCopy = false;
+            }
+          } catch (_) {
+            shouldCopy = true;
           }
+          if (shouldCopy) {
+            await fs.promises.copyFile(srcPath, dstPath);
+          }
+        } catch (_) {}
+
+        processed++;
+        if (processed % 25 === 0) {
+          await new Promise(r => setImmediate(r));
         }
       }
     } catch (err) {
       console.error(`Error respaldando auth de WhatsApp [${this.sessionId}]:`, err);
+    } finally {
+      this.isBackingUpAuth = false;
     }
   }
 
@@ -471,35 +627,46 @@ export class WhatsAppService {
       console.log(`Iniciando Baileys WhatsApp [Sesión: ${this.sessionId}] v${version.join('.')} (Latest: ${isLatest})`);
 
       const logger = pino({ level: 'silent' });
+      const authConfig = {
+        creds: state.creds,
+        keys: typeof makeCacheableSignalKeyStore === 'function'
+          ? makeCacheableSignalKeyStore(state.keys, logger)
+          : state.keys
+      };
 
       this.sock = makeWASocket({
         version,
         logger,
         printQRInTerminal: false,
-        auth: state,
+        auth: authConfig,
         browser: Browsers.windows('Desktop'),
         syncFullHistory: false,
+        shouldSyncHistoryMessage: () => false,
         generateHighQualityLinkPreview: true,
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
-        keepAliveIntervalMs: 20000,
-        retryRequestDelayMs: 2000,
-        markOnlineOnConnect: true,
+        keepAliveIntervalMs: 30000,
+        retryRequestDelayMs: 350,
+        maxMsgRetryCount: 5,
+        markOnlineOnConnect: false,
         getMessage: async (key) => {
           try {
-            const msg = db.getMessageById ? db.getMessageById(key.id) : null;
-            if (msg) return { conversation: msg.content };
+            if (key?.id && this.sentProtoCache.has(key.id)) {
+              return this.sentProtoCache.get(key.id);
+            }
+            const msg = db.getMessageById ? db.getMessageById(key?.id) : null;
+            if (msg?.content) return { conversation: msg.content };
           } catch (_) {}
           return undefined;
         }
       });
 
-      // Guardar credenciales y respaldar automáticamente ante credenciales válidas
+      // Guardar credenciales y programar respaldo incremental no bloqueante
       this.sock.ev.on('creds.update', async () => {
         await saveCreds();
         const credsActive = path.join(this.authDir, 'creds.json');
         if (isCredsValid(credsActive)) {
-          this.backupAuthFiles();
+          this.scheduleAuthBackup(12000);
         }
       });
 
@@ -654,20 +821,23 @@ export class WhatsAppService {
           this.explicitlyDisconnected = false;
           this.user = this.sock.user;
           this.emitStatus();
-          // Asegurar respaldo de credenciales válidas y activas
-          this.backupAuthFiles();
+          // Asegurar respaldo asíncrono no bloqueante de credenciales válidas
+          this.scheduleAuthBackup(3000);
 
           // 1. Vaciar cola Outbox de mensajes que esperaban reconexión
           this.drainOutboxQueue().catch(err => {
             console.warn(`[Outbox ${this.sessionId}] Error vaciando cola tras reconexión:`, err.message);
           });
 
-          // 2. Auto-recuperar mensajes de clientes que hayan quedado sin respuesta durante la desconexión
-          setTimeout(() => {
-            this.recoverUnansweredMessages().catch(err => {
-              console.warn(`[Auto-Recuperación ${this.sessionId}] Error revisando mensajes sin responder:`, err.message);
-            });
-          }, 2500);
+          // 2. Auto-recuperar mensajes de clientes en dos barridos escalonados (2.5s y 8.5s) tras abrir canal
+          for (const delayMs of [2500, 8500]) {
+            const recTimer = setTimeout(() => {
+              this.recoverUnansweredMessages().catch(err => {
+                console.warn(`[Auto-Recuperación ${this.sessionId}] Error revisando mensajes sin responder:`, err.message);
+              });
+            }, delayMs);
+            if (recTimer?.unref) recTimer.unref();
+          }
         }
       });
 
@@ -708,20 +878,58 @@ export class WhatsAppService {
         }
       });
 
-      // Evento de mensajes entrantes
-      this.sock.ev.on('messages.upsert', async ({ messages, type }) => {
+      // Evento de mensajes entrantes (desacoplado por chat para evitar bloqueos cruzados entre clientes y grupos)
+      this.sock.ev.on('messages.upsert', ({ messages, type }) => {
         if (!messages || messages.length === 0) return;
 
         for (const msg of messages) {
           if (!msg.key || !msg.key.remoteJid) continue;
           if (msg.key.remoteJid === 'status@broadcast') continue;
           if (msg.key.remoteJid.endsWith('@g.us')) {
-            // Escaneo pasivo silencioso de facturas en grupos de proveedores
-            await this.handleGroupMessage(msg);
+            // Escaneo pasivo silencioso de facturas en grupos sin bloquear chats de clientes
+            this.enqueueChatTask(msg.key.remoteJid, () => this.handleGroupMessage(msg));
             continue;
           }
 
-          await this.handleIncomingMessage(msg);
+          const chatKey = jidNormalizedUser(msg.key.remoteJid) || msg.key.remoteJid;
+          this.enqueueChatTask(chatKey, () => this.handleIncomingMessage(msg, { upsertType: type }));
+        }
+      });
+
+      // Respaldo ante reintentos de descifrado Signal / PDO donde el cuerpo descifrado arriba por messages.update
+      this.sock.ev.on('messages.update', (updates) => {
+        if (!Array.isArray(updates)) return;
+        for (const u of updates) {
+          if (!u?.key?.remoteJid || !u?.update?.message) continue;
+          if (u.key.remoteJid === 'status@broadcast' || u.key.remoteJid.endsWith('@g.us')) continue;
+          if (u.key.id && db.getMessageById && db.getMessageById(u.key.id)) continue;
+
+          const chatKey = jidNormalizedUser(u.key.remoteJid) || u.key.remoteJid;
+          const reconstructed = {
+            key: u.key,
+            message: u.update.message,
+            messageTimestamp: u.update.messageTimestamp || Math.floor(Date.now() / 1000),
+            pushName: u.update.pushName
+          };
+          this.enqueueChatTask(chatKey, () => this.handleIncomingMessage(reconstructed, { upsertType: 'notify' }));
+        }
+      });
+
+      // Respaldo ante mensajes recientes entregados dentro de paquetes offline / history sync tras micro-cortes
+      this.sock.ev.on('messaging-history.set', ({ messages }) => {
+        if (!Array.isArray(messages) || messages.length === 0) return;
+        const nowMs = Date.now();
+        const MAX_OFFLINE_SYNC_AGE_MS = 15 * 60 * 1000;
+        for (const msg of messages) {
+          if (!msg?.key?.remoteJid || !msg.message || msg.key.fromMe) continue;
+          if (msg.key.remoteJid === 'status@broadcast' || msg.key.remoteJid.endsWith('@g.us')) continue;
+          const tsSec = Number(msg.messageTimestamp?.low ?? msg.messageTimestamp ?? 0);
+          const msgAgeMs = tsSec > 0 ? (nowMs - tsSec * 1000) : 0;
+          if (tsSec > 0 && msgAgeMs > MAX_OFFLINE_SYNC_AGE_MS) continue;
+          if (msg.key.id && db.getMessageById && db.getMessageById(msg.key.id)) continue;
+
+          const chatKey = jidNormalizedUser(msg.key.remoteJid) || msg.key.remoteJid;
+          this.enqueueChatTask(chatKey, () => this.handleIncomingMessage(msg, { upsertType: 'append' }));
         }
       });
 
@@ -1113,7 +1321,8 @@ export class WhatsAppService {
   /**
    * Procesa mensajes entrantes (texto, audios, fotos)
    */
-  async handleIncomingMessage(msg) {
+  async handleIncomingMessage(msg, options = {}) {
+    const { upsertType = 'notify' } = options;
     const rawJid = msg.key.remoteJid;
     const jid = jidNormalizedUser(rawJid);
     const isFromMe = Boolean(msg.key.fromMe);
@@ -1257,6 +1466,9 @@ export class WhatsAppService {
 
     console.log(`📩 [WhatsApp ${isFromMe ? 'Saliente' : 'Entrante'}] De ${pushName} (${lead?.phone || jid}): "${textContent}" (Tipo: ${messageType})`);
 
+    const rawTsSec = Number(msg.messageTimestamp?.low ?? msg.messageTimestamp ?? 0);
+    const msgTimestampMs = rawTsSec > 0 ? rawTsSec * 1000 : Date.now();
+
     // Guardar mensaje en base de datos
     const savedMessage = db.saveMessage({
       id: msg.key.id,
@@ -1266,7 +1478,7 @@ export class WhatsAppService {
       content: textContent,
       mediaUrl,
       audioDuration,
-      timestamp: new Date((msg.messageTimestamp || Date.now() / 1000) * 1000).toISOString(),
+      timestamp: new Date(msgTimestampMs).toISOString(),
       status: isFromMe ? 'sent' : 'received'
     });
 
@@ -1276,6 +1488,28 @@ export class WhatsAppService {
     // Emitir mensaje en tiempo real al frontend sólo si no es un duplicado ya emitido
     if (this.io && !savedMessage._isDuplicate) {
       this.io.emit('chat:message', { message: savedMessage, lead });
+    }
+
+    // Evitar reprocesar el mismo ID si llegó simultáneamente por messages.upsert y history/update
+    if (!isFromMe && savedMessage._isDuplicate) {
+      return;
+    }
+
+    // Si es un mensaje sincronizado en diferido ('append'), ignorar mensajes históricos antiguos (> 15 min)
+    if (!isFromMe && upsertType === 'append') {
+      const ageMs = Date.now() - msgTimestampMs;
+      if (ageMs > 15 * 60 * 1000) {
+        return;
+      }
+      // Si ya existe una respuesta del agente claramente posterior (>5s por truncado a segundos de WhatsApp), no volver a responder
+      const recentMsgs = db.getMessages(jid, 6) || [];
+      const hasNewerAgentReply = recentMsgs.some(m =>
+        (m.sender === 'agent' || m.sender === 'bot') &&
+        new Date(m.timestamp).getTime() > msgTimestampMs + 5000
+      );
+      if (hasNewerAgentReply) {
+        return;
+      }
     }
 
     // 4. Si el mensaje proviene de una SUCURSAL registrada (Encargado/Operador de Sucursal)
@@ -1444,6 +1678,12 @@ export class WhatsAppService {
       }
     };
 
+    let cleanClientResponse = '';
+    let shouldSendAudio = false;
+    let audioPath = null;
+    let audioMp3Path = null;
+    let audioDuration = 0;
+
     try {
       if (this.sock) {
         try {
@@ -1458,10 +1698,6 @@ export class WhatsAppService {
       }
 
       let responseText = '';
-      let shouldSendAudio = false;
-      let audioPath = null;
-      let audioMp3Path = null;
-      let audioDuration = 0;
 
       if (entry.isImage && entry.downloadedImagePath && fs.existsSync(entry.downloadedImagePath)) {
         const visionResult = await SpeechService.analyzeImageWithAI({
@@ -1484,7 +1720,7 @@ export class WhatsAppService {
       }
 
       // Sanitizar COMPLETAMENTE cualquier etiqueta técnica interna [[...]] antes de enviar al cliente
-      let cleanClientResponse = (responseText || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
+      cleanClientResponse = (responseText || '').replace(/\[\[[A-Z_]+(?::[^\]]*)?\]\]/g, '').trim();
 
       const currentSettings = db.getSettings();
       if (currentSettings.mentionPluInChat === false || !currentSettings.mentionPluInChat) {
@@ -1502,9 +1738,17 @@ export class WhatsAppService {
       console.log(`📤 Enviando respuesta a ${targetJid}: "${cleanClientResponse.slice(0, 80)}..." (Voz: ${shouldSendAudio})`);
 
       if (shouldSendAudio && audioPath && fs.existsSync(audioPath)) {
-        const sent = await this.sendVoiceNote(targetJid, audioPath, { allowQueue: true, isAiReply: true, chatId: jid });
+        const sent = await this.sendVoiceNote(targetJid, audioPath, {
+          allowQueue: true,
+          isAiReply: true,
+          chatId: jid,
+          text: cleanClientResponse,
+          audioMp3Path,
+          audioDuration: audioDuration || 4
+        });
+        const isQueued = Boolean(sent?.isQueued);
         const savedAiMsg = db.saveMessage({
-          id: sent?.key?.id || (sent?.id && !sent.id.startsWith('outbox_') ? sent.id : null),
+          id: sent?.key?.id || sent?.id || null,
           chatId: jid,
           sender: 'agent',
           type: 'audio',
@@ -1512,21 +1756,22 @@ export class WhatsAppService {
           mediaUrl: audioMp3Path ? `/media/${path.basename(audioMp3Path)}` : null,
           audioDuration: audioDuration || 4,
           timestamp: new Date().toISOString(),
-          status: sent?.key?.id ? 'sent' : 'pending'
+          status: isQueued ? 'pending' : (sent?.key?.id ? 'sent' : 'pending')
         });
         if (this.io && !savedAiMsg._isDuplicate) {
           this.io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(jid) });
         }
       } else {
         const sent = await this.sendTextMessage(targetJid, cleanClientResponse, { allowQueue: true, isAiReply: true, chatId: jid });
+        const isQueued = Boolean(sent?.isQueued);
         const savedAiMsg = db.saveMessage({
-          id: sent?.key?.id || (sent?.id && !sent.id.startsWith('outbox_') ? sent.id : null),
+          id: sent?.key?.id || sent?.id || null,
           chatId: jid,
           sender: 'agent',
           type: 'text',
           content: cleanClientResponse,
           timestamp: new Date().toISOString(),
-          status: sent?.key?.id ? 'sent' : 'pending'
+          status: isQueued ? 'pending' : (sent?.key?.id ? 'sent' : 'pending')
         });
         if (this.io && !savedAiMsg._isDuplicate) {
           this.io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(jid) });
@@ -1534,6 +1779,42 @@ export class WhatsAppService {
       }
     } catch (err) {
       console.error('Error enviando respuesta automática de IA:', err);
+      // Red de seguridad: si la IA ya había generado la respuesta pero falló el despacho al socket, encolar en Outbox para no perder el turno
+      if (cleanClientResponse) {
+        try {
+          const fallbackId = `outbox_rescue_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+          const queued = this.enqueueOutboxItem({
+            id: fallbackId,
+            type: (shouldSendAudio && audioPath && fs.existsSync(audioPath)) ? 'audio' : 'text',
+            jid: targetJid,
+            chatId: jid,
+            text: cleanClientResponse,
+            audioPath: (shouldSendAudio && audioPath && fs.existsSync(audioPath)) ? audioPath : null,
+            audioMp3Path,
+            audioDuration: audioDuration || 4,
+            isAiReply: true,
+            saveToDb: true,
+            createdAt: Date.now()
+          });
+          const savedPending = db.saveMessage({
+            id: queued.id,
+            chatId: jid,
+            sender: 'agent',
+            type: queued.type || 'text',
+            content: cleanClientResponse,
+            mediaUrl: audioMp3Path ? `/media/${path.basename(audioMp3Path)}` : null,
+            audioDuration: queued.type === 'audio' ? (audioDuration || 4) : 0,
+            timestamp: new Date().toISOString(),
+            status: 'pending'
+          });
+          if (this.io && !savedPending._isDuplicate) {
+            this.io.emit('chat:message', { message: savedPending, lead: db.getLead(jid) });
+          }
+          console.warn(`🛟 [Rescate IA (${this.sessionId})] Respuesta preservada en Outbox (${queued.id}) para entrega tras reconexión a ${targetJid}.`);
+        } catch (rescueErr) {
+          console.warn(`Error en rescate Outbox de respuesta IA:`, rescueErr.message);
+        }
+      }
     } finally {
       await clearTypingPresence();
       this.processingChats.delete(jid);
@@ -1562,67 +1843,82 @@ export class WhatsAppService {
 
     const MAX_QUEUE_AGE_MS = 10 * 60 * 1000; // 10 minutos máx
 
-    while (this.outboxQueue.length > 0) {
-      if (this.status !== 'connected' || !this.sock) {
-        console.warn(`⚠️ [Outbox ${this.sessionId}] Conexión cerrada durante el vaciado. Pausando outbox...`);
-        break;
-      }
-
-      const item = this.outboxQueue.shift();
-      const ageMs = Date.now() - item.createdAt;
-
-      if (ageMs > MAX_QUEUE_AGE_MS) {
-        console.warn(`⏱️ [Outbox ${this.sessionId}] Descartando mensaje vencido para ${item.jid} (${Math.round(ageMs / 1000)}s de antigüedad)`);
-        if (item.reject) item.reject(new Error('Mensaje expirado en cola de reconexión'));
-        continue;
-      }
-
-      try {
-        let sent = null;
-        if (item.type === 'audio' && (item.audioPath || item.audioBuffer)) {
-          sent = await this.sendVoiceNote(item.jid, item.audioPath || item.audioBuffer, { allowQueue: false, isAiReply: false });
-        } else if (item.type === 'image' && (item.imagePath || item.imageBuffer)) {
-          sent = await this.sendImageMessage(item.jid, item.imagePath || item.imageBuffer, item.caption, { allowQueue: false, isAiReply: false });
-        } else {
-          sent = await this.sendTextMessage(item.jid, item.text, { allowQueue: false, isAiReply: false });
+    try {
+      while (this.outboxQueue.length > 0) {
+        if (this.status !== 'connected' || !this.sock) {
+          console.warn(`⚠️ [Outbox ${this.sessionId}] Conexión cerrada durante el vaciado. Pausando outbox...`);
+          break;
         }
 
-        // Si era una respuesta de IA o mensaje que aún requería asentarse en DB
-        if (item.isAiReply || item.saveToDb) {
-          const savedAiMsg = db.saveMessage({
-            id: sent?.key?.id,
-            chatId: item.chatId || item.jid,
-            sender: 'agent',
-            type: item.type || 'text',
-            content: item.text || item.caption || '',
-            mediaUrl: item.audioMp3Path ? `/media/${path.basename(item.audioMp3Path)}` : null,
-            audioDuration: item.audioDuration || 0,
-            timestamp: new Date().toISOString(),
-            status: 'sent'
-          });
+        const item = this.outboxQueue.shift();
+        this.persistOutboxQueue();
+        const ageMs = Date.now() - (item.createdAt || 0);
 
-          if (this.io && !savedAiMsg._isDuplicate) {
-            this.io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(item.chatId || item.jid) });
+        if (ageMs > MAX_QUEUE_AGE_MS) {
+          console.warn(`⏱️ [Outbox ${this.sessionId}] Descartando mensaje vencido para ${item.jid} (${Math.round(ageMs / 1000)}s de antigüedad)`);
+          if (item.reject) item.reject(new Error('Mensaje expirado en cola de reconexión'));
+          continue;
+        }
+
+        try {
+          let sent = null;
+          if (item.type === 'audio' && (item.audioPath || item.audioBuffer)) {
+            if (typeof item.audioPath === 'string' && !fs.existsSync(item.audioPath) && item.text) {
+              sent = await this.sendTextMessage(item.jid, item.text, { allowQueue: false, isAiReply: false });
+            } else {
+              sent = await this.sendVoiceNote(item.jid, item.audioPath || item.audioBuffer, { allowQueue: false, isAiReply: false });
+            }
+          } else if (item.type === 'image' && (item.imagePath || item.imageBuffer)) {
+            sent = await this.sendImageMessage(item.jid, item.imagePath || item.imageBuffer, item.caption, { allowQueue: false, isAiReply: false });
+          } else {
+            sent = await this.sendTextMessage(item.jid, item.text, { allowQueue: false, isAiReply: false });
           }
+
+          // Promover registro pendiente en DB con su ID real de WhatsApp y estado 'sent'
+          if (item.isAiReply || item.saveToDb) {
+            const savedAiMsg = db.saveMessage({
+              replaceId: item.id,
+              id: sent?.key?.id,
+              chatId: item.chatId || item.jid,
+              sender: 'agent',
+              type: item.type || 'text',
+              content: item.text || item.caption || '',
+              mediaUrl: item.audioMp3Path ? `/media/${path.basename(item.audioMp3Path)}` : null,
+              audioDuration: item.audioDuration || 0,
+              timestamp: new Date().toISOString(),
+              status: 'sent'
+            });
+
+            if (this.io && (!savedAiMsg._isDuplicate || savedAiMsg._wasPromotedFromOutbox)) {
+              this.io.emit('chat:message', { message: savedAiMsg, lead: db.getLead(item.chatId || item.jid) });
+            }
+          }
+
+          if (item.resolve) item.resolve(sent);
+          console.log(`✅ [Outbox ${this.sessionId}] Mensaje encolado entregado con éxito a ${item.jid}`);
+        } catch (err) {
+          if (this.isTransientSocketError(err)) {
+            console.warn(`⏳ [Outbox ${this.sessionId}] Nuevo micro-corte detectado al vaciar Outbox (${err.message}). Re-encolando al frente para ${item.jid}...`);
+            this.outboxQueue.unshift(item);
+            this.persistOutboxQueue();
+            break;
+          }
+          console.error(`❌ [Outbox ${this.sessionId}] Error entregando mensaje encolado a ${item.jid}:`, err.message);
+          if (item.reject) item.reject(err);
         }
 
-        if (item.resolve) item.resolve(sent);
-        console.log(`✅ [Outbox ${this.sessionId}] Mensaje encolado entregado con éxito a ${item.jid}`);
-      } catch (err) {
-        console.error(`❌ [Outbox ${this.sessionId}] Error entregando mensaje encolado a ${item.jid}:`, err.message);
-        if (item.reject) item.reject(err);
+        // Pausa respetuosa de 350ms para no saturar el canal de Baileys
+        await new Promise(r => setTimeout(r, 350));
       }
-
-      // Pausa respetuosa de 350ms para no saturar el canal de Baileys
-      await new Promise(r => setTimeout(r, 350));
+    } finally {
+      this.persistOutboxQueue();
+      this.isDrainingOutbox = false;
     }
-
-    this.isDrainingOutbox = false;
   }
 
   /**
-   * Examina los chats activos en la base de datos tras una reconexión para recuperar clientes que hayan escrito
-   * durante la ventana de desconexión sin haber recibido respuesta del bot, garantizando que el flujo de compra continúe.
+   * Examina los chats activos en la base de datos tras una reconexión o ciclo Watchdog para recuperar clientes que hayan escrito
+   * durante la ventana de desconexión sin haber recibido respuesta del bot, consolidando ráfagas completas de mensajes.
    */
   async recoverUnansweredMessages() {
     if (this.isRecoveringUnanswered || this.status !== 'connected' || !this.sock) return;
@@ -1634,6 +1930,7 @@ export class WhatsAppService {
 
       const leads = db.getLeads() || [];
       const now = Date.now();
+      const MIN_UNANSWERED_AGE_MS = 4000; // 4s (supera el debounce normal de 1.6s sin dejar hueco muerto)
       const MAX_UNANSWERED_AGE_MS = 15 * 60 * 1000; // 15 minutos máx
 
       for (const lead of leads) {
@@ -1647,38 +1944,73 @@ export class WhatsAppService {
         if (db.getBranchByPhone(lead.jid) || (lead.phone && db.getBranchByPhone(lead.phone))) continue;
         if (db.getDriverByPhone(lead.jid) || (lead.phone && db.getDriverByPhone(lead.phone))) continue;
 
-        const msgs = db.getMessages(lead.jid, 8);
+        const msgs = db.getMessages(lead.jid, 12);
         if (!msgs || msgs.length === 0) continue;
 
         const lastMsg = msgs[msgs.length - 1];
         if (!lastMsg || lastMsg.sender !== 'user') continue;
 
-        const msgTime = new Date(lastMsg.timestamp).getTime();
-        const msgAge = now - msgTime;
+        // Encontrar todos los mensajes consecutivos del usuario posteriores a la última intervención del agente
+        let lastAgentIdx = -1;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i] && (msgs[i].sender === 'agent' || msgs[i].sender === 'bot')) {
+            lastAgentIdx = i;
+            break;
+          }
+        }
 
-        // Verificar si ya hubo respuesta del bot posterior al mensaje del cliente
-        const lastAgentMsg = msgs.slice().reverse().find(m => m.sender === 'agent' || m.sender === 'bot');
-        if (lastAgentMsg) {
-          const agentTime = new Date(lastAgentMsg.timestamp).getTime();
-          if (agentTime >= msgTime - 2000) {
-            // Ya fue respondido, no duplicar respuesta
+        const trailingUserMsgs = msgs.slice(lastAgentIdx + 1).filter(m => m && m.sender === 'user');
+        if (trailingUserMsgs.length === 0) continue;
+
+        const newestUserTime = new Date(lastMsg.timestamp).getTime();
+        const newestAgeMs = now - newestUserTime;
+
+        // Verificar que la última respuesta del agente no sea posterior al mensaje del cliente (tolerando 5s por truncado a segundos enteros de WhatsApp / NTP)
+        if (lastAgentIdx >= 0) {
+          const agentTime = new Date(msgs[lastAgentIdx].timestamp).getTime();
+          if (agentTime > newestUserTime + 5000) {
             continue;
           }
         }
 
-        // Si el último mensaje del cliente fue en los últimos 15 minutos y hace más de 8 segundos sin respuesta
-        if (msgAge > 8000 && msgAge < MAX_UNANSWERED_AGE_MS) {
-          if (this.recoveredMsgIds && this.recoveredMsgIds.has(lastMsg.id)) continue;
+        if (newestAgeMs >= MIN_UNANSWERED_AGE_MS && newestAgeMs < MAX_UNANSWERED_AGE_MS) {
           if (!this.recoveredMsgIds) this.recoveredMsgIds = new Set();
-          this.recoveredMsgIds.add(lastMsg.id);
 
-          console.log(`🔄 [Auto-Recuperación ${this.sessionId}] Reanudando compra interrumpida para ${lead.pushName || lead.phone || lead.jid} (Mensaje recibido hace ${Math.round(msgAge / 1000)}s: "${(lastMsg.content || '').slice(0, 50)}...")`);
+          const unrecovered = trailingUserMsgs.filter(m => {
+            if (this.recoveredMsgIds.has(m.id)) return false;
+            const age = now - new Date(m.timestamp).getTime();
+            return age < MAX_UNANSWERED_AGE_MS;
+          });
+          if (unrecovered.length === 0) continue;
+
+          // Acotar tamaño de recoveredMsgIds en memoria (máx 1000 IDs)
+          for (const m of unrecovered) {
+            if (this.recoveredMsgIds.size >= 1000) {
+              const oldestId = this.recoveredMsgIds.values().next().value;
+              if (oldestId) this.recoveredMsgIds.delete(oldestId);
+            }
+            this.recoveredMsgIds.add(m.id);
+          }
+
+          const combinedText = unrecovered
+            .map(m => (m.content || '').trim())
+            .filter(Boolean)
+            .join('\n');
+          const hasAudio = unrecovered.some(m => m.type === 'audio');
+          const lastImgMsg = [...unrecovered].reverse().find(m => m.type === 'image');
+          let recoveredImgPath = null;
+          if (lastImgMsg?.mediaUrl) {
+            const candidate = path.join(CONFIG.MEDIA_DIR, path.basename(lastImgMsg.mediaUrl));
+            if (fs.existsSync(candidate)) recoveredImgPath = candidate;
+          }
+
+          console.log(`🔄 [Auto-Recuperación ${this.sessionId}] Reanudando conversación interrumpida para ${lead.pushName || lead.phone || lead.jid} (${unrecovered.length} msg(s), hace ${Math.round(newestAgeMs / 1000)}s: "${combinedText.slice(0, 60)}...")`);
 
           this.scheduleDebouncedReply(lead.jid, {
-            incomingText: lastMsg.content,
-            isAudio: lastMsg.type === 'audio',
-            isImage: lastMsg.type === 'image',
-            downloadedImagePath: null,
+            incomingText: combinedText || lastMsg.content,
+            isAudio: hasAudio,
+            isImage: Boolean(lastImgMsg),
+            downloadedImagePath: recoveredImgPath,
             pushName: lead.pushName || lead.name,
             targetJid: lead.altJids?.[0] || lead.jid
           });
@@ -1756,10 +2088,20 @@ export class WhatsAppService {
     }
 
     // 4. Es un número de teléfono o usuario @s.whatsapp.net
-    // 4.1 Verificar si existe un Lead con este identificador que ya tenga su JID canónico guardado
+    // 4.1 Verificar si existe un Lead con este identificador exacto (mismo código de área, ej. 549 vs 54) que tenga su JID canónico guardado
+    const stripCountry9 = (val) => {
+      const d = String(val || '').split('@')[0].replace(/\D/g, '');
+      if (d.startsWith('549') && d.length >= 12) return d.slice(3);
+      if (d.startsWith('54') && d.length >= 11) return d.slice(2);
+      return d;
+    };
     const existingLead = db.getLead(target);
     if (existingLead?.jid && (existingLead.jid.endsWith('@s.whatsapp.net') || existingLead.jid.endsWith('@lid'))) {
-      if (existingLead.jid !== target && !isSynthetic(existingLead.jid)) {
+      const sameExactIdentity =
+        existingLead.id === target ||
+        (Array.isArray(existingLead.altJids) && existingLead.altJids.includes(target)) ||
+        (existingLead.jid.endsWith('@s.whatsapp.net') && stripCountry9(existingLead.jid) === stripCountry9(target));
+      if (sameExactIdentity && existingLead.jid !== target && !isSynthetic(existingLead.jid)) {
         return this.formatRecipientJid(existingLead.jid);
       }
     }
@@ -1829,7 +2171,7 @@ export class WhatsAppService {
       if (allowQueue) {
         console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] WhatsApp en reconexión. Encolando mensaje en Outbox para ${cleanJid}...`);
         const outboxId = `outbox_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        this.outboxQueue.push({
+        const queued = this.enqueueOutboxItem({
           id: outboxId,
           type: 'text',
           jid: cleanJid,
@@ -1839,7 +2181,7 @@ export class WhatsAppService {
           saveToDb,
           createdAt: Date.now()
         });
-        return { key: { id: outboxId }, status: 'pending', isQueued: true };
+        return { key: { id: queued.id }, status: 'pending', isQueued: true };
       }
       throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]. Estado actual: ${this.status}`);
     }
@@ -1858,7 +2200,24 @@ export class WhatsAppService {
     try {
       sent = await this.sock.sendMessage(cleanJid, { text: cleanText });
     } catch (firstErr) {
-      // Reintento inteligente para números argentinos si el primer formato (549 vs 54) falló
+      // 1. Si falló por micro-corte o error de transporte del socket, encolar cleanJid original SIN corromper 549 -> 54
+      if (allowQueue && this.isTransientSocketError(firstErr)) {
+        console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Micro-corte de socket durante envío (${firstErr.message}). Preservando en Outbox para ${cleanJid}...`);
+        const outboxId = `outbox_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        const queued = this.enqueueOutboxItem({
+          id: outboxId,
+          type: 'text',
+          jid: cleanJid,
+          chatId: chatId || jid,
+          text: cleanText,
+          isAiReply,
+          saveToDb,
+          createdAt: Date.now()
+        });
+        return { key: { id: queued.id }, status: 'pending', isQueued: true };
+      }
+
+      // 2. Reintento inteligente para números argentinos SOLO si el socket sigue vivo y el primer formato (549 vs 54) fue rechazado
       const isArgNet = cleanJid.includes('@s.whatsapp.net') && cleanJid.startsWith('54');
       if (isArgNet) {
         const altJid = cleanJid.startsWith('549')
@@ -1869,43 +2228,29 @@ export class WhatsAppService {
           sent = await this.sock.sendMessage(altJid, { text: cleanText });
           cleanJid = altJid;
         } catch (retryErr) {
-          if (allowQueue && (retryErr.message?.includes('closed') || retryErr.message?.includes('not open') || retryErr.message?.includes('Connection') || !this.sock?.ws?.isOpen)) {
-            console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Socket cerrado durante envío. Moviendo a Outbox para ${altJid}...`);
+          if (allowQueue && this.isTransientSocketError(retryErr)) {
+            console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Socket cerrado durante reintento. Moviendo a Outbox para ${cleanJid}...`);
             const outboxId = `outbox_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-            this.outboxQueue.push({
+            const queued = this.enqueueOutboxItem({
               id: outboxId,
               type: 'text',
-              jid: altJid,
+              jid: cleanJid,
               chatId: chatId || jid,
               text: cleanText,
               isAiReply,
               saveToDb,
               createdAt: Date.now()
             });
-            return { key: { id: outboxId }, status: 'pending', isQueued: true };
+            return { key: { id: queued.id }, status: 'pending', isQueued: true };
           }
           throw retryErr;
         }
       } else {
-        if (allowQueue && (firstErr.message?.includes('closed') || firstErr.message?.includes('not open') || firstErr.message?.includes('Connection') || !this.sock?.ws?.isOpen)) {
-          console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Socket cerrado durante envío. Moviendo mensaje a Outbox para ${cleanJid}...`);
-          const outboxId = `outbox_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-          this.outboxQueue.push({
-            id: outboxId,
-            type: 'text',
-            jid: cleanJid,
-            chatId: chatId || jid,
-            text: cleanText,
-            isAiReply,
-            saveToDb,
-            createdAt: Date.now()
-          });
-          return { key: { id: outboxId }, status: 'pending', isQueued: true };
-        }
         throw firstErr;
       }
     }
 
+    this.cacheSentProto(sent);
     try {
       await this.sock.sendPresenceUpdate('paused', cleanJid);
       if (jid && jid !== cleanJid) {
@@ -1936,7 +2281,7 @@ export class WhatsAppService {
       if (allowQueue) {
         console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] WhatsApp en reconexión. Encolando imagen en Outbox para ${cleanJid}...`);
         const outboxId = `outbox_img_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        this.outboxQueue.push({
+        const queued = this.enqueueOutboxItem({
           id: outboxId,
           type: 'image',
           jid: cleanJid,
@@ -1948,7 +2293,7 @@ export class WhatsAppService {
           saveToDb,
           createdAt: Date.now()
         });
-        return { key: { id: outboxId }, status: 'pending', isQueued: true };
+        return { key: { id: queued.id }, status: 'pending', isQueued: true };
       }
       throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]`);
     }
@@ -1970,10 +2315,10 @@ export class WhatsAppService {
         caption: cleanCaption
       });
     } catch (sendErr) {
-      if (allowQueue && (sendErr.message?.includes('closed') || sendErr.message?.includes('not open') || sendErr.message?.includes('Connection') || !this.sock?.ws?.isOpen)) {
-        console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Socket cerrado durante envío de imagen. Moviendo a Outbox para ${cleanJid}...`);
+      if (allowQueue && this.isTransientSocketError(sendErr)) {
+        console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Micro-corte durante envío de imagen (${sendErr.message}). Moviendo a Outbox para ${cleanJid}...`);
         const outboxId = `outbox_img_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        this.outboxQueue.push({
+        const queued = this.enqueueOutboxItem({
           id: outboxId,
           type: 'image',
           jid: cleanJid,
@@ -1985,11 +2330,12 @@ export class WhatsAppService {
           saveToDb,
           createdAt: Date.now()
         });
-        return { key: { id: outboxId }, status: 'pending', isQueued: true };
+        return { key: { id: queued.id }, status: 'pending', isQueued: true };
       }
       throw sendErr;
     }
 
+    this.cacheSentProto(sent);
     try {
       await this.sock.sendPresenceUpdate('paused', cleanJid);
       if (jid && jid !== cleanJid) {
@@ -2004,7 +2350,7 @@ export class WhatsAppService {
    * Envía una nota de voz PTT (.ogg opus) a un JID con fallback Outbox
    */
   async sendVoiceNote(jid, audioPathOrBuffer, options = {}) {
-    const { allowQueue = true, isAiReply = false, saveToDb = false, chatId = null } = (typeof options === 'object' && options !== null) ? options : {};
+    const { allowQueue = true, isAiReply = false, saveToDb = false, chatId = null, text = '', audioMp3Path = null, audioDuration = 0 } = (typeof options === 'object' && options !== null) ? options : {};
 
     const cleanJid = await this.formatRecipientJid(jid);
     if (!cleanJid) {
@@ -2016,18 +2362,21 @@ export class WhatsAppService {
       if (allowQueue) {
         console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] WhatsApp en reconexión. Encolando nota de voz en Outbox para ${cleanJid}...`);
         const outboxId = `outbox_audio_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        this.outboxQueue.push({
+        const queued = this.enqueueOutboxItem({
           id: outboxId,
           type: 'audio',
           jid: cleanJid,
           chatId: chatId || jid,
+          text,
           audioPath: typeof audioPathOrBuffer === 'string' ? audioPathOrBuffer : null,
           audioBuffer: Buffer.isBuffer(audioPathOrBuffer) ? audioPathOrBuffer : null,
+          audioMp3Path,
+          audioDuration,
           isAiReply,
           saveToDb,
           createdAt: Date.now()
         });
-        return { key: { id: outboxId }, status: 'pending', isQueued: true };
+        return { key: { id: queued.id }, status: 'pending', isQueued: true };
       }
       throw new Error(`WhatsApp no está conectado [Sesión: ${this.sessionId}]`);
     }
@@ -2050,25 +2399,29 @@ export class WhatsAppService {
         ptt: true // Nota de voz nativa en WhatsApp
       });
     } catch (sendErr) {
-      if (allowQueue && (sendErr.message?.includes('closed') || sendErr.message?.includes('not open') || sendErr.message?.includes('Connection') || !this.sock?.ws?.isOpen)) {
-        console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Socket cerrado durante envío de voz. Moviendo a Outbox para ${cleanJid}...`);
+      if (allowQueue && this.isTransientSocketError(sendErr)) {
+        console.warn(`⏳ [WhatsApp Saliente (${this.sessionId})] Micro-corte durante envío de voz (${sendErr.message}). Moviendo a Outbox para ${cleanJid}...`);
         const outboxId = `outbox_audio_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-        this.outboxQueue.push({
+        const queued = this.enqueueOutboxItem({
           id: outboxId,
           type: 'audio',
           jid: cleanJid,
           chatId: chatId || jid,
+          text,
           audioPath: typeof audioPathOrBuffer === 'string' ? audioPathOrBuffer : null,
           audioBuffer: Buffer.isBuffer(audioPathOrBuffer) ? audioPathOrBuffer : null,
+          audioMp3Path,
+          audioDuration,
           isAiReply,
           saveToDb,
           createdAt: Date.now()
         });
-        return { key: { id: outboxId }, status: 'pending', isQueued: true };
+        return { key: { id: queued.id }, status: 'pending', isQueued: true };
       }
       throw sendErr;
     }
 
+    this.cacheSentProto(sent);
     try {
       await this.sock.sendPresenceUpdate('paused', cleanJid);
       if (jid && jid !== cleanJid) {
@@ -2874,32 +3227,55 @@ export class WhatsAppManager {
 
   /**
    * Inicializa de forma automática todas las sesiones de WhatsApp que tengan credenciales guardadas válidas
-   * (tanto la sesión default maestra como sesiones de usuarios/administradores específicos).
+   * (tanto la sesión default maestra como sesiones de usuarios/administradores específicos), evitando colisiones 440.
    */
   async initializeAllSavedSessions() {
     console.log('🔄 [WhatsAppManager] Escaneando y conectando sesiones de WhatsApp guardadas...');
-    
+
+    const extractAccountDigits = (credsFile) => {
+      try {
+        if (!fs.existsSync(credsFile)) return null;
+        const parsed = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        const meId = String(parsed?.me?.id || '');
+        if (!meId) return null;
+        return meId.split(':')[0].split('@')[0].replace(/\D/g, '') || null;
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const bootedAccounts = new Set();
+    const primaryDigits =
+      extractAccountDigits(path.join(CONFIG.AUTH_DIR, 'creds.json')) ||
+      extractAccountDigits(path.join(CONFIG.DATA_DIR, 'backups', 'auth_backup_default', 'creds.json'));
+    if (primaryDigits) bootedAccounts.add(primaryDigits);
+
     // 1. Sesión Maestra Principal ('default' / central business line)
-    // Siempre se inicializa: si tiene credenciales se reconecta automáticamente;
-    // si no tiene credenciales, genera el código QR para que el operador lo vincule de inmediato.
     console.log('📱 Inicializando sesión WhatsApp principal [default]...');
     this.primarySession.initialize().catch(err => {
       console.warn('Aviso inicializando sesión default:', err.message);
     });
 
-    // 2. Sesiones de Operadores independientes en DATA_DIR (omitiendo alias del admin central para evitar conflictos)
+    // 2. Sesiones de Operadores independientes en DATA_DIR (omitiendo alias del admin central, tests y cuentas duplicadas)
     try {
       if (fs.existsSync(CONFIG.DATA_DIR)) {
+        const excludedIds = new Set(['usr-central-admin', 'admin_central', 'usr-admin', 'usr-admin-republica']);
         const entries = fs.readdirSync(CONFIG.DATA_DIR);
         for (const entry of entries) {
           if (entry.startsWith('auth_info_baileys_')) {
             const userId = entry.replace('auth_info_baileys_', '');
-            // Omitir carpetas del admin central para no duplicar el socket con la cuenta principal
-            if (userId === 'usr-central-admin' || userId === 'admin_central' || userId === 'usr-admin' || userId === 'usr-admin-republica') {
+            if (excludedIds.has(userId) || /^(test|tmp|bak|backup|old)/i.test(userId) || userId.includes('test_')) {
               continue;
             }
             const credsFile = path.join(CONFIG.DATA_DIR, entry, 'creds.json');
             if (isCredsValid(credsFile)) {
+              const accDigits = extractAccountDigits(credsFile);
+              if (accDigits && bootedAccounts.has(accDigits)) {
+                console.warn(`⚠️ [WhatsAppManager] Omitiendo sesión secundaria [${userId}]: comparte el mismo número (${accDigits}) que una sesión ya activa (evita bucle de desconexión 440).`);
+                continue;
+              }
+              if (accDigits) bootedAccounts.add(accDigits);
+
               console.log(`📱 Inicializando sesión de WhatsApp guardada para operador [${userId}]...`);
               const session = this.getSession(userId);
               session.initialize().catch(err => {
@@ -2993,8 +3369,17 @@ export class WhatsAppManager {
     if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
       return this.primarySession.sendDriverDispatchNotification.call(this, order, driver, notifyClient);
     }
-    const session = this.getActiveConnectedSession(userId);
+    let session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
+      const targetSession = (userId && this.sessions.get(userId)) || this.primarySession;
+      if (targetSession && typeof targetSession.waitForConnection === 'function') {
+        const ready = await targetSession.waitForConnection(10000);
+        if (ready || targetSession.hasSavedSession()) {
+          session = targetSession;
+        }
+      }
+    }
+    if (!session || (session.status !== 'connected' && !session.hasSavedSession())) {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendDriverDispatchNotification(order, driver, notifyClient);
@@ -3005,8 +3390,17 @@ export class WhatsAppManager {
     if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
       return this.primarySession.sendBranchDerivationNotification.call(this, order, branch, notifyClient);
     }
-    const session = this.getActiveConnectedSession(userId);
+    let session = this.getActiveConnectedSession(userId);
     if (!session || session.status !== 'connected') {
+      const targetSession = (userId && this.sessions.get(userId)) || this.primarySession;
+      if (targetSession && typeof targetSession.waitForConnection === 'function') {
+        const ready = await targetSession.waitForConnection(10000);
+        if (ready || targetSession.hasSavedSession()) {
+          session = targetSession;
+        }
+      }
+    }
+    if (!session || (session.status !== 'connected' && !session.hasSavedSession())) {
       throw new Error(`WhatsApp no está conectado en el servidor (ninguna sesión activa disponible)`);
     }
     return session.sendBranchDerivationNotification(order, branch, notifyClient);
