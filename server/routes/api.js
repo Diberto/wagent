@@ -4735,13 +4735,18 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     }
   });
 
-  // Reinicio suave del servidor (PM2 auto-reinicia de inmediato)
+  // Reinicio suave del servidor (PM2 / systemd auto-reinicia de inmediato)
   router.post('/system/restart', (req, res) => {
     res.json({ success: true, message: 'Reiniciando servidor de forma segura...' });
     setTimeout(() => {
-      console.log('🔄 Reiniciando proceso a solicitud del panel de control...');
+      console.log(`🔄 Reiniciando proceso (PID ${process.pid}) a solicitud del panel de control...`);
+      try {
+        if (whatsappService && typeof whatsappService.shutdownAll === 'function') {
+          whatsappService.shutdownAll();
+        }
+      } catch (_) {}
       process.exit(0);
-    }, 1000);
+    }, 800);
   });
 
   // --- 8.1 Sistema de Vaciado y Reseteo Seguro de Datos y Configuración ---

@@ -25,17 +25,23 @@ if (cluster.isPrimary || cluster.isMaster) {
     cluster.setupMaster({ exec: entryScript });
   }
 
-  // Lanzar workers
+  // Lanzar workers preservando su índice lógico
+  const workerSlots = new Map();
   for (let i = 0; i < WORKERS; i++) {
-    const worker = cluster.fork({ WORKER_ID: i + 1 });
-    console.log(`  └─ [Worker ${worker.process.pid}] Iniciado como Instancia #${i + 1}`);
+    const slot = String(i + 1);
+    const worker = cluster.fork({ WORKER_ID: slot });
+    workerSlots.set(worker.id, slot);
+    console.log(`  └─ [Worker ${worker.process.pid}] Iniciado como Instancia #${slot}`);
   }
 
-  // Auto-healing si algún worker muere
+  // Auto-healing si algún worker muere preservando su WORKER_ID
   cluster.on('exit', (worker, code, signal) => {
-    console.warn(`⚠️ [Worker ${worker.process.pid}] Finalizó (código: ${code}, señal: ${signal}). Relanzando worker de reemplazo...`);
-    const newWorker = cluster.fork();
-    console.log(`  └─ [Nuevo Worker ${newWorker.process.pid}] Operativo y balanceando tráfico.`);
+    const slot = workerSlots.get(worker.id) || '2';
+    workerSlots.delete(worker.id);
+    console.warn(`⚠️ [Worker ${worker.process.pid}] Finalizó (código: ${code}, señal: ${signal}). Relanzando worker #${slot}...`);
+    const newWorker = cluster.fork({ WORKER_ID: slot });
+    workerSlots.set(newWorker.id, slot);
+    console.log(`  └─ [Nuevo Worker ${newWorker.process.pid}] Operativo en slot #${slot}.`);
   });
 } else {
   // Código del Worker: Importa el servidor Express existente

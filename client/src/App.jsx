@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { MessageSquare, Calculator, PackageCheck, Bike, Menu, Bell, QrCode, Settings } from 'lucide-react';
 import SidebarNav from './components/SidebarNav';
@@ -44,7 +44,9 @@ import { playNotificationChime, playOrderChime, playMessagePing } from './utils/
 
 const socket = io({
   path: '/socket.io',
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],
+  upgrade: true,
+  rememberUpgrade: true,
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
@@ -277,7 +279,23 @@ export default function App() {
     }
   };
 
+  const currentUserRef = useRef(currentUser);
+  const selectedLeadRef = useRef(selectedLead);
+  const lastWaStatusLogRef = useRef('');
+
   useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  useEffect(() => {
+    selectedLeadRef.current = selectedLead;
+  }, [selectedLead]);
+
+  useEffect(() => {
+    if (!socket.connected) {
+      socket.connect();
+    }
+
     loadLeads();
     loadCalls();
     loadWhatsAppStatus();
@@ -288,45 +306,53 @@ export default function App() {
       Notification.requestPermission().catch(() => {});
     }
 
-    socket.on('connect', () => {
+    const onConnect = () => {
       console.log('Conectado a Socket.IO');
-    });
+      loadWhatsAppStatus();
+    };
 
-    socket.on('settings:update', (newSettings) => {
+    const onSettingsUpdate = (newSettings) => {
       if (newSettings && typeof newSettings.autoReplyEnabled === 'boolean') {
         setGlobalAiEnabled(newSettings.autoReplyEnabled);
       }
-    });
+    };
 
-    socket.on('user:new', (newUser) => {
+    const onUserNew = (newUser) => {
       setAllUsers(prev => [newUser, ...prev.filter(u => u.id !== newUser.id)]);
-    });
+    };
 
-    socket.on('user:update', (updated) => {
+    const onUserUpdate = (updated) => {
       setAllUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
-      if (currentUser && currentUser.id === updated.id) {
+      const activeUser = currentUserRef.current;
+      if (activeUser && activeUser.id === updated.id) {
         setCurrentUser(updated);
         localStorage.setItem('wagent_user', JSON.stringify(updated));
       }
-    });
+    };
 
-    socket.on('user:delete', (deletedId) => {
+    const onUserDelete = (deletedId) => {
       setAllUsers(prev => prev.filter(u => u.id !== deletedId));
-    });
+    };
 
-    socket.on('whatsapp:status', (data) => {
+    const onWhatsAppStatus = (data) => {
       if (!data) return;
-      console.log('WhatsApp status event:', data);
-      if (!data.sessionId || data.sessionId === 'default' || data.sessionId === currentUser?.id) {
+      const activeUserId = currentUserRef.current?.id;
+      if (!data.sessionId || data.sessionId === 'default' || data.sessionId === activeUserId) {
+        const logSig = `${data.sessionId || 'default'}:${data.status}`;
+        if (lastWaStatusLogRef.current !== logSig) {
+          lastWaStatusLogRef.current = logSig;
+          console.log('WhatsApp status:', data.status);
+        }
         setWhatsappStatus(data.status);
         setQrDataUrl(data.qrDataUrl);
         setWhatsappUser(data.user);
       }
-    });
+    };
 
-    socket.on('whatsapp:sessions', (sessions) => {
+    const onWhatsAppSessions = (sessions) => {
       if (sessions && typeof sessions === 'object') {
-        const userSession = currentUser?.id ? sessions[currentUser.id] : null;
+        const activeUserId = currentUserRef.current?.id;
+        const userSession = activeUserId ? sessions[activeUserId] : null;
         const defaultSession = sessions['default'];
         const anyConnected = Object.values(sessions).find(s => s && s.status === 'connected');
         const active = (userSession && userSession.status === 'connected')
@@ -338,22 +364,24 @@ export default function App() {
           setWhatsappUser(active.user);
         }
       }
-    });
+    };
 
-    socket.on('whatsapp:qr', (data) => {
+    const onWhatsAppQr = (data) => {
       if (!data) return;
-      if (!data.sessionId || data.sessionId === 'default' || data.sessionId === currentUser?.id) {
+      const activeUserId = currentUserRef.current?.id;
+      if (!data.sessionId || data.sessionId === 'default' || data.sessionId === activeUserId) {
         setQrDataUrl(data.qrDataUrl);
         setWhatsappStatus('qr_ready');
       }
-    });
+    };
 
-    socket.on('chat:message', ({ message, lead }) => {
+    const onChatMessage = ({ message, lead }) => {
       loadLeads();
-      if (lead && selectedLead?.jid === lead.jid) {
+      const activeLead = selectedLeadRef.current;
+      if (lead && activeLead?.jid === lead.jid) {
         setSelectedLead(lead);
       }
-      const isOutgoing = message.sender === 'agent' || message.fromMe;
+      const isOutgoing = message?.sender === 'agent' || message?.fromMe;
       if (message && !isOutgoing) {
         playMessagePing();
         const textPreview = message.content || message.body;
@@ -365,9 +393,9 @@ export default function App() {
           jid: lead?.jid || message.remoteJid || message.chatId
         });
       }
-    });
+    };
 
-    socket.on('order:new', (order) => {
+    const onOrderNew = (order) => {
       playOrderChime();
       const totalNum = Number(order?.totalAmount || order?.total || 0);
       addNotification({
@@ -377,9 +405,9 @@ export default function App() {
         tab: 'orders',
         data: order
       });
-    });
+    };
 
-    socket.on('order:update', (order) => {
+    const onOrderUpdate = (order) => {
       playNotificationChime();
       const statusLabels = {
         pending: 'Pendiente',
@@ -399,9 +427,9 @@ export default function App() {
         tab: 'orders',
         data: order
       });
-    });
+    };
 
-    socket.on('pos:shift:opened', (shift) => {
+    const onPosShiftOpened = (shift) => {
       playNotificationChime();
       addNotification({
         title: 'Caja POS Abierta',
@@ -409,9 +437,9 @@ export default function App() {
         type: 'pos',
         tab: 'pos'
       });
-    });
+    };
 
-    socket.on('pos:shift:closed', (shift) => {
+    const onPosShiftClosed = (shift) => {
       playNotificationChime();
       addNotification({
         title: 'Caja POS Cerrada',
@@ -419,9 +447,9 @@ export default function App() {
         type: 'pos',
         tab: 'pos'
       });
-    });
+    };
 
-    socket.on('whatsapp:call', ({ call, lead }) => {
+    const onWhatsAppCall = ({ call }) => {
       console.log('Evento de llamada en Socket:', call);
       loadCalls();
       loadLeads();
@@ -431,21 +459,54 @@ export default function App() {
         setIncomingCall(call);
         setIsCallModalOpen(true);
       }
-    });
+    };
 
-    socket.on('lead:update', (updatedLead) => {
+    const onLeadUpdate = (updatedLead) => {
       setLeads(prev => prev.map(l => (l.jid === updatedLead.jid || l.id === updatedLead.id ? updatedLead : l)));
-      if (selectedLead?.jid === updatedLead.jid || selectedLead?.id === updatedLead.id) {
+      const activeLead = selectedLeadRef.current;
+      if (activeLead?.jid === updatedLead.jid || activeLead?.id === updatedLead.id) {
         setSelectedLead(updatedLead);
       }
-    });
+    };
 
-    socket.on('lead:delete', ({ id }) => {
+    const onLeadDelete = ({ id }) => {
       setLeads(prev => prev.filter(l => l.id !== id && l.jid !== id));
-    });
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('settings:update', onSettingsUpdate);
+    socket.on('user:new', onUserNew);
+    socket.on('user:update', onUserUpdate);
+    socket.on('user:delete', onUserDelete);
+    socket.on('whatsapp:status', onWhatsAppStatus);
+    socket.on('whatsapp:sessions', onWhatsAppSessions);
+    socket.on('whatsapp:qr', onWhatsAppQr);
+    socket.on('chat:message', onChatMessage);
+    socket.on('order:new', onOrderNew);
+    socket.on('order:update', onOrderUpdate);
+    socket.on('pos:shift:opened', onPosShiftOpened);
+    socket.on('pos:shift:closed', onPosShiftClosed);
+    socket.on('whatsapp:call', onWhatsAppCall);
+    socket.on('lead:update', onLeadUpdate);
+    socket.on('lead:delete', onLeadDelete);
 
     return () => {
-      socket.disconnect();
+      socket.off('connect', onConnect);
+      socket.off('settings:update', onSettingsUpdate);
+      socket.off('user:new', onUserNew);
+      socket.off('user:update', onUserUpdate);
+      socket.off('user:delete', onUserDelete);
+      socket.off('whatsapp:status', onWhatsAppStatus);
+      socket.off('whatsapp:sessions', onWhatsAppSessions);
+      socket.off('whatsapp:qr', onWhatsAppQr);
+      socket.off('chat:message', onChatMessage);
+      socket.off('order:new', onOrderNew);
+      socket.off('order:update', onOrderUpdate);
+      socket.off('pos:shift:opened', onPosShiftOpened);
+      socket.off('pos:shift:closed', onPosShiftClosed);
+      socket.off('whatsapp:call', onWhatsAppCall);
+      socket.off('lead:update', onLeadUpdate);
+      socket.off('lead:delete', onLeadDelete);
     };
   }, []);
 

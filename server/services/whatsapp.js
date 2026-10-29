@@ -101,6 +101,8 @@ export class WhatsAppService {
     this.phoneToLidMap = new Map();
     this.lastConnectedAt = 0;
     this.rapidDisconnectCount = 0;
+    this.replacedCount = 0;
+    this._lastEmittedStatusSig = '';
     this.connectingStartedAt = 0;
     this.lastPingAt = 0;
     this.explicitlyDisconnected = false;
@@ -121,7 +123,9 @@ export class WhatsAppService {
     this.sentProtoCache = new Map();
     this.chatIngestionChains = new Map();
     this.loadPersistedOutbox();
-    this.startWatchdog();
+    // IMPORTANTE: NO iniciar startWatchdog() en el constructor.
+    // Solo se activa dentro de initialize() después de que server.listen(PORT)
+    // confirme propiedad exclusiva del puerto HTTP, evitando procesos zombies (440).
   }
 
   /**
@@ -372,6 +376,11 @@ export class WhatsAppService {
         return;
       }
 
+      // Si el socket está saludable por >90s continuos, limpiar contador de conflictos 440
+      if (isWsAlive && connectedDuration > 90000 && this.replacedCount > 0) {
+        this.replacedCount = 0;
+      }
+
       // Si el socket está saludable, vaciar Outbox rezagado y barrer mensajes sin responder de forma continua
       if (isWsAlive && connectedDuration > 5000) {
         if (this.outboxQueue.length > 0 && !this.isDrainingOutbox) {
@@ -560,6 +569,9 @@ export class WhatsAppService {
   }
 
   async initialize({ resetAuth = false } = {}) {
+    if (!this.watchdogTimer) {
+      this.startWatchdog();
+    }
     if (this.isInitializing) return;
     this.cancelScheduledReconnect();
     this.isInitializing = true;
@@ -570,6 +582,7 @@ export class WhatsAppService {
         await this.clearAuthFiles({ clearBackup: true });
         this.reconnectAttempts = 0;
         this.rapidDisconnectCount = 0;
+        this.replacedCount = 0;
         this.explicitlyDisconnected = true;
       } else {
         this.explicitlyDisconnected = false;
@@ -758,10 +771,15 @@ export class WhatsAppService {
 
           // 1. Conflicto por otra instancia abierta en simultáneo (440)
           if (isReplaced) {
-            console.warn(`⚠️ [${this.sessionId}] Sesión reemplazada (440): Se detectó otra conexión activa con esta misma cuenta de WhatsApp. Reintentando reconexión en 45 segundos...`);
+            this.replacedCount = (this.replacedCount || 0) + 1;
+            const baseDelays = [15000, 45000, 120000, 300000];
+            const baseMs = baseDelays[Math.min(this.replacedCount - 1, baseDelays.length - 1)];
+            const jitterMs = Math.floor(Math.random() * 12000);
+            const delayMs = baseMs + jitterMs;
+            console.warn(`⚠️ [${this.sessionId}] Sesión reemplazada (440, ocurrencia #${this.replacedCount}, PID ${process.pid}): otra instancia tomó la línea. Backoff inteligente en ${Math.round(delayMs / 1000)}s...`);
             this.reconnectAttempts = 0;
             this.rapidDisconnectCount = 0;
-            this.scheduleReconnect(45000);
+            this.scheduleReconnect(delayMs);
             return;
           }
 
@@ -2998,9 +3016,31 @@ export class WhatsAppService {
     };
   }
 
-  emitStatus() {
+  shutdown() {
+    this.explicitlyDisconnected = true;
+    this.stopWatchdog();
+    this.cancelScheduledReconnect();
+    if (this.backupDebounceTimer) {
+      clearTimeout(this.backupDebounceTimer);
+      this.backupDebounceTimer = null;
+    }
+    if (this.sock) {
+      try {
+        this.sock.ev.removeAllListeners();
+        this.sock.end(undefined);
+        this.sock = null;
+      } catch (_) {}
+    }
+  }
+
+  emitStatus({ force = false } = {}) {
     if (this.io) {
       const statusData = this.getStatus();
+      const sig = `${statusData.status}|${statusData.qrCode || ''}|${statusData.user?.id || ''}|${statusData.hasSavedAuth}`;
+      if (!force && this._lastEmittedStatusSig === sig) {
+        return;
+      }
+      this._lastEmittedStatusSig = sig;
       // Emisión global para todos los listeners de la aplicación
       this.io.emit('whatsapp:status', statusData);
       // Emisión específica por ID de sesión/usuario
@@ -3141,7 +3181,15 @@ export class WhatsAppManager {
   }
 
   getAllSessions() {
-    return Array.from(this.sessions.values());
+    return Array.from(new Set(this.sessions.values()));
+  }
+
+  shutdownAll() {
+    for (const s of this.getAllSessions()) {
+      if (s && typeof s.shutdown === 'function') {
+        s.shutdown();
+      }
+    }
   }
 
   getAllSessionsStatus() {

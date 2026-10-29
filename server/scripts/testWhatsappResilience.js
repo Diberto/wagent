@@ -200,7 +200,28 @@ async function runResilienceTests() {
     assert.strictEqual(order[0], 'fast_client', 'El chat del cliente debe procesarse inmediatamente sin esperar al OCR del grupo');
     console.log('   ✅ OK: Procesamiento en paralelo por chat verificado.\n');
 
-    console.log('🎉 TODAS LAS PRUEBAS DE RESILIENCIA DE WHATSAPP PASARON EXITOSAMENTE (5/5).');
+    // 6. Prueba de guardia anti-zombie (sin watchdog prematuro en constructor) y deduplicación de emitStatus
+    console.log('6️⃣ Verificando guardia anti-zombie en constructor y deduplicación de eventos Socket.IO...');
+    let emittedStatusEvents = 0;
+    const mockIo = {
+      emit: (evt) => {
+        if (evt === 'whatsapp:status') emittedStatusEvents++;
+      }
+    };
+    const passiveInstance = new WhatsAppService(mockIo, `${testSessionId}_passive`);
+    assert.strictEqual(passiveInstance.watchdogTimer, null, 'El constructor NUNCA debe arrancar watchdogTimer antes de initialize() / server.listen()');
+    passiveInstance.status = 'connecting';
+    passiveInstance.emitStatus();
+    passiveInstance.emitStatus();
+    passiveInstance.emitStatus();
+    assert.strictEqual(emittedStatusEvents, 1, 'emitStatus() debe deduplicar estados consecutivos idénticos');
+    passiveInstance.status = 'connected';
+    passiveInstance.emitStatus();
+    assert.strictEqual(emittedStatusEvents, 2, 'emitStatus() debe emitir cuando cambia el estado real');
+    passiveInstance.shutdown();
+    console.log('   ✅ OK: Guardia anti-zombie y deduplicación de Socket.IO verificadas.\n');
+
+    console.log('🎉 TODAS LAS PRUEBAS DE RESILIENCIA DE WHATSAPP PASARON EXITOSAMENTE (6/6).');
   } finally {
     // Limpiar datos sintéticos creados durante el test
     service.stopWatchdog();

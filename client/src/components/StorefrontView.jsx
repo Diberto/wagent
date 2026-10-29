@@ -283,7 +283,8 @@ export default function StorefrontView({ onBackToAdmin = null, currentUser = nul
     const apiBase = getStoreApiUrl();
     const socket = io(apiBase || undefined, {
       path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       reconnectionAttempts: 15,
       reconnectionDelay: 2000
     });

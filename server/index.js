@@ -1,5 +1,8 @@
 import express from 'express';
 import http from 'http';
+import cluster from 'cluster';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -49,16 +52,16 @@ app.use(helmet({
 // Compresión Gzip / Deflate para alta velocidad
 app.use(compression());
 
-// Configurar WebSockets
+// Configurar WebSockets (polling -> websocket upgrade garantiza compatibilidad detrás de Nginx/Cloudflare/Hostinger)
 const io = new SocketIOServer(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
   },
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],
   allowEIO3: true,
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 20000
 });
 
 // Vincular WebSockets a la Base de Datos, Audit Logger y Updater para sincronización en tiempo real
@@ -199,20 +202,175 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
-// Iniciar servidor
+const execAsync = promisify(exec);
+
+/**
+ * En servidores Linux de producción, una vez que este proceso es dueño legítimo de PORT,
+ * purga cualquier proceso duplicado / zombie (en PM2 o huérfano en /proc) que ejecute server/index.js
+ * en este mismo directorio para impedir desconexiones en bucle 440 (connectionReplaced) en WhatsApp.
+ */
+async function cleanupCompetingInstances() {
+  if (process.platform === 'win32' || cluster.isWorker) return;
+
+  const rootResolved = path.resolve(CONFIG.ROOT_DIR);
+  let cleanedCount = 0;
+
+  // 1. Purgar entradas duplicadas en PM2 que apunten al mismo proyecto pero tengan otro PID
+  try {
+    const { stdout } = await execAsync('pm2 jlist', { timeout: 6000 });
+    const jsonStart = stdout ? stdout.indexOf('[') : -1;
+    if (jsonStart !== -1) {
+      const pmList = JSON.parse(stdout.slice(jsonStart));
+      if (Array.isArray(pmList)) {
+        const myPmEntry = pmList.find(p =>
+          Number(p?.pid) === process.pid ||
+          (process.env.pm_id !== undefined && Number(p?.pm_id) === Number(process.env.pm_id))
+        );
+
+        let pmDeleted = false;
+        for (const proc of pmList) {
+          const procPid = Number(proc?.pid || 0);
+          const procPmId = proc?.pm_id;
+          if (procPid === process.pid) continue;
+          if (myPmEntry && Number(procPmId) === Number(myPmEntry.pm_id)) continue;
+
+          const execPath = String(proc?.pm2_env?.pm_exec_path || '');
+          const pmCwd = String(proc?.pm2_env?.pm_cwd || '');
+          const name = String(proc?.name || '');
+          const isSameProject =
+            (pmCwd && path.resolve(pmCwd) === rootResolved) ||
+            (execPath && path.resolve(execPath).startsWith(rootResolved)) ||
+            name === 'wagent-crm' ||
+            name === 'wagent-cluster';
+
+          if (isSameProject && procPmId !== undefined) {
+            console.warn(`🧹 [Single-Instance] Eliminando entrada PM2 duplicada conflictiva: ${name} (pm_id=${procPmId}, pid=${procPid})...`);
+            await execAsync(`pm2 delete ${procPmId}`, { timeout: 5000 }).catch(() => {});
+            pmDeleted = true;
+            cleanedCount++;
+          }
+        }
+
+        if (pmDeleted) {
+          await execAsync('pm2 save', { timeout: 5000 }).catch(() => {});
+        }
+      }
+    }
+  } catch (_) {
+    // PM2 no instalado o no accesible para este usuario; continuar con inspección /proc
+  }
+
+  // 2. Inspeccionar /proc directamente para terminar procesos huérfanos "node server/index.js" sin puerto
+  try {
+    if (fs.existsSync('/proc')) {
+      const entries = fs.readdirSync('/proc');
+      const zombiePids = [];
+
+      for (const entry of entries) {
+        if (!/^\d+$/.test(entry)) continue;
+        const pidNum = Number(entry);
+        if (pidNum <= 1 || pidNum === process.pid || pidNum === process.ppid) continue;
+
+        try {
+          const cmdRaw = fs.readFileSync(`/proc/${pidNum}/cmdline`, 'utf8');
+          if (!cmdRaw) continue;
+          const args = cmdRaw.split('\0').filter(Boolean);
+          if (args.length < 2) continue;
+
+          const binBase = path.basename(args[0]);
+          if (binBase !== 'node' && binBase !== 'nodejs') continue;
+
+          const runsIndexJs = args.some(a =>
+            a === 'server/index.js' ||
+            a.endsWith('/server/index.js')
+          );
+          if (!runsIndexJs) continue;
+
+          let sameDir = args.some(a => a.startsWith(rootResolved));
+          if (!sameDir) {
+            try {
+              const procCwd = fs.readlinkSync(`/proc/${pidNum}/cwd`);
+              sameDir = path.resolve(procCwd) === rootResolved;
+            } catch (_) {}
+          }
+
+          if (sameDir) {
+            zombiePids.push(pidNum);
+          }
+        } catch (_) {}
+      }
+
+      for (const zPid of zombiePids) {
+        try {
+          console.warn(`🧹 [Single-Instance] Terminando proceso zombie huérfano detectado (PID ${zPid})...`);
+          process.kill(zPid, 'SIGTERM');
+          cleanedCount++;
+        } catch (_) {}
+      }
+
+      if (zombiePids.length > 0) {
+        await new Promise(r => setTimeout(r, 1200));
+        for (const zPid of zombiePids) {
+          try {
+            process.kill(zPid, 0);
+            process.kill(zPid, 'SIGKILL');
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (_) {}
+
+  if (cleanedCount > 0) {
+    console.log(`✅ [Single-Instance] ${cleanedCount} instancia(s) duplicada(s) purgada(s). Esperando 1.8s antes de conectar WhatsApp...`);
+    await new Promise(r => setTimeout(r, 1800));
+  }
+}
+
+// Iniciar servidor con guardia estricta de instancia única
 const PORT = CONFIG.PORT;
+let isExitingDuplicate = false;
+
+const abortDuplicateInstance = (err) => {
+  if (isExitingDuplicate) return;
+  isExitingDuplicate = true;
+  console.error(`❌ [Single-Instance Guard] El puerto ${PORT} ya está ocupado por otra instancia activa (${err.message}). Cerrando PID ${process.pid} sin iniciar WhatsApp para evitar conflicto 440...`);
+  try {
+    whatsapp.shutdownAll();
+  } catch (_) {}
+  setTimeout(() => {
+    process.exit(1);
+  }, 3000);
+};
+
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    abortDuplicateInstance(err);
+    return;
+  }
+  console.error('❌ Error en servidor HTTP:', err);
+});
+
 server.listen(PORT, async () => {
   console.log('====================================================');
-  console.log(`🚀 SERVIDOR CRM WHATSAPP EN MODO PRODUCCIÓN`);
+  console.log(`🚀 SERVIDOR CRM WHATSAPP EN MODO PRODUCCIÓN (PID ${process.pid})`);
   console.log(`📡 URL: http://localhost:${PORT}`);
   console.log(`🔒 Seguridad Helmet & Compresión Gzip activadas`);
   console.log(`📁 Directorio Multimedia: ${CONFIG.MEDIA_DIR}`);
   console.log('====================================================');
 
-  // Inicializar WhatsApp automáticamente si ya existen credenciales guardadas válidas (tanto maestra como de usuarios)
-  await whatsapp.initializeAllSavedSessions().catch(err => {
-    console.error('Error inicializando sesiones guardadas de WhatsApp:', err);
-  });
+  // Purgar posibles procesos zombies o duplicados antes de reclamar la sesión de WhatsApp
+  await cleanupCompetingInstances();
+
+  // En modo cluster multi-worker solo el worker primario #1 debe conectar sockets Baileys
+  const shouldInitWhatsApp = !cluster.isWorker || !process.env.WORKER_ID || process.env.WORKER_ID === '1';
+  if (shouldInitWhatsApp) {
+    // Inicializar WhatsApp automáticamente si ya existen credenciales guardadas válidas (tanto maestra como de usuarios)
+    await whatsapp.initializeAllSavedSessions().catch(err => {
+      console.error('Error inicializando sesiones guardadas de WhatsApp:', err);
+    });
+  } else {
+    console.log(`ℹ️ [Cluster Worker #${process.env.WORKER_ID}] Omitiendo conexión duplicada de Baileys (gestionada por Worker #1).`);
+  }
 
   // Inicializar conexión con MongoDB Atlas si está configurado en Hostinger
   connectDB().catch(err => console.warn('Aviso MongoDB:', err.message));
@@ -226,6 +384,10 @@ server.listen(PORT, async () => {
 
 // Manejo de excepciones no capturadas para alta disponibilidad
 process.on('uncaughtException', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    abortDuplicateInstance(err);
+    return;
+  }
   console.error('🔥 Uncaught Exception:', err);
 });
 
@@ -246,18 +408,10 @@ const gracefulShutdown = async (signal) => {
   }
 
   try {
-    // 2. Cerrar sockets de WhatsApp de forma limpia sin destruir credenciales
+    // 2. Cerrar sockets y watchdogs de WhatsApp de forma limpia sin destruir credenciales
     console.log('📱 Desconectando sockets de WhatsApp de forma ordenada (preservando sesión)...');
-    const sessions = (whatsapp && typeof whatsapp.getAllSessions === 'function')
-      ? whatsapp.getAllSessions()
-      : (whatsapp?.sessions ? Array.from(whatsapp.sessions.values()) : []);
-    for (const s of sessions) {
-      if (s && s.sock) {
-        try {
-          s.sock.ev.removeAllListeners();
-          s.sock.end(undefined);
-        } catch (e) {}
-      }
+    if (whatsapp && typeof whatsapp.shutdownAll === 'function') {
+      whatsapp.shutdownAll();
     }
   } catch (err) {
     console.error('Error cerrando sesiones de WhatsApp:', err);

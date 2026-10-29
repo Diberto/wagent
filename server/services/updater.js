@@ -251,12 +251,37 @@ export class UpdateService {
         pushLog(`✅ Frontend compilado: ${clientBuildRes.success ? 'Éxito' : clientBuildRes.output}`);
       }
 
-      // 5. Limpieza de cluster conflictivo si existe en PM2
-      pushLog('🧹 Paso 4/5: Asegurando configuración limpia de procesos PM2...');
+      // 5. Limpieza de cluster o procesos duplicados conflictivos en PM2
+      pushLog('🧹 Paso 4/5: Asegurando instancia única en PM2...');
       await runCommand('pm2 delete wagent-cluster');
+      try {
+        const jlistRes = await runCommand('pm2 jlist');
+        const jsonIdx = jlistRes.stdout ? jlistRes.stdout.indexOf('[') : -1;
+        if (jsonIdx !== -1) {
+          const pmList = JSON.parse(jlistRes.stdout.slice(jsonIdx));
+          const rootResolved = path.resolve(CONFIG.ROOT_DIR);
+          const myEntry = Array.isArray(pmList)
+            ? pmList.find(p => Number(p?.pid) === process.pid || (process.env.pm_id !== undefined && Number(p?.pm_id) === Number(process.env.pm_id)))
+            : null;
+          if (Array.isArray(pmList)) {
+            for (const proc of pmList) {
+              if (Number(proc?.pid) === process.pid) continue;
+              if (myEntry && Number(proc?.pm_id) === Number(myEntry.pm_id)) continue;
+              const pmCwd = String(proc?.pm2_env?.pm_cwd || '');
+              const execPath = String(proc?.pm2_env?.pm_exec_path || '');
+              const isSame = (pmCwd && path.resolve(pmCwd) === rootResolved) || (execPath && path.resolve(execPath).startsWith(rootResolved)) || proc?.name === 'wagent-crm';
+              if (isSame && proc?.pm_id !== undefined) {
+                pushLog(`🧹 Eliminando proceso PM2 duplicado: ${proc.name} (pm_id=${proc.pm_id})`);
+                await runCommand(`pm2 delete ${proc.pm_id}`);
+              }
+            }
+            await runCommand('pm2 save');
+          }
+        }
+      } catch (_) {}
       pushLog('✅ Procesos verificados.');
 
-      // 6. Reinicio automático ordenado del servicio
+      // 6. Reinicio automático ordenado del proceso activo real
       pushLog('🔄 Paso 5/5: Programando recarga ordenada del servicio...');
       if (this.io) {
         this.io.emit('system:update:completed', {
@@ -267,15 +292,16 @@ export class UpdateService {
 
       setTimeout(async () => {
         try {
-          console.log('🔄 [Auto-Deploy] Reiniciando servicio para aplicar cambios...');
-          const pm2Res = await runCommand('pm2 restart wagent-crm');
-          if (!pm2Res.success) {
-            // Si corre bajo PM2 como daemon directo, salir con código 0 hace que PM2 lo levante al instante
-            process.exit(0);
+          console.log(`🔄 [Auto-Deploy] Reiniciando proceso activo (PID ${process.pid}, pm_id=${process.env.pm_id ?? 'N/A'}) para aplicar cambios...`);
+          if (process.env.pm_id !== undefined) {
+            await runCommand(`pm2 restart ${process.env.pm_id}`);
           }
-        } catch (_) {
+        } catch (_) {}
+        // Garantizar que si pm2 restart no reinició este mismo PID (ej. systemd, Docker o nombre distinto),
+        // este proceso salga limpiamente con código 0 para que su supervisor real cargue el nuevo código.
+        setTimeout(() => {
           process.exit(0);
-        }
+        }, 1500);
       }, 2000);
 
       this.isUpdating = false;
