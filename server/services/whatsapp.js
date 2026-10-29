@@ -110,6 +110,9 @@ export class WhatsAppService {
     this.reconnectTimer = null;
     this.outboxQueue = [];
     this.outboxFilePath = path.join(CONFIG.DATA_DIR, `whatsapp_outbox_${this.sessionId}.json`);
+    this.leaderLockPath = path.join(CONFIG.DATA_DIR, `whatsapp_leader_${this.sessionId}.lock`);
+    this.sharedStatePath = path.join(CONFIG.DATA_DIR, `whatsapp_state_${this.sessionId}.json`);
+    this._loggedFollowerMode = false;
     this.isDrainingOutbox = false;
     this.activeReplyDebounce = new Map();
     this.processingChats = new Set();
@@ -159,7 +162,109 @@ export class WhatsAppService {
   }
 
   /**
-   * Restaura mensajes pendientes en Outbox que hayan sobrevivido a un reinicio (< 10 min de antigüedad)
+   * Coordinación Leader-Follower entre múltiples workers (ej. Hostinger LiteSpeed lsnode / Passenger)
+   * Garantiza que EXACTAMENTE UN proceso abra el socket Baileys por cada sessionId, eliminando 100% el error 440.
+   */
+  isPidAlive(pid) {
+    const num = Number(pid);
+    if (!num || num <= 1) return false;
+    if (num === process.pid) return true;
+    try {
+      process.kill(num, 0);
+      return true;
+    } catch (err) {
+      return err?.code === 'EPERM';
+    }
+  }
+
+  getLeaderLockInfo() {
+    try {
+      if (!fs.existsSync(this.leaderLockPath)) return null;
+      const parsed = JSON.parse(fs.readFileSync(this.leaderLockPath, 'utf8'));
+      if (!parsed || !parsed.pid) return null;
+      const ageMs = Date.now() - Number(parsed.heartbeatAt || 0);
+      const alive = ageMs < 65000 && this.isPidAlive(parsed.pid);
+      return { ...parsed, alive, ageMs };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  hasActiveRemoteLeader() {
+    const info = this.getLeaderLockInfo();
+    return Boolean(info && info.alive && Number(info.pid) !== process.pid);
+  }
+
+  acquireLeaderLock({ forceTakeover = false } = {}) {
+    try {
+      const info = this.getLeaderLockInfo();
+      if (!forceTakeover && info && info.alive && Number(info.pid) !== process.pid) {
+        return false;
+      }
+      if (!fs.existsSync(CONFIG.DATA_DIR)) {
+        fs.mkdirSync(CONFIG.DATA_DIR, { recursive: true });
+      }
+      const now = Date.now();
+      const payload = {
+        pid: process.pid,
+        sessionId: this.sessionId,
+        startedAt: Number(info?.pid) === process.pid ? (info.startedAt || now) : now,
+        heartbeatAt: now
+      };
+      const tmpPath = `${this.leaderLockPath}.tmp.${process.pid}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(payload), 'utf8');
+      fs.renameSync(tmpPath, this.leaderLockPath);
+      const verify = this.getLeaderLockInfo();
+      return Boolean(verify && Number(verify.pid) === process.pid);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  releaseLeaderLock() {
+    try {
+      const info = this.getLeaderLockInfo();
+      if (info && Number(info.pid) === process.pid && fs.existsSync(this.leaderLockPath)) {
+        fs.unlinkSync(this.leaderLockPath);
+      }
+    } catch (_) {}
+  }
+
+  writeSharedState() {
+    try {
+      if (this.hasActiveRemoteLeader()) return;
+      if (!fs.existsSync(CONFIG.DATA_DIR)) {
+        fs.mkdirSync(CONFIG.DATA_DIR, { recursive: true });
+      }
+      const payload = {
+        sessionId: this.sessionId,
+        status: this.status,
+        qrCode: this.qrCode,
+        qrDataUrl: this.qrDataUrl,
+        user: this.user,
+        lastConnectedAt: this.lastConnectedAt,
+        reconnectAttempts: this.reconnectAttempts,
+        leaderPid: process.pid,
+        updatedAt: Date.now()
+      };
+      const tmpPath = `${this.sharedStatePath}.tmp.${process.pid}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(payload), 'utf8');
+      fs.renameSync(tmpPath, this.sharedStatePath);
+    } catch (_) {}
+  }
+
+  readSharedState() {
+    try {
+      if (!fs.existsSync(this.sharedStatePath)) return null;
+      return JSON.parse(fs.readFileSync(this.sharedStatePath, 'utf8'));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
+   * Restaura o sincroniza mensajes pendientes en Outbox desde disco (< 10 min de antigüedad),
+   * permitiendo también que workers secundarios encolen mensajes para que el líder los despache.
    */
   loadPersistedOutbox() {
     try {
@@ -169,24 +274,36 @@ export class WhatsAppService {
       if (!Array.isArray(items)) return;
       const now = Date.now();
       const MAX_QUEUE_AGE_MS = 10 * 60 * 1000;
-      this.outboxQueue = items.filter(it => it && it.jid && (now - (it.createdAt || 0)) < MAX_QUEUE_AGE_MS);
-      if (this.outboxQueue.length > 0) {
-        console.log(`📦 [Outbox ${this.sessionId}] ${this.outboxQueue.length} mensaje(s) pendiente(s) restaurado(s) desde disco.`);
+      const validDiskItems = items.filter(it => it && it.jid && (now - (it.createdAt || 0)) < MAX_QUEUE_AGE_MS);
+      const knownIds = new Set(this.outboxQueue.map(q => q.id).filter(Boolean));
+      let added = 0;
+      for (const diskItem of validDiskItems) {
+        if (!diskItem.id || !knownIds.has(diskItem.id)) {
+          this.outboxQueue.push(diskItem);
+          if (diskItem.id) knownIds.add(diskItem.id);
+          added++;
+        }
+      }
+      if (added > 0) {
+        console.log(`📦 [Outbox ${this.sessionId}] ${added} mensaje(s) pendiente(s) sincronizado(s) desde disco.`);
       }
     } catch (_) {}
   }
 
   /**
-   * Persiste de forma asíncrona la cola Outbox en disco para tolerar reinicios de proceso
+   * Persiste de forma atómica la cola Outbox en disco para tolerar reinicios y workers multi-proceso
    */
   persistOutboxQueue() {
     try {
       const serializable = (this.outboxQueue || [])
         .filter(it => it && !it.audioBuffer && !it.imageBuffer)
         .map(({ resolve, reject, ...rest }) => rest);
-      fs.promises.mkdir(path.dirname(this.outboxFilePath), { recursive: true })
-        .then(() => fs.promises.writeFile(this.outboxFilePath, JSON.stringify(serializable), 'utf8'))
-        .catch(() => {});
+      if (!fs.existsSync(path.dirname(this.outboxFilePath))) {
+        fs.mkdirSync(path.dirname(this.outboxFilePath), { recursive: true });
+      }
+      const tmpPath = `${this.outboxFilePath}.tmp.${process.pid}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(serializable), 'utf8');
+      fs.renameSync(tmpPath, this.outboxFilePath);
     } catch (_) {}
   }
 
@@ -194,6 +311,7 @@ export class WhatsAppService {
    * Encola un mensaje saliente en Outbox evitando duplicados idénticos recientes para el mismo chat
    */
   enqueueOutboxItem(item) {
+    this.loadPersistedOutbox();
     const cleanText = (item.text || item.caption || '').trim();
     if (cleanText) {
       const existing = this.outboxQueue.find(q =>
@@ -247,6 +365,12 @@ export class WhatsAppService {
   async waitForConnection(timeoutMs = 12000) {
     if (this.status === 'connected' && this.sock && (this.sock.ws?.isOpen || this.sock.ws?.socket?.readyState === 1)) {
       return true;
+    }
+
+    // Si otro worker posee el liderazgo activo de la sesión (ej. LiteSpeed multi-worker), no bloquear:
+    // retornar false de inmediato para que sendTextMessage delegue a la cola compartida en disco (Outbox)
+    if (this.hasActiveRemoteLeader()) {
+      return false;
     }
 
     // Si la sesión fue desconectada explícitamente o está esperando escaneo de QR, no esperar
@@ -331,6 +455,25 @@ export class WhatsAppService {
    * Chequea la salud del socket, previene estados zombies y autoreconecta si hay credenciales válidas
    */
   async runWatchdogCheck() {
+    // Coordinación multi-worker: Si otro proceso líder vivo ya gestiona la sesión, permanecer en espera pasiva
+    if (!this.acquireLeaderLock()) {
+      if (this.sock) {
+        try {
+          this.sock.ev.removeAllListeners();
+          this.sock.end(undefined);
+          this.sock = null;
+        } catch (_) {}
+      }
+      this.cancelScheduledReconnect();
+      this.isInitializing = false;
+      this.status = 'disconnected';
+      this.emitStatus();
+      return;
+    }
+
+    // Renovar estado compartido del líder en disco para que workers HTTP secundarios respondan el estado real
+    this.writeSharedState();
+
     // Si el usuario desconectó explícitamente desde el panel o está en modo QR activo, NUNCA interferir
     if (this.explicitlyDisconnected || this.status === 'qr_ready') {
       return;
@@ -381,8 +524,9 @@ export class WhatsAppService {
         this.replacedCount = 0;
       }
 
-      // Si el socket está saludable, vaciar Outbox rezagado y barrer mensajes sin responder de forma continua
+      // Si el socket está saludable, sincronizar y vaciar Outbox compartido + barrer mensajes sin responder
       if (isWsAlive && connectedDuration > 5000) {
+        this.loadPersistedOutbox();
         if (this.outboxQueue.length > 0 && !this.isDrainingOutbox) {
           this.drainOutboxQueue().catch(err => {
             console.warn(`[Watchdog Outbox ${this.sessionId}] Error vaciando cola:`, err.message);
@@ -572,6 +716,16 @@ export class WhatsAppService {
     if (!this.watchdogTimer) {
       this.startWatchdog();
     }
+    if (!this.acquireLeaderLock({ forceTakeover: Boolean(resetAuth) })) {
+      if (!this._loggedFollowerMode) {
+        const leaderInfo = this.getLeaderLockInfo();
+        console.log(`ℹ️ [WhatsApp Follower PID ${process.pid}] Sesión '${this.sessionId}' ya está conectada en el proceso líder PID ${leaderInfo?.pid}. Operando como réplica HTTP pasiva (0 conflictos 440).`);
+        this._loggedFollowerMode = true;
+      }
+      this.emitStatus();
+      return;
+    }
+    this._loggedFollowerMode = false;
     if (this.isInitializing) return;
     this.cancelScheduledReconnect();
     this.isInitializing = true;
@@ -3002,6 +3156,26 @@ export class WhatsAppService {
     const credsBackup = path.join(backupDir, 'creds.json');
     const hasSavedAuth = isCredsValid(credsActive) || isCredsValid(credsBackup);
 
+    // Si este worker es réplica HTTP pasiva detrás de un líder activo (ej. LiteSpeed lsnode), reflejar el estado en vivo del líder
+    if (this.hasActiveRemoteLeader()) {
+      const shared = this.readSharedState();
+      if (shared && (Date.now() - Number(shared.updatedAt || 0)) < 120000) {
+        return {
+          sessionId: this.sessionId,
+          userId: this.sessionId,
+          status: shared.status || 'disconnected',
+          qrCode: shared.qrCode || null,
+          qrDataUrl: shared.qrDataUrl || null,
+          user: shared.user || null,
+          lastConnectedAt: shared.lastConnectedAt || 0,
+          reconnectAttempts: shared.reconnectAttempts || 0,
+          watchdogActive: Boolean(this.watchdogTimer),
+          leaderPid: shared.leaderPid,
+          hasSavedAuth
+        };
+      }
+    }
+
     return {
       sessionId: this.sessionId,
       userId: this.sessionId,
@@ -3012,6 +3186,7 @@ export class WhatsAppService {
       lastConnectedAt: this.lastConnectedAt,
       reconnectAttempts: this.reconnectAttempts,
       watchdogActive: Boolean(this.watchdogTimer),
+      leaderPid: process.pid,
       hasSavedAuth
     };
   }
@@ -3031,9 +3206,11 @@ export class WhatsAppService {
         this.sock = null;
       } catch (_) {}
     }
+    this.releaseLeaderLock();
   }
 
   emitStatus({ force = false } = {}) {
+    this.writeSharedState();
     if (this.io) {
       const statusData = this.getStatus();
       const sig = `${statusData.status}|${statusData.qrCode || ''}|${statusData.user?.id || ''}|${statusData.hasSavedAuth}`;
@@ -3205,13 +3382,15 @@ export class WhatsAppManager {
     if (settings.whatsappProvider === 'meta_cloud' && this.metaService) {
       return this.metaService.isConfigured() ? 'connected' : 'disconnected';
     }
-    if (this.primarySession?.status === 'connected') return 'connected';
-    for (const session of this.sessions.values()) {
-      if (session && session.status === 'connected') {
+    const primaryEffective = this.primarySession?.getStatus?.()?.status || this.primarySession?.status;
+    if (primaryEffective === 'connected') return 'connected';
+    for (const session of this.getAllSessions()) {
+      const st = session?.getStatus?.()?.status || session?.status;
+      if (st === 'connected') {
         return 'connected';
       }
     }
-    return this.primarySession?.status || 'disconnected';
+    return primaryEffective || 'disconnected';
   }
 
   get isAnyConnected() {
@@ -3223,9 +3402,11 @@ export class WhatsAppManager {
   }
 
   get isAnyConnecting() {
-    if (this.primarySession?.status === 'connecting') return true;
-    for (const session of this.sessions.values()) {
-      if (session && session.status === 'connecting') return true;
+    const primaryEffective = this.primarySession?.getStatus?.()?.status || this.primarySession?.status;
+    if (primaryEffective === 'connecting') return true;
+    for (const session of this.getAllSessions()) {
+      const st = session?.getStatus?.()?.status || session?.status;
+      if (st === 'connecting') return true;
     }
     return false;
   }

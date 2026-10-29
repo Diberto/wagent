@@ -260,65 +260,91 @@ async function cleanupCompetingInstances() {
     // PM2 no instalado o no accesible para este usuario; continuar con inspección /proc
   }
 
-  // 2. Inspeccionar /proc directamente para terminar procesos huérfanos "node server/index.js" sin puerto
-  try {
-    if (fs.existsSync('/proc')) {
-      const entries = fs.readdirSync('/proc');
-      const zombiePids = [];
+  // 2. Si NO existe ya otro líder activo con lease vigente, reclamar liderazgo y purgar workers legados / huérfanos en /proc
+  //    (cubre tanto "node server/index.js" como workers hermanos "lsnode:/home/..." en Hostinger CloudLinux / LiteSpeed)
+  const hasRemoteLeader = whatsapp?.primarySession?.hasActiveRemoteLeader?.() || false;
+  if (!hasRemoteLeader) {
+    whatsapp?.primarySession?.acquireLeaderLock?.();
 
-      for (const entry of entries) {
-        if (!/^\d+$/.test(entry)) continue;
-        const pidNum = Number(entry);
-        if (pidNum <= 1 || pidNum === process.pid || pidNum === process.ppid) continue;
-
-        try {
-          const cmdRaw = fs.readFileSync(`/proc/${pidNum}/cmdline`, 'utf8');
-          if (!cmdRaw) continue;
-          const args = cmdRaw.split('\0').filter(Boolean);
-          if (args.length < 2) continue;
-
-          const binBase = path.basename(args[0]);
-          if (binBase !== 'node' && binBase !== 'nodejs') continue;
-
-          const runsIndexJs = args.some(a =>
-            a === 'server/index.js' ||
-            a.endsWith('/server/index.js')
-          );
-          if (!runsIndexJs) continue;
-
-          let sameDir = args.some(a => a.startsWith(rootResolved));
-          if (!sameDir) {
-            try {
-              const procCwd = fs.readlinkSync(`/proc/${pidNum}/cwd`);
-              sameDir = path.resolve(procCwd) === rootResolved;
-            } catch (_) {}
-          }
-
-          if (sameDir) {
-            zombiePids.push(pidNum);
-          }
-        } catch (_) {}
-      }
-
-      for (const zPid of zombiePids) {
-        try {
-          console.warn(`🧹 [Single-Instance] Terminando proceso zombie huérfano detectado (PID ${zPid})...`);
-          process.kill(zPid, 'SIGTERM');
-          cleanedCount++;
-        } catch (_) {}
-      }
-
-      if (zombiePids.length > 0) {
-        await new Promise(r => setTimeout(r, 1200));
-        for (const zPid of zombiePids) {
+    try {
+      if (fs.existsSync('/proc')) {
+        // Construir conjunto de ancestros intocables (init, lshttpd, lsnode master, PM2 daemon)
+        const ancestorPids = new Set([1, process.pid, process.ppid]);
+        let cursorPid = process.ppid;
+        for (let hop = 0; hop < 16 && cursorPid > 1; hop++) {
+          ancestorPids.add(cursorPid);
           try {
-            process.kill(zPid, 0);
-            process.kill(zPid, 'SIGKILL');
+            const stRaw = fs.readFileSync(`/proc/${cursorPid}/status`, 'utf8');
+            const m = stRaw.match(/^PPid:\s*(\d+)/m);
+            const nextPpid = m ? Number(m[1]) : 0;
+            if (!nextPpid || ancestorPids.has(nextPpid)) break;
+            cursorPid = nextPpid;
+          } catch (_) {
+            break;
+          }
+        }
+
+        const entries = fs.readdirSync('/proc');
+        const zombiePids = [];
+
+        for (const entry of entries) {
+          if (!/^\d+$/.test(entry)) continue;
+          const pidNum = Number(entry);
+          if (pidNum <= 1 || ancestorPids.has(pidNum)) continue;
+
+          try {
+            const cmdRaw = fs.readFileSync(`/proc/${pidNum}/cmdline`, 'utf8');
+            if (!cmdRaw) continue;
+            const args = cmdRaw.split('\0').filter(Boolean);
+            if (args.length === 0) continue;
+
+            const firstArg = args[0] || '';
+            const binBase = path.basename(firstArg);
+            const isLsNodeWorker = firstArg.startsWith('lsnode:') || args.some(a => a.includes('lsnode.js'));
+            const isNodeServer = (binBase === 'node' || binBase === 'nodejs') && args.some(a =>
+              a === 'server/index.js' ||
+              a.endsWith('/server/index.js') ||
+              a.includes('lsnode.js')
+            );
+
+            if (!isLsNodeWorker && !isNodeServer) continue;
+
+            let procCwd = '';
+            try {
+              procCwd = path.resolve(fs.readlinkSync(`/proc/${pidNum}/cwd`));
+            } catch (_) {}
+
+            const sameDir =
+              procCwd === rootResolved ||
+              firstArg.includes(rootResolved) ||
+              args.some(a => a.startsWith(rootResolved));
+
+            if (sameDir) {
+              zombiePids.push(pidNum);
+            }
           } catch (_) {}
         }
+
+        for (const zPid of zombiePids) {
+          try {
+            console.warn(`🧹 [Single-Instance] Terminando worker legado/duplicado sin lease (PID ${zPid})...`);
+            process.kill(zPid, 'SIGTERM');
+            cleanedCount++;
+          } catch (_) {}
+        }
+
+        if (zombiePids.length > 0) {
+          await new Promise(r => setTimeout(r, 1200));
+          for (const zPid of zombiePids) {
+            try {
+              process.kill(zPid, 0);
+              process.kill(zPid, 'SIGKILL');
+            } catch (_) {}
+          }
+        }
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 
   if (cleanedCount > 0) {
     console.log(`✅ [Single-Instance] ${cleanedCount} instancia(s) duplicada(s) purgada(s). Esperando 1.8s antes de conectar WhatsApp...`);

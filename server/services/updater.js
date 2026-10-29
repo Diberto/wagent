@@ -18,8 +18,10 @@ const getAppVersion = () => {
 
 const getExecutionEnv = () => {
   const isWin = process.platform === 'win32';
+  const nodeBinDir = path.dirname(process.execPath);
   if (isWin) {
     const gitPaths = [
+      nodeBinDir,
       'C:\\Program Files\\Git\\cmd',
       'C:\\Program Files\\Git\\bin',
       'C:\\Program Files\\Git\\mingw64\\bin',
@@ -32,7 +34,7 @@ const getExecutionEnv = () => {
   }
   return {
     ...process.env,
-    PATH: `/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:${process.env.PATH || ''}`
+    PATH: `${nodeBinDir}:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:${process.env.PATH || ''}`
   };
 };
 
@@ -195,7 +197,8 @@ export class UpdateService {
       }
 
       const isWin = process.platform === 'win32';
-      const npmCmd = isWin ? 'npm.cmd' : 'npm';
+      const localNpmBin = path.join(path.dirname(process.execPath), isWin ? 'npm.cmd' : 'npm');
+      const npmCmd = fs.existsSync(localNpmBin) ? `"${localNpmBin}"` : (isWin ? 'npm.cmd' : 'npm');
 
       // 1. Configurar git safe.directory para evitar bloqueos de permisos en Linux/Docker
       await runCommand('git config --global --add safe.directory "*"');
@@ -281,8 +284,13 @@ export class UpdateService {
       } catch (_) {}
       pushLog('✅ Procesos verificados.');
 
-      // 6. Reinicio automático ordenado del proceso activo real
+      // 6. Reinicio automático ordenado del proceso activo real (incluyendo LiteSpeed lsnode / Passenger tmp/restart.txt)
       pushLog('🔄 Paso 5/5: Programando recarga ordenada del servicio...');
+      try {
+        const tmpRestartDir = path.join(CONFIG.ROOT_DIR, 'tmp');
+        if (!fs.existsSync(tmpRestartDir)) fs.mkdirSync(tmpRestartDir, { recursive: true });
+        fs.writeFileSync(path.join(tmpRestartDir, 'restart.txt'), String(Date.now()), 'utf8');
+      } catch (_) {}
       if (this.io) {
         this.io.emit('system:update:completed', {
           success: true,

@@ -200,16 +200,18 @@ async function runResilienceTests() {
     assert.strictEqual(order[0], 'fast_client', 'El chat del cliente debe procesarse inmediatamente sin esperar al OCR del grupo');
     console.log('   ✅ OK: Procesamiento en paralelo por chat verificado.\n');
 
-    // 6. Prueba de guardia anti-zombie (sin watchdog prematuro en constructor) y deduplicación de emitStatus
-    console.log('6️⃣ Verificando guardia anti-zombie en constructor y deduplicación de eventos Socket.IO...');
+    // 6. Prueba de guardia anti-zombie, lease Leader-Follower multi-worker y deduplicación de emitStatus
+    console.log('6️⃣ Verificando lease Leader-Follower (LiteSpeed lsnode), constructor pasivo y deduplicación Socket.IO...');
     let emittedStatusEvents = 0;
     const mockIo = {
       emit: (evt) => {
         if (evt === 'whatsapp:status') emittedStatusEvents++;
       }
     };
-    const passiveInstance = new WhatsAppService(mockIo, `${testSessionId}_passive`);
+    const passiveSessionId = `${testSessionId}_passive`;
+    const passiveInstance = new WhatsAppService(mockIo, passiveSessionId);
     assert.strictEqual(passiveInstance.watchdogTimer, null, 'El constructor NUNCA debe arrancar watchdogTimer antes de initialize() / server.listen()');
+    assert.strictEqual(passiveInstance.acquireLeaderLock(), true, 'El líder primario debe adquirir el lease');
     passiveInstance.status = 'connecting';
     passiveInstance.emitStatus();
     passiveInstance.emitStatus();
@@ -218,8 +220,34 @@ async function runResilienceTests() {
     passiveInstance.status = 'connected';
     passiveInstance.emitStatus();
     assert.strictEqual(emittedStatusEvents, 2, 'emitStatus() debe emitir cuando cambia el estado real');
+
+    // Simular un líder remoto vivo (ej. otro worker lsnode con PID de padre vivo) y comprobar modo Follower
+    fs.writeFileSync(passiveInstance.leaderLockPath, JSON.stringify({
+      pid: process.ppid,
+      sessionId: passiveSessionId,
+      startedAt: Date.now(),
+      heartbeatAt: Date.now()
+    }), 'utf8');
+    fs.writeFileSync(passiveInstance.sharedStatePath, JSON.stringify({
+      sessionId: passiveSessionId,
+      status: 'connected',
+      user: { id: '5493516262475:92@s.whatsapp.net' },
+      leaderPid: process.ppid,
+      updatedAt: Date.now()
+    }), 'utf8');
+    const followerInstance = new WhatsAppService(null, passiveSessionId);
+    if (followerInstance.isPidAlive(process.ppid)) {
+      assert.strictEqual(followerInstance.hasActiveRemoteLeader(), true, 'El worker secundario debe detectar el líder vivo');
+      assert.strictEqual(followerInstance.acquireLeaderLock(), false, 'El worker secundario NO debe robar el lease de un líder vivo');
+      assert.strictEqual(followerInstance.getStatus().status, 'connected', 'El worker secundario debe reflejar el estado conectado del líder');
+    }
+
     passiveInstance.shutdown();
-    console.log('   ✅ OK: Guardia anti-zombie y deduplicación de Socket.IO verificadas.\n');
+    followerInstance.shutdown();
+    for (const f of [passiveInstance.leaderLockPath, passiveInstance.sharedStatePath, service.leaderLockPath, service.sharedStatePath]) {
+      if (f && fs.existsSync(f)) fs.unlinkSync(f);
+    }
+    console.log('   ✅ OK: Lease Leader-Follower, guardia anti-zombie y deduplicación verificados.\n');
 
     console.log('🎉 TODAS LAS PRUEBAS DE RESILIENCIA DE WHATSAPP PASARON EXITOSAMENTE (6/6).');
   } finally {
