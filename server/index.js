@@ -314,12 +314,40 @@ async function cleanupCompetingInstances() {
               procCwd = path.resolve(fs.readlinkSync(`/proc/${pidNum}/cwd`));
             } catch (_) {}
 
+            const domainMatch = rootResolved.match(/\/domains\/([^/]+)/);
+            const domainPathPrefix = domainMatch ? `/domains/${domainMatch[1]}` : null;
+
             const sameDir =
               procCwd === rootResolved ||
               firstArg.includes(rootResolved) ||
-              args.some(a => a.startsWith(rootResolved));
+              args.some(a => a.startsWith(rootResolved)) ||
+              (domainPathPrefix && (procCwd.includes(domainPathPrefix) || firstArg.includes(domainPathPrefix)));
 
             if (sameDir) {
+              // Antes de terminar un worker de un build anterior de Hostinger, rescatar sus credenciales activas de WhatsApp si existen
+              try {
+                const targetCreds = path.join(CONFIG.AUTH_DIR, 'creds.json');
+                if (!fs.existsSync(targetCreds) && procCwd) {
+                  const candidateAuthDir = path.join(procCwd, 'data', 'auth_info_baileys');
+                  const candidateCreds = path.join(candidateAuthDir, 'creds.json');
+                  if (fs.existsSync(candidateCreds)) {
+                    const parsed = JSON.parse(fs.readFileSync(candidateCreds, 'utf8'));
+                    if (parsed && (parsed.registered || parsed.me?.id)) {
+                      fs.mkdirSync(CONFIG.AUTH_DIR, { recursive: true });
+                      const bkpDir = path.join(CONFIG.BACKUPS_DIR, 'auth_backup_default');
+                      fs.mkdirSync(bkpDir, { recursive: true });
+                      for (const f of fs.readdirSync(candidateAuthDir)) {
+                        if (f.endsWith('.json')) {
+                          fs.copyFileSync(path.join(candidateAuthDir, f), path.join(CONFIG.AUTH_DIR, f));
+                          fs.copyFileSync(path.join(candidateAuthDir, f), path.join(bkpDir, f));
+                        }
+                      }
+                      console.log(`🛟 [Auth Rescue] Sesión WhatsApp rescatada desde worker previo (PID ${pidNum}) hacia bóveda persistente ${CONFIG.AUTH_DIR}`);
+                    }
+                  }
+                }
+              } catch (_) {}
+
               zombiePids.push(pidNum);
             }
           } catch (_) {}

@@ -1,4 +1,6 @@
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
@@ -7,7 +9,65 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '../../');
-const DATA_DIR = path.join(ROOT_DIR, 'data');
+
+/**
+ * En despliegues CloudLinux / LiteSpeed de Hostinger (donde cada git push recrea public_html),
+ * ubica DATA_DIR en una bóveda persistente dentro del HOME del usuario (~/.wagent_data_<dominio>)
+ * para que las sesiones QR de WhatsApp (auth_info_baileys), la base SQLite y el lock Leader-Follower
+ * sobrevivan intactos a todos los despliegues de GitHub y sean compartidos por todos los workers.
+ */
+function resolvePersistentDataDir() {
+  if (process.env.WAGENT_DATA_DIR) {
+    return path.resolve(process.env.WAGENT_DATA_DIR);
+  }
+
+  const localDataDir = path.join(ROOT_DIR, 'data');
+  const isHostingerDomainLayout =
+    process.platform === 'linux' &&
+    !fs.existsSync('/.dockerenv') &&
+    (ROOT_DIR.includes('/domains/') || ROOT_DIR.includes('public_html'));
+
+  if (!isHostingerDomainLayout) {
+    return localDataDir;
+  }
+
+  try {
+    const homeDir = os.homedir();
+    if (!homeDir) return localDataDir;
+    const domMatch = ROOT_DIR.match(/\/domains\/([^/]+)/);
+    const safeDomain = domMatch ? domMatch[1].replace(/[^a-zA-Z0-9._-]/g, '_') : 'default';
+    const persistentDir = path.join(homeDir, `.wagent_data_${safeDomain}`);
+    fs.mkdirSync(persistentDir, { recursive: true });
+
+    // Si existen credenciales o base local previa en ROOT_DIR/data y la bóveda está recién creada, migrar sin sobrescribir
+    if (fs.existsSync(localDataDir)) {
+      const copyDirIfMissing = (srcSub, dstSub) => {
+        if (!fs.existsSync(srcSub)) return;
+        fs.mkdirSync(dstSub, { recursive: true });
+        for (const f of fs.readdirSync(srcSub)) {
+          const s = path.join(srcSub, f);
+          const d = path.join(dstSub, f);
+          try {
+            const st = fs.statSync(s);
+            if (st.isFile() && !fs.existsSync(d)) {
+              fs.copyFileSync(s, d);
+            }
+          } catch (_) {}
+        }
+      };
+      copyDirIfMissing(localDataDir, persistentDir);
+      copyDirIfMissing(path.join(localDataDir, 'auth_info_baileys'), path.join(persistentDir, 'auth_info_baileys'));
+      copyDirIfMissing(path.join(localDataDir, 'media'), path.join(persistentDir, 'media'));
+      copyDirIfMissing(path.join(localDataDir, 'backups'), path.join(persistentDir, 'backups'));
+    }
+
+    return persistentDir;
+  } catch (_) {
+    return localDataDir;
+  }
+}
+
+const DATA_DIR = resolvePersistentDataDir();
 const MEDIA_DIR = path.join(DATA_DIR, 'media');
 const AUTH_DIR = path.join(DATA_DIR, 'auth_info_baileys');
 const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
