@@ -22,12 +22,12 @@ function resolvePersistentDataDir() {
   }
 
   const localDataDir = path.join(ROOT_DIR, 'data');
-  const isHostingerDomainLayout =
+  const isLinuxNonDockerServer =
     process.platform === 'linux' &&
     !fs.existsSync('/.dockerenv') &&
-    (ROOT_DIR.includes('/domains/') || ROOT_DIR.includes('public_html'));
+    (ROOT_DIR.includes('/domains/') || ROOT_DIR.includes('public_html') || process.env.NODE_ENV === 'production');
 
-  if (!isHostingerDomainLayout) {
+  if (!isLinuxNonDockerServer) {
     return localDataDir;
   }
 
@@ -35,12 +35,13 @@ function resolvePersistentDataDir() {
     const homeDir = os.homedir();
     if (!homeDir) return localDataDir;
     const domMatch = ROOT_DIR.match(/\/domains\/([^/]+)/);
-    const safeDomain = domMatch ? domMatch[1].replace(/[^a-zA-Z0-9._-]/g, '_') : 'default';
+    const fallbackSlug = path.basename(ROOT_DIR).replace(/[^a-zA-Z0-9._-]/g, '_') || 'default';
+    const safeDomain = domMatch ? domMatch[1].replace(/[^a-zA-Z0-9._-]/g, '_') : fallbackSlug;
     const persistentDir = path.join(homeDir, `.wagent_data_${safeDomain}`);
     fs.mkdirSync(persistentDir, { recursive: true });
 
-    // Si existen credenciales o base local previa en ROOT_DIR/data y la bóveda está recién creada, migrar sin sobrescribir
-    if (fs.existsSync(localDataDir)) {
+    // Si existen credenciales o base local previa en ROOT_DIR/data y faltan en la bóveda persistente, migrar sin sobrescribir
+    if (fs.existsSync(localDataDir) && path.resolve(localDataDir) !== path.resolve(persistentDir)) {
       const copyDirIfMissing = (srcSub, dstSub) => {
         if (!fs.existsSync(srcSub)) return;
         fs.mkdirSync(dstSub, { recursive: true });

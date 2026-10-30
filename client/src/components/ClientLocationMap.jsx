@@ -169,6 +169,8 @@ export default function ClientLocationMap({
   customerName = 'Cliente', 
   initialCoords = null,
   mapConfig = null,
+  showNotifyToggle = false,
+  orderId = null,
   onClose, 
   onConfirmLocation 
 }) {
@@ -179,6 +181,8 @@ export default function ClientLocationMap({
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [isRouting, setIsRouting] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [notifyCustomer, setNotifyCustomer] = useState(true);
   const [activeMapConfig, setActiveMapConfig] = useState(mapConfig || cachedMapConfig);
 
   const mapContainerRef = useRef(null);
@@ -220,6 +224,9 @@ export default function ClientLocationMap({
       });
       const data = await res.json();
       if (data.success && data.coordinates) {
+        if (data.formattedAddress && data.valid !== false) {
+          setSearchInput(data.formattedAddress);
+        }
         setCoords(data.coordinates);
         setGeoData(data);
         const branch = data.closestBranch || DEFAULT_BRANCHES[0];
@@ -305,13 +312,16 @@ export default function ClientLocationMap({
       });
 
       mapInstanceRef.current = map;
+      setTimeout(() => {
+        try { map.invalidateSize(); } catch (_) {}
+      }, 180);
     }
 
-    // Inicializar búsqueda si hay dirección
-    if (address) {
-      geocodeAddress(address);
-    } else if (initialCoords) {
+    // Inicializar búsqueda si hay coordenadas o dirección
+    if (initialCoords && typeof initialCoords.lat === 'number' && typeof initialCoords.lng === 'number') {
       reverseGeocodeCoords(initialCoords.lat, initialCoords.lng);
+    } else if (address && address.trim() && address.trim().toLowerCase() !== 'córdoba, argentina') {
+      geocodeAddress(address);
     } else {
       geocodeAddress('Av. José Roque Funes 1115, Córdoba');
     }
@@ -383,10 +393,11 @@ export default function ClientLocationMap({
       });
     }
 
-    // Iconos de Sucursales
+    // Iconos de Sucursales (con guardia estricta de coordenadas válidas)
     const branchesList = geoData?.allBranches || DEFAULT_BRANCHES;
     branchesList.forEach(b => {
-      const isSelected = b.id === branch.id;
+      if (typeof b.lat !== 'number' || typeof b.lng !== 'number' || Number.isNaN(b.lat) || Number.isNaN(b.lng)) return;
+      const isSelected = b.id === branch?.id;
       const branchIcon = L.divIcon({
         className: 'custom-branch-pin',
         html: `
@@ -443,8 +454,8 @@ export default function ClientLocationMap({
   const wazeUrl = `https://waze.com/ul?ll=${coords.lat},${coords.lng}&navigate=yes`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="bg-[#182229] border border-slate-700/80 rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+      <div className="bg-[#182229] border-0 sm:border border-slate-700/80 rounded-none sm:rounded-3xl w-full max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[94dvh] flex flex-col shadow-2xl overflow-hidden">
         
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-[#111b21]">
@@ -683,26 +694,50 @@ export default function ClientLocationMap({
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
+            <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 pb-safe">
+              {showNotifyToggle && (
+                <label className="flex items-start gap-2 p-2.5 rounded-xl bg-[#111b21] border border-slate-700/80 cursor-pointer text-[11px] text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={notifyCustomer}
+                    onChange={(e) => setNotifyCustomer(e.target.checked)}
+                    className="mt-0.5 accent-emerald-500 rounded"
+                  />
+                  <span>
+                    Notificar cambio por WhatsApp al cliente{orderId ? ` (Pedido #${orderId})` : ''} y solicitar confirmación
+                  </span>
+                </label>
+              )}
+
               {onConfirmLocation && (
                 <button
                   type="button"
-                  onClick={() => onConfirmLocation({
-                    address: searchInput,
-                    coordinates: coords,
-                    closestBranch: selectedBranch,
-                    route: routeInfo
-                  })}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                  disabled={isConfirming || isLoading}
+                  onClick={async () => {
+                    try {
+                      setIsConfirming(true);
+                      await onConfirmLocation({
+                        address: (searchInput || geoData?.formattedAddress || '').trim(),
+                        coordinates: coords,
+                        closestBranch: selectedBranch,
+                        route: routeInfo,
+                        notifyCustomer
+                      });
+                    } finally {
+                      setIsConfirming(false);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-slate-950 font-extrabold text-xs shadow-lg transition"
                 >
-                  <Check size={16} /> Confirmar Dirección y Sucursal
+                  {isConfirming ? <RefreshCw size={15} className="animate-spin" /> : <Check size={16} />}
+                  <span>{isConfirming ? 'Guardando ubicación y ruta...' : 'Confirmar Dirección y Sucursal'}</span>
                 </button>
               )}
 
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2 rounded-xl bg-[#111b21] hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700 transition"
+                className="w-full py-2.5 rounded-xl bg-[#111b21] hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700 transition"
               >
                 Cerrar Mapa
               </button>

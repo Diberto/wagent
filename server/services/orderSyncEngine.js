@@ -19,7 +19,8 @@ export class OrderSyncEngine {
     aiReplyText = '',
     products = null,
     stage = null,
-    history = []
+    history = [],
+    preValidatedRoute = null
   }) {
     try {
       // Catálogo siempre desde la base de datos real
@@ -187,7 +188,12 @@ export class OrderSyncEngine {
       let deliveryType = isBranchPickup ? 'pickup' : (activeOrder?.deliveryType || clientLead?.deliveryType || 'delivery');
 
       let branchCandidate = '';
-      if (/allende|figueroa|mercadito/i.test(turnContext) || /allende|figueroa|mercadito/i.test(recentHistoryContext)) {
+      if (!isBranchPickup && preValidatedRoute?.canDeliver && preValidatedRoute?.assignedBranch?.id) {
+        branchCandidate = preValidatedRoute.assignedBranch.id;
+        if (preValidatedRoute.formattedAddress && (!cleanAddr || preValidatedRoute.routeVerified)) {
+          cleanAddr = preValidatedRoute.formattedAddress;
+        }
+      } else if (/allende|figueroa|mercadito/i.test(turnContext) || /allende|figueroa|mercadito/i.test(recentHistoryContext)) {
         branchCandidate = 'br-5';
       } else if (/pidal|tejeda|urca\s*2/i.test(turnContext) || /pidal|tejeda|urca\s*2/i.test(recentHistoryContext)) {
         branchCandidate = 'br-2';
@@ -201,8 +207,8 @@ export class OrderSyncEngine {
         branchCandidate = 'br-1';
       } else if (activeOrder?.branchId || activeOrder?.branch) {
         branchCandidate = activeOrder.branchId || activeOrder.branch;
-      } else if (clientLead?.preferredBranch) {
-        branchCandidate = clientLead.preferredBranch;
+      } else if (clientLead?.preferredBranchId || clientLead?.preferredBranch) {
+        branchCandidate = clientLead.preferredBranchId || clientLead.preferredBranch;
       } else {
         branchCandidate = isBranchPickup ? 'br-5' : 'br-1';
       }
@@ -210,6 +216,17 @@ export class OrderSyncEngine {
       const branchObj = db.resolveBranch(branchCandidate);
       const branchName = branchObj.name;
       const branchId = branchObj.id;
+
+      const routeMeta = (!isBranchPickup && preValidatedRoute?.valid && preValidatedRoute?.coordinates)
+        ? {
+            coordinates: preValidatedRoute.coordinates,
+            lat: preValidatedRoute.coordinates.lat,
+            lng: preValidatedRoute.coordinates.lng,
+            routeDistanceKm: preValidatedRoute.distanceKm ?? null,
+            routeDurationMin: preValidatedRoute.durationMin ?? null,
+            routeVerified: Boolean(preValidatedRoute.routeVerified && preValidatedRoute.canDeliver)
+          }
+        : {};
 
       if (isBranchPickup) {
         deliveryType = 'pickup';
@@ -346,6 +363,7 @@ export class OrderSyncEngine {
             branchName: branchName || activeOrder.branchName || '',
             branchId: branchId || activeOrder.branchId || '',
             paymentMethod,
+            ...routeMeta,
             updatedAt: new Date().toISOString()
           });
         } else {
@@ -374,7 +392,8 @@ export class OrderSyncEngine {
             branch: branchName || '',
             branchName: branchName || '',
             branchId: branchId || '',
-            paymentMethod
+            paymentMethod,
+            ...routeMeta
           });
         }
 
@@ -385,13 +404,15 @@ export class OrderSyncEngine {
             stage: stage || 'proposal',
             address: cleanAddr || clientLead.address,
             deliveryType,
-            preferredBranch: branchName || clientLead.preferredBranch
+            preferredBranchId: branchId || clientLead.preferredBranchId,
+            preferredBranch: branchName || clientLead.preferredBranch,
+            ...(routeMeta.coordinates ? { coordinates: routeMeta.coordinates, lat: routeMeta.lat, lng: routeMeta.lng } : {})
           });
         }
       } else if (activeOrder) {
         // Aunque no hayan cambiado los items en este turno (ej: cliente solo dijo la dirección o el pago),
         // actualizar dirección, sucursal o pago en la orden activa
-        const updates = {};
+        const updates = { ...routeMeta };
         if (cleanAddr && cleanAddr !== activeOrder.address) updates.address = cleanAddr;
         if (branchName && (branchName !== activeOrder.branch || branchId !== activeOrder.branchId)) {
           updates.branch = branchName;

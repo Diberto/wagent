@@ -13,6 +13,8 @@ import { MetaWhatsAppService } from './metaWhatsApp.js';
 import { inventoryService, parsePaymentAndBranchFromComment } from './inventoryService.js';
 import { invoiceOcrService } from './invoiceOcrService.js';
 import { imageService } from './imageService.js';
+import { InternalOrderOcrService } from './internalOrderOcrService.js';
+import { DeliveryRoutingService } from './deliveryRoutingService.js';
 
 /**
  * Desenpaqueta mensajes anidados (efímeros, view-once, multimedia con subtítulo)
@@ -1326,10 +1328,148 @@ export class WhatsAppService {
 
       const isImage = Boolean(messageContent.imageMessage);
       const isDocument = Boolean(messageContent.documentMessage);
+      const isAudio = Boolean(messageContent.audioMessage);
+      const participantJid = msg.key.participant || msg.participant || '';
+      const senderPhone = participantJid.includes('@s.whatsapp.net')
+        ? normalizePhoneNumber(participantJid.split('@')[0]) || `+${participantJid.split('@')[0]}`
+        : '';
+      const senderName = msg.pushName || (msg.key.fromMe ? 'Administración Central' : (senderPhone || 'Integrante Grupo'));
+      const groupMode = matchedGroup.mode || 'all'; // 'all' | 'internal_orders' | 'invoices'
 
-      // Si no es imagen ni documento, verificar si es un mensaje de texto aclaratorio posterior al comprobante
+      let localPath = null;
+      let mediaUrl = null;
+      let mimeType = null;
+      let captionOrText = (
+        messageContent.conversation ||
+        messageContent.extendedTextMessage?.text ||
+        messageContent.imageMessage?.caption ||
+        messageContent.documentMessage?.caption ||
+        ''
+      ).trim();
+
+      // Descargar multimedia si es imagen, documento o nota de voz del grupo silencioso
+      if (isImage || isDocument) {
+        const buffer = await downloadMediaMessage(msg, 'buffer', {});
+        if (isImage) {
+          try {
+            const optimized = await imageService.processAndOptimizeImage(buffer, `group_ocr_${Date.now()}_${msg.key.id}`);
+            localPath = optimized.filePath;
+            mediaUrl = optimized.url;
+            mimeType = 'image/webp';
+          } catch (convErr) {
+            const filename = `group_ocr_${Date.now()}_${msg.key.id}.jpg`;
+            localPath = path.join(CONFIG.MEDIA_DIR, filename);
+            fs.writeFileSync(localPath, buffer);
+            mediaUrl = `/media/${filename}`;
+            mimeType = 'image/jpeg';
+          }
+        } else {
+          const ext = path.extname(messageContent.documentMessage.fileName || '.pdf') || '.pdf';
+          const filename = `group_ocr_${Date.now()}_${msg.key.id}${ext}`;
+          localPath = path.join(CONFIG.MEDIA_DIR, filename);
+          fs.writeFileSync(localPath, buffer);
+          mediaUrl = `/media/${filename}`;
+          mimeType = messageContent.documentMessage.mimetype || 'application/pdf';
+        }
+      } else if (isAudio && groupMode !== 'invoices') {
+        try {
+          const buffer = await downloadMediaMessage(msg, 'buffer', {});
+          const oggPath = path.join(CONFIG.MEDIA_DIR, `group_voice_${Date.now()}_${msg.key.id}.ogg`);
+          fs.writeFileSync(oggPath, buffer);
+          let playablePath = oggPath;
+          try {
+            playablePath = await AudioConverter.convertOggToMp3(oggPath);
+          } catch (_) {}
+          mediaUrl = `/media/${path.basename(playablePath)}`;
+          captionOrText = await SpeechService.transcribeAudio(playablePath);
+        } catch (audErr) {
+          console.warn('⚠️ [Grupo Silencioso OCR] Error transcribiendo audio de grupo:', audErr.message);
+        }
+      }
+
+      // 1. DETECCIÓN SILENCIOSA DE PEDIDOS INTERNOS (Sucursales <-> Administración)
+      if (groupMode !== 'invoices' && (localPath || captionOrText)) {
+        try {
+          const internalResult = await InternalOrderOcrService.analyzeGroupPayload({
+            imagePath: localPath,
+            mimeType: mimeType || 'image/jpeg',
+            text: captionOrText,
+            senderPhone,
+            senderName,
+            isFromMe: Boolean(msg.key.fromMe),
+            groupConfig: matchedGroup
+          });
+
+          if (internalResult && internalResult.classification === 'internal_order') {
+            const savedInternalOrder = db.saveInternalGroupOrder({
+              messageId: msg.key.id,
+              groupJid,
+              groupName: matchedGroup.groupName || groupJid,
+              direction: internalResult.direction,
+              sourceBranchId: internalResult.sourceBranchId,
+              sourceBranchName: internalResult.sourceBranchName,
+              targetBranchId: internalResult.targetBranchId,
+              targetUnitName: internalResult.targetUnitName,
+              senderJid: participantJid || null,
+              senderPhone,
+              senderName,
+              sourceType: isImage ? 'image_ocr' : (isDocument ? 'pdf_ocr' : (isAudio ? 'audio_transcript' : 'text')),
+              mediaUrl,
+              rawText: internalResult.rawText || captionOrText,
+              summary: internalResult.summary,
+              priority: internalResult.priority,
+              requestedFor: internalResult.requestedFor,
+              notes: internalResult.notes,
+              confidence: internalResult.confidence,
+              items: internalResult.items,
+              status: matchedGroup.autoApproveInternalOrders ? 'approved' : 'detected'
+            });
+
+            const dirBadge = savedInternalOrder.direction === 'admin_to_branch'
+              ? 'Administración → Sucursal'
+              : 'Sucursal → Administración';
+            console.log(`📦 [Grupo Silencioso OCR] Pedido interno detectado (${dirBadge}): ${savedInternalOrder.summary}`);
+
+            if (this.io) {
+              this.io.emit('notification:new', {
+                title: `📦 Pedido Interno OCR (${dirBadge})`,
+                message: savedInternalOrder.summary,
+                type: 'internal_ocr',
+                tab: 'silent-group',
+                data: savedInternalOrder
+              });
+            }
+
+            if (settings.notifyAdminOnGroupInvoice && settings.adminNotifyPhone && !msg.key.fromMe) {
+              const adminJid = `${settings.adminNotifyPhone.replace(/\D/g, '')}@s.whatsapp.net`;
+              const itemsLines = (savedInternalOrder.items || [])
+                .map(it => `• *${it.quantity} ${it.unit}* — ${it.canonicalName || it.name}${it.notes ? ` _(${it.notes})_` : ''}`)
+                .join('\n');
+              const privAlert =
+                `📦 *[Grupo Silencioso OCR — Pedido Interno]*\n\n` +
+                `🔄 *Flujo:* ${dirBadge}\n` +
+                `🏪 *Origen:* ${savedInternalOrder.sourceBranchName}\n` +
+                `🎯 *Destino:* ${savedInternalOrder.targetUnitName}\n` +
+                `👤 *Enviado por:* ${senderName}\n` +
+                `⚡ *Prioridad:* ${savedInternalOrder.priority === 'urgent' ? '🔴 URGENTE' : '🟢 Normal'}\n\n` +
+                `📋 *Detalle extraído (${savedInternalOrder.items.length} ítems):*\n${itemsLines}`;
+              this.sendTextMessage(adminJid, privAlert).catch(() => {});
+            }
+            return;
+          }
+        } catch (intErr) {
+          console.warn('⚠️ [Grupo Silencioso OCR] Aviso analizando pedido interno:', intErr.message);
+        }
+      }
+
+      // Si el grupo es exclusivo para pedidos internos, finalizar aquí en silencio
+      if (groupMode === 'internal_orders') {
+        return;
+      }
+
+      // 2. Si no es imagen ni documento, verificar si es un mensaje de texto aclaratorio posterior a una factura de proveedor
       if (!isImage && !isDocument) {
-        const textContent = (messageContent.conversation || messageContent.extendedTextMessage?.text || '').trim();
+        const textContent = captionOrText;
         if (!textContent) return;
 
         // Comprobar si hay un comprobante reciente recibido en este grupo en los últimos 15 minutos
@@ -1374,39 +1514,9 @@ export class WhatsAppService {
 
       console.log(`🧾 [Grupo WhatsApp "${matchedGroup.groupName || groupJid}"] Comprobante recibido. Iniciando análisis OCR TicketScan en modo pasivo...`);
 
-      // Extraer comentario o pie de foto (caption) si la imagen lo incluye directamente
-      const caption = (messageContent.imageMessage?.caption || messageContent.documentMessage?.caption || '').trim();
+      const caption = captionOrText;
       const branches = db.getBranches();
       const parsedComment = parsePaymentAndBranchFromComment(caption, branches);
-
-      const buffer = await downloadMediaMessage(msg, 'buffer', {});
-      let localPath;
-      let mediaUrl;
-      let mimeType;
-
-      if (isImage) {
-        try {
-          const optimized = await imageService.processAndOptimizeImage(buffer, `group_invoice_${Date.now()}_${msg.key.id}`);
-          localPath = optimized.filePath;
-          mediaUrl = optimized.url;
-          mimeType = 'image/webp';
-          console.log(`🖼️ [Grupo WhatsApp] Imagen convertida y guardada en WebP: ${mediaUrl}`);
-        } catch (convErr) {
-          console.warn('Fallo convirtiendo imagen a WebP, guardando como jpg fallback:', convErr.message);
-          const filename = `group_invoice_${Date.now()}_${msg.key.id}.jpg`;
-          localPath = path.join(CONFIG.MEDIA_DIR, filename);
-          fs.writeFileSync(localPath, buffer);
-          mediaUrl = `/media/${filename}`;
-          mimeType = 'image/jpeg';
-        }
-      } else {
-        const ext = path.extname(messageContent.documentMessage.fileName || '.pdf') || '.pdf';
-        const filename = `group_invoice_${Date.now()}_${msg.key.id}${ext}`;
-        localPath = path.join(CONFIG.MEDIA_DIR, filename);
-        fs.writeFileSync(localPath, buffer);
-        mediaUrl = `/media/${filename}`;
-        mimeType = messageContent.documentMessage.mimetype || 'application/pdf';
-      }
 
       // Procesar comprobante con Gemini Vision (TicketScan OCR)
       const ocrResult = await invoiceOcrService.analyzeInvoice(localPath, mimeType);
@@ -1611,6 +1721,31 @@ export class WhatsAppService {
       } catch (err) {
         console.error('Error descargando imagen entrante:', err);
         textContent = messageContent.imageMessage?.caption || '[Foto recibida]';
+      }
+    } else if (messageContent.locationMessage || messageContent.liveLocationMessage) {
+      // 4. Detección de Ubicación GPS (Pin enviado por el cliente en WhatsApp)
+      const locMsg = messageContent.locationMessage || messageContent.liveLocationMessage;
+      const lat = Number(locMsg.degreesLatitude);
+      const lng = Number(locMsg.degreesLongitude);
+      const locLabel = [locMsg.name, locMsg.address].filter(Boolean).join(', ');
+      if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+        messageType = 'location';
+        try {
+          const rev = await DeliveryRoutingService.reverseGeocode(lat, lng, locLabel);
+          const resolvedAddr = rev.formattedAddress || locLabel || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          textContent = `📍 Mi dirección por ubicación GPS es: ${resolvedAddr} (${lat.toFixed(6)}, ${lng.toFixed(6)})`;
+          if (lead && (lead.jid || lead.id)) {
+            db.updateLead(lead.jid || lead.id, {
+              address: resolvedAddr,
+              lat,
+              lng,
+              coordinates: { lat, lng },
+              ...(rev.closestBranch ? { preferredBranchId: rev.closestBranch.id, preferredBranch: rev.closestBranch.name } : {})
+            });
+          }
+        } catch (_) {
+          textContent = `📍 Mi ubicación GPS es: ${locLabel ? `${locLabel} ` : ''}(${lat.toFixed(6)}, ${lng.toFixed(6)})`;
+        }
       }
     }
 

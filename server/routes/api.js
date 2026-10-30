@@ -38,6 +38,9 @@ import { inventoryService } from '../services/inventoryService.js';
 import { invoiceOcrService } from '../services/invoiceOcrService.js';
 import { scaleService } from '../services/scaleService.js';
 import { rapilogService } from '../services/rapilogService.js';
+import { DeliveryRoutingService } from '../services/deliveryRoutingService.js';
+import { InternalOrderOcrService } from '../services/internalOrderOcrService.js';
+import { mongoPersistence } from '../services/mongoPersistence.js';
 
 export function createApiRouter(whatsappService, io) {
   const router = express.Router();
@@ -1161,9 +1164,39 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     res.json(lead);
   });
 
+  const syncOpenOrdersFromLeadPatch = (updatedLead, patch = {}) => {
+    if (!updatedLead) return;
+    if (!patch.address && !patch.preferredBranch && !patch.preferredBranchId && !patch.coordinates) return;
+    try {
+      const openOrders = db.getActiveOrdersByJid(updatedLead.jid || updatedLead.id || updatedLead) || [];
+      for (const ord of openOrders) {
+        const orderPatch = {};
+        if (patch.address && ord.deliveryType !== 'pickup') {
+          orderPatch.address = patch.address;
+          orderPatch.deliveryAddress = patch.address;
+        }
+        if (patch.coordinates) {
+          orderPatch.coordinates = patch.coordinates;
+          orderPatch.lat = patch.coordinates.lat;
+          orderPatch.lng = patch.coordinates.lng;
+        }
+        if (patch.preferredBranchId || patch.preferredBranch) {
+          orderPatch.branchId = patch.preferredBranchId || ord.branchId;
+          orderPatch.branch = patch.preferredBranch || ord.branch;
+          orderPatch.branchName = patch.preferredBranch || ord.branchName;
+        }
+        if (Object.keys(orderPatch).length > 0) {
+          const syncedOrd = db.updateOrder(ord.id, orderPatch);
+          if (syncedOrd) io.emit('order:update', syncedOrd);
+        }
+      }
+    } catch (_) {}
+  };
+
   router.put('/leads/:id', (req, res) => {
     const updated = db.updateLead(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Lead no encontrado' });
+    syncOpenOrdersFromLeadPatch(updated, req.body);
     io.emit('lead:update', updated);
     res.json(updated);
   });
@@ -1171,6 +1204,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   router.patch('/leads/:id', (req, res) => {
     const updated = db.updateLead(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Lead no encontrado' });
+    syncOpenOrdersFromLeadPatch(updated, req.body);
     io.emit('lead:update', updated);
     res.json(updated);
   });
@@ -2371,25 +2405,232 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     res.json(order);
   });
 
+  router.post('/orders/validate-delivery', async (req, res) => {
+    try {
+      const { address = '', lat = null, lng = null, preferredBranchId = null } = req.body || {};
+      const validation = await DeliveryRoutingService.validateDeliveryAddressAndRoute({
+        address,
+        lat,
+        lng,
+        preferredBranchId
+      });
+      res.json({ success: true, ...validation });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   router.get('/orders/:id', (req, res) => {
     const order = db.getOrder(req.params.id);
     if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
     res.json(order);
   });
 
-  router.put('/orders/:id', (req, res) => {
-    const updated = db.updateOrder(req.params.id, req.body);
-    if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
-    io.emit('order:update', updated);
-    res.json(updated);
-  });
+  // Helper reutilizable para enviar mensaje WhatsApp a un cliente de pedido probando JID primario y fallbacks
+  const sendToOrderCustomer = async (order, messageText) => {
+    const resolution = await resolveOrderTargetJid(order);
+    const { primaryJid, fallbackJids = [], lead: resolvedLead } = resolution || {};
+    const candidates = [primaryJid, ...fallbackJids].filter(Boolean);
+    if (candidates.length === 0) {
+      return { sent: false, error: 'Sin número/JID de WhatsApp válido para este pedido' };
+    }
 
-  router.patch('/orders/:id', (req, res) => {
-    const updated = db.updateOrder(req.params.id, req.body);
+    let lastErr = null;
+    for (const jid of candidates) {
+      try {
+        await whatsappService.sendMessage(jid, messageText);
+        const savedMsg = db.saveMessage({
+          chatId: resolvedLead?.jid || jid,
+          sender: 'bot',
+          type: 'text',
+          content: messageText,
+          timestamp: new Date().toISOString()
+        });
+        io.emit('whatsapp:message', { jid: resolvedLead?.jid || jid, message: savedMsg });
+        return { sent: true, deliveredJid: jid, savedMsg };
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    return { sent: false, error: lastErr?.message || 'No se pudo enviar notificación por WhatsApp' };
+  };
+
+  // Motor centralizado de detección de cambios en datos del pedido + notificación al cliente y operadores conectados
+  const handleOrderMutationUpdate = async (req, res) => {
+    const prevOrder = db.getOrder(req.params.id);
+    if (!prevOrder) return res.status(404).json({ error: 'Pedido no encontrado' });
+
+    const {
+      notifyCustomer,
+      requireCustomerConfirmation,
+      operatorName,
+      customNotificationMessage,
+      ...orderFields
+    } = req.body || {};
+
+    // Detectar diferencias reales antes de persistir
+    const changes = [];
+    const nextAddr = orderFields.address ?? orderFields.deliveryAddress;
+    if (nextAddr !== undefined && String(nextAddr).trim() !== String(prevOrder.address || '').trim()) {
+      changes.push({
+        field: 'address',
+        label: 'Dirección de entrega',
+        from: prevOrder.address || 'Sin especificar',
+        to: String(nextAddr).trim(),
+        critical: true
+      });
+    }
+
+    const nextBranchRaw = orderFields.branchName || orderFields.branch || orderFields.branchId;
+    if (nextBranchRaw) {
+      const resolvedB = db.resolveBranch(nextBranchRaw);
+      if (resolvedB && resolvedB.id !== prevOrder.branchId && resolvedB.name !== prevOrder.branch) {
+        changes.push({
+          field: 'branch',
+          label: 'Sucursal asignada',
+          from: prevOrder.branchName || prevOrder.branch || 'Central',
+          to: resolvedB.name,
+          critical: true
+        });
+      }
+    }
+
+    if (orderFields.totalAmount !== undefined && Number(orderFields.totalAmount) !== Number(prevOrder.totalAmount || 0)) {
+      changes.push({
+        field: 'totalAmount',
+        label: 'Total del pedido',
+        from: `$${Number(prevOrder.totalAmount || 0).toLocaleString('es-AR')}`,
+        to: `$${Number(orderFields.totalAmount || 0).toLocaleString('es-AR')}`,
+        critical: true
+      });
+    }
+
+    if (orderFields.paymentMethod !== undefined && orderFields.paymentMethod !== prevOrder.paymentMethod) {
+      changes.push({
+        field: 'paymentMethod',
+        label: 'Medio de pago',
+        from: prevOrder.paymentMethod || 'Sin definir',
+        to: orderFields.paymentMethod,
+        critical: false
+      });
+    }
+
+    if (orderFields.deliveryType !== undefined && orderFields.deliveryType !== prevOrder.deliveryType) {
+      changes.push({
+        field: 'deliveryType',
+        label: 'Modalidad de entrega',
+        from: prevOrder.deliveryType === 'pickup' ? 'Retiro en sucursal' : 'Envío a domicilio',
+        to: orderFields.deliveryType === 'pickup' ? 'Retiro en sucursal' : 'Envío a domicilio',
+        critical: true
+      });
+    }
+
+    if (Array.isArray(orderFields.products)) {
+      const prevProdSig = (prevOrder.products || []).map(p => `${p.name}:${p.quantity}`).join('|');
+      const nextProdSig = orderFields.products.map(p => `${p.name}:${p.quantity}`).join('|');
+      if (prevProdSig !== nextProdSig) {
+        changes.push({
+          field: 'products',
+          label: 'Detalle de productos',
+          from: `${(prevOrder.products || []).length} ítem(s)`,
+          to: `${orderFields.products.length} ítem(s)`,
+          critical: true
+        });
+      }
+    }
+
+    const hasCriticalChange = changes.some(c => c.critical);
+    const connectedOperatorsCount = Number(io?.engine?.clientsCount || 0);
+    const shouldAskClientConfirmation =
+      requireCustomerConfirmation === true ||
+      (requireCustomerConfirmation !== false && hasCriticalChange && notifyCustomer !== false);
+
+    if (changes.length > 0) {
+      const prevHistory = Array.isArray(prevOrder.changeHistory) ? prevOrder.changeHistory : [];
+      orderFields.changeHistory = [
+        ...prevHistory.slice(-24),
+        {
+          at: new Date().toISOString(),
+          by: operatorName || 'Operador / Sistema',
+          changes,
+          connectedOperatorsCount
+        }
+      ];
+      if (shouldAskClientConfirmation) {
+        orderFields.pendingCustomerConfirmation = true;
+        orderFields.customerChangeConfirmed = false;
+      }
+    }
+
+    const updated = db.updateOrder(req.params.id, orderFields);
     if (!updated) return res.status(404).json({ error: 'Pedido no encontrado' });
+
     io.emit('order:update', updated);
-    res.json(updated);
-  });
+    const refreshedLead = updated.jid ? db.getLead(updated.jid) : null;
+    if (refreshedLead) io.emit('lead:update', refreshedLead);
+
+    let whatsappNotification = { sent: false };
+
+    if (changes.length > 0) {
+      const changeSummaryText = changes.map(c => `${c.label}: ${c.to}`).join(' • ');
+
+      // 1. Notificar en tiempo real a todos los operadores conectados en el panel
+      io.emit('order:change_alert', {
+        orderId: updated.id,
+        customerName: updated.customerName || 'Cliente',
+        changes,
+        pendingCustomerConfirmation: Boolean(updated.pendingCustomerConfirmation),
+        connectedOperatorsCount,
+        timestamp: new Date().toISOString()
+      });
+
+      io.emit('notification:new', {
+        title: `✏️ Pedido #${updated.id} actualizado`,
+        message: `${updated.customerName || 'Cliente'}: ${changeSummaryText}`,
+        type: 'order_change',
+        tab: 'orders',
+        requireAck: hasCriticalChange,
+        data: { orderId: updated.id, changes }
+      });
+
+      // 2. Enviar notificación de actualización por WhatsApp al cliente (salvo que notifyCustomer === false explícito)
+      const shouldSendWa = notifyCustomer === true || (notifyCustomer !== false && hasCriticalChange);
+      if (shouldSendWa) {
+        const lines = changes.map(c => `• *${c.label}:* ${c.to}`);
+        const routeLine =
+          updated.routeDistanceKm && updated.deliveryType !== 'pickup'
+            ? `\n🗺️ *Ruta trazada:* ${updated.routeDistanceKm} km (~${updated.routeDurationMin || 15} min desde sucursal *${updated.branchName || updated.branch}*)`
+            : '';
+        const confirmFooter = shouldAskClientConfirmation
+          ? `\n\n👉 *Por favor respondé CONFIRMAR* si estos datos están correctos, o escribinos si necesitás corregir algún detalle.`
+          : `\n\n¡Cualquier consulta estamos en línea con un operador conectado para asistirte! 🙌`;
+
+        const msgText =
+          customNotificationMessage ||
+          `📋 *Actualización de tu Pedido #${updated.id}* — *República de la Carne* 🥩\n\n` +
+          `¡Hola ${updated.customerName || 'Cliente'}! Actualizamos los siguientes datos de tu pedido:\n` +
+          `${lines.join('\n')}${routeLine}` +
+          confirmFooter;
+
+        whatsappNotification = await sendToOrderCustomer(updated, msgText);
+      }
+    }
+
+    res.json({
+      ...updated,
+      _mutationMeta: {
+        changes,
+        connectedOperatorsCount,
+        operatorConnected: connectedOperatorsCount > 0,
+        whatsappNotified: Boolean(whatsappNotification.sent),
+        whatsappError: whatsappNotification.error || null,
+        pendingCustomerConfirmation: Boolean(updated.pendingCustomerConfirmation)
+      }
+    });
+  };
+
+  router.put('/orders/:id', handleOrderMutationUpdate);
+  router.patch('/orders/:id', handleOrderMutationUpdate);
 
   // Helper infalible para resolver el JID de WhatsApp del cliente y alternativas viables
   const resolveOrderTargetJid = async (order) => {
@@ -3194,6 +3435,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   router.put('/customers/:id', (req, res) => {
     const updated = db.updateCustomerProfile(req.params.id, req.body);
     if (!updated) return res.status(404).json({ error: 'Cliente no encontrado' });
+    syncOpenOrdersFromLeadPatch(updated, req.body);
     io.emit('lead:update', updated);
     res.json(updated);
   });
@@ -3601,19 +3843,10 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         branchNotified = true;
       }
       if (notifyClient !== false) {
-        const targetJid = await resolveOrderTargetJid(order);
-        if (targetJid) {
-          const clientMsg = customClientMessage || `¡Hola ${order.customerName || 'Cliente'}! 🥩 Tu pedido #${order.id} fue asignado a nuestra sucursal *${branch.name}* (${branch.address || ''}) y ya está en preparación artesanal. Te avisaremos cuando esté listo. 🙌`;
-          await whatsappService.sendMessage(targetJid, clientMsg);
-          clientNotified = true;
-          db.saveMessage({
-            chatId: targetJid,
-            sender: 'bot',
-            type: 'text',
-            content: clientMsg,
-            timestamp: new Date().toISOString()
-          });
-        }
+        const clientMsg = customClientMessage || `¡Hola ${order.customerName || 'Cliente'}! 🥩 Tu pedido #${order.id} fue asignado a nuestra sucursal *${branch.name}* (${branch.address || ''}) y ya está en preparación artesanal. Te avisaremos cuando esté listo. 🙌`;
+        const waRes = await sendToOrderCustomer(order, clientMsg);
+        clientNotified = waRes.sent;
+        if (!waRes.sent && waRes.error) notifyError = waRes.error;
       }
     } catch (err) {
       console.error('Error enviando notificación WhatsApp de derivación:', err);
@@ -4989,19 +5222,10 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         }
 
         if (notifyClient !== false) {
-          const targetJid = await resolveOrderTargetJid(order);
-          if (targetJid) {
-            const clientMsg = customClientMessage || `¡Buenas noticias ${order.customerName || 'Cliente'}! 🛵🥩 Tu pedido #${order.id} ya fue asignado a nuestro repartidor *${driver.name}* (${driver.vehicle || 'Moto'}). ¡Va en camino a tu domicilio!`;
-            await whatsappService.sendMessage(targetJid, clientMsg);
-            clientNotified = true;
-            db.saveMessage({
-              chatId: targetJid,
-              sender: 'bot',
-              type: 'text',
-              content: clientMsg,
-              timestamp: new Date().toISOString()
-            });
-          }
+          const clientMsg = customClientMessage || `¡Buenas noticias ${order.customerName || 'Cliente'}! 🛵🥩 Tu pedido #${order.id} ya fue asignado a nuestro repartidor *${driver.name}* (${driver.vehicle || 'Moto'}). ¡Va en camino a tu domicilio!`;
+          const waRes = await sendToOrderCustomer(order, clientMsg);
+          clientNotified = waRes.sent;
+          if (!waRes.sent && waRes.error) notifyError = waRes.error;
         }
       } catch (sendErr) {
         console.error('Error enviando notificaciones WhatsApp de reparto:', sendErr);
@@ -5813,59 +6037,7 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     return parseFloat((R * c).toFixed(2));
   }
 
-  router.post('/geocode', async (req, res) => {
-    const { address, lat, lng } = req.body;
-    let finalLat = lat ? parseFloat(lat) : null;
-    let finalLng = lng ? parseFloat(lng) : null;
-
-    try {
-      if ((!finalLat || !finalLng) && address) {
-        // Consultar Nominatim OpenStreetMap
-        const query = encodeURIComponent(`${address}, Córdoba, Argentina`);
-        const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`;
-        
-        try {
-          const response = await fetch(nominatimUrl, {
-            headers: { 'User-Agent': 'WAgent-CRM-Cordoba/1.0' }
-          });
-          const results = await response.json();
-          if (Array.isArray(results) && results.length > 0) {
-            finalLat = parseFloat(results[0].lat);
-            finalLng = parseFloat(results[0].lon);
-          }
-        } catch (e) {
-          console.warn('Fallo geocodificación externa OSM, usando aproximación local:', e.message);
-        }
-      }
-
-      // Si no se encuentra, usar fallback centro de Córdoba
-      if (!finalLat || !finalLng) {
-        finalLat = -31.3828;
-        finalLng = -64.2372;
-      }
-
-      // Calcular distancia a todas las sucursales
-      const branchesWithDistances = BRANCH_COORDINATES.map(b => {
-        const distanceKm = calculateDistanceKm(finalLat, finalLng, b.lat, b.lng);
-        return {
-          ...b,
-          distanceKm
-        };
-      }).sort((a, b) => a.distanceKm - b.distanceKm);
-
-      const closestBranch = branchesWithDistances[0];
-
-      res.json({
-        success: true,
-        coordinates: { lat: finalLat, lng: finalLng },
-        address: address || 'Córdoba, Argentina',
-        closestBranch,
-        allBranches: branchesWithDistances
-      });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  });
+  // Nota: /geocode, /reverse-geocode y /route se sirven de forma unificada mediante DeliveryRoutingService más abajo.
 
   // =========================================================================
   // --- ELEVENLABS CONVERSATIONAL AI AGENT & SYSTEM INTEGRATION ENDPOINTS ---
@@ -6098,214 +6270,38 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
   }
 
   router.post('/geocode', async (req, res) => {
-    const { address } = req.body;
-    const rawAddr = (address || '').trim();
-    if (!rawAddr) return res.status(400).json({ error: 'Dirección requerida' });
-
-    let lat = -31.3828;
-    let lng = -64.2372;
-    let matchedName = rawAddr;
-    let resolvedByGoogle = false;
-
-    const settings = db.getSettings() || {};
-    const mapConfig = settings.mapConfig || {};
-    const googleApiKey = (mapConfig.googleMapsApiKey || '').trim();
-    const useGoogleGeocoding = Boolean(mapConfig.googleGeocodingEnabled && googleApiKey);
-
-    // 0. Si Google Geocoding está activo y configurado con API Key, consultar Google Maps primero
-    if (useGoogleGeocoding) {
-      try {
-        const query = encodeURIComponent(`${rawAddr}, Cordoba, Argentina`);
-        const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${googleApiKey}`);
-        const gData = await gRes.json();
-        if (gData.status === 'OK' && gData.results && gData.results[0]) {
-          const loc = gData.results[0].geometry.location;
-          lat = loc.lat;
-          lng = loc.lng;
-          matchedName = gData.results[0].formatted_address;
-          resolvedByGoogle = true;
-        }
-      } catch (e) {
-        console.error('Error geocodificando con Google Maps API:', e.message);
-      }
+    try {
+      const { address, lat, lng } = req.body || {};
+      const result = await DeliveryRoutingService.geocodeAddress({ address, lat, lng });
+      if (!result.success) return res.status(400).json({ error: result.error || 'Dirección requerida' });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
-
-    if (!resolvedByGoogle) {
-      // 1. Check local Córdoba landmarks first
-      const lower = rawAddr.toLowerCase();
-      const localMatch = CORDOBA_LANDMARKS.find(l => lower.includes(l.name));
-      if (localMatch) {
-        lat = localMatch.lat;
-        lng = localMatch.lng;
-        matchedName = localMatch.address;
-      } else {
-        // 2. Try Nominatim OpenStreetMap
-        try {
-          const query = encodeURIComponent(`${rawAddr}, Cordoba, Argentina`);
-          const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
-            headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
-          });
-          const osmData = await osmRes.json();
-          if (osmData && osmData[0]) {
-            lat = parseFloat(osmData[0].lat);
-            lng = parseFloat(osmData[0].lon);
-            matchedName = osmData[0].display_name;
-          }
-        } catch (e) {
-          console.error('Error geocodificando con Nominatim:', e.message);
-        }
-      }
-    }
-
-    // 3. Compute distances to all 6 branches
-    const branches = db.getBranches();
-    const branchesWithDist = branches.map(b => {
-      const dist = (b.lat && b.lng) ? calcDistKm(lat, lng, b.lat, b.lng) : calcDistKm(lat, lng, -31.3828, -64.2372);
-      return { ...b, distanceKm: dist };
-    }).sort((a, b) => a.distanceKm - b.distanceKm);
-
-    const closestBranch = branchesWithDist[0] || null;
-
-    res.json({
-      success: true,
-      address: rawAddr,
-      formattedAddress: matchedName,
-      coordinates: { lat, lng },
-      closestBranch,
-      allBranches: branchesWithDist,
-      providerUsed: resolvedByGoogle ? 'google' : 'nominatim_local'
-    });
   });
 
   router.post('/reverse-geocode', async (req, res) => {
-    const { lat, lng } = req.body;
-    if (lat === undefined || lng === undefined) return res.status(400).json({ error: 'Lat y Lng requeridos' });
-
-    let detectedAddress = `Ubicación (${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}), Córdoba`;
-    let resolvedByGoogle = false;
-
-    const settings = db.getSettings() || {};
-    const mapConfig = settings.mapConfig || {};
-    const googleApiKey = (mapConfig.googleMapsApiKey || '').trim();
-    const useGoogleGeocoding = Boolean(mapConfig.googleGeocodingEnabled && googleApiKey);
-
-    if (useGoogleGeocoding) {
-      try {
-        const gRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`);
-        const gData = await gRes.json();
-        if (gData.status === 'OK' && gData.results && gData.results[0]) {
-          detectedAddress = gData.results[0].formatted_address;
-          resolvedByGoogle = true;
-        }
-      } catch (e) {
-        console.error('Error en geocodificación inversa con Google Maps API:', e.message);
-      }
+    try {
+      const { lat, lng, label } = req.body || {};
+      if (lat === undefined || lng === undefined) return res.status(400).json({ error: 'Lat y Lng requeridos' });
+      const result = await DeliveryRoutingService.reverseGeocode(lat, lng, label);
+      if (!result.success) return res.status(400).json({ error: result.error });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
-
-    if (!resolvedByGoogle) {
-      try {
-        const osmRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
-          headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' }
-        });
-        const osmData = await osmRes.json();
-        if (osmData && osmData.display_name) {
-          const parts = osmData.display_name.split(',');
-          detectedAddress = parts.slice(0, 3).join(', ').trim();
-        }
-      } catch (e) {}
-    }
-
-    const branches = db.getBranches();
-    const branchesWithDist = branches.map(b => {
-      const dist = (b.lat && b.lng) ? calcDistKm(lat, lng, b.lat, b.lng) : calcDistKm(lat, lng, -31.3828, -64.2372);
-      return { ...b, distanceKm: dist };
-    }).sort((a, b) => a.distanceKm - b.distanceKm);
-
-    res.json({
-      success: true,
-      address: detectedAddress,
-      coordinates: { lat: Number(lat), lng: Number(lng) },
-      closestBranch: branchesWithDist[0] || null,
-      allBranches: branchesWithDist,
-      providerUsed: resolvedByGoogle ? 'google' : 'nominatim'
-    });
   });
 
   router.post('/route', async (req, res) => {
-    const { origin, destination } = req.body;
-    if (!origin || !destination) return res.status(400).json({ error: 'Origen y Destino requeridos' });
-
-    const oLat = Number(origin.lat);
-    const oLng = Number(origin.lng);
-    const dLat = Number(destination.lat);
-    const dLng = Number(destination.lng);
-
-    const directDist = calcDistKm(oLat, oLng, dLat, dLng);
-    let routeGeoJson = null;
-    let distanceKm = Number((directDist * 1.25).toFixed(2)); // Factor de curvas de calle en ciudad
-    let durationMin = Math.max(10, Math.round(distanceKm * 3 + 5));
-    let routeResolved = false;
-    let routeProvider = 'osrm';
-
-    const settings = db.getSettings() || {};
-    const mapConfig = settings.mapConfig || {};
-    const googleApiKey = (mapConfig.googleMapsApiKey || '').trim();
-    const useGoogleDirections = Boolean(mapConfig.googleDirectionsEnabled && googleApiKey);
-
-    if (useGoogleDirections) {
-      try {
-        const gUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${oLat},${oLng}&destination=${dLat},${dLng}&mode=driving&key=${googleApiKey}`;
-        const gRes = await fetch(gUrl);
-        const gData = await gRes.json();
-        if (gData.status === 'OK' && gData.routes && gData.routes[0]) {
-          const route = gData.routes[0];
-          const leg = route.legs && route.legs[0];
-          if (leg) {
-            distanceKm = Number((leg.distance.value / 1000).toFixed(2));
-            durationMin = Math.max(8, Math.round(leg.duration.value / 60));
-          }
-          if (route.overview_polyline && route.overview_polyline.points) {
-            const decodedCoords = decodePolyline(route.overview_polyline.points);
-            routeGeoJson = {
-              type: 'LineString',
-              coordinates: decodedCoords
-            };
-          }
-          routeResolved = true;
-          routeProvider = 'google';
-        }
-      } catch (e) {
-        console.error('Error calculando ruta con Google Directions:', e.message);
-      }
+    try {
+      const { origin, destination } = req.body || {};
+      if (!origin || !destination) return res.status(400).json({ error: 'Origen y Destino requeridos' });
+      const result = await DeliveryRoutingService.calculateDrivingRoute(origin, destination);
+      if (!result.success) return res.status(400).json({ error: result.error });
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
-
-    if (!routeResolved) {
-      try {
-        const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson`;
-        const r = await fetch(osrmUrl, { headers: { 'User-Agent': 'RepublicaDeLaCarne-CRM/1.0' } });
-        const data = await r.json();
-        if (data.code === 'Ok' && data.routes && data.routes[0]) {
-          const route = data.routes[0];
-          distanceKm = Number((route.distance / 1000).toFixed(2));
-          durationMin = Math.max(8, Math.round(route.duration / 60));
-          routeGeoJson = route.geometry;
-          routeResolved = true;
-          routeProvider = 'osrm';
-        }
-      } catch (e) {
-        console.error('Error calculando ruta OSRM:', e.message);
-      }
-    }
-
-    res.json({
-      success: true,
-      distanceKm,
-      durationMin,
-      routeGeoJson,
-      origin: { lat: oLat, lng: oLng },
-      destination: { lat: dLat, lng: dLng },
-      providerUsed: routeProvider
-    });
   });
 
   // --- 14.5 MAP PROVIDERS TEST & VALIDATION API ---
@@ -7486,7 +7482,18 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
 
   router.post('/inventory/silent-groups', (req, res) => {
     try {
-      const { id, groupId, groupName, branchId, expenseCategory, autoConfirm, active } = req.body;
+      const {
+        id,
+        groupId,
+        groupName,
+        branchId,
+        expenseCategory,
+        mode,
+        defaultDirection,
+        autoApproveInternalOrders,
+        autoConfirm,
+        active
+      } = req.body;
       if (!groupId) return res.status(400).json({ error: 'ID de grupo de WhatsApp requerido' });
 
       const current = db.getSettings();
@@ -7498,7 +7505,10 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
         groupId,
         groupName: groupName || 'Grupo WhatsApp',
         branchId: branchId || 'br-1',
-        expenseCategory: expenseCategory || 'mercaderia', // 'mercaderia' | 'insumos' | 'mantenimiento' | 'servicios' | 'otros'
+        expenseCategory: expenseCategory || 'mercaderia',
+        mode: mode || 'all', // 'all' | 'internal_orders' | 'invoices'
+        defaultDirection: defaultDirection || 'auto', // 'auto' | 'branch_to_admin' | 'admin_to_branch'
+        autoApproveInternalOrders: Boolean(autoApproveInternalOrders),
         autoConfirm: Boolean(autoConfirm),
         active: active !== false,
         updatedAt: new Date().toISOString()
@@ -7531,6 +7541,204 @@ Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta sin texto
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // =========================================================================
+  // --- GRUPO SILENCIOSO OCR: PEDIDOS INTERNOS (SUCURSALES <-> ADMINISTRACIÓN) ---
+  // =========================================================================
+  router.get('/internal-ocr/orders', (req, res) => {
+    try {
+      const orders = db.getInternalGroupOrders(req.query || {});
+      const summary = InternalOrderOcrService.buildConsolidatedSummary(orders);
+      const settings = db.getSettings();
+      res.json({
+        success: true,
+        orders,
+        summary,
+        silentGroups: Array.isArray(settings.silentGroups) ? settings.silentGroups : [],
+        branches: db.getBranches()
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/internal-ocr/summary', (req, res) => {
+    try {
+      const orders = db.getInternalGroupOrders(req.query || {});
+      const summary = InternalOrderOcrService.buildConsolidatedSummary(orders);
+      res.json({ success: true, ...summary });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/internal-ocr/orders', (req, res) => {
+    try {
+      const saved = db.saveInternalGroupOrder(req.body || {});
+      res.json({ success: true, order: saved });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.patch('/internal-ocr/orders/:id', (req, res) => {
+    try {
+      const updated = db.updateInternalGroupOrder(req.params.id, req.body || {});
+      if (!updated) return res.status(404).json({ success: false, error: 'Pedido interno no encontrado' });
+      res.json({ success: true, order: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.delete('/internal-ocr/orders/:id', (req, res) => {
+    try {
+      const ok = db.deleteInternalGroupOrder(req.params.id);
+      if (!ok) return res.status(404).json({ success: false, error: 'Pedido interno no encontrado' });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/internal-ocr/scan', async (req, res) => {
+    try {
+      const {
+        imageBase64,
+        mimeType = 'image/jpeg',
+        text = '',
+        direction = 'auto',
+        branchId = '',
+        groupName = 'Carga / Escaneo Manual OCR',
+        senderName = 'Operador Panel',
+        saveOrder = true
+      } = req.body || {};
+
+      let tempPath = null;
+      let savedMediaUrl = null;
+      if (imageBase64) {
+        const cleanB64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+        const buf = Buffer.from(cleanB64, 'base64');
+        const ext = mimeType.includes('pdf') ? '.pdf' : (mimeType.includes('png') ? '.png' : '.jpg');
+        const fname = `manual_internal_ocr_${Date.now()}${ext}`;
+        tempPath = path.join(CONFIG.MEDIA_DIR, fname);
+        fs.writeFileSync(tempPath, buf);
+        savedMediaUrl = `/media/${fname}`;
+      }
+
+      const analysis = await InternalOrderOcrService.analyzeGroupPayload({
+        imagePath: tempPath,
+        mimeType,
+        text,
+        senderName,
+        isFromMe: direction === 'admin_to_branch',
+        groupConfig: {
+          branchId: branchId || undefined,
+          defaultDirection: direction
+        }
+      });
+
+      if (analysis.classification !== 'internal_order') {
+        return res.json({
+          success: false,
+          classification: analysis.classification,
+          message:
+            analysis.classification === 'supplier_invoice'
+              ? 'El archivo corresponde a una factura fiscal de proveedor (podés procesarla en Facturas OCR).'
+              : 'No se detectaron renglones de pedido interno en el texto o imagen enviada.'
+        });
+      }
+
+      let saved = null;
+      if (saveOrder !== false) {
+        saved = db.saveInternalGroupOrder({
+          groupName,
+          direction: analysis.direction,
+          sourceBranchId: analysis.sourceBranchId,
+          sourceBranchName: analysis.sourceBranchName,
+          targetBranchId: analysis.targetBranchId,
+          targetUnitName: analysis.targetUnitName,
+          senderName,
+          sourceType: tempPath ? (mimeType.includes('pdf') ? 'pdf_ocr' : 'image_ocr') : 'text',
+          mediaUrl: savedMediaUrl,
+          rawText: analysis.rawText,
+          summary: analysis.summary,
+          priority: analysis.priority,
+          requestedFor: analysis.requestedFor,
+          notes: analysis.notes,
+          confidence: analysis.confidence,
+          items: analysis.items,
+          status: 'detected'
+        });
+      }
+
+      res.json({ success: true, analysis, order: saved });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.post('/internal-ocr/orders/:id/convert-to-transfer', (req, res) => {
+    try {
+      const ord = db.getInternalGroupOrder(req.params.id);
+      if (!ord) return res.status(404).json({ success: false, error: 'Pedido interno no encontrado' });
+
+      const fromBranchId = ord.direction === 'admin_to_branch' ? 'br-1' : (ord.sourceBranchId || 'br-1');
+      const toBranchId = ord.direction === 'admin_to_branch' ? (ord.targetBranchId || 'br-2') : 'br-1';
+
+      const transferItems = (ord.items || []).map(it => ({
+        productId: it.matchedProductId || `custom-${it.lineNumber || 1}`,
+        productName: it.canonicalName || it.name,
+        quantity: Number(it.quantity) || 1,
+        unit: it.unit || 'kg',
+        unitCost: 0
+      }));
+
+      let createdTransfer = null;
+      if (typeof inventoryService?.createTransfer === 'function') {
+        createdTransfer = inventoryService.createTransfer({
+          fromBranchId,
+          toBranchId,
+          items: transferItems,
+          notes: `[OCR Grupo Silencioso #${ord.id}] ${ord.summary}`
+        });
+      } else {
+        const rawDb = db.readDb();
+        if (!Array.isArray(rawDb.branchTransfers)) rawDb.branchTransfers = [];
+        createdTransfer = {
+          id: `TRF-${Date.now().toString().slice(-6)}`,
+          fromBranchId,
+          toBranchId,
+          items: transferItems,
+          status: 'in_transit',
+          notes: `[OCR Grupo Silencioso #${ord.id}] ${ord.summary}`,
+          createdAt: new Date().toISOString()
+        };
+        rawDb.branchTransfers.unshift(createdTransfer);
+        db.writeDb(rawDb);
+      }
+
+      const updatedOrder = db.updateInternalGroupOrder(ord.id, {
+        status: 'dispatched',
+        linkedTransferId: createdTransfer?.id || 'TRF-OK'
+      });
+
+      res.json({ success: true, order: updatedOrder, transfer: createdTransfer });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  router.get('/system/persistence-status', (req, res) => {
+    res.json({
+      success: true,
+      dataDir: CONFIG.DATA_DIR,
+      authDir: CONFIG.AUTH_DIR,
+      storageMode: db.getStorageMode(),
+      cloudVault: mongoPersistence.getStatus(),
+      backupsCount: db.getBackupsList().length
+    });
   });
 
   return router;

@@ -1,0 +1,257 @@
+import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.resolve(__dirname, '../../');
+
+/**
+ * En despliegues CloudLinux / LiteSpeed de Hostinger (donde cada git push recrea public_html),
+ * ubica DATA_DIR en una bóveda persistente dentro del HOME del usuario (~/.wagent_data_<dominio>)
+ * para que las sesiones QR de WhatsApp (auth_info_baileys), la base SQLite y el lock Leader-Follower
+ * sobrevivan intactos a todos los despliegues de GitHub y sean compartidos por todos los workers.
+ */
+function resolvePersistentDataDir() {
+  if (process.env.WAGENT_DATA_DIR) {
+    return path.resolve(process.env.WAGENT_DATA_DIR);
+  }
+
+  const localDataDir = path.join(ROOT_DIR, 'data');
+  const isHostingerDomainLayout =
+    process.platform === 'linux' &&
+    !fs.existsSync('/.dockerenv') &&
+    (ROOT_DIR.includes('/domains/') || ROOT_DIR.includes('public_html'));
+
+  if (!isHostingerDomainLayout) {
+    return localDataDir;
+  }
+
+  try {
+    const homeDir = os.homedir();
+    if (!homeDir) return localDataDir;
+    const domMatch = ROOT_DIR.match(/\/domains\/([^/]+)/);
+    const safeDomain = domMatch ? domMatch[1].replace(/[^a-zA-Z0-9._-]/g, '_') : 'default';
+    const persistentDir = path.join(homeDir, `.wagent_data_${safeDomain}`);
+    fs.mkdirSync(persistentDir, { recursive: true });
+
+    // Si existen credenciales o base local previa en ROOT_DIR/data y la bóveda está recién creada, migrar sin sobrescribir
+    if (fs.existsSync(localDataDir)) {
+      const copyDirIfMissing = (srcSub, dstSub) => {
+        if (!fs.existsSync(srcSub)) return;
+        fs.mkdirSync(dstSub, { recursive: true });
+        for (const f of fs.readdirSync(srcSub)) {
+          const s = path.join(srcSub, f);
+          const d = path.join(dstSub, f);
+          try {
+            const st = fs.statSync(s);
+            if (st.isFile() && !fs.existsSync(d)) {
+              fs.copyFileSync(s, d);
+            }
+          } catch (_) {}
+        }
+      };
+      copyDirIfMissing(localDataDir, persistentDir);
+      copyDirIfMissing(path.join(localDataDir, 'auth_info_baileys'), path.join(persistentDir, 'auth_info_baileys'));
+      copyDirIfMissing(path.join(localDataDir, 'media'), path.join(persistentDir, 'media'));
+      copyDirIfMissing(path.join(localDataDir, 'backups'), path.join(persistentDir, 'backups'));
+    }
+
+    return persistentDir;
+  } catch (_) {
+    return localDataDir;
+  }
+}
+
+const DATA_DIR = resolvePersistentDataDir();
+const MEDIA_DIR = path.join(DATA_DIR, 'media');
+const AUTH_DIR = path.join(DATA_DIR, 'auth_info_baileys');
+const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
+
+export const CONFIG = {
+  PORT: process.env.PORT || 3001,
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  ROOT_DIR,
+  DATA_DIR,
+  MEDIA_DIR,
+  AUTH_DIR,
+  BACKUPS_DIR,
+  
+  DEFAULT_SETTINGS: {
+    aiProvider: process.env.AI_PROVIDER || 'gemini', // 'gemini' | 'openai' | 'nvidia' | 'custom'
+    geminiApiKey: process.env.GEMINI_API_KEY || '',
+    openaiApiKey: process.env.OPENAI_API_KEY || '',
+    nvidiaApiKey: process.env.NVIDIA_API_KEY || '',
+    nvidiaModel: process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct',
+    customBaseUrl: process.env.CUSTOM_BASE_URL || '',
+    customApiKey: process.env.CUSTOM_API_KEY || '',
+    customModel: process.env.CUSTOM_MODEL || 'llama3',
+    elevenlabsApiKey: process.env.ELEVENLABS_API_KEY || '',
+    elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM',
+    elevenlabsModelId: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
+    aiModel: process.env.AI_MODEL || 'gemini-1.5-flash-latest',
+    aiVoiceModel: process.env.AI_VOICE_MODEL || 'es-MX-DaliaNeural',
+    ttsProvider: process.env.TTS_PROVIDER || 'edge', // 'edge' | 'openai' | 'elevenlabs'
+    mercadopagoAccessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
+    mercadopagoPublicKey: process.env.MERCADOPAGO_PUBLIC_KEY || '',
+    mercadopagoAppId: process.env.MERCADOPAGO_APP_ID || '',
+    mercadopagoUserId: process.env.MERCADOPAGO_USER_ID || '',
+    mercadopagoTestUser: process.env.MERCADOPAGO_TEST_USER || '',
+    mercadopagoEnabled: true,
+    mercadopagoAutoSendLink: true,
+
+    // Conexión y Proveedor de WhatsApp (Baileys QR vs Meta Cloud API Oficial)
+    whatsappProvider: process.env.WHATSAPP_PROVIDER || 'baileys', // 'baileys' | 'meta_cloud'
+    metaPhoneNumberId: process.env.META_PHONE_NUMBER_ID || '',
+    metaWabaId: process.env.META_WABA_ID || '',
+    metaAccessToken: process.env.META_ACCESS_TOKEN || '',
+    metaVerifyToken: process.env.META_VERIFY_TOKEN || 'wagent_meta_verify_2026',
+    metaAppSecret: process.env.META_APP_SECRET || '',
+    metaApiVersion: process.env.META_API_VERSION || 'v21.0',
+    agentName: 'Carlos',
+    agentRole: 'Maestro Carnicero de República de la Carne',
+    businessName: 'República de la Carne',
+    country: 'Argentina',
+    region: 'Córdoba Capital y Alrededores',
+    currency: 'ARS ($)',
+    slang: 'Cordobés / Argentino amigable y experto (¡De diez!, ¡De una!, asado, achuras, cortes del día)',
+    businessRules: 'Envíos en el día dentro de Córdoba, 6 sucursales de retiro, novillito pesado y cerdo seleccionado, compra mínima para envíos a domicilio de $30.000 ARS (sin mínimo para retiro en sucursal), pagos en efectivo, transferencia (Alias: republica.carne.mp) o Mercado Pago.',
+    autoReplyEnabled: true,
+    voiceRepliesEnabled: true, // Si el usuario manda audio, responder con audio
+    autoCallFollowUp: true,    // Enviar nota de voz automática cuando entra una llamada
+    callFollowUpMessage: '¡Hola! Gracias por comunicarte con República de la Carne. Carlos por acá, maestro carnicero. En este momento estoy atendiendo en mostrador, pero decime qué cortes o asado te gustaría que te preparemos y te lo dejo listo al instante. 🥩🛵',
+    mentionPluInChat: false,   // Controla si el agente de IA menciona los códigos PLU [PLU 2008] en mensajes a clientes
+    
+    // Horarios de Atención y Logística de Reparto
+    businessHours: {
+      open: '08:00',
+      close: '20:00',
+      days: 'Lunes a Sábados (Domingos 09:00 a 13:30 hs)'
+    },
+    deliverySlots: [
+      { id: 'morning', name: 'Franja Mañana', start: '09:00', end: '13:00', active: true, desc: 'Entregas matutinas de 9:00 a 13:00 hs' },
+      { id: 'afternoon', name: 'Franja Tarde', start: '14:00', end: '19:00', active: true, desc: 'Entregas vespertinas de 14:00 a 19:00 hs' }
+    ],
+    deliveryCutoffHour: 12, // 12:00 mediodía: antes de las 12 se entrega en la tarde (máx 24h), posterior al día siguiente
+    deliveryMaxHours: 24,
+    deliveryStandardCost: 3500,
+    deliveryExpressEnabled: true,
+    deliveryExpressCost: 6500,
+    deliveryFreeEnabled: true,
+    deliveryFreeThreshold: 45000,
+    deliveryCoverageRadiusKm: 15,
+    
+    // Configuración y Diseño de la Tienda Web (Apple Glass Experience)
+    storeConfig: {
+      storeName: 'República de la Carne',
+      tagline: 'Cortes Seleccionados & Asado Premium',
+      heroBadge: '🔥 Envíos en el día en Córdoba Capital',
+      heroTitle: 'La Mejor Carne Argentina Directo a Tu Mesa',
+      heroSubtitle: 'Novillito pesado premium, cerdo seleccionado y achuras frescas. Hacé tu pedido en segundos con entrega asegurada o retiro en 6 sucursales.',
+      heroCtaText: 'Explorar Catálogo',
+      heroBgImage: '',
+      heroBannerMode: 'glass-mesh', // 'glass-mesh' | 'image' | 'minimal'
+      announcementBarText: '🥩 ¡Envíos gratis en compras superiores a $45.000 en Córdoba! Despacho seguro en 24hs.',
+      announcementBarEnabled: true,
+      logoUrl: '',
+      faviconUrl: '',
+      themePreset: 'apple-obsidian', // 'apple-obsidian' | 'titanium-frost' | 'midnight-ruby' | 'obsidian-gold' | 'custom'
+      primaryColor: '#10b981', // Emerald accent
+      accentColor: '#38bdf8',  // Sky accent
+      glassBlurLevel: 'xl',    // 'md' | 'lg' | 'xl' | '2xl'
+      fontFamily: 'Inter',     // 'Inter' | 'Plus Jakarta Sans' | 'Outfit' | 'SF Pro'
+      allowMercadoPago: true,
+      allowCash: true,
+      allowTransfer: true,
+      transferAlias: 'republica.carne.mp',
+      transferCbu: '0000003100010000000000',
+      whatsappDirectNumber: '+5493516262475',
+      showStockBadges: true,
+      requireFiscalData: false,
+      allowBackorders: true,
+      minimumPurchase: 30000, // Compra mínima para envíos a domicilio ($30.000 ARS como en Pedix)
+      stockDisplayConditionValue: 7, // Alerta de stock crítico (muestra "¡Últimas X unidades!" si stock <= 7)
+      enableOrdersOnClosed: true // Permitir recepción de pedidos fuera de horario para preparación a primera hora
+    },
+
+    // Configuración de Proveedores de Mapas & GPS (CARTO, Google Maps, OpenStreetMap, ESRI)
+    mapConfig: {
+      provider: 'carto', // 'carto' | 'google' | 'osm' | 'carto_free' | 'esri_satellite'
+      cartoApiKey: process.env.CARTO_API_KEY || '',
+      cartoStyle: 'voyager', // 'voyager' | 'light_all' | 'dark_all'
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
+      googleMapsType: 'm', // 'm' (Roadmap) | 'y' (Hybrid) | 's' (Satellite) | 'p' (Terrain)
+      googleGeocodingEnabled: false,
+      googleDirectionsEnabled: false,
+      defaultZoom: 14,
+      defaultCenter: { lat: -31.3828, lng: -64.2372 }
+    },
+
+    // Configuración de Integración con Rapilog Argentina (API Oficial)
+    rapilogConfig: {
+      enabled: false,
+      environment: 'uat', // 'uat' | 'production'
+      token: process.env.RAPILOG_API_TOKEN || '',
+      defaultModality: 'OnDemandSmart', // 'OnDemandSmart' | 'Food' | 'NextDaySmart'
+      originBranchId: 'br-1',
+      autoNotifyCustomer: true,
+      vehicleType: 1
+    },
+
+    // Modos de Inteligencia y Personalidad del Agente
+    agentPersonalityMode: 'balanced', // 'strict_sales' (Bot Estricto) | 'balanced' (Asesor Equilibrado) | 'human_empathetic' (Empático con Encauce)
+    casualTalkTurnsAllowed: 2, // Cantidad máxima de intercambios informales antes de encauzar firmemente a la venta
+    salesAggressiveness: 'medium', // 'soft' | 'medium' | 'high'
+    culinaryAdvisorEnabled: true, // Asesorar con recetas y platos de cocina diaria cuando el cliente pide algo fuera de asado
+    
+    systemPrompt: `Eres Carlos, maestro carnicero y asesor comercial experto de "República de la Carne" en Córdoba, Argentina.
+Tu objetivo es asesorar a los clientes con calidez, recomendar los mejores cortes de novillito pesado y cerdo, y guiarlos fluidamente en el proceso de compra por WhatsApp.
+
+Contexto y Reglas de Negocio:
+1. País y Moneda: Argentina (Córdoba). Todos los precios son en Pesos Argentinos ($ ARS).
+2. Tono y Modismos: Amigable, cordial, experto carnicero cordobés ("¡De diez!", "¡De una!", "mostrador", "asadito", "parrilla", "ternura").
+3. Asesoramiento de Asado: Calcula 500g a 600g por persona (combinando cortes y achuras).
+4. Opciones de Entrega: Envío a Domicilio en el día o Retiro por cualquiera de nuestras 6 sucursales en Córdoba.
+5. Medios de Pago: Efectivo, Transferencia Bancaria (Alias: republica.carne.mp) o Mercado Pago (Link de pago).
+6. Desambiguación: Si el cliente pide un corte genérico con múltiples variedades (ej: cuadril, matambre, chorizos), ofrece amablemente las opciones numeradas con precios para que elija.
+7. Formato: Respuestas claras, con viñetas elegantes, listas numeradas (1️⃣, 2️⃣, 3️⃣) y precios exactos en negrita.
+8. Si el cliente muestra interés claro, ofrece un llamado a la acción claro (ej: agendar llamada, confirmar pedido, método de pago).
+9. Si no sabes un dato específico, ofrece derivarlo con un asesor humano amablemente.
+10. Nunca inventes información que no esté en el catálogo o base de conocimiento.`
+  },
+
+  DEFAULT_KNOWLEDGE_BASE: [
+    {
+      id: 'kb-1',
+      title: 'Horarios de Atención',
+      category: 'Información General',
+      content: 'Atendemos de Lunes a Viernes de 8:00 AM a 7:00 PM y Sábados de 9:00 AM a 2:00 PM. Soporte automatizado 24/7.',
+      keywords: ['horario', 'atencion', 'abierto', 'hora']
+    },
+    {
+      id: 'kb-2',
+      title: 'Métodos de Pago Aceptados',
+      category: 'Ventas y Finanzas',
+      content: 'Aceptamos Transferencias Bancarias, Tarjetas de Crédito/Débito (Visa, Mastercard, Amex), PayPal, MercadoPago y Efectivo/Contraentrega.',
+      keywords: ['pago', 'tarjeta', 'transferencia', 'efectivo', 'metodo de pago', 'mercadopago']
+    },
+    {
+      id: 'kb-3',
+      title: 'Envíos y Entregas',
+      category: 'Logística',
+      content: 'Realizamos envíos a todo el país. Tiempo de entrega estándar de 24 a 48 horas hábiles. Envío gratuito en compras superiores a $50.',
+      keywords: ['envio', 'entrega', 'delivery', 'costo de envio', 'paquete', 'tiempo']
+    },
+    {
+      id: 'kb-4',
+      title: 'Garantía y Devoluciones',
+      category: 'Políticas',
+      content: 'Todos nuestros productos cuentan con 30 días de garantía por defectos de fábrica y 7 días para cambios o devoluciones sin costo.',
+      keywords: ['garantia', 'devolucion', 'cambio', 'falla']
+    }
+  ]
+};

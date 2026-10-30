@@ -575,7 +575,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
           if (prev.length === data.length) {
             const hasChanges = data.some((item, idx) => {
               const p = prev[idx];
-              return !p || p.id !== item.id || p.status !== item.status || p.paymentStatus !== item.paymentStatus || p.branchId !== item.branchId || p.driverId !== item.driverId || p.updatedAt !== item.updatedAt;
+              return !p || p.id !== item.id || p.status !== item.status || p.paymentStatus !== item.paymentStatus || p.address !== item.address || p.branchId !== item.branchId || p.driverId !== item.driverId || p.totalAmount !== item.totalAmount || p.updatedAt !== item.updatedAt;
             });
             if (!hasChanges) return prev;
           }
@@ -609,6 +609,13 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
 
       socket.on('order:update', (updatedOrder) => {
         setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+        setDetailModal(prev => (prev && prev.id === updatedOrder.id ? { ...prev, ...updatedOrder } : prev));
+      });
+
+      socket.on('order:change_confirmed', (payload) => {
+        if (payload?.orderId) {
+          showNotificationToast('success', `✅ El cliente ${payload.customerName || ''} confirmó los nuevos datos del Pedido #${payload.orderId}`, 5000);
+        }
       });
 
       socket.on('order:delete', (deletedId) => {
@@ -616,13 +623,8 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
       });
 
       socket.on('orders:sync', (allOrders) => {
-        if (Array.isArray(allOrders) && allOrders.length > 0) {
-          setOrders(prev => {
-            if (prev.length === allOrders.length && prev[0]?.id === allOrders[0]?.id && prev[0]?.updatedAt === allOrders[0]?.updatedAt) {
-              return prev;
-            }
-            return allOrders;
-          });
+        if (Array.isArray(allOrders)) {
+          setOrders(allOrders);
         }
       });
 
@@ -633,6 +635,7 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         clearInterval(syncInterval);
         socket.off('order:new');
         socket.off('order:update');
+        socket.off('order:change_confirmed');
         socket.off('order:delete');
         socket.off('orders:sync');
         socket.off('driver:update');
@@ -864,22 +867,85 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
     syncPosCartToOrder([]);
   };
 
-  const handleOpenMap = (address, customerName) => {
+  const handleOpenMap = (address, customerName, targetOrder = null) => {
     setMapModal({
-      address: address || 'Córdoba, Argentina',
-      customerName: customerName || 'Cliente',
-      onConfirm: (locData) => {
+      address: address || targetOrder?.address || '',
+      customerName: customerName || targetOrder?.customerName || 'Cliente',
+      initialCoords: targetOrder?.coordinates || (targetOrder?.lat && targetOrder?.lng ? { lat: Number(targetOrder.lat), lng: Number(targetOrder.lng) } : null),
+      orderId: targetOrder?.id || orderModal?.data?.id || null,
+      showNotifyToggle: Boolean(targetOrder?.id),
+      onConfirm: async (locData) => {
+        const nextBranchId = locData.closestBranch?.id || targetOrder?.branchId || '';
+        const nextBranchName = locData.closestBranch?.name || targetOrder?.branchName || targetOrder?.branch || '';
+        const nextAddress = (locData.address || '').trim();
+
+        // 1. Si el modal de crear/editar pedido está abierto, actualizar todos sus campos logísticos
         if (orderModal) {
           setOrderModal(prev => prev ? {
             ...prev,
             data: {
               ...prev.data,
-              address: locData.address,
-              branchId: locData.closestBranch ? locData.closestBranch.id : prev.data.branchId,
-              branchName: locData.closestBranch ? locData.closestBranch.name : prev.data.branchName
+              address: nextAddress,
+              deliveryAddress: nextAddress,
+              deliveryType: 'delivery',
+              coordinates: locData.coordinates || null,
+              lat: locData.coordinates?.lat ?? null,
+              lng: locData.coordinates?.lng ?? null,
+              routeDistanceKm: locData.route?.distanceKm ?? null,
+              routeDurationMin: locData.route?.durationMin ?? null,
+              routeVerified: true,
+              branchId: nextBranchId || prev.data.branchId,
+              branchName: nextBranchName || prev.data.branchName,
+              branch: nextBranchName || prev.data.branch
             }
           } : null);
         }
+
+        // 2. Si se abrió desde la tabla, tarjeta o detalle de un pedido existente, guardar en servidor + notificar
+        const targetId = targetOrder?.id;
+        if (targetId) {
+          try {
+            const res = await fetch(`/api/orders/${encodeURIComponent(targetId)}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                address: nextAddress,
+                deliveryAddress: nextAddress,
+                deliveryType: 'delivery',
+                coordinates: locData.coordinates || null,
+                lat: locData.coordinates?.lat ?? null,
+                lng: locData.coordinates?.lng ?? null,
+                branchId: nextBranchId,
+                branchName: nextBranchName,
+                branch: nextBranchName,
+                routeDistanceKm: locData.route?.distanceKm ?? null,
+                routeDurationMin: locData.route?.durationMin ?? null,
+                routeVerified: true,
+                notifyCustomer: locData.notifyCustomer !== false,
+                requireCustomerConfirmation: locData.notifyCustomer !== false
+              })
+            });
+            const updatedOrder = await res.json();
+            if (res.ok && updatedOrder && updatedOrder.id) {
+              setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+              setDetailModal(prev => (prev && prev.id === updatedOrder.id ? { ...prev, ...updatedOrder } : prev));
+              const waSent = updatedOrder._mutationMeta?.whatsappNotified;
+              showNotificationToast(
+                'success',
+                waSent
+                  ? `📍 Pedido #${updatedOrder.id} guardado (${nextBranchName}) • Aviso y solicitud de confirmación enviados al cliente por WhatsApp`
+                  : `📍 Dirección y sucursal (${nextBranchName}) guardadas en Pedido #${updatedOrder.id}`,
+                4800
+              );
+            } else {
+              showNotificationToast('error', `⚠️ No se pudo guardar la dirección: ${updatedOrder?.error || 'Error de red'}`);
+            }
+          } catch (err) {
+            console.error('Error guardando dirección desde mapa:', err);
+            showNotificationToast('error', `⚠️ Error de red al guardar dirección en el pedido`);
+          }
+        }
+
         setMapModal(null);
       }
     });
@@ -2295,9 +2361,9 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                           <Eye size={13} />
                         </button>
                         <button
-                          onClick={() => handleOpenMap(order.address, order.customerName)}
+                          onClick={() => handleOpenMap(order.address, order.customerName, order)}
                           className="p-1.5 rounded-lg bg-[#111b21] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-700/60 transition"
-                          title="Ver Ubicación en Mapa de Córdoba"
+                          title="Confirmar o Editar Dirección y Sucursal en Mapa"
                         >
                           <MapPin size={13} />
                         </button>
@@ -2700,9 +2766,9 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                 <div className="grid grid-cols-8 gap-1 w-full pt-1.5 border-t border-slate-800/80">
                   <button
                     type="button"
-                    onClick={() => handleOpenMap(order.address, order.customerName)}
+                    onClick={() => handleOpenMap(order.address, order.customerName, order)}
                     className="p-1.5 rounded-lg bg-[#111b21] hover:bg-slate-800 text-slate-400 hover:text-emerald-400 border border-slate-800 flex items-center justify-center transition"
-                    title="Ver Ubicación en Mapa de Córdoba"
+                    title="Confirmar o Editar Dirección y Sucursal en Mapa"
                   >
                     <MapPin size={13} />
                   </button>
@@ -2931,15 +2997,23 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
                       <span className="text-slate-400 shrink-0">Dirección:</span>
                       <div className="text-right">
                         <div className="text-slate-200 font-medium">{detailModal.address || 'A coordinar'}</div>
-                        {detailModal.address && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenMap(detailModal.address, detailModal.customerName)}
-                            className="text-[10px] text-emerald-400 hover:underline flex items-center gap-0.5 justify-end mt-0.5"
-                          >
-                            <MapPin size={10} /> Ver en Mapa
-                          </button>
-                        )}
+                        {detailModal.routeDistanceKm ? (
+                          <div className="text-[10px] text-emerald-400/90 font-mono">
+                            🛣️ Ruta verificada: {detailModal.routeDistanceKm} km (~{detailModal.routeDurationMin || 15} min)
+                          </div>
+                        ) : null}
+                        {detailModal.pendingCustomerConfirmation ? (
+                          <div className="text-[10px] text-amber-400 font-semibold">⏳ Esperando confirmación del cliente</div>
+                        ) : detailModal.customerChangeConfirmed ? (
+                          <div className="text-[10px] text-emerald-400 font-semibold">✅ Cambio confirmado por el cliente</div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMap(detailModal.address, detailModal.customerName, detailModal)}
+                          className="text-[10px] text-emerald-400 hover:underline flex items-center gap-0.5 justify-end mt-0.5"
+                        >
+                          <MapPin size={10} /> {detailModal.address ? 'Editar / Confirmar en Mapa' : 'Asignar en Mapa'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -5122,6 +5196,9 @@ export default function OrdersView({ socket, targetOrderId, onClearTargetOrder }
         <ClientLocationMap
           address={mapModal.address}
           customerName={mapModal.customerName}
+          initialCoords={mapModal.initialCoords || null}
+          orderId={mapModal.orderId || null}
+          showNotifyToggle={Boolean(mapModal.showNotifyToggle)}
           onConfirmLocation={mapModal.onConfirm}
           onClose={() => setMapModal(null)}
         />

@@ -426,8 +426,10 @@ server.listen(PORT, async () => {
     console.log(`ℹ️ [Cluster Worker #${process.env.WORKER_ID}] Omitiendo conexión duplicada de Baileys (gestionada por Worker #1).`);
   }
 
-  // Inicializar conexión con MongoDB Atlas si está configurado en Hostinger
-  connectDB().catch(err => console.warn('Aviso MongoDB:', err.message));
+  // Inicializar conexión con MongoDB Atlas e hidratar/espejar configuraciones y datos persistentes
+  connectDB()
+    .then(() => db.initCloudPersistence())
+    .catch(err => console.warn('Aviso MongoDB:', err.message));
 
   // Inicializar sistema de respaldos automáticos programados
   BackupService.initAutoBackupScheduler();
@@ -454,8 +456,11 @@ const gracefulShutdown = async (signal) => {
   console.log(`\n🛑 Recibida señal ${signal}. Cerrando servidor de forma segura...`);
   
   try {
-    // 1. Crear respaldo preventivo antes de apagar
-    console.log('💾 Creando respaldo de seguridad previo al apagado/actualización...');
+    // 1. Sincronizar bóveda persistente y crear respaldo preventivo antes de apagar
+    console.log('💾 Creando respaldo de seguridad y sincronizando bóveda previo al apagado/actualización...');
+    if (typeof db.flushAllAsync === 'function') {
+      await db.flushAllAsync().catch(() => {});
+    }
     BackupService.createBackup('pre-update-shutdown');
   } catch (err) {
     console.error('Error guardando backup de apagado:', err);

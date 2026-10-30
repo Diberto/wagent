@@ -31,4 +31,3 @@ console.log('Items extracted count:', res.items.length);
 console.log('Total extracted:', res.total);
 console.log('Items:', res.items);
 console.log('Products:', res.products.map(p => ({ name: p.name, qty: p.quantity, subtotal: p.subtotal, unit: p.unit, unitPrice: p.unitPrice, isUnitMode: p.isUnitMode, unitCount: p.unitCount })));
-process.exit(0);

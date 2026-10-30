@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { CONFIG } from '../config/index.js';
 import { sqliteStorage } from './sqliteStorage.js';
+import { mongoPersistence } from './mongoPersistence.js';
 
 export function isLidIdentifier(raw) {
   if (!raw) return false;
@@ -267,6 +268,11 @@ class DatabaseService {
       }, 1500);
     }
 
+    // Espejo automático en bóveda persistente de MongoDB Atlas (sobrevive a redeploys efímeros)
+    try {
+      mongoPersistence.scheduleCloudSync(data);
+    } catch (_) {}
+
     const jsonStr = JSON.stringify(data, null, 2);
     try {
       const tempPath = `${this.dbFile}.tmp.${process.pid}`;
@@ -290,7 +296,10 @@ class DatabaseService {
   }
 
   getStorageMode() {
-    return 'SQLite WAL (Write-Ahead Logging) + L1 RAM Cache';
+    const cloud = mongoPersistence.getStatus();
+    return cloud.connected
+      ? 'SQLite WAL + Bóveda Persistente MongoDB Atlas + L1 RAM Cache'
+      : 'SQLite WAL (Write-Ahead Logging) + Bóveda Persistente Local + L1 RAM Cache';
   }
 
   flushSync() {
@@ -304,6 +313,40 @@ class DatabaseService {
       } catch (err) {
         console.warn('⚠️ [DatabaseService] Error en flushSync SQLite:', err.message);
       }
+      try {
+        mongoPersistence.flushCloudSyncNow(this._cache).catch(() => {});
+      } catch (_) {}
+    }
+  }
+
+  async flushAllAsync() {
+    this.flushSync();
+    if (this._cache) {
+      await mongoPersistence.flushCloudSyncNow(this._cache, { forceAll: true });
+    }
+  }
+
+  async initCloudPersistence() {
+    try {
+      const localDb = this.readDb();
+      const res = await mongoPersistence.hydrateFromCloud(localDb);
+      if (res && res.hydrated && res.mergedDb) {
+        this.writeDb(res.mergedDb);
+        try {
+          sqliteStorage.migrateFromJsonData(res.mergedDb);
+        } catch (_) {}
+        // Asegurar que las sucursales tengan coordenadas GPS válidas tras hidratar
+        this.getBranches();
+        this.emitChange('settings:updated', this.getSettings());
+        this.emitChange('orders:sync', this.getOrders());
+        this.emitChange('leads:sync', this.getLeads());
+      } else {
+        this.getBranches();
+      }
+      return res;
+    } catch (err) {
+      console.warn('⚠️ [DatabaseService] Aviso en initCloudPersistence:', err.message);
+      return { hydrated: false, error: err.message };
     }
   }
 
@@ -487,10 +530,12 @@ class DatabaseService {
       rapilogConfig: {
         ...(current.rapilogConfig || {}),
         ...(newSettings.rapilogConfig || {})
-      }
+      },
+      _updatedAt: Date.now()
     };
     db.settings = merged;
     this.writeDb(db);
+    this.emitChange('settings:updated', db.settings);
     return db.settings;
   }
 
@@ -2146,17 +2191,20 @@ class DatabaseService {
     }
 
     // 2. Detección y corrección de dirección corrupta con saludos/conversación del bot o retiro en sucursal
+    const isBotConversationPhrase = (txt = '') =>
+      /¡Entendido|¡De una|¡Espectacular|¡Hola|¡Claro|Me pongo firme|Sacamos el kilo|Detalle de tu pedido|lo voy a retirar|te paso el resumen|confirmame si/i.test(txt);
+
     if (o.deliveryType === 'pickup' || o.fulfillmentType === 'pickup' || /retiro\s+en\s+sucursal/i.test(o.notes || '')) {
       if (o.address && /lo\s+voy\s+a\s+retirar|retiro\s+por\s+sucursal|sucursal\s+en\s+roque/i.test(o.address)) {
         o.address = '';
       }
-    } else if (o.address && (/¡Entendido|¡De una|¡Espectacular|¡Hola|¡Claro|Me pongo firme|Sacamos el kilo|Detalle de tu pedido|lo voy a retirar/i.test(o.address) || o.address.length > 70)) {
+    } else if (o.address && (isBotConversationPhrase(o.address) || (o.address.length > 220 && !/\d/.test(o.address)))) {
       const lead = (db.leads || []).find(l => l.jid === o.jid || (l.phone && o.phone && l.phone.includes(o.phone)));
-      if (lead?.address && !/¡Entendido|¡De una|lo voy a retirar/i.test(lead.address)) {
+      if (lead?.address && !isBotConversationPhrase(lead.address)) {
         o.address = lead.address;
       } else {
-        const addrMatch = o.address.match(/(?:Roque Funes|Funes|Urca|Av\.|Calle)\s+[0-9]{2,5}[^,\n\.]*/i);
-        o.address = addrMatch ? addrMatch[0].trim() : (lead?.address || 'Roque Funes 1704, Barrio Urca');
+        const addrMatch = o.address.match(/(?:Av\.|Avenida|Bv\.|Boulevard|Calle|Barrio|Country)\s+[^,\n\.]{3,65}/i);
+        o.address = addrMatch ? addrMatch[0].trim() : (lead?.address || '');
       }
     }
 
@@ -2421,7 +2469,12 @@ class DatabaseService {
 
   updateOrder(id, updateData) {
     const db = this.readDb();
-    const order = (db.orders || []).find(o => o.id === id);
+    const cleanId = String(id || '').replace(/^#/, '').toLowerCase().trim();
+    const order = (db.orders || []).find(o =>
+      o.id === id ||
+      String(o.id).toLowerCase() === cleanId ||
+      (cleanId.replace(/\D/g, '').length >= 3 && String(o.id).replace(/\D/g, '') === cleanId.replace(/\D/g, ''))
+    );
     if (!order) return null;
 
     // Si el pedido se cancela y ya se había descontado stock, reponer el stock de los productos correspondientes
@@ -2548,12 +2601,50 @@ class DatabaseService {
       }
     }
 
+    // Normalizar dirección y coordenadas GPS si vienen en updateData
+    if (updateData.address !== undefined || updateData.deliveryAddress !== undefined) {
+      const nextAddr = String(updateData.address ?? updateData.deliveryAddress ?? '').trim();
+      updateData.address = nextAddr;
+      updateData.deliveryAddress = nextAddr;
+    }
+    const rawLat = updateData.coordinates?.lat ?? updateData.lat;
+    const rawLng = updateData.coordinates?.lng ?? updateData.lng;
+    if (rawLat !== undefined && rawLng !== undefined && !Number.isNaN(Number(rawLat)) && !Number.isNaN(Number(rawLng))) {
+      const latNum = Number(rawLat);
+      const lngNum = Number(rawLng);
+      updateData.lat = latNum;
+      updateData.lng = lngNum;
+      updateData.coordinates = { lat: latNum, lng: lngNum };
+    }
+
     // Normalizar sucursal de forma canónica si se actualiza branch, branchId o branchName
     if (updateData.branch || updateData.branchId || updateData.branchName) {
       const bObj = this.resolveBranch(updateData.branchId || updateData.branch || updateData.branchName);
       updateData.branch = bObj.name;
       updateData.branchName = bObj.name;
       updateData.branchId = bObj.id;
+    }
+
+    // Sincronizar ficha del cliente (lead) cuando cambia dirección, coordenadas o sucursal preferida en su pedido
+    if (updateData.address || updateData.coordinates || updateData.branchId) {
+      const orderCore = extractCoreDigits(order.phone || order.customerPhone || order.jid);
+      const matchedLead = (db.leads || []).find(l =>
+        (order.jid && (l.jid === order.jid || (Array.isArray(l.altJids) && l.altJids.includes(order.jid)))) ||
+        (orderCore && orderCore.length >= 7 && extractCoreDigits(l.phone || l.jid) === orderCore)
+      );
+      if (matchedLead) {
+        if (updateData.address) matchedLead.address = updateData.address;
+        if (updateData.coordinates) {
+          matchedLead.lat = updateData.coordinates.lat;
+          matchedLead.lng = updateData.coordinates.lng;
+          matchedLead.coordinates = updateData.coordinates;
+        }
+        if (updateData.branchId) {
+          matchedLead.preferredBranchId = updateData.branchId;
+          matchedLead.preferredBranch = updateData.branchName || updateData.branch;
+        }
+        matchedLead.updatedAt = new Date().toISOString();
+      }
     }
 
     // Auto-finalizado y archivado cuando un pedido está entregado y pagado (salvo desarchivo explícito)
@@ -3291,23 +3382,39 @@ class DatabaseService {
   }
 
   // =========================================================================
-  // GESTIÓN DE SUCURSALES (BRANCHES)
+  // GESTIÓN DE SUCURSALES (BRANCHES) CON GEOLOCALIZACIÓN REAL EN CÓRDOBA
   // =========================================================================
+  static get DEFAULT_BRANCH_COORDS() {
+    return {
+      'br-1': { lat: -31.3828, lng: -64.2372 }, // Av. José Roque Funes 1115, Urca
+      'br-2': { lat: -31.3792, lng: -64.2448 }, // Av. Menéndez Pidal 3575, Alto Tejeda / Urca
+      'br-3': { lat: -31.3533, lng: -64.2831 }, // Av. Los Álamos 1015, Corteza Mall / Intercountry
+      'br-4': { lat: -31.4116, lng: -64.2528 }, // Av. Duarte Quirós 5130
+      'br-5': { lat: -31.2946, lng: -64.2954 }, // Av. Figueroa Alcorta 480, Villa Allende
+      'br-6': { lat: -31.2858, lng: -64.2745 }  // Av. Padre Luchesse km 2, Country San Isidro
+    };
+  }
+
   getBranches() {
     const db = this.readDb();
-    if (!db.branches || db.branches.length === 0 || db.branches.length < 6) {
+    let changed = false;
+
+    if (!Array.isArray(db.branches) || db.branches.length === 0) {
       db.branches = [
         {
           id: "br-1",
           name: "URCA CENTRAL",
           address: "Av. José Roque Funes 1115, Barrio Urca, Córdoba",
+          lat: -31.3828,
+          lng: -64.2372,
           phone: "+54 9 3513 906947",
           phoneNormalized: "+5493513906947",
           managerName: "Encargado Urca Central",
           encargadoId: null,
           email: "urca1@republicadelacarne.com",
           hours: "Lunes a sábado: 9:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs",
-          coverageZones: ["Urca", "Cerro de las Rosas", "Tablada Park"],
+          coverageZones: ["Urca", "Cerro de las Rosas", "Tablada Park", "Bajo Palermo", "Villa Belgrano"],
+          maxDeliveryKm: 18,
           isActive: true,
           createdAt: "2026-08-30T17:00:00.000Z"
         },
@@ -3315,13 +3422,16 @@ class DatabaseService {
           id: "br-2",
           name: "URCA 2 – ALTO TEJEDA",
           address: "Av. Menéndez Pidal 3575, Urca, Córdoba",
+          lat: -31.3792,
+          lng: -64.2448,
           phone: "+54 9 3518 623195",
           phoneNormalized: "+5493518623195",
           managerName: "Encargado Alto Tejeda",
           encargadoId: null,
           email: "urca2@republicadelacarne.com",
           hours: "Lunes a sábado: 9:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs",
-          coverageZones: ["Alto Tejeda", "Urca", "Chateau Carreras"],
+          coverageZones: ["Alto Tejeda", "Urca", "Chateau Carreras", "Valle Escondido", "Quebrada de las Rosas"],
+          maxDeliveryKm: 18,
           isActive: true,
           createdAt: "2026-08-30T17:00:00.000Z"
         },
@@ -3329,13 +3439,16 @@ class DatabaseService {
           id: "br-3",
           name: "INTERCOUNTRY – CORTEZA MALL / ALTO TEJEDA",
           address: "Av. Los Álamos 1015, Corteza Mall, Córdoba",
+          lat: -31.3533,
+          lng: -64.2831,
           phone: "+54 9 3518 623194",
           phoneNormalized: "+5493518623194",
           managerName: "Encargado Intercountry",
           encargadoId: null,
           email: "intercountry@republicadelacarne.com",
           hours: "Lunes a domingos: 9:00 a 21:00 hs",
-          coverageZones: ["Intercountry", "Corteza Mall", "Countries Zona Norte"],
+          coverageZones: ["Intercountry", "Corteza Mall", "Countries Zona Norte", "Las Delicias", "Lomas de la Carolina", "La Rufina"],
+          maxDeliveryKm: 20,
           isActive: true,
           createdAt: "2026-08-30T17:00:00.000Z"
         },
@@ -3343,13 +3456,16 @@ class DatabaseService {
           id: "br-4",
           name: "DUARTE QUIRÓS",
           address: "Av. Duarte Quirós 5130, Córdoba",
+          lat: -31.4116,
+          lng: -64.2528,
           phone: "+54 9 3518 156595",
           phoneNormalized: "+5493518156595",
           managerName: "Encargado Duarte Quirós",
           encargadoId: null,
           email: "duartequiros@republicadelacarne.com",
           hours: "Lunes a sábado: 9:00 a 13:30 hs y 17:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs",
-          coverageZones: ["Duarte Quirós", "Las Palmas", "Teodoro Fels", "San Salvador"],
+          coverageZones: ["Duarte Quirós", "Las Palmas", "Teodoro Fels", "San Salvador", "Alto Alberdi", "Nueva Córdoba", "Centro", "Manantiales", "Siete Soles"],
+          maxDeliveryKm: 20,
           isActive: true,
           createdAt: "2026-08-30T17:00:00.000Z"
         },
@@ -3357,13 +3473,16 @@ class DatabaseService {
           id: "br-5",
           name: "VILLA ALLENDE – MERCADITO DE LA VILLA",
           address: "Av. Figueroa Alcorta 480, Villa Allende, Córdoba",
+          lat: -31.2946,
+          lng: -64.2954,
           phone: "+54 9 3513 540031",
           phoneNormalized: "+5493513540031",
           managerName: "Encargado Villa Allende",
           encargadoId: null,
           email: "villaallende@republicadelacarne.com",
           hours: "Lunes a sábado: 9:00 a 13:30 hs y 17:00 a 21:00 hs | Domingo: 9:00 a 13:30 hs",
-          coverageZones: ["Villa Allende", "Mendiolaza", "Saldán"],
+          coverageZones: ["Villa Allende", "Mendiolaza", "Saldán", "Unquillo", "La Calera"],
+          maxDeliveryKm: 22,
           isActive: true,
           createdAt: "2026-08-30T17:00:00.000Z"
         },
@@ -3371,17 +3490,51 @@ class DatabaseService {
           id: "br-6",
           name: "COUNTRY SAN ISIDRO – ALTO TEJEDA (Nueva)",
           address: "Av. Padre Luchesse km 2, San Isidro, Córdoba",
+          lat: -31.2858,
+          lng: -64.2745,
           phone: "+54 9 3518 769099",
           phoneNormalized: "+5493518769099",
           managerName: "Encargado Country San Isidro",
           encargadoId: null,
           email: "sanisidro@republicadelacarne.com",
           hours: "Lun a Mié: 07:00 a 00:00 hs | Jue y Vie: 07:00 a 01:00 hs | Sáb: 08:00 a 01:00 hs | Dom: 08:30 a 00:00 hs",
-          coverageZones: ["Country San Isidro", "Villa Allende Golf", "Chacras de la Villa"],
+          coverageZones: ["Country San Isidro", "Villa Allende Golf", "Chacras de la Villa", "El Bosque", "Estancia Q2", "4 Hojas"],
+          maxDeliveryKm: 22,
           isActive: true,
           createdAt: "2026-08-30T17:00:00.000Z"
         }
       ];
+      changed = true;
+    } else {
+      // Enriquecer sucursales existentes con coordenadas GPS reales sin sobrescribir personalizaciones del usuario
+      const coordsMap = DatabaseService.DEFAULT_BRANCH_COORDS;
+      db.branches = db.branches.map((b) => {
+        const hasValidCoords =
+          typeof b.lat === 'number' && !Number.isNaN(b.lat) &&
+          typeof b.lng === 'number' && !Number.isNaN(b.lng);
+        if (hasValidCoords) return b;
+
+        let fallback = coordsMap[b.id];
+        if (!fallback) {
+          const n = String(b.name || '').toLowerCase();
+          if (n.includes('san isidro') || n.includes('luchesse')) fallback = coordsMap['br-6'];
+          else if (n.includes('villa allende') || n.includes('mercadito')) fallback = coordsMap['br-5'];
+          else if (n.includes('duarte')) fallback = coordsMap['br-4'];
+          else if (n.includes('intercountry') || n.includes('corteza') || n.includes('álamos')) fallback = coordsMap['br-3'];
+          else if (n.includes('urca 2') || n.includes('menéndez') || n.includes('menendez')) fallback = coordsMap['br-2'];
+          else fallback = coordsMap['br-1'];
+        }
+        changed = true;
+        return {
+          ...b,
+          lat: Number(b.lat) || fallback.lat,
+          lng: Number(b.lng) || fallback.lng,
+          maxDeliveryKm: Number(b.maxDeliveryKm) || 20
+        };
+      });
+    }
+
+    if (changed) {
       this.writeDb(db);
     }
     return db.branches;
@@ -5668,6 +5821,144 @@ class DatabaseService {
     this.writeDb(db);
     this.emitChange('recipes:updated', db.recipes);
     return defaultRecipes;
+  }
+
+  // =========================================================================
+  // GRUPO SILENCIOSO OCR (PEDIDOS INTERNOS SUCURSALES <-> ADMINISTRACIÓN)
+  // =========================================================================
+  getInternalGroupOrders(filters = {}) {
+    const db = this.readDb();
+    let list = Array.isArray(db.internalGroupOrders) ? [...db.internalGroupOrders] : [];
+
+    if (filters.direction && filters.direction !== 'all') {
+      list = list.filter(o => o.direction === filters.direction);
+    }
+    if (filters.status && filters.status !== 'all') {
+      list = list.filter(o => o.status === filters.status);
+    }
+    if (filters.branchId && filters.branchId !== 'all') {
+      list = list.filter(o => o.sourceBranchId === filters.branchId || o.targetBranchId === filters.branchId);
+    }
+    if (filters.groupJid && filters.groupJid !== 'all') {
+      list = list.filter(o => o.groupJid === filters.groupJid);
+    }
+    if (filters.dateFrom) {
+      const fromTs = Date.parse(filters.dateFrom);
+      if (!Number.isNaN(fromTs)) {
+        list = list.filter(o => Date.parse(o.createdAt || 0) >= fromTs);
+      }
+    }
+    if (filters.dateTo) {
+      const toTs = Date.parse(filters.dateTo);
+      if (!Number.isNaN(toTs)) {
+        list = list.filter(o => Date.parse(o.createdAt || 0) <= toTs);
+      }
+    }
+    if (filters.search) {
+      const q = String(filters.search).toLowerCase().trim();
+      list = list.filter(o =>
+        String(o.id || '').toLowerCase().includes(q) ||
+        String(o.sourceBranchName || '').toLowerCase().includes(q) ||
+        String(o.targetUnitName || '').toLowerCase().includes(q) ||
+        String(o.senderName || '').toLowerCase().includes(q) ||
+        String(o.summary || '').toLowerCase().includes(q) ||
+        String(o.rawText || '').toLowerCase().includes(q) ||
+        (Array.isArray(o.items) && o.items.some(i => String(i.name || '').toLowerCase().includes(q)))
+      );
+    }
+
+    return list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }
+
+  getInternalGroupOrder(id) {
+    const db = this.readDb();
+    return (db.internalGroupOrders || []).find(o => o.id === id) || null;
+  }
+
+  saveInternalGroupOrder(entry = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(db.internalGroupOrders)) db.internalGroupOrders = [];
+
+    const nowIso = new Date().toISOString();
+    if (entry.messageId) {
+      const dup = db.internalGroupOrders.find(o => o.messageId === entry.messageId);
+      if (dup) return dup;
+    }
+
+    const seq = db.internalGroupOrders.length + 101;
+    const record = {
+      id: entry.id || `IOCR-${seq}-${Date.now().toString().slice(-4)}`,
+      messageId: entry.messageId || null,
+      groupJid: entry.groupJid || null,
+      groupName: entry.groupName || 'Grupo Interno',
+      direction: entry.direction || 'branch_to_admin', // 'branch_to_admin' | 'admin_to_branch'
+      sourceBranchId: entry.sourceBranchId || null,
+      sourceBranchName: entry.sourceBranchName || 'Sucursal',
+      targetBranchId: entry.targetBranchId || null,
+      targetUnitName: entry.targetUnitName || 'Administración Central',
+      senderJid: entry.senderJid || null,
+      senderPhone: entry.senderPhone || '',
+      senderName: entry.senderName || 'Operador',
+      sourceType: entry.sourceType || 'text', // 'image_ocr' | 'pdf_ocr' | 'audio_transcript' | 'text'
+      mediaUrl: entry.mediaUrl || null,
+      rawText: entry.rawText || '',
+      summary: entry.summary || '',
+      priority: entry.priority || 'normal', // 'normal' | 'urgent'
+      requestedFor: entry.requestedFor || '',
+      notes: entry.notes || '',
+      items: Array.isArray(entry.items) ? entry.items : [],
+      totalItemsCount: Array.isArray(entry.items) ? entry.items.length : 0,
+      totalEstimatedKg: Array.isArray(entry.items)
+        ? Number(entry.items.reduce((acc, it) => acc + (/^k/i.test(it.unit || 'kg') ? (Number(it.quantity) || 0) : 0), 0).toFixed(2))
+        : 0,
+      status: entry.status || 'detected', // 'detected' | 'approved' | 'preparing' | 'dispatched' | 'received' | 'cancelled'
+      linkedTransferId: entry.linkedTransferId || null,
+      confidence: Number(entry.confidence ?? 0.9),
+      createdAt: entry.createdAt || nowIso,
+      updatedAt: nowIso
+    };
+
+    db.internalGroupOrders.unshift(record);
+    this.writeDb(db);
+    this.emitChange('internal-ocr:new', record);
+    this.emitChange('internal-ocr:sync', db.internalGroupOrders);
+    return record;
+  }
+
+  updateInternalGroupOrder(id, patch = {}) {
+    const db = this.readDb();
+    if (!Array.isArray(db.internalGroupOrders)) db.internalGroupOrders = [];
+    const idx = db.internalGroupOrders.findIndex(o => o.id === id);
+    if (idx === -1) return null;
+
+    const current = db.internalGroupOrders[idx];
+    const nextItems = Array.isArray(patch.items) ? patch.items : current.items;
+    const updated = {
+      ...current,
+      ...patch,
+      items: nextItems,
+      totalItemsCount: Array.isArray(nextItems) ? nextItems.length : 0,
+      totalEstimatedKg: Array.isArray(nextItems)
+        ? Number(nextItems.reduce((acc, it) => acc + (/^k/i.test(it.unit || 'kg') ? (Number(it.quantity) || 0) : 0), 0).toFixed(2))
+        : 0,
+      updatedAt: new Date().toISOString()
+    };
+    db.internalGroupOrders[idx] = updated;
+    this.writeDb(db);
+    this.emitChange('internal-ocr:updated', updated);
+    this.emitChange('internal-ocr:sync', db.internalGroupOrders);
+    return updated;
+  }
+
+  deleteInternalGroupOrder(id) {
+    const db = this.readDb();
+    if (!Array.isArray(db.internalGroupOrders)) return false;
+    const prevLen = db.internalGroupOrders.length;
+    db.internalGroupOrders = db.internalGroupOrders.filter(o => o.id !== id);
+    if (db.internalGroupOrders.length === prevLen) return false;
+    this.writeDb(db);
+    this.emitChange('internal-ocr:sync', db.internalGroupOrders);
+    return true;
   }
 }
 

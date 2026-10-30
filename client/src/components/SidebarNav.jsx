@@ -1,42 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  MessageSquare,
-  PackageCheck,
-  Calculator,
-  ShoppingBag,
-  Users,
-  Kanban,
-  Bike,
-  Store,
-  Tag,
-  ChefHat,
-  Image as ImageIcon,
-  BarChart3,
-  Bot,
-  Brain,
-  PhoneCall,
-  BookOpen,
-  Send,
-  Settings,
   ChevronLeft,
   ChevronRight,
   LogOut,
   QrCode,
   Sparkles,
-  Zap,
-  Globe,
-  Bell,
-  Menu,
   X,
-  ShieldCheck,
-  UserCheck,
-  Receipt,
-  Boxes,
-  ArrowRightLeft,
-  VolumeX,
-  Cpu,
-  TrendingUp
+  Image as ImageIcon
 } from 'lucide-react';
+import { NAVIGATION_HUBS } from './navigationConfig.js';
 
 export default function SidebarNav({
   currentTab,
@@ -71,73 +43,6 @@ export default function SidebarNav({
     });
   };
 
-  const navSections = [
-    {
-      id: 'operations',
-      label: 'Operaciones',
-      items: [
-        { id: 'inbox', label: 'WhatsApp Chats', icon: MessageSquare, badge: unreadCount, badgeColor: 'bg-emerald-500 text-slate-950' },
-        { id: 'silent-group', label: 'Grupo Silencioso (OCR)', icon: VolumeX, badge: 'WhatsApp' },
-        { id: 'stock-transfers', label: 'Stock & Traspasos', icon: Boxes, badge: 'Scan' },
-        { id: 'orders', label: 'Pedidos & Ventas', icon: PackageCheck },
-        { id: 'pos', label: 'POS Mostrador', icon: Calculator },
-        { id: 'catalog', label: 'Cortes & PLU', icon: ShoppingBag },
-        { id: 'customers', label: 'Clientes CRM', icon: Users },
-        { id: 'kanban', label: 'Embudo de Ventas', icon: Kanban },
-        { id: 'drivers', label: 'Reparto & Cadetes', icon: Bike }
-      ]
-    },
-    {
-      id: 'commercial',
-      label: 'Comercial & Tienda',
-      items: [
-        { id: 'storefront', label: 'Tienda Online Web', icon: Globe, isSpecial: true },
-        { id: 'loyalty', label: 'Club de Fidelización', icon: Sparkles, highlight: true },
-        { id: 'coupons', label: 'Cupones & Promos', icon: Tag },
-        { id: 'recipes', label: 'Recetas Tradicionales', icon: ChefHat },
-        { id: 'branches', label: '6 Sucursales', icon: Store },
-        { id: 'media-gallery', label: 'Galería de Medios', icon: ImageIcon, isAction: true, onClick: onOpenMediaGallery },
-        { id: 'analytics', label: 'Reportes & KPIs', icon: BarChart3 },
-        { id: 'meat-market', label: 'Mercado Ganadero & Precios', icon: TrendingUp, badge: 'MAG/IPC', highlight: true }
-      ]
-    },
-    {
-      id: 'ai',
-      label: 'Inteligencia Artificial',
-      items: [
-        { id: 'agents', label: 'Agentes & Personalidades', icon: Bot },
-        { id: 'multi-agent', label: 'Team Multi-Agente Ops', icon: Users },
-        { id: 'neural-memory', label: 'Red Neuronal & Grafo', icon: Brain },
-        { id: 'callcenter', label: 'Centro de Voz (ElevenLabs)', icon: PhoneCall },
-        { id: 'knowledge', label: 'Base de Conocimiento (RAG)', icon: BookOpen },
-        { id: 'campaigns', label: 'Difusiones & Campañas', icon: Send }
-      ]
-    },
-    {
-      id: 'management',
-      label: 'Centro de Control',
-      items: [
-        { 
-          id: 'admin', 
-          label: 'Admin & Configuración', 
-          icon: Settings,
-          highlight: true 
-        },
-        {
-          id: 'arca',
-          label: 'ARCA (AFIP) Facturación',
-          icon: Receipt
-        },
-        {
-          id: 'api-mcp',
-          label: 'Conectividad API & MCP',
-          icon: Cpu,
-          badge: 'REST/MCP'
-        }
-      ]
-    }
-  ];
-
   const handleItemClick = (item) => {
     if (item.isAction && typeof item.onClick === 'function') {
       item.onClick();
@@ -146,6 +51,8 @@ export default function SidebarNav({
     }
     if (item.id === 'storefront') {
       if (typeof window !== 'undefined') window.history.pushState({}, '', '/tienda');
+    } else if (item.id === 'micuenta') {
+      if (typeof window !== 'undefined') window.history.pushState({}, '', '/micuenta');
     }
     setCurrentTab(item.id);
     setIsMobileDrawerOpen?.(false);
@@ -186,7 +93,7 @@ export default function SidebarNav({
             {!isCollapsed && <span className="truncate">Conectar QR</span>}
           </button>
         );
-    }
+      }
   };
 
   const sidebarContent = (
@@ -247,74 +154,90 @@ export default function SidebarNav({
         </button>
       </div>
 
-      {/* Navigation Sections (Scrollable) */}
+      {/* Navigation Sections (Scrollable - 6 Hubs) */}
       <div className="flex-1 overflow-y-auto custom-scrollbar py-2 px-2 space-y-4">
-        {navSections.map(section => (
-          <div key={section.id} className="space-y-1">
-            {!isCollapsed && (
-              <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                {section.label}
-              </div>
-            )}
+        {NAVIGATION_HUBS.map(hub => {
+          // Additional action items per hub
+          const extraItems = hub.id === 'pos_catalog' && onOpenMediaGallery ? [
+            { id: 'media-gallery', label: 'Galería de Medios', icon: ImageIcon, isAction: true, onClick: onOpenMediaGallery }
+          ] : [];
+          const allItems = [...hub.subTabs, ...extraItems];
 
-            <div className="space-y-0.5">
-              {section.items.map(item => {
-                const Icon = item.icon;
-                const isActive = currentTab === item.id || (item.id === 'admin' && currentTab.startsWith('admin:'));
+          return (
+            <div key={hub.id} className="space-y-1">
+              {!isCollapsed && (
+                <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>{hub.title}</span>
+                  <span className="text-[9px] text-slate-400 lowercase opacity-75">
+                    {hub.subTabs.length} vistas
+                  </span>
+                </div>
+              )}
 
-                return (
-                  <div key={item.id} className="relative group">
-                    <button
-                      onClick={() => handleItemClick(item)}
-                      className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 ${
-                        isActive
-                          ? item.highlight 
-                            ? 'bg-gradient-to-r from-red-600/30 to-amber-600/20 text-red-200 border border-red-500/40 shadow-sm'
-                            : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                          : 'text-slate-300 hover:text-white hover:bg-[#202c33]'
-                      } ${isCollapsed ? 'justify-center' : ''}`}
-                    >
-                      <div className="relative shrink-0">
-                        <Icon size={18} className={isActive ? (item.highlight ? 'text-red-400' : 'text-emerald-400') : 'text-slate-400 group-hover:text-slate-200'} />
-                        {isCollapsed && item.badge > 0 && (
-                          <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] px-0.5 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-black flex items-center justify-center">
-                            {item.badge > 99 ? '99+' : item.badge}
-                          </span>
-                        )}
-                      </div>
+              <div className="space-y-0.5">
+                {allItems.map(item => {
+                  const Icon = item.icon;
+                  const isActive = currentTab === item.id || (item.id === 'admin' && currentTab.startsWith('admin:'));
+                  const badgeValue = item.id === 'inbox' ? unreadCount : item.badge;
 
-                      {!isCollapsed && (
-                        <div className="flex-1 flex items-center justify-between min-w-0">
-                          <span className="truncate">{item.label}</span>
-                          {item.badge > 0 && (
-                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${item.badgeColor || 'bg-emerald-500/20 text-emerald-400'}`}>
-                              {item.badge}
+                  return (
+                    <div key={item.id} className="relative group">
+                      <button
+                        onClick={() => handleItemClick(item)}
+                        className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 ${
+                          isActive
+                            ? item.highlight 
+                              ? 'bg-gradient-to-r from-red-600/30 to-amber-600/20 text-red-200 border border-red-500/40 shadow-sm'
+                              : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                            : 'text-slate-300 hover:text-white hover:bg-[#202c33]'
+                        } ${isCollapsed ? 'justify-center' : ''}`}
+                      >
+                        <div className="relative shrink-0">
+                          <Icon size={18} className={isActive ? (item.highlight ? 'text-red-400' : 'text-emerald-400') : 'text-slate-400 group-hover:text-slate-200'} />
+                          {isCollapsed && badgeValue > 0 && (
+                            <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] px-0.5 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-black flex items-center justify-center">
+                              {badgeValue > 99 ? '99+' : badgeValue}
                             </span>
                           )}
-                          {item.highlight && !item.badge && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                        </div>
+
+                        {!isCollapsed && (
+                          <div className="flex-1 flex items-center justify-between min-w-0">
+                            <span className="truncate">{item.label}</span>
+                            {badgeValue && (
+                              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                typeof badgeValue === 'number'
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              }`}>
+                                {badgeValue}
+                              </span>
+                            )}
+                            {item.highlight && !badgeValue && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                            )}
+                          </div>
+                        )}
+                      </button>
+
+                      {/* Tooltip on Collapsed Mode */}
+                      {isCollapsed && (
+                        <div className="hidden md:group-hover:flex absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 bg-[#182229] border border-[#2a3942] rounded-lg text-white text-xs whitespace-nowrap shadow-xl z-50 pointer-events-none items-center gap-1.5 animate-in fade-in zoom-in-95 duration-100">
+                          <span>{item.label}</span>
+                          {badgeValue && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black">
+                              {badgeValue}
+                            </span>
                           )}
                         </div>
                       )}
-                    </button>
-
-                    {/* Tooltip on Collapsed Mode */}
-                    {isCollapsed && (
-                      <div className="hidden md:group-hover:flex absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 bg-[#182229] border border-[#2a3942] rounded-lg text-white text-xs whitespace-nowrap shadow-xl z-50 pointer-events-none items-center gap-1.5 animate-in fade-in zoom-in-95 duration-100">
-                        <span>{item.label}</span>
-                        {item.badge > 0 && (
-                          <span className="px-1.5 py-0.2 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black">
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Footer: User profile & Logout */}

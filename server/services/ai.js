@@ -12,6 +12,7 @@ import { tokenTracker } from './tokenTracker.js';
 import { embeddedLlama } from './embeddedLlama.js';
 import { OrderSyncEngine } from './orderSyncEngine.js';
 import { OfflineFlowService } from './offlineFlowService.js';
+import { DeliveryRoutingService, extractCoordinatesFromText } from './deliveryRoutingService.js';
 import { 
   getVariedGreeting, 
   getContextualGreeting,
@@ -822,8 +823,17 @@ export function isGarbageAddress(addr) {
     if (!hasRealAddress) return true;
   }
 
-  // Si no contiene número de calle (altura real de al menos 2 dígitos) ni calles reconocidas de Córdoba
-  if (!/[0-9]{2,5}/.test(a) && !/funes|locelso|pidal|quiros|alamos|alcorta|colon|cerro|urca|tejeda/i.test(a)) {
+  // Si contiene coordenadas GPS o link de Google Maps es válido
+  if (extractCoordinatesFromText(a) || /maps\.google|goo\.gl\/maps|maps\.app\.goo\.gl|ubicaci[oó]n\s+gps/i.test(a)) {
+    return false;
+  }
+
+  // Si no contiene número de calle, ni lote/manzana/km/esquina, ni calles/barrios reconocidos de Gran Córdoba
+  if (
+    !/[0-9]{1,5}/.test(a) &&
+    !/\b(?:lote|mza|manzana|esquina|esq|country|barrio|b°|km)\b/i.test(a) &&
+    !/funes|locelso|pidal|quiros|quir[oó]s|alamos|[aá]lamos|alcorta|colon|col[oó]n|cerro|urca|tejeda|martinoli|nu[ñn]ez|luchesse|allende|mendiolaza|sald[aá]n|calera|unquillo|san\s+isidro|manantiales|rufina|delicias|escondido|alberdi|nueva\s+c[oó]rdoba|alta\s+c[oó]rdoba|paz/i.test(a)
+  ) {
     return true;
   }
 
@@ -3124,6 +3134,72 @@ Whenever the user asks about the current time, date, products count, orders, or 
     // 2. Obtener Vector Cognitivo de la Red Neuronal / Mapa Mental
     const neuralContext = NeuralMemoryService.generateCognitiveContext({ jid, incomingText, lead });
 
+    // 2.1 Confirmación interactiva del cliente cuando se modificaron datos de su pedido
+    const activeOrdBeforeReply = db.getActiveOrdersByJid(jid || lead?.id || lead)[0] || null;
+    if (
+      activeOrdBeforeReply &&
+      activeOrdBeforeReply.pendingCustomerConfirmation &&
+      /^(?:s[ií]|confirmo|confirmar|confirmado|dale|correcto|perfecto|est[aá]\s+bien|ok|joya|de\s+una|exacto)\b/i.test(trimmedInput)
+    ) {
+      const confirmedOrder = db.updateOrder(activeOrdBeforeReply.id, {
+        pendingCustomerConfirmation: false,
+        customerChangeConfirmed: true,
+        customerConfirmedAt: new Date().toISOString()
+      });
+      db.emitChange('order:change_confirmed', {
+        orderId: confirmedOrder.id,
+        customerName: confirmedOrder.customerName || lead?.name || 'Cliente',
+        address: confirmedOrder.address,
+        branchName: confirmedOrder.branchName || confirmedOrder.branch,
+        confirmedAt: confirmedOrder.customerConfirmedAt
+      });
+      return {
+        text:
+          `✅ *¡Datos confirmados para tu Pedido #${confirmedOrder.id}!*\n\n` +
+          `📍 *Dirección:* ${confirmedOrder.address || 'Retiro en sucursal'}\n` +
+          `🏪 *Sucursal asignada:* ${confirmedOrder.branchName || confirmedOrder.branch || 'Central'}\n` +
+          `💰 *Total:* $${Number(confirmedOrder.totalAmount || 0).toLocaleString('es-AR')}\n\n` +
+          `¡Muchas gracias! Nuestro equipo ya continúa preparando todo tal cual lo confirmaste. 🥩🔥`,
+        shouldSendAudio: false
+      };
+    }
+
+    // 2.2 Pre-verificación geográfica de Dirección + Trazado de Ruta desde Sucursal ANTES de responder al cliente
+    let preValidatedRoute = null;
+    try {
+      const gpsCoords = extractCoordinatesFromText(incomingText);
+      const cleanTurnAddr = extractCleanAddress(incomingText);
+      const addrToVerify = cleanTurnAddr || (!activeOrdBeforeReply?.routeVerified && activeOrdBeforeReply?.deliveryType !== 'pickup' ? (activeOrdBeforeReply?.address || lead?.address || '') : '');
+
+      if (gpsCoords || (addrToVerify && !isGarbageAddress(addrToVerify))) {
+        preValidatedRoute = await DeliveryRoutingService.validateDeliveryAddressAndRoute({
+          address: addrToVerify,
+          lat: gpsCoords?.lat ?? null,
+          lng: gpsCoords?.lng ?? null,
+          preferredBranchId: activeOrdBeforeReply?.branchId || lead?.preferredBranchId || null
+        });
+
+        // Si la dirección y ruta son válidas, guardar ya mismo en la ficha del cliente
+        if (preValidatedRoute?.valid && preValidatedRoute?.coordinates && (lead?.jid || lead?.id || jid)) {
+          const leadPatch = {
+            lat: preValidatedRoute.coordinates.lat,
+            lng: preValidatedRoute.coordinates.lng,
+            coordinates: preValidatedRoute.coordinates
+          };
+          if (cleanTurnAddr || gpsCoords) {
+            leadPatch.address = preValidatedRoute.formattedAddress || cleanTurnAddr;
+          }
+          if (preValidatedRoute.assignedBranch) {
+            leadPatch.preferredBranchId = preValidatedRoute.assignedBranch.id;
+            leadPatch.preferredBranch = preValidatedRoute.assignedBranch.name;
+          }
+          db.updateLead(lead?.jid || lead?.id || jid, leadPatch);
+        }
+      }
+    } catch (geoErr) {
+      console.warn('⚠️ [AIService] Aviso verificando ruta previa:', geoErr.message);
+    }
+
     let replyText = '';
 
     try {
@@ -3179,7 +3255,16 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
         const effectiveTemp = typeof settings.aiTemperature === 'number' ? settings.aiTemperature : 0.7;
         const effectiveMaxTokens = settings.aiMaxTokens || 2048;
 
-        const combinedSystemPrompt = `${fullSystemPrompt}\n\n${orderStatusContext}\n\n${neuralContext.contextPrompt}`;
+        const routeVerificationPrompt = preValidatedRoute
+          ? `\n[VERIFICACIÓN PREVIA DE DIRECCIÓN Y CAMINO DESDE SUCURSAL]:
+- Estado ruta trazable: ${preValidatedRoute.canDeliver ? (preValidatedRoute.routeVerified ? 'VERIFICADA OK (Ruta vial trazada)' : 'ZONA UBICADA PERO FALTA ALTURA/LOTE EXACTO') : 'NO TRAZABLE / FUERA DE RANGO'}
+- Dirección detectada en mapa: "${preValidatedRoute.formattedAddress || 'Sin confirmar'}"
+- Sucursal más cercana con ruta directa: ${preValidatedRoute.assignedBranch ? `${preValidatedRoute.assignedBranch.name} (${preValidatedRoute.distanceKm} km, ~${preValidatedRoute.durationMin} min en vehículo)` : 'Ninguna'}
+- Instrucción obligatoria para este mensaje: ${preValidatedRoute.customerPromptHint}`
+          : `\n[REGLA DE PRE-CONFIRMACIÓN DE DIRECCIÓN]:
+- Si el pedido es con envío a domicilio y aún no tenés calle + altura/lote confirmados, pedile la dirección exacta (o ubicación GPS de WhatsApp) y confirmá siempre con el cliente que la dirección y el barrio estén correctos antes de dar por cerrado el pedido.`;
+
+        const combinedSystemPrompt = `${fullSystemPrompt}\n\n${orderStatusContext}${routeVerificationPrompt}\n\n${neuralContext.contextPrompt}`;
 
         const llmResponse = await this.callLLMGeneric({
           provider: effectiveProvider,
@@ -3238,7 +3323,8 @@ Si el cliente solo consulta el estado de su pedido, respóndele con calidez sobr
         aiReplyText: replyText,
         products,
         stage: suggestedStage,
-        history
+        history,
+        preValidatedRoute
       });
     } catch (orderSyncErr) {
       console.warn('⚠️ [AIService] Error en sincronización de pedido:', orderSyncErr.message);

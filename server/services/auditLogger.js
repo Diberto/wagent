@@ -1,14 +1,25 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { CONFIG } from '../config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export class AuditLoggerService {
   constructor() {
-    this.logsDir = path.join(__dirname, '..', '..', 'data');
+    const legacyLogsDir = path.join(__dirname, '..', '..', 'data');
+    this.logsDir = CONFIG.DATA_DIR;
     this.logsFile = path.join(this.logsDir, 'audit_logs.json');
+    try {
+      if (!fs.existsSync(this.logsDir)) {
+        fs.mkdirSync(this.logsDir, { recursive: true });
+      }
+      const legacyFile = path.join(legacyLogsDir, 'audit_logs.json');
+      if (path.resolve(legacyLogsDir) !== path.resolve(this.logsDir) && fs.existsSync(legacyFile) && !fs.existsSync(this.logsFile)) {
+        fs.copyFileSync(legacyFile, this.logsFile);
+      }
+    } catch (_) {}
     this.maxLogs = 2000;
     this.io = null;
     this._saveTimeout = null;

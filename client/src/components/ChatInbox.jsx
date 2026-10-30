@@ -33,6 +33,7 @@ import {
   ShoppingBag,
   PackageCheck,
   ChevronRight,
+  ChevronLeft,
   ArrowRight,
   ShoppingCart,
   Plus,
@@ -1011,7 +1012,7 @@ export default function ChatInbox({
     <div className="flex-1 flex h-full overflow-hidden bg-[#111b21]">
       
       {/* 1. Barra Lateral: Lista de Conversaciones */}
-      <div className="w-full sm:w-80 lg:w-96 border-r border-slate-800 flex flex-col bg-[#111b21] flex-shrink-0">
+      <div className={`w-full sm:w-80 lg:w-96 border-r border-slate-800 flex-col bg-[#111b21] flex-shrink-0 ${selectedLead ? 'hidden sm:flex' : 'flex'}`}>
         
         {/* Encabezado y Buscador */}
         <div className="p-3.5 border-b border-slate-800 space-y-2.5">
@@ -1152,6 +1153,15 @@ export default function ChatInbox({
           {/* Header del Chat */}
           <div className="h-16 px-5 border-b border-slate-800 bg-[#111b21] flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3 min-w-0">
+              {/* Botón Volver (Solo Móvil < sm) */}
+              <button
+                onClick={() => setSelectedLead(null)}
+                className="sm:hidden p-1.5 -ml-2 mr-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
+                title="Volver a la lista de chats"
+              >
+                <ChevronLeft size={20} />
+              </button>
+
               <div className="relative w-10 h-10 rounded-full bg-slate-800 border border-slate-700 overflow-hidden text-emerald-400 font-bold flex items-center justify-center text-sm flex-shrink-0">
                 {selectedLead.avatar ? (
                   <img

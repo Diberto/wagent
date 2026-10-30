@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { MessageSquare, Calculator, PackageCheck, Bike, Menu, Bell, QrCode, Settings } from 'lucide-react';
+import { MessageSquare, Calculator, PackageCheck, Bike, Menu, Bell, QrCode, Settings, Camera } from 'lucide-react';
 import SidebarNav from './components/SidebarNav';
 import AdminHubView from './components/AdminHubView';
-import Navbar from './components/Navbar';
 import ChatInbox from './components/ChatInbox';
 import KanbanPipeline from './components/KanbanPipeline';
 import CallCenter from './components/CallCenter';
@@ -34,12 +33,13 @@ import LoyaltyView from './components/LoyaltyView';
 import CustomerLoyaltyPortalView from './components/CustomerLoyaltyPortalView';
 import DatabaseView from './components/DatabaseView';
 import LogsView from './components/LogsView';
-import SuiteNavigation from './components/SuiteNavigation';
 import CustomerPortalModal from './components/CustomerPortalModal';
 import LoginView from './components/LoginView';
 import StockTransfersView from './components/StockTransfersView';
+import SilentGroupOcrView from './components/SilentGroupOcrView';
 import ApiMcpHubView from './components/ApiMcpHubView';
 import MeatMarketIntelligenceView from './components/MeatMarketIntelligenceView';
+import { NAVIGATION_HUBS, findHubForTab } from './components/navigationConfig';
 import { playNotificationChime, playOrderChime, playMessagePing } from './utils/soundEffects';
 
 const socket = io({
@@ -697,6 +697,7 @@ export default function App() {
 
   const totalUnreadCount = leads.reduce((sum, l) => sum + (l.unreadCount || 0), 0);
   const isPosStandalone = typeof window !== 'undefined' && window.location.pathname.startsWith('/pos');
+  const activeHub = findHubForTab(currentTab);
 
   // Si no hay usuario autenticado en la sesión y no es una ruta pública de clientes (/micuenta, /tienda), mostrar pantalla de login
   if (!currentUser && currentTab !== 'micuenta' && currentTab !== 'storefront') {
@@ -797,6 +798,56 @@ export default function App() {
           </header>
         )}
 
+        {/* Submenu Pill Bar contextual del Hub Activo (Visible en todas las vistas de operador excepto storefront y micuenta) */}
+        {currentTab !== 'storefront' && currentTab !== 'micuenta' && !isPosStandalone && activeHub?.subTabs?.length > 1 && (
+          <div className="bg-[#111b21] border-b border-[#202c33] px-3 py-2 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar shrink-0 z-10">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider shrink-0 hidden sm:inline">
+                {activeHub.shortTitle || activeHub.title}:
+              </span>
+              <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+                {activeHub.subTabs.map(tab => {
+                  const TabIcon = tab.icon;
+                  const isActive = currentTab === tab.id;
+                  const badgeValue = tab.id === 'inbox' && totalUnreadCount > 0 ? totalUnreadCount : tab.badge;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        if (tab.id === 'storefront') {
+                          window.history.pushState({}, '', '/tienda');
+                        } else if (tab.id === 'micuenta') {
+                          window.history.pushState({}, '', '/micuenta');
+                        }
+                        setCurrentTab(tab.id);
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 ${
+                        isActive
+                          ? tab.highlight 
+                            ? 'bg-gradient-to-r from-red-600/30 to-amber-600/20 text-red-200 border border-red-500/40 shadow-sm'
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                          : 'text-slate-400 hover:text-white hover:bg-[#202c33] border border-transparent'
+                      }`}
+                    >
+                      <TabIcon size={13} className={isActive ? (tab.highlight ? 'text-red-400' : 'text-emerald-400') : 'text-slate-500'} />
+                      <span>{tab.shortLabel || tab.label}</span>
+                      {badgeValue && (
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                          typeof badgeValue === 'number'
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                        }`}>
+                          {badgeValue}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main View Area */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {currentTab === 'micuenta' && (
@@ -855,11 +906,18 @@ export default function App() {
           />
         )}
 
-        {(currentTab === 'stock-transfers' || currentTab === 'silent-group') && (
+        {currentTab === 'silent-group' && (
+          <SilentGroupOcrView 
+            socket={socket} 
+            user={currentUser} 
+          />
+        )}
+
+        {currentTab === 'stock-transfers' && (
           <StockTransfersView 
             socket={socket} 
             currentUser={currentUser} 
-            initialTab={currentTab === 'silent-group' ? 'silent-group' : 'stock'} 
+            initialTab="stock" 
           />
         )}
 
@@ -1015,26 +1073,23 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet screens < lg solo en panel Admin) */}
-      {currentTab !== 'storefront' && !isPosStandalone && (
-        <div className="lg:hidden h-14 bg-[#111b21]/95 border-t border-slate-800 flex items-center justify-around px-2 z-30 sticky bottom-0 backdrop-blur-md">
+      {currentTab !== 'storefront' && currentTab !== 'micuenta' && !isPosStandalone && (
+        <div className="lg:hidden h-14 bg-[#111b21]/95 border-t border-slate-800 flex items-center justify-around px-2 z-30 sticky bottom-0 backdrop-blur-md pb-safe">
           <button
             onClick={() => setCurrentTab('inbox')}
             className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
               currentTab === 'inbox' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <MessageSquare size={18} />
-            <span className="text-[10px]">Chats</span>
-          </button>
-
-          <button
-            onClick={() => setCurrentTab('pos')}
-            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-              currentTab === 'pos' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Calculator size={18} />
-            <span className="text-[10px]">POS</span>
+            <div className="relative">
+              <MessageSquare size={18} />
+              {totalUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-2 min-w-[12px] h-[12px] px-0.5 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-black flex items-center justify-center">
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px]">Atención</span>
           </button>
 
           <button
@@ -1048,13 +1103,23 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setCurrentTab('drivers')}
+            onClick={() => setCurrentTab('pos')}
             className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-              currentTab === 'drivers' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+              currentTab === 'pos' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Bike size={18} />
-            <span className="text-[10px]">Reparto</span>
+            <Calculator size={18} />
+            <span className="text-[10px]">POS</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentTab('silent-group')}
+            className={`flex flex-col items-center justify-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              currentTab === 'silent-group' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Camera size={18} />
+            <span className="text-[10px]">OCR Grupos</span>
           </button>
 
           <button

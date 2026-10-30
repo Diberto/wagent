@@ -2029,17 +2029,27 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
           customerName={mapPicker.customerName || 'Cliente'}
           onClose={() => setMapPicker(null)}
           onConfirmLocation={(loc) => {
+            const nextBranchName = loc.closestBranch ? loc.closestBranch.name.toUpperCase() : '';
+            const nextBranchId = loc.closestBranch ? loc.closestBranch.id : '';
             if (mapPicker.target === 'edit') {
               setEditForm(prev => ({
                 ...prev,
                 address: loc.address,
-                preferredBranch: loc.closestBranch ? loc.closestBranch.name.toUpperCase() : prev.preferredBranch
+                coordinates: loc.coordinates || null,
+                lat: loc.coordinates?.lat ?? null,
+                lng: loc.coordinates?.lng ?? null,
+                preferredBranch: nextBranchName || prev.preferredBranch,
+                preferredBranchId: nextBranchId || prev.preferredBranchId
               }));
             } else if (mapPicker.target === 'create') {
               setNewCustomerForm(prev => ({
                 ...prev,
                 address: loc.address,
-                preferredBranch: loc.closestBranch ? loc.closestBranch.name.toUpperCase() : prev.preferredBranch
+                coordinates: loc.coordinates || null,
+                lat: loc.coordinates?.lat ?? null,
+                lng: loc.coordinates?.lng ?? null,
+                preferredBranch: nextBranchName || prev.preferredBranch,
+                preferredBranchId: nextBranchId || prev.preferredBranchId
               }));
             } else if (mapPicker.target === 'view' && selectedCustomer) {
               // Actualizar datos del cliente directamente si fue en vista
@@ -2048,12 +2058,18 @@ export default function CustomersView({ socket, onSelectLeadForChat }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   address: loc.address,
-                  preferredBranch: loc.closestBranch ? loc.closestBranch.name.toUpperCase() : selectedCustomer.preferredBranch
+                  coordinates: loc.coordinates || null,
+                  lat: loc.coordinates?.lat ?? null,
+                  lng: loc.coordinates?.lng ?? null,
+                  preferredBranch: nextBranchName || selectedCustomer.preferredBranch,
+                  preferredBranchId: nextBranchId || selectedCustomer.preferredBranchId
                 })
               }).then(res => res.json()).then(updated => {
                 if (updated && updated.id) {
                   setSelectedCustomer(updated);
                   setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c));
+                  setSaveSuccess(true);
+                  setTimeout(() => setSaveSuccess(false), 3000);
                 }
               }).catch(err => console.error('Error updating customer location:', err));
             }

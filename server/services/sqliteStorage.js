@@ -2,16 +2,29 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
+import { CONFIG } from '../config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.resolve(__dirname, '../../data');
+const LEGACY_DATA_DIR = path.resolve(__dirname, '../../data');
+const DATA_DIR = CONFIG.DATA_DIR;
 const DB_FILE = path.join(DATA_DIR, 'wagent.db');
 const JSON_FILE = path.join(DATA_DIR, 'db.json');
 
-// Asegurar directorio data
+// Asegurar directorio data persistente y migrar archivos previos si existían en carpeta efímera
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (path.resolve(LEGACY_DATA_DIR) !== path.resolve(DATA_DIR) && fs.existsSync(LEGACY_DATA_DIR)) {
+  for (const fname of ['wagent.db', 'db.json']) {
+    const legacyPath = path.join(LEGACY_DATA_DIR, fname);
+    const targetPath = path.join(DATA_DIR, fname);
+    try {
+      if (fs.existsSync(legacyPath) && !fs.existsSync(targetPath)) {
+        fs.copyFileSync(legacyPath, targetPath);
+      }
+    } catch (_) {}
+  }
 }
 
 class SQLiteStorage {

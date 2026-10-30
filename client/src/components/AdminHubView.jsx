@@ -440,10 +440,32 @@ export default function AdminHubView({
   ];
 
   return (
-    <div className="flex h-full w-full bg-[#0b141a] text-slate-100 overflow-hidden select-none">
+    <div className="flex flex-col md:flex-row h-full w-full bg-[#0b141a] text-slate-100 overflow-hidden select-none">
       
-      {/* Master Left Rail: Categorías del Admin */}
-      <div className="w-64 sm:w-72 border-r border-[#202c33] bg-[#111b21] flex flex-col shrink-0">
+      {/* Mobile Top Category Strip (< md) */}
+      <div className="md:hidden bg-[#111b21] border-b border-[#202c33] px-2 py-2 flex items-center gap-1.5 overflow-x-auto custom-scrollbar shrink-0">
+        {sections.map(sec => {
+          const Icon = sec.icon;
+          const isActive = activeSection === sec.id;
+          return (
+            <button
+              key={sec.id}
+              onClick={() => setActiveSection(sec.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all ${
+                isActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-[#202c33] border border-transparent'
+              }`}
+            >
+              <Icon size={14} className={isActive ? 'text-emerald-400' : 'text-slate-500'} />
+              <span>{sec.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Master Left Rail: Categorías del Admin (Desktop >= md) */}
+      <div className="hidden md:flex w-64 sm:w-72 border-r border-[#202c33] bg-[#111b21] flex-col shrink-0">
         
         {/* Rail Header */}
         <div className="p-4 border-b border-[#202c33] bg-[#0c1317]">

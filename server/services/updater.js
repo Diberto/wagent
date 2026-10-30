@@ -186,10 +186,11 @@ export class UpdateService {
     try {
       pushLog(`🚀 [Auto-Deploy] Iniciando actualización de WAgent (Origen: ${trigger})...`);
 
-      // 0. Sincronizar memoria a disco y crear respaldo preventivo completo
-      pushLog('💾 Paso 0/5: Sincronizando datos en memoria a disco y creando respaldo preventivo...');
+      // 0. Sincronizar memoria a disco/nube y crear respaldo preventivo completo
+      pushLog('💾 Paso 0/5: Sincronizando datos en memoria a disco/MongoDB y creando respaldo preventivo...');
       try {
-        if (typeof db.flushSync === 'function') db.flushSync();
+        if (typeof db.flushAllAsync === 'function') await db.flushAllAsync();
+        else if (typeof db.flushSync === 'function') db.flushSync();
         const backup = BackupService.createBackup('pre-update-auto');
         pushLog(`✅ Respaldo preventivo creado con éxito: ${backup.filename}`);
       } catch (bkpErr) {
@@ -224,8 +225,9 @@ export class UpdateService {
         pushLog(`✅ Git pull resultado: ${pullResult.output || 'OK'}`);
       }
 
-      // Asegurar que la base de datos y configuraciones activas permanezcan sincronizadas
-      if (typeof db.flushSync === 'function') db.flushSync();
+      // Asegurar que la base de datos y configuraciones activas permanezcan sincronizadas en disco y nube
+      if (typeof db.flushAllAsync === 'function') await db.flushAllAsync();
+      else if (typeof db.flushSync === 'function') db.flushSync();
 
       // Guardar commit hash actualizado en caché
       try {
