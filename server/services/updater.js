@@ -10,10 +10,10 @@ const getAppVersion = () => {
     const pkgPath = path.join(CONFIG.ROOT_DIR, 'package.json');
     if (fs.existsSync(pkgPath)) {
       const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      return data.version || '1.3.3';
+      return data.version || '1.3.4';
     }
   } catch (e) {}
-  return '1.3.3';
+  return '1.3.4';
 };
 
 const getExecutionEnv = () => {
